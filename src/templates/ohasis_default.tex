@@ -1,0 +1,157 @@
+\documentclass{article}
+\usepackage{setspace}
+\usepackage{geometry}
+\geometry{
+    a4paper,
+    top=.6in,
+    right=.5in,
+    bottom=.5in,
+    left=.5in,
+    portrait
+}
+\usepackage[no-math]{fontspec}
+\usepackage{anyfontsize}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{vcell}
+\AtBeginDocument{\let\maketitle\relax}
+\usepackage[document]{ragged2e}
+\usepackage{contour}
+\usepackage{ulem}
+\renewcommand{\ULdepth}{1.8pt}
+\contourlength{0.8pt}
+\newcommand{\myuline}[1]{%
+    \uline{\phantom{#1}}%
+    \llap{\contour{white}{#1}}%
+}
+\newcommand{\centered}[1]{\begin{tabular}{l}
+                              #1
+\end{tabular}}
+\newdimen\NetTableWidth
+\usepackage{xcolor}
+\usepackage{colortbl}
+\definecolor{table_gray}{RGB}{222, 222, 222}
+\definecolor{ohasis_teal}{RGB}{41, 160, 140}
+\definecolor{ohasis_dark}{RGB}{59, 122, 128}
+\definecolor{slight_gray}{RGB}{244, 247, 247}
+\definecolor{stirup_orange}{RGB}{197, 80, 62}
+\definecolor{stirup_white}{RGB}{239, 241, 228}
+\definecolor{stirup_dark}{RGB}{131, 171, 171}
+\definecolor{stirup_gray}{RGB}{89, 89, 89}
+\usepackage{boldline}
+\usepackage{amsmath}
+\usepackage[default]{lato}
+\usepackage{mathastext}
+\Mathastext[lato]
+\usepackage{xfrac}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usepackage{longtable}
+\usepackage{atbegshi}
+\usepackage{afterpage}
+\usepackage{fancyhdr}
+\setlength{\LTpre}{0pt}
+
+\fontspec[
+    Path = H:/_Resources/Fonts/Isadora Sans/TTF/,
+    BoldFont = IsidoraSans-Medium.ttf,
+    ItalicFont = IsidoraSans-RegularItalic.ttf,
+    BoldItalicFont = IsidoraSans-BoldItalic.ttf,
+]{IsidoraSans-Regular.ttf}
+\newfontfamily\semibf{IsidoraSans-Bold}
+
+
+
+\fontspec[
+    Path = H:/_Resources/Fonts/Chronica Pro/TTF/,
+    BoldFont = ChronicaPro-Medium.ttf,
+    ItalicFont = ChronicaProBookIt.ttf,
+    BoldItalicFont = ChronicaPro-BoldIt.ttf,
+]{ChronicaPro-Regular.ttf}
+
+\setlength{\abovetopsep}{.4ex}
+
+$if(highlighting-macros)$
+$highlighting-macros$
+$endif$
+
+
+\newcommand\FrontHeader{%
+    \begin{tikzpicture}[remember picture,overlay]
+        \node[yshift=-2.5cm] at (current page.north west)
+            {\begin{tikzpicture}[remember picture, overlay]
+                 \includegraphics[width=\paperwidth]{H:/_Resources/Images/PNG/OHASIS Header.png};
+                 \node[anchor=west,xshift=.15cm,yshift=1.28cm]
+                 {\includegraphics[width=1.95cm]{H:/_Resources/Images/Logos/Logo - DOH.png}};
+                 \node[anchor=west,xshift=2.3cm,yshift=1.80cm]
+                 {\fontsize{14}{14}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{yellow}{\textbf{Department of Health | Epidemiology Bureau}}};
+                 \node[anchor=west,xshift=2.3cm,yshift=1.15cm]
+                 {\fontsize{22}{22}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{white}{\textbf{ONE HIV/AIDS \& STI INFORMATION SYSTEM}}};
+        \end{tikzpicture}
+        };
+    \end{tikzpicture}
+}
+\newcommand\PageHeader{%
+    \begin{tikzpicture}[remember picture,overlay]
+        \node[yshift=-1.25cm] at (current page.north west)
+            {\begin{tikzpicture}[remember picture, overlay]
+                 \includegraphics[width=\paperwidth]{H:/_Resources/Images/PNG/OHASIS Small Header.png};
+                 \node[anchor=west,xshift=.15cm,yshift=.60cm]
+                 {\includegraphics[width=1.05cm]{H:/_Resources/Images/Logos/Logo - DOH.png}};
+                 \node[anchor=west,xshift=3.85cm,yshift=.60cm]
+                 {\fontsize{18}{18}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{white}{\textbf{ONE HIV/AIDS \& STI INFORMATION SYSTEM}}};
+        \end{tikzpicture}
+        };
+    \end{tikzpicture}
+}
+
+\fancypagestyle{my1stpagestyle}{%
+    \pagenumbering{gobble}
+    \fancyhead[C]{
+        \begin{tikzpicture}[remember picture,overlay]
+            \node[yshift=-2.5cm] at (current page.north west)
+                {\begin{tikzpicture}[remember picture, overlay]
+                     \includegraphics[width=\paperwidth]{H:/_Resources/Images/PNG/OHASIS Header.png};
+                     \node[anchor=west,xshift=.15cm,yshift=1.28cm]
+                     {\includegraphics[width=1.95cm]{H:/_Resources/Images/Logos/Logo - DOH.png}};
+                     \node[anchor=west,xshift=2.3cm,yshift=1.80cm]
+                     {\fontsize{14}{14}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{yellow}{\textbf{Department of Health | Epidemiology Bureau}}};
+                     \node[anchor=west,xshift=2.3cm,yshift=1.15cm]
+                     {\fontsize{22}{22}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{white}{\textbf{ONE HIV/AIDS \& STI INFORMATION SYSTEM}}};
+            \end{tikzpicture}
+            };
+        \end{tikzpicture}
+    }
+}
+
+\fancypagestyle{generalpagestyle}{%
+    \pagenumbering{gobble}
+    \fancyhead[C]{
+        \begin{tikzpicture}[remember picture,overlay]
+            \node[yshift=-1.25cm] at (current page.north west)
+                {\begin{tikzpicture}[remember picture, overlay]
+                     \includegraphics[width=\paperwidth]{H:/_Resources/Images/PNG/OHASIS Small Header.png};
+                     \node[anchor=west,xshift=.15cm,yshift=.60cm]
+                     {\includegraphics[width=1.05cm]{H:/_Resources/Images/Logos/Logo - DOH.png}};
+                     \node[anchor=west,xshift=3.85cm,yshift=.60cm]
+                     {\fontsize{18}{18}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{white}{\textbf{ONE HIV/AIDS \& STI INFORMATION SYSTEM}}};
+            \end{tikzpicture}
+            };
+        \end{tikzpicture}
+    }
+}
+
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\pagestyle{generalpagestyle}
+
+\begin{document}
+    \thispagestyle{my1stpagestyle}
+    \phantom{invi}
+    \bigskip
+    \bigskip
+
+    $body$
+\end{document}

@@ -89,15 +89,21 @@ DQT
 The `src` directory is divided into the different types of output files the scripts can generate. These have further
 stratification to delineate between the different exported data they output.
 
+- `dependencies` - code requirements when running the project.
+
 - `official` - NHSSS final output datasets.
 
-- `ohasis` - OHASIS first-level exports (Forms, Inventory, etc.)
+- `ohasis` - OHASIS first-level exports (Forms, Inventory, etc.).
+
+- `template` - template files used to design automated reports/briefers.
 
 ```
 DQT
 └───src
+    ├───dependencies
     ├───official
-    └───ohasis
+    ├───ohasis
+    └───templates
 
 ```
 
