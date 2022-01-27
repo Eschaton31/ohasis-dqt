@@ -22,7 +22,8 @@ Installation Instructions
 1. Install PyCharm
 2. Add VCS
 3. Manage Remotes (origin = http://130.105.75.3:3000/nhsss_admin/ohasis-dqt.git)
-4. Pull
+4. Make your own branch (initials, lastname, .doh) jrpalo.doh
+5. Pull
 
 [To be added.]
 
@@ -82,6 +83,21 @@ DQT
 └───ref
     ├───.all
     └───2021.08
+
+```
+
+The `src` directory is divided into the different types of output files the scripts can generate. These have further
+stratification to delineate between the different exported data they output.
+
+- `official` - NHSSS final output datasets.
+
+- `ohasis` - OHASIS first-level exports (Forms, Inventory, etc.)
+
+```
+DQT
+└───src
+    ├───official
+    └───ohasis
 
 ```
 
