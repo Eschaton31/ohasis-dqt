@@ -16,9 +16,19 @@ shell("cls")
 rm(list = ls())
 
 ##------------------------------------------------------------------------------
-##  Load Environment Variables                                                --
+##  Load Environment Variables
 ##------------------------------------------------------------------------------
+
+# check if OS is Windows, if not use the mounted Rlib volumne
+if (Sys.info()['sysname'] == "Linux")
+   .libPaths("/dqt/Rlib")
 
 source("src/dependencies/libraries.R")
 source("src/dependencies/classes.R")
-source("src/dependencies/project.R")
+
+##------------------------------------------------------------------------------
+##  Load primary classes
+##------------------------------------------------------------------------------
+
+# initiate the project & database
+ohasis <- DB()

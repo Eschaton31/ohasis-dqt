@@ -3,7 +3,9 @@
 ##------------------------------------------------------------------------------
 
 # easy loader for libraries
-if (!require(pacman)) install.packages('pacman')
+if (!require(pacman))
+   install.packages('pacman')
+
 
 # load libraries
 library(pacman)
@@ -36,5 +38,5 @@ p_load(
    furrr,
    writexl,
    clipr,
-   formattable
+   dbx
 )

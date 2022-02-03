@@ -1,0 +1,218 @@
+##------------------------------------------------------------------------------
+##  Person Identifiable Information
+##------------------------------------------------------------------------------
+
+id_col <- "REC_ID"
+object <- tbl(db_conn, "px_record") %>%
+   mutate(
+      DISEASE = case_when(
+         DISEASE == "101000" ~ "HIV",
+         DISEASE == "102000" ~ "Hepatitis B",
+         DISEASE == "103000" ~ "Hepatitis C",
+         TRUE ~ DISEASE
+      ),
+      MODULE  = case_when(
+         MODULE == "0" ~ "0_Client Add/Update",
+         MODULE == "1" ~ "1_General",
+         MODULE == "2" ~ "2_Testing",
+         MODULE == "3" ~ "3_Treatment",
+         MODULE == "4" ~ "4_Modality",
+         MODULE == "6" ~ "6_Prevention",
+         TRUE ~ MODULE
+      )
+   ) %>%
+   left_join(
+      y  = tbl(db_conn, "px_info") %>%
+         mutate(
+            SEX = case_when(
+               SEX == 1 ~ '1_Male',
+               SEX == 2 ~ '2_Female',
+               TRUE ~ as.character(SEX)
+            )
+         ) %>%
+         select(
+            REC_ID,
+            CONFIRMATORY_CODE,
+            UIC,
+            PHILHEALTH_NO,
+            SEX,
+            BIRTHDATE,
+            PATIENT_CODE,
+            PHILSYS_ID,
+            NAME_UPD_BY = UPDATED_BY,
+            NAME_UPD_AT = UPDATED_AT
+         ),
+      by = "REC_ID"
+   ) %>%
+   left_join(
+      y  = tbl(db_conn, "px_name") %>%
+         select(
+            REC_ID,
+            FIRST,
+            MIDDLE,
+            LAST,
+            SUFFIX,
+            INFO_UPD_BY = UPDATED_BY,
+            INFO_UPD_AT = UPDATED_AT
+         ),
+      by = "REC_ID"
+   ) %>%
+   left_join(
+      y  = tbl(db_conn, "px_faci") %>%
+         mutate(
+            SERVICE_TYPE = case_when(
+               SERVICE_TYPE == '*00001' ~ 'Mortality',
+               SERVICE_TYPE == '101101' ~ 'HIV FBT',
+               SERVICE_TYPE == '101102' ~ 'HIV FBT',
+               SERVICE_TYPE == '101103' ~ 'CBS',
+               SERVICE_TYPE == '101104' ~ 'FBS',
+               SERVICE_TYPE == '101105' ~ 'ST',
+               SERVICE_TYPE == '101201' ~ 'ART',
+               SERVICE_TYPE == '101301' ~ 'PrEP',
+               SERVICE_TYPE == '101303' ~ 'PMTCT-N',
+               SERVICE_TYPE == '101304' ~ 'Reach',
+               SERVICE_TYPE == '' ~ NA_character_,
+               TRUE ~ SERVICE_TYPE
+            )
+         ) %>%
+         select(
+            REC_ID,
+            SERVICE_TYPE,
+            FACI_UPD_BY = UPDATED_BY,
+            FACI_UPD_AT = UPDATED_AT
+         ) %>%
+         group_by(REC_ID) %>%
+         summarise(
+            SERVICE_TYPE = SERVICE_TYPE,
+            FACI_UPD_BY  = max(FACI_UPD_BY, na.rm = TRUE),
+            FACI_UPD_AT  = max(FACI_UPD_AT, na.rm = TRUE)
+         ),
+      by = "REC_ID"
+   ) %>%
+   left_join(
+      y  = tbl(db_conn, "px_form") %>%
+         mutate(
+            FORM_VERSION = if_else(
+               !is.na(FORM) & FORM != '',
+               paste0(FORM, ' (v', VERSION, ')'),
+               NA_character_
+            )
+         ) %>%
+         select(
+            REC_ID,
+            FORM_VERSION
+         ),
+      by = "REC_ID"
+   ) %>%
+   left_join(
+      y  = tbl(db_conn, "px_profile") %>%
+         left_join(
+            y  = tbl(db_conn, "addr_country") %>%
+               select(
+                  NATIONALITY = COUNTRY_CODE,
+                  COUNTRY_NAME
+               ),
+            by = 'NATIONALITY'
+         ) %>%
+         mutate(
+            SELF_IDENT   = case_when(
+               SELF_IDENT == 1 ~ '1_Male',
+               SELF_IDENT == 2 ~ '2_Female',
+               SELF_IDENT == 3 ~ '3_Other',
+               TRUE ~ NA_character_
+            ),
+            EDUC_LEVEL   = case_when(
+               EDUC_LEVEL == 1 ~ '1_None',
+               EDUC_LEVEL == 2 ~ '2_Elementary',
+               EDUC_LEVEL == 3 ~ '3_High School',
+               EDUC_LEVEL == 4 ~ '4_College',
+               EDUC_LEVEL == 5 ~ '5_Vocational',
+               EDUC_LEVEL == 6 ~ '6_Post-Graduate',
+               EDUC_LEVEL == 7 ~ '7_Pre-school',
+               TRUE ~ NA_character_
+            ),
+            CIVIL_STATUS = case_when(
+               CIVIL_STATUS == 1 ~ '1_Single',
+               CIVIL_STATUS == 2 ~ '2_Married',
+               CIVIL_STATUS == 3 ~ '3_Separated',
+               CIVIL_STATUS == 4 ~ '4_Widowed',
+               CIVIL_STATUS == 5 ~ '5_Divorced',
+               TRUE ~ NA_character_
+            )
+         ) %>%
+         mutate_at(
+            .vars = vars(GENDER_AFFIRM_THERAPY, LIVING_WITH_PARTNER),
+            ~case_when(
+               . == 1 ~ '1_Yes',
+               . == 0 ~ '0_No',
+               TRUE ~ NA_character_
+            )
+         ) %>%
+         select(
+            REC_ID,
+            AGE,
+            AGE_MO,
+            GENDER_AFFIRM_THERAPY,
+            SELF_IDENT,
+            SELF_IDENT_OTHER,
+            NATIONALITY = COUNTRY_NAME,
+            NATIONALITY_OTHER,
+            EDUC_LEVEL,
+            CIVIL_STATUS,
+            LIVING_WITH_PARTNER,
+            CHILDREN
+         ),
+      by = "REC_ID"
+   ) %>%
+   mutate(
+      UPDATED    = case_when(
+         !is.na(UPDATED_AT) ~ "record",
+         !is.na(FACI_UPD_AT) ~ "faci",
+         INFO_UPD_AT > NAME_UPD_AT ~ "info",
+         INFO_UPD_AT < NAME_UPD_AT ~ "name",
+         INFO_UPD_AT == NAME_UPD_AT ~ "info",
+         !is.na(INFO_UPD_AT) & is.na(NAME_UPD_AT) ~ "info",
+         is.na(INFO_UPD_AT) & !is.na(NAME_UPD_AT) ~ "name",
+         TRUE ~ NA_character_
+      ),
+      UPDATED_BY = case_when(
+         UPDATED == "record" ~ UPDATED_BY,
+         UPDATED == "faci" ~ FACI_UPD_BY,
+         UPDATED == "info" ~ INFO_UPD_BY,
+         UPDATED == "name" ~ NAME_UPD_BY,
+         TRUE ~ UPDATED_BY
+      ),
+      UPDATED_AT = case_when(
+         UPDATED == "record" ~ UPDATED_AT,
+         UPDATED == "faci" ~ FACI_UPD_AT,
+         UPDATED == "info" ~ INFO_UPD_AT,
+         UPDATED == "name" ~ NAME_UPD_AT,
+         TRUE ~ UPDATED_AT
+      ),
+      SNAPSHOT   = case_when(
+         !is.na(DELETED_AT) ~ DELETED_AT,
+         !is.na(UPDATED_AT) ~ UPDATED_AT,
+         TRUE ~ CREATED_AT
+      )
+   ) %>%
+   filter(
+      SNAPSHOT >= snapshot_old,
+      SNAPSHOT < snapshot_new
+   ) %>%
+   select(
+      -ends_with("_UPD_AT"),
+      -ends_with("_UPD_BY"),
+      -UPDATED,
+      -SNAPSHOT
+   ) %>%
+   relocate(
+      FORM_VERSION,
+      CREATED_BY,
+      CREATED_AT,
+      UPDATED_BY,
+      UPDATED_AT,
+      DELETED_BY,
+      DELETED_AT,
+      .after = PATIENT_ID
+   ) %>%
+   collect()

@@ -1,4 +1,4 @@
-NHSSS: Data Quality Team (Informatics)
+NHSSS-DQT (Architectures & Infrastructure)
 ========================================================================================================================
 Author/s:
 
@@ -83,28 +83,30 @@ DQT
 └───ref
     ├───.all
     └───2021.08
-
 ```
 
 The `src` directory is divided into the different types of output files the scripts can generate. These have further
 stratification to delineate between the different exported data they output.
 
+- `data_lake` - scripts run to populate the data lake.
+
 - `dependencies` - code requirements when running the project.
 
 - `official` - NHSSS final output datasets.
 
-- `ohasis` - OHASIS first-level exports (Forms, Inventory, etc.).
+- `data_warehouse` - OHASIS first-level exports (Forms, Inventory, etc.).
 
 - `template` - template files used to design automated reports/briefers.
 
 ```
 DQT
 └───src
+    ├───data_lake
+    ├───data_warehouse
     ├───dependencies
     ├───official
     ├───ohasis
     └───templates
-
 ```
 
 ---
