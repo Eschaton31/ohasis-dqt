@@ -23,12 +23,6 @@ object <- tbl(db_conn, "px_addr") %>%
       PSGC_MUNC = ADDR_MUNC,
       ADDR      = ADDR_TEXT
    ) %>%
-   collect() %>%
-   left_join(
-      y    = tbl(dl_conn, "ref_addr"),
-      by   = c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC"),
-      copy = TRUE
-   ) %>%
    mutate(
       ADDR_TYPE = case_when(
          ADDR_TYPE == 1 ~ "CURR",
@@ -39,20 +33,12 @@ object <- tbl(db_conn, "px_addr") %>%
          TRUE ~ as.character(ADDR_TYPE)
       )
    ) %>%
-   add_row(
-      REC_ID    = "DUMMY",
-      ADDR_TYPE = "CURR"
-   ) %>%
    pivot_wider(
       id_cols     = c("REC_ID", "ADDR_TYPE"),
       names_from  = ADDR_TYPE,
-      values_from = c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC",
-                      "NAME_REG", "NAME_PROV", "NAME_MUNC",
-                      "LABEL_REG", "LABEL_PROV", "LABEL_MUNC",
-                      "ADDR"),
+      values_from = c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC", "ADDR"),
       names_glue  = "{ADDR_TYPE}_{.value}"
-   ) %>% 
-   filter(REC_ID != "DUMMY") %>%
+   ) %>%
    select(
       REC_ID,
       starts_with("CURR_"),
@@ -60,4 +46,5 @@ object <- tbl(db_conn, "px_addr") %>%
       starts_with("BIRTH_"),
       starts_with("DEATH_"),
       starts_with("SERVICE_")
-   )
+   ) %>%
+   collect()

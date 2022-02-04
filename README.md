@@ -1,4 +1,4 @@
-NHSSS-DQT (Architectures & Infrastructure)
+NHSSS-DQT (Architectures & Infrastructures)
 ========================================================================================================================
 Author/s:
 
