@@ -95,9 +95,9 @@ DB <- setRefClass(
             log_info("DB is clean.")
 
          # update data lake
-         update <- export("Project")$input(prompt = "Update the data lake?", c("yes", "no"), "yes")
+         update <- export("Project")$input(prompt = "Update the data lake?", c("all", "yes", "no"), "yes")
          update <- substr(toupper(update), 1, 1)
-         if (update == "Y") {
+         if (update %in% c("Y", "A")) {
             # get required refresh data & upsert only
             for (path in (c("refresh", "upsert"))) {
                if (path == "refresh")
@@ -107,9 +107,15 @@ DB <- setRefClass(
 
                lake_dir <- file.path("src", "data_lake", path)
 
+               # if all should be updated
+               if (update == "A")
+                  update_all <- TRUE
+               else
+                  update_all <- FALSE
+
                lake_table <- function(table) {
                   table <- stri_replace_last_fixed(table, ".R", "")
-                  .self$lake(table, refresh = refresh, path = lake_dir)
+                  .self$lake(table, refresh = refresh, path = lake_dir, default = update_all)
                }
 
                lapply(list.files(lake_dir, pattern = "ref_*"), lake_table)
@@ -185,7 +191,7 @@ DB <- setRefClass(
          }
 
          # upsert data
-         chunk_size <- 5000
+         chunk_size <- 100
          if (nrow(data) >= chunk_size) {
             # upload in chunks to monitor progress
             n_rows     <- nrow(data)
@@ -194,7 +200,7 @@ DB <- setRefClass(
             data_bytes <- as.numeric(object.size(data))
 
             # get progress
-            pb <- progress_bar$new(format = "Uploaded :bytes chunks @ :rate [:bar] (:percent) ETA: :eta", total = data_bytes, width = 80, clear = FALSE)
+            pb <- progress_bar$new(format = "Uploaded :bytes chunks @ :rate [:bar] (:percent) ETA: :eta; Elapsed: :elapsed", total = data_bytes, width = 80, clear = FALSE)
             pb$tick(0)
             for (i in seq_len(length(data))) {
                chunk_bytes <- as.numeric(object.size(data[[i]]))
@@ -251,16 +257,22 @@ DB <- setRefClass(
       },
 
       # update lake
-      lake              = function(table = NULL, refresh = FALSE, path = NULL) {
+      lake              = function(table = NULL, refresh = FALSE, path = NULL, default = NULL) {
          # get input
-         update <- export("Project")$input(prompt = paste0("Update `", table, "`?"),
-                                           c("yes", "no"),
-                                           "yes")
+         if (!is.null(default)) {
+            update <- "Y"
+            log_info(paste0("Updating `", table, "`."))
+         } else {
+            update <- export("Project")$input(prompt = paste0("Update `", table, "`?"),
+                                              c("yes", "no"),
+                                              "yes")
+         }
          update <- substr(toupper(update), 1, 1)
 
          # update
          if (update == "Y") {
             # open connections
+            log_info("Opening connections...")
             db_conn <- .self$conn("db")
             dl_conn <- .self$conn("dl")
 
@@ -311,7 +323,7 @@ DB <- setRefClass(
 
 
       # update warehouse
-      warehouse              = function(table = NULL, refresh = FALSE, path = NULL) {
+      warehouse         = function(table = NULL, refresh = FALSE, path = NULL) {
          # get input
          update <- export("Project")$input(prompt = paste0("Update `", table, "`?"),
                                            c("yes", "no"),
@@ -321,6 +333,7 @@ DB <- setRefClass(
          # update
          if (update == "Y") {
             # open connections
+            log_info("Opening connections...")
             db_conn <- .self$conn("db")
             dl_conn <- .self$conn("dl")
             dw_conn <- .self$conn("dw")

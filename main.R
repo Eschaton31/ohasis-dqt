@@ -16,7 +16,9 @@ shell("cls")
 rm(list = ls())
 Sys.setenv(TZ = "UTC")
 options(
-   browser = "C:/Program Files (x86)/Microsoft/Edge Dev/Application/msedge.exe"
+   # browser = Sys.getenv("BROWSER"),
+   browser = NULL,
+   help_type = "html"
 )
 
 ##------------------------------------------------------------------------------
