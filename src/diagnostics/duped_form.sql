@@ -1,0 +1,8 @@
+SELECT *
+FROM px_form
+WHERE REC_ID IN (
+    SELECT REC_ID
+    FROM px_form
+    GROUP BY REC_ID
+    HAVING COUNT(*) > 1
+)
