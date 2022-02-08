@@ -14,6 +14,10 @@ shell("cls")
 ################################################################################
 
 rm(list = ls())
+Sys.setenv(TZ = "UTC")
+options(
+   browser = "C:/Program Files (x86)/Microsoft/Edge Dev/Application/msedge.exe"
+)
 
 ##------------------------------------------------------------------------------
 ##  Load Environment Variables
@@ -27,8 +31,32 @@ source("src/dependencies/libraries.R")
 source("src/dependencies/classes.R")
 
 ##------------------------------------------------------------------------------
+##  Load credentials and authentications
+##------------------------------------------------------------------------------
+
+# GMail
+# trigger auth on purpose --> store a token in the specified cache
+options(
+   gargle_oauth_cache = ".secrets",
+   gargle_oauth_email = "nhsss@doh.gov.ph",
+   gargle_oob_default = TRUE
+)
+drive_auth(cache = ".secrets")
+
+# Dropbox
+# trigger auth on purpose --> store a token in the specified cache
+if (!file.exists(".secrets/hivregistry.nec.RDS")) {
+   token <- drop_auth()
+   saveRDS(token, ".secrets/hivregistry.nec.RDS")
+   rm('token')
+} else {
+   drop_auth(rdstoken = ".secrets/hivregistry.nec.RDS")
+}
+
+##------------------------------------------------------------------------------
 ##  Load primary classes
 ##------------------------------------------------------------------------------
 
 # initiate the project & database
 ohasis <- DB()
+

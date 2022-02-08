@@ -89,6 +89,46 @@ object <- tbl(db_conn, "px_record") %>%
          ),
       by = "REC_ID"
    ) %>%
+   mutate(
+      UPDATED    = case_when(
+         !is.na(UPDATED_AT) ~ "record",
+         !is.na(FACI_UPD_AT) ~ "faci",
+         INFO_UPD_AT > NAME_UPD_AT ~ "info",
+         INFO_UPD_AT < NAME_UPD_AT ~ "name",
+         INFO_UPD_AT == NAME_UPD_AT ~ "info",
+         !is.na(INFO_UPD_AT) & is.na(NAME_UPD_AT) ~ "info",
+         is.na(INFO_UPD_AT) & !is.na(NAME_UPD_AT) ~ "name",
+         TRUE ~ NA_character_
+      ),
+      UPDATED_BY = case_when(
+         UPDATED == "record" ~ UPDATED_BY,
+         UPDATED == "faci" ~ FACI_UPD_BY,
+         UPDATED == "info" ~ INFO_UPD_BY,
+         UPDATED == "name" ~ NAME_UPD_BY,
+         TRUE ~ UPDATED_BY
+      ),
+      UPDATED_AT = case_when(
+         UPDATED == "record" ~ UPDATED_AT,
+         UPDATED == "faci" ~ FACI_UPD_AT,
+         UPDATED == "info" ~ INFO_UPD_AT,
+         UPDATED == "name" ~ NAME_UPD_AT,
+         TRUE ~ UPDATED_AT
+      ),
+      SNAPSHOT   = case_when(
+         !is.na(DELETED_AT) ~ DELETED_AT,
+         !is.na(UPDATED_AT) ~ UPDATED_AT,
+         TRUE ~ CREATED_AT
+      )
+   ) %>%
+   filter(
+      SNAPSHOT >= snapshot_old,
+      SNAPSHOT < snapshot_new
+   ) %>%
+   select(
+      -ends_with("_UPD_AT"),
+      -ends_with("_UPD_BY"),
+      -UPDATED
+   ) %>%
    left_join(
       y  = tbl(db_conn, "px_form") %>%
          mutate(
@@ -164,46 +204,41 @@ object <- tbl(db_conn, "px_record") %>%
          ),
       by = "REC_ID"
    ) %>%
-   mutate(
-      UPDATED    = case_when(
-         !is.na(UPDATED_AT) ~ "record",
-         !is.na(FACI_UPD_AT) ~ "faci",
-         INFO_UPD_AT > NAME_UPD_AT ~ "info",
-         INFO_UPD_AT < NAME_UPD_AT ~ "name",
-         INFO_UPD_AT == NAME_UPD_AT ~ "info",
-         !is.na(INFO_UPD_AT) & is.na(NAME_UPD_AT) ~ "info",
-         is.na(INFO_UPD_AT) & !is.na(NAME_UPD_AT) ~ "name",
-         TRUE ~ NA_character_
-      ),
-      UPDATED_BY = case_when(
-         UPDATED == "record" ~ UPDATED_BY,
-         UPDATED == "faci" ~ FACI_UPD_BY,
-         UPDATED == "info" ~ INFO_UPD_BY,
-         UPDATED == "name" ~ NAME_UPD_BY,
-         TRUE ~ UPDATED_BY
-      ),
-      UPDATED_AT = case_when(
-         UPDATED == "record" ~ UPDATED_AT,
-         UPDATED == "faci" ~ FACI_UPD_AT,
-         UPDATED == "info" ~ INFO_UPD_AT,
-         UPDATED == "name" ~ NAME_UPD_AT,
-         TRUE ~ UPDATED_AT
-      ),
-      SNAPSHOT   = case_when(
-         !is.na(DELETED_AT) ~ DELETED_AT,
-         !is.na(UPDATED_AT) ~ UPDATED_AT,
-         TRUE ~ CREATED_AT
-      )
-   ) %>%
-   filter(
-      SNAPSHOT >= snapshot_old,
-      SNAPSHOT < snapshot_new
-   ) %>%
-   select(
-      -ends_with("_UPD_AT"),
-      -ends_with("_UPD_BY"),
-      -UPDATED,
-      -SNAPSHOT
+   left_join(
+      y  = tbl(db_conn, "px_addr") %>%
+         select(
+            REC_ID,
+            ADDR_TYPE,
+            PSGC_REG  = ADDR_REG,
+            PSGC_PROV = ADDR_PROV,
+            PSGC_MUNC = ADDR_MUNC,
+            ADDR      = ADDR_TEXT
+         ) %>%
+         mutate(
+            ADDR_TYPE = case_when(
+               ADDR_TYPE == 1 ~ "CURR",
+               ADDR_TYPE == 2 ~ "PERM",
+               ADDR_TYPE == 3 ~ "BIRTH",
+               ADDR_TYPE == 4 ~ "DEATH",
+               ADDR_TYPE == 5 ~ "SERVICE",
+               TRUE ~ as.character(ADDR_TYPE)
+            )
+         ) %>%
+         pivot_wider(
+            id_cols     = c("REC_ID", "ADDR_TYPE"),
+            names_from  = ADDR_TYPE,
+            values_from = c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC", "ADDR"),
+            names_glue  = "{ADDR_TYPE}_{.value}"
+         ) %>%
+         select(
+            REC_ID,
+            starts_with("CURR_"),
+            starts_with("PERM_"),
+            starts_with("BIRTH_"),
+            starts_with("DEATH_"),
+            starts_with("SERVICE_")
+         ),
+      by = "REC_ID"
    ) %>%
    relocate(
       FORM_VERSION,
@@ -213,6 +248,7 @@ object <- tbl(db_conn, "px_record") %>%
       UPDATED_AT,
       DELETED_BY,
       DELETED_AT,
+      SNAPSHOT,
       .after = PATIENT_ID
    ) %>%
    collect()

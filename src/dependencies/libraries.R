@@ -6,11 +6,9 @@
 if (!require(pacman))
    install.packages('pacman')
 
-
 # load libraries
 library(pacman)
 p_load(
-   gmailr,
    ggplot2,
    RColorBrewer,
    DescTools,
@@ -38,5 +36,12 @@ p_load(
    furrr,
    writexl,
    clipr,
-   dbx
+   dbx,
+   logger,
+   fs,
+   progress,
+   gmailr,
+   googledrive,
+   googlesheets4,
+   rdrop2
 )

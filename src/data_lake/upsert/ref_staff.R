@@ -33,6 +33,7 @@ object <- tbl(db_conn, "users") %>%
       CREATED_AT,
       UPDATED_AT,
       DELETED_AT,
-      REACTIVATE_AT
+      REACTIVATE_AT,
+      SNAPSHOT
    ) %>%
    collect()

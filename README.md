@@ -110,3 +110,7 @@ DQT
 ```
 
 ---
+
+Patient matching within a Health Information Exchange[^1].
+
+[^1]: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4696093/

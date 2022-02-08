@@ -1,1 +1,3 @@
 /.Renviron
+/.secrets
+.httr-oauth

@@ -30,8 +30,8 @@ object <- tbl(db_conn, "addr_reg") %>%
          ),
       by = "PSGC_PROV"
    ) %>%
-   union_all(
-      tbl(db_conn, "addr_reg") %>%
+   union(
+      y = tbl(db_conn, "addr_reg") %>%
          select(
             PSGC_REG  = REG,
             NAME_REG  = NAME,
@@ -47,8 +47,8 @@ object <- tbl(db_conn, "addr_reg") %>%
             NHSSS_MUNC = "UNKNOWN"
          )
    ) %>%
-   union_all(
-      tbl(db_conn, "addr_reg") %>%
+   union(
+      y = tbl(db_conn, "addr_reg") %>%
          select(
             PSGC_REG  = REG,
             NAME_REG  = NAME,
@@ -71,8 +71,8 @@ object <- tbl(db_conn, "addr_reg") %>%
             NHSSS_MUNC = "UNKNOWN"
          )
    ) %>%
-   union_all(
-      tbl(db_conn, "addr_reg") %>%
+   union(
+      y = tbl(db_conn, "addr_reg") %>%
          head(n = 1) %>%
          mutate(
             PSGC_REG   = NA_character_,
