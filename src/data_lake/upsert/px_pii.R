@@ -4,6 +4,17 @@
 
 id_col <- "REC_ID"
 object <- tbl(db_conn, "px_record") %>%
+   filter(
+      (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
+         (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
+         (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
+   )
+
+# get number of affected rows
+if ((object %>% count() %>% collect())$n == 0)
+   object <- object %>% collect()
+else
+object <- object %>%
    mutate(
       DISEASE = case_when(
          DISEASE == "101000" ~ "HIV",
@@ -38,9 +49,7 @@ object <- tbl(db_conn, "px_record") %>%
             SEX,
             BIRTHDATE,
             PATIENT_CODE,
-            PHILSYS_ID,
-            NAME_UPD_BY = UPDATED_BY,
-            NAME_UPD_AT = UPDATED_AT
+            PHILSYS_ID
          ),
       by = "REC_ID"
    ) %>%
@@ -51,9 +60,7 @@ object <- tbl(db_conn, "px_record") %>%
             FIRST,
             MIDDLE,
             LAST,
-            SUFFIX,
-            INFO_UPD_BY = UPDATED_BY,
-            INFO_UPD_AT = UPDATED_AT
+            SUFFIX
          ),
       by = "REC_ID"
    ) %>%
@@ -77,56 +84,24 @@ object <- tbl(db_conn, "px_record") %>%
          ) %>%
          select(
             REC_ID,
-            SERVICE_TYPE,
-            FACI_UPD_BY = UPDATED_BY,
-            FACI_UPD_AT = UPDATED_AT
+            SERVICE_TYPE
          ) %>%
          group_by(REC_ID) %>%
          summarise(
-            SERVICE_TYPE = SERVICE_TYPE,
-            FACI_UPD_BY  = max(FACI_UPD_BY, na.rm = TRUE),
-            FACI_UPD_AT  = max(FACI_UPD_AT, na.rm = TRUE)
+            SERVICE_TYPE = SERVICE_TYPE
          ),
       by = "REC_ID"
    ) %>%
    mutate(
-      UPDATED    = case_when(
-         !is.na(UPDATED_AT) ~ "record",
-         !is.na(FACI_UPD_AT) ~ "faci",
-         INFO_UPD_AT > NAME_UPD_AT ~ "info",
-         INFO_UPD_AT < NAME_UPD_AT ~ "name",
-         INFO_UPD_AT == NAME_UPD_AT ~ "info",
-         !is.na(INFO_UPD_AT) & is.na(NAME_UPD_AT) ~ "info",
-         is.na(INFO_UPD_AT) & !is.na(NAME_UPD_AT) ~ "name",
-         TRUE ~ NA_character_
-      ),
-      UPDATED_BY = case_when(
-         UPDATED == "record" ~ UPDATED_BY,
-         UPDATED == "faci" ~ FACI_UPD_BY,
-         UPDATED == "info" ~ INFO_UPD_BY,
-         UPDATED == "name" ~ NAME_UPD_BY,
-         TRUE ~ UPDATED_BY
-      ),
-      UPDATED_AT = case_when(
-         UPDATED == "record" ~ UPDATED_AT,
-         UPDATED == "faci" ~ FACI_UPD_AT,
-         UPDATED == "info" ~ INFO_UPD_AT,
-         UPDATED == "name" ~ NAME_UPD_AT,
-         TRUE ~ UPDATED_AT
-      ),
       SNAPSHOT   = case_when(
+         UPDATED_AT > DELETED_AT ~ DELETED_AT,
+         UPDATED_AT < DELETED_AT ~ UPDATED_AT,
          !is.na(DELETED_AT) ~ DELETED_AT,
          !is.na(UPDATED_AT) ~ UPDATED_AT,
          TRUE ~ CREATED_AT
       )
    ) %>%
-   filter(
-      SNAPSHOT >= snapshot_old,
-      SNAPSHOT < snapshot_new
-   ) %>%
    select(
-      -ends_with("_UPD_AT"),
-      -ends_with("_UPD_BY"),
       -UPDATED
    ) %>%
    left_join(
@@ -225,9 +200,9 @@ object <- tbl(db_conn, "px_record") %>%
             )
          ) %>%
          pivot_wider(
-            id_cols     = c("REC_ID", "ADDR_TYPE"),
+            id_cols     = c(REC_ID, ADDR_TYPE),
             names_from  = ADDR_TYPE,
-            values_from = c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC", "ADDR"),
+            values_from = c(PSGC_REG, PSGC_PROV, PSGC_MUNC, ADDR),
             names_glue  = "{ADDR_TYPE}_{.value}"
          ) %>%
          select(

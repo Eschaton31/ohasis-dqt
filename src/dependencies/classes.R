@@ -88,7 +88,7 @@ DB <- setRefClass(
 
          # check database consistency
          log_info("Checking database for inconsistencies...")
-         .self$check_consistency()
+         .self$db_checks <<- .self$check_consistency()
          if (length(.self$db_checks) > 0)
             log_warn("DB inconsistencies found! See `db_checks` for more info.")
          else
@@ -178,7 +178,9 @@ DB <- setRefClass(
          }
 
          # compare columns match, if not re-create table
-         if (!identical(sort(names(data)), sort(dbListFields(db_conn, table)))) {
+         names_data  <- sort(names(data))
+         names_table <- sort(dbListFields(db_conn, table))
+         if (!identical(names_data, names_table) & length(setdiff(names_data, names_table)) > 0) {
             # get current records (assuming change is only added columns)
             df <- dbReadTable(db_conn, table)
 
@@ -200,7 +202,7 @@ DB <- setRefClass(
             data_bytes <- as.numeric(object.size(data))
 
             # get progress
-            pb <- progress_bar$new(format = "Uploaded :bytes chunks @ :rate [:bar] (:percent) ETA: :eta; Elapsed: :elapsed", total = data_bytes, width = 80, clear = FALSE)
+            pb <- progress_bar$new(format = ":bytes uploaded | :rate [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = data_bytes, width = 100, clear = FALSE)
             pb$tick(0)
             for (i in seq_len(length(data))) {
                chunk_bytes <- as.numeric(object.size(data[[i]]))
@@ -257,11 +259,11 @@ DB <- setRefClass(
       },
 
       # update lake
-      lake              = function(table = NULL, refresh = FALSE, path = NULL, default = NULL) {
+      lake              = function(table = NULL, refresh = FALSE, path = NULL, default = FALSE) {
          # get input
-         if (!is.null(default)) {
+         if (default == TRUE) {
             update <- "Y"
-            log_info(paste0("Updating `", table, "`."))
+            log_info("Updating `{table}`.")
          } else {
             update <- export("Project")$input(prompt = paste0("Update `", table, "`?"),
                                               c("yes", "no"),
@@ -277,12 +279,13 @@ DB <- setRefClass(
             dl_conn <- .self$conn("dl")
 
             # get snapshots
-            snapshot     <- .self$get_snapshots(dl_conn, table)
-            snapshot_old <- if_else(snapshot$old < snapshot$data, snapshot$old, snapshot$data)
-            snapshot_new <- snapshot$new
+            snapshot      <- .self$get_snapshots(dl_conn, table)
+            snapshot$data <- if_else(!is.na(snapshot$data), snapshot$data + 1, snapshot$data)
+            snapshot_old  <- if_else(snapshot$old < snapshot$data, snapshot$old, snapshot$data)
+            snapshot_new  <- snapshot$new
 
             if (refresh)
-               snapshot_old <- as.POSIXct("1970-01-01 00:00:00")
+               snapshot_old <- as.POSIXct("1970-01-01 00:00:00", tz = "UTC")
 
             # run data lake script for object
             log_info("Getting new data...")
@@ -291,7 +294,7 @@ DB <- setRefClass(
             if (nrow(object) > 0 ||
                !dbExistsTable(dl_conn, table) ||
                !identical(sort(names(object)), sort(dbListFields(dl_conn, table)))) {
-               log_info("Updating data lake...")
+               log_info("Payload = {nrow(object)} rows.")
                .self$upsert(dl_conn, table, object, id_col)
                # update reference
                df <- data.frame(
@@ -310,9 +313,9 @@ DB <- setRefClass(
                   "logs",
                   df
                )
-               log_info("Done!")
+               log_info("Done!\n")
             } else {
-               log_info("None found.")
+               log_info("None found.\n")
             }
 
             # close connections
@@ -344,7 +347,7 @@ DB <- setRefClass(
             snapshot_new <- snapshot$new
 
             if (refresh)
-               snapshot_old <- as.POSIXct("1970-01-01 00:00:00")
+               snapshot_old <- as.POSIXct("1970-01-01 00:00:00", tz = "UTC")
 
             # run data lake script for object
             log_info("Getting new data...")
@@ -353,7 +356,7 @@ DB <- setRefClass(
             if (nrow(object) > 0 ||
                !dbExistsTable(dw_conn, table) ||
                !identical(sort(names(object)), sort(dbListFields(dw_conn, table)))) {
-               log_info("Updating data lake...")
+               log_info("Payload = {nrow(object)} rows.")
                .self$upsert(dw_conn, table, object, id_col)
                # update reference
                df <- data.frame(
@@ -372,9 +375,9 @@ DB <- setRefClass(
                   "logs",
                   df
                )
-               log_info("Done!")
+               log_info("Done!\n")
             } else {
-               log_info("None found.")
+               log_info("None found.\n")
             }
 
             # close connections
@@ -402,27 +405,29 @@ DB <- setRefClass(
             snapshot$old <- (snapshot$old %>% collect())$snapshot
             log_info("Current data lake snapshot as of `{format(snapshot$old, \"%a %b %d, %Y %X\")}`.")
          } else {
-            snapshot$old <- as.POSIXct("1970-01-01 00:00:00")
+            snapshot$old <- as.POSIXct("1970-01-01 00:00:00", tz = "UTC")
             log_info("No version found in data lake.")
          }
 
          # check if already exists
          if (dbExistsTable(db_conn, ref_table) && "SNAPSHOT" %in% dbListFields(db_conn, ref_table)) {
             sql           <- dbSendQuery(db_conn, paste0("SELECT MAX(SNAPSHOT) AS SNAPSHOT FROM `", ref_table, "`;"))
-            snapshot$data <- dbFetch(sql)$SNAPSHOT %>% as.POSIXct()
+            snapshot$data <- dbFetch(sql)$SNAPSHOT %>% as.POSIXct(tz = "UTC")
             dbClearResult(sql)
          } else {
-            snapshot$data <- as.POSIXct("1970-01-01 00:00:00")
+            snapshot$data <- as.POSIXct("1970-01-01 00:00:00", tz = "UTC")
          }
 
-         snapshot$new <- as.POSIXct(format(Sys.time(), "%Y-%m-%d %H:%M:%S"))
+         snapshot$new <- as.POSIXct(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), tz = "UTC")
 
          return(snapshot)
       },
 
       # consistency checks for live database
       check_consistency = function() {
-         db_conn <- .self$conn("db")
+         .self$db_checks <<- list()
+         db_conn   <- .self$conn("db")
+         checklist <- list()
 
          # get list of queries
          checks <- list.files("src/diagnostics") %>% sort(decreasing = TRUE)
@@ -434,12 +439,13 @@ DB <- setRefClass(
 
             # if there are issues, break
             if (dbGetRowCount(rs) > 0)
-               .self$db_checks[[issue]] <<- data
+               checklist[[issue]] <- data
 
             # clear results
             dbClearResult(rs)
          }
          dbDisconnect(db_conn)
+         return(checklist)
       },
 
       # speedtest

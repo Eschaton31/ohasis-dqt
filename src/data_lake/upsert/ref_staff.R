@@ -4,36 +4,43 @@
 
 id_col <- "STAFF_ID"
 object <- tbl(db_conn, "users") %>%
-   mutate(
-      FIRST_MIDDLE = paste(
-         sep = " ",
-         FIRST,
-         MIDDLE
-      ),
-      FULLNAME     = paste(
-         sep = ", ",
-         LAST,
-         FIRST_MIDDLE,
-         SUFFIX
-      ),
-      SNAPSHOT     = case_when(
-         !is.na(DELETED_AT) ~ DELETED_AT,
-         !is.na(UPDATED_AT) ~ UPDATED_AT,
-         TRUE ~ CREATED_AT
-      ),
-   ) %>%
    filter(
-      SNAPSHOT >= snapshot_old,
-      SNAPSHOT < snapshot_new
-   ) %>%
-   select(
-      STAFF_ID    = USER_ID,
-      STAFF_NAME  = FULLNAME,
-      STAFF_DESIG = DESIGNATION,
-      CREATED_AT,
-      UPDATED_AT,
-      DELETED_AT,
-      REACTIVATE_AT,
-      SNAPSHOT
-   ) %>%
-   collect()
+      (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
+         (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
+         (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
+   )
+
+# get number of affected rows
+if ((object %>% count() %>% collect())$n == 0)
+   object <- object %>% collect()
+else
+   object <- object %>%
+      mutate(
+         FIRST_MIDDLE = paste(
+            sep = " ",
+            FIRST,
+            MIDDLE
+         ),
+         FULLNAME     = paste(
+            sep = ", ",
+            LAST,
+            FIRST_MIDDLE,
+            SUFFIX
+         ),
+         SNAPSHOT     = case_when(
+            !is.na(DELETED_AT) ~ DELETED_AT,
+            !is.na(UPDATED_AT) ~ UPDATED_AT,
+            TRUE ~ CREATED_AT
+         ),
+      ) %>%
+      select(
+         STAFF_ID    = USER_ID,
+         STAFF_NAME  = FULLNAME,
+         STAFF_DESIG = DESIGNATION,
+         CREATED_AT,
+         UPDATED_AT,
+         DELETED_AT,
+         REACTIVATE_AT,
+         SNAPSHOT
+      ) %>%
+      collect()
