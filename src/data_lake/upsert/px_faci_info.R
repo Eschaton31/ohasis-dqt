@@ -2,8 +2,9 @@
 ##  Person Identifiable Information
 ##------------------------------------------------------------------------------
 
-id_col <- "REC_ID"
-object <- tbl(db_conn, "px_record") %>%
+continue <- 0
+id_col   <- "REC_ID"
+object   <- tbl(db_conn, "px_record") %>%
    filter(
       (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
          (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
@@ -17,10 +18,9 @@ object <- tbl(db_conn, "px_record") %>%
    )
 
 # get number of affected rows
-if ((object %>% count() %>% collect())$n == 0)
-   object <- object %>% collect()
-else
-   object <- object %>%
+if ((object %>% count() %>% collect())$n > 0) {
+   continue <- 1
+   object   <- object %>%
       left_join(
          y  = tbl(db_conn, "px_faci") %>%
             filter(SERVICE_TYPE != "101102") %>%
@@ -127,3 +127,4 @@ else
          ),
       ) %>%
       collect()
+}

@@ -2,8 +2,9 @@
 ##  List of users/staff
 ##------------------------------------------------------------------------------
 
-id_col <- "STAFF_ID"
-object <- tbl(db_conn, "users") %>%
+continue <- 0
+id_col   <- "STAFF_ID"
+object   <- tbl(db_conn, "users") %>%
    filter(
       (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
          (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
@@ -11,10 +12,9 @@ object <- tbl(db_conn, "users") %>%
    )
 
 # get number of affected rows
-if ((object %>% count() %>% collect())$n == 0)
-   object <- object %>% collect()
-else
-   object <- object %>%
+if ((object %>% count() %>% collect())$n > 0) {
+   continue <- 1
+   object   <- object %>%
       mutate(
          FIRST_MIDDLE = paste(
             sep = " ",
@@ -44,3 +44,4 @@ else
          SNAPSHOT
       ) %>%
       collect()
+}

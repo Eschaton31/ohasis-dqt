@@ -1,15 +1,15 @@
 ##------------------------------------------------------------------------------
-##  Form A
+##  HTS Form
 ##------------------------------------------------------------------------------
 
 continue <- 0
 id_col   <- "REC_ID"
 # px identifiers (demographics, address, etc.)
 object   <- tbl(dl_conn, "px_pii") %>%
+   # keep only hts form
    filter(
       DISEASE == "HIV",
-      SERVICE_TYPE %in% c("HIV FBT", NA_character_),
-      substr(MODULE, 1, 1) == "2",
+      FORM_VERSION == "HTS Form (v2021)",
       SNAPSHOT >= snapshot_old,
       SNAPSHOT <= snapshot_new,
       is.na(DELETED_BY)
@@ -19,30 +19,18 @@ object   <- tbl(dl_conn, "px_pii") %>%
 if ((object %>% count() %>% collect())$n > 0) {
    continue <- 1
    object   <- object %>%
-      # keep only form a
-      mutate(
-         FORMA = case_when(
-            FORM_VERSION == "Form A (v2017)" ~ 1,
-            FORM_VERSION == "HTS Form (v2021)" ~ 0,
-            FORM_VERSION == "CFBS Form (v2020)" ~ 0,
-            FORM_VERSION == "Form BC (v2017)" ~ 0,
-            is.na(FORM_VERSION) ~ 1,
-            TRUE ~ 1
-         )
-      ) %>%
-      filter(
-         FORMA == 1
+      rename_at(
+         .vars = vars(starts_with('SERVICE_')),
+         ~paste0('HIV_', .)
       ) %>%
       select(
-         -starts_with("SERVICE_"),
-         -starts_with("DEATH_"),
-         -FORMA
+         -starts_with("DEATH_")
       ) %>%
       # facility data in form
       left_join(
          y  = tbl(dl_conn, "px_faci_info") %>%
             filter(
-               substr(MODALITY, 1, 6) == "101101"
+               substr(MODALITY, 1, 6) != "101102"
             ) %>%
             select(
                REC_ID,
@@ -141,6 +129,70 @@ if ((object %>% count() %>% collect())$n > 0) {
             collect(),
          by = "REC_ID"
       ) %>%
+      # contact info
+      left_join(
+         y  = tbl(db_conn, "px_record") %>%
+            filter(
+               (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
+                  (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
+                  (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
+            ) %>%
+            select(REC_ID) %>%
+            inner_join(
+               y  = tbl(db_conn, "px_contact"),
+               by = "REC_ID"
+            ) %>%
+            mutate(
+               CONTACT_TYPE = case_when(
+                  CONTACT_TYPE == "1" ~ "MOBILE",
+                  CONTACT_TYPE == "2" ~ "EMAIL",
+                  TRUE ~ CONTACT_TYPE
+               )
+            ) %>%
+            pivot_wider(
+               id_cols     = c(REC_ID, CONTACT_TYPE),
+               names_from  = CONTACT_TYPE,
+               values_from = CONTACT,
+               names_glue  = 'CLIENT_{CONTACT_TYPE}_{.value}'
+            ) %>%
+            rename_at(
+               .vars = vars(ends_with('_CONTACT')),
+               ~stri_replace_all_fixed(., '_CONTACT', '')
+            ) %>%
+            select(
+               REC_ID,
+               starts_with("CLIENT_") & !matches("\\d")
+            ) %>%
+            collect(),
+         by = "REC_ID"
+      ) %>%
+      # consent section
+      left_join(
+         y  = tbl(db_conn, "px_record") %>%
+            filter(
+               (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
+                  (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
+                  (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
+            ) %>%
+            select(REC_ID) %>%
+            inner_join(
+               y  = tbl(db_conn, "px_consent"),
+               by = "REC_ID"
+            ) %>%
+            mutate(
+               SIGNATURE_NAME = if_else(!is.na(SIGNATURE), '1_Yes', NA_character_),
+               SIGNATURE_ESIG = if_else(!is.na(ESIG), '1_Yes', NA_character_),
+               VERBAL_CONSENT = if_else(VERBAL_CONSENT == 1, '1_Yes', NA_character_)
+            ) %>%
+            select(
+               REC_ID,
+               VERBAL_CONSENT,
+               SIGNATURE_ESIG,
+               SIGNATURE_NAME
+            ) %>%
+            collect(),
+         by = "REC_ID"
+      ) %>%
       # occupation section
       left_join(
          y  = tbl(db_conn, "px_record") %>%
@@ -233,33 +285,35 @@ if ((object %>% count() %>% collect())$n > 0) {
                   TRUE ~ IS_EXPOSED
                ),
                IS_EXPOSED = case_when(
-                  IS_EXPOSED == "1" ~ "1_Yes, within the past 12 months",
-                  IS_EXPOSED == "2" ~ "2_Yes",
-                  IS_EXPOSED == "3" ~ "3_Yes, within the past 6 months",
-                  IS_EXPOSED == "4" ~ "4_Yes, within the past 30 days",
-                  IS_EXPOSED == "0" ~ "0_No",
-                  IS_EXPOSED == "99999" ~ NA_character_,
+                  IS_EXPOSED %in% c('1', '2', '3', '4') ~ '1_Yes',
+                  IS_EXPOSED == '0' ~ '0_No',
+                  IS_EXPOSED == '99999' ~ NA_character_,
                   TRUE ~ IS_EXPOSED
                ),
                EXPOSURE   = case_when(
-                  EXPOSURE == "120000" ~ "HIV_MOTHER",
-                  EXPOSURE == "220200" ~ "SEX_F_NOCONDOM",
-                  EXPOSURE == "210200" ~ "SEX_M_NOCONDOM",
-                  EXPOSURE == "230003" ~ "SEX_HIV",
-                  EXPOSURE == "200010" ~ "SEX_PAYING",
-                  EXPOSURE == "200020" ~ "SEX_PAYMENT",
-                  EXPOSURE == "301200" ~ "DRUG_INJECT",
-                  EXPOSURE == "530000" ~ "BLOOD_TRANSFUSE",
-                  EXPOSURE == "510000" ~ "OCCUPATION",
-                  EXPOSURE == "520000" ~ "TATTOO",
-                  EXPOSURE == "400000" ~ "STI",
+                  EXPOSURE == '120000' ~ 'HIV_MOTHER',
+                  EXPOSURE == '217000' ~ 'SEX_M',
+                  EXPOSURE == '216000' ~ 'SEX_M_AV',
+                  EXPOSURE == '216200' ~ 'SEX_M_AV_NOCONDOM',
+                  EXPOSURE == '227000' ~ 'SEX_F',
+                  EXPOSURE == '226000' ~ 'SEX_F_AV',
+                  EXPOSURE == '226200' ~ 'SEX_F_AV_NOCONDOM',
+                  EXPOSURE == '200010' ~ 'SEX_PAYING',
+                  EXPOSURE == '200020' ~ 'SEX_PAYMENT',
+                  EXPOSURE == '200300' ~ 'SEX_DRUGS',
+                  EXPOSURE == '301010' ~ 'DRUG_INJECT',
+                  EXPOSURE == '530000' ~ 'BLOOD_TRANSFUSE',
+                  EXPOSURE == '510000' ~ 'OCCUPATION',
+                  EXPOSURE == '520000' ~ 'TATTOO',
+                  EXPOSURE == '400000' ~ 'STI',
                   TRUE ~ EXPOSURE
                )
             ) %>%
+            rename(DATE = DATE_LAST_EXPOSE) %>%
             pivot_wider(
                id_cols     = c(REC_ID, EXPOSURE),
                names_from  = EXPOSURE,
-               values_from = IS_EXPOSED,
+               values_from = c(IS_EXPOSED, DATE),
                names_glue  = 'EXPOSE_{EXPOSURE}_{.value}'
             ) %>%
             rename_at(
@@ -269,31 +323,6 @@ if ((object %>% count() %>% collect())$n > 0) {
             select(
                REC_ID,
                starts_with("EXPOSE_") & !matches("\\d")
-            ) %>%
-            collect(),
-         by = "REC_ID"
-      ) %>%
-      # exposure profile
-      left_join(
-         y  = tbl(db_conn, "px_record") %>%
-            filter(
-               (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
-                  (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
-                  (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
-            ) %>%
-            select(REC_ID) %>%
-            inner_join(
-               y  = tbl(db_conn, "px_expose_profile"),
-               by = "REC_ID"
-            ) %>%
-            select(
-               REC_ID,
-               AGE_FIRST_SEX,
-               NUM_F_PARTNER,
-               YR_LAST_F,
-               NUM_M_PARTNER,
-               YR_LAST_M,
-               AGE_FIRST_INJECT
             ) %>%
             collect(),
          by = "REC_ID"
@@ -319,11 +348,11 @@ if ((object %>% count() %>% collect())$n > 0) {
                ),
                PROFILE    = case_when(
                   PROFILE == "1" ~ "TB_PX",
-                  PROFILE == "2" ~ "IS_PREGNANT",
                   PROFILE == "3" ~ "HEP_B",
                   PROFILE == "4" ~ "HEP_C",
-                  PROFILE == "5" ~ "CBS_REACTIVE",
                   PROFILE == "6" ~ "PREP_PX",
+                  PROFILE == "7" ~ "PEP_PX",
+                  PROFILE == "8" ~ "STI",
                   TRUE ~ PROFILE
                )
             ) %>%
@@ -371,6 +400,8 @@ if ((object %>% count() %>% collect())$n > 0) {
                   REASON = "5" ~ "INSURANCE",
                   REASON = "6" ~ "NO_REASON",
                   REASON = "7" ~ "RETEST",
+                  REASON = "8" ~ "PEER_ED",
+                  REASON = "9" ~ "TEXT_EMAIL",
                   REASON = "8888" ~ "OTHER",
                   TRUE ~ REASON
                )
@@ -470,6 +501,189 @@ if ((object %>% count() %>% collect())$n > 0) {
                CLINICAL_PIC,
                SYMPTOMS,
                WHO_CLASS
+            ) %>%
+            collect(),
+         by = "REC_ID"
+      ) %>%
+      # agreed section
+      left_join(
+         y  = tbl(db_conn, "px_record") %>%
+            filter(
+               (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
+                  (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
+                  (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
+            ) %>%
+            select(REC_ID) %>%
+            inner_join(
+               y  = tbl(db_conn, "px_cfbs"),
+               by = "REC_ID"
+            ) %>%
+            mutate(
+               SCREEN_AGREED = case_when(
+                  SCREEN_AGREED == "1" ~ "1_Yes",
+                  SCREEN_AGREED == "0" ~ "0_No",
+                  TRUE ~ as.character(SCREEN_AGREED)
+               ),
+            ) %>%
+            select(
+               REC_ID,
+               SCREEN_AGREED
+            ) %>%
+            collect(),
+         by = "REC_ID"
+      ) %>%
+      # reach
+      left_join(
+         y  = tbl(db_conn, "px_record") %>%
+            filter(
+               (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
+                  (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
+                  (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
+            ) %>%
+            select(REC_ID) %>%
+            inner_join(
+               y  = tbl(db_conn, "px_reach"),
+               by = "REC_ID"
+            ) %>%
+            mutate(
+               IS_REACH = case_when(
+                  IS_REACH == 1 ~ '1_Yes',
+                  IS_REACH == 0 ~ '0_No',
+                  TRUE ~ NA_character_
+               ),
+               REACH    = case_when(
+                  REACH == 1 ~ 'CLINICAL',
+                  REACH == 2 ~ 'ONLINE',
+                  REACH == 3 ~ 'INDEX_TESTING',
+                  REACH == 4 ~ 'SSNT',
+                  REACH == 5 ~ 'VENUE',
+                  TRUE ~ NA_character_
+               )
+            ) %>%
+            pivot_wider(
+               id_cols     = c(REC_ID, REACH),
+               names_from  = REACH,
+               values_from = IS_REACH,
+               names_glue  = 'REACH_{REACH}_{.value}'
+            ) %>%
+            rename_at(
+               .vars = vars(ends_with('_IS_REACH')),
+               ~stri_replace_all_fixed(., '_IS_REACH', '')
+            ) %>%
+            select(
+               REC_ID,
+               starts_with("REACH_") & !matches("\\d")
+            ) %>%
+            collect(),
+         by = "REC_ID"
+      ) %>%
+      # linkage
+      left_join(
+         y  = tbl(db_conn, "px_record") %>%
+            filter(
+               (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
+                  (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
+                  (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
+            ) %>%
+            select(REC_ID) %>%
+            inner_join(
+               y  = tbl(db_conn, "px_linkage"),
+               by = "REC_ID"
+            ) %>%
+            mutate_at(
+               .vars = vars(starts_with('REFER')),
+               ~case_when(
+                  . == 1 ~ '1_Yes',
+                  . == 0 ~ '0_No',
+                  TRUE ~ as.character(.)
+               )
+            ) %>%
+            select(
+               REC_ID,
+               REFER_ART,
+               REFER_CONFIRM,
+               REFER_RETEST,
+               RETEST_MOS,
+               RETEST_WKS,
+               RETEST_DATE
+            ) %>%
+            collect(),
+         by = "REC_ID"
+      ) %>%
+      # services
+      left_join(
+         y  = tbl(db_conn, "px_record") %>%
+            filter(
+               (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
+                  (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
+                  (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
+            ) %>%
+            select(REC_ID) %>%
+            inner_join(
+               y  = tbl(db_conn, "px_other_service"),
+               by = "REC_ID"
+            ) %>%
+            mutate(
+               GIVEN   = case_when(
+                  GIVEN == '1' ~ '1_Yes',
+                  GIVEN == '0' ~ '0_No',
+                  TRUE ~ as.character(GIVEN)
+               ),
+               SERVICE = case_when(
+                  SERVICE == "1013" ~ "HIV_101",
+                  SERVICE == "1004" ~ "IEC_MATS",
+                  SERVICE == "1002" ~ "RISK_COUNSEL",
+                  SERVICE == "5001" ~ "PREP_REFER",
+                  SERVICE == "5002" ~ "SSNT_OFFER",
+                  SERVICE == "5003" ~ "SSNT_ACCEPT",
+                  SERVICE == "2001" ~ "GIVEN_CONDOMS",
+                  SERVICE == "2002" ~ "GIVEN_LUBES",
+                  TRUE ~ SERVICE
+               )
+            ) %>%
+            pivot_wider(
+               id_cols     = c(REC_ID, SERVICE),
+               names_from  = SERVICE,
+               values_from = c(GIVEN, OTHER_SERVICE),
+               names_glue  = 'SERVICE_{SERVICE}_{.value}'
+            ) %>%
+            rename_at(
+               .vars = vars(ends_with('_GIVEN')),
+               ~stri_replace_all_fixed(., '_GIVEN', '')
+            ) %>%
+            select(
+               -ends_with("OTHER_SERVICE") & (!contains("LUBES") | !contains("CONDOMS"))
+            ) %>%
+            rename_at(
+               .vars = vars(ends_with('_OTHER_SERVICE')),
+               ~stri_replace_all_fixed(., '_OTHER_SERVICE', '')
+            ) %>%
+            select(
+               REC_ID,
+               starts_with("SERVICE_") & !matches("\\d")
+            ) %>%
+            collect(),
+         by = "REC_ID"
+      ) %>%
+      # linkage
+      left_join(
+         y  = tbl(db_conn, "px_record") %>%
+            filter(
+               (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
+                  (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
+                  (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
+            ) %>%
+            select(REC_ID) %>%
+            inner_join(
+               y  = tbl(db_conn, "px_test_refuse"),
+               by = "REC_ID"
+            ) %>%
+            filter(
+               REASON == "8888"
+            ) %>%
+            select(
+               REC_ID,
+               TEST_REFUSE_OTHER_TEXT = REASON_OTHER
             ) %>%
             collect(),
          by = "REC_ID"
@@ -606,31 +820,34 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # ohasis KP tagging
       mutate(
-         FORMA_MSM    = case_when(
-            StrLeft(SEX, 1) == 1 & StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == 1 ~ 1,
-            StrLeft(SEX, 1) == 1 & StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == 2 ~ 1,
-            StrLeft(SEX, 1) == 1 &
-               !is.na(NUM_M_PARTNER) &
-               NUM_M_PARTNER > 0 ~ 1,
-            StrLeft(SEX, 1) == 1 & !is.na(YR_LAST_M) ~ 1,
+         SELF_IDENT = case_when(
+            StrLeft(SELF_IDENT, 1) == '1' ~ '1_Man',
+            StrLeft(SELF_IDENT, 1) == '2' ~ '2_Woman',
+            StrLeft(SELF_IDENT, 1) == '3' ~ '3_Other',
+            TRUE ~ SELF_IDENT
+         ),
+         HTS_MSM    = case_when(
+            StrLeft(SEX, 1) == 1 & StrLeft(EXPOSE_SEX_M, 1) == 1 ~ 1,
+            StrLeft(SEX, 1) == 1 & !is.na(EXPOSE_SEX_M_AV_DATE) ~ 1,
+            StrLeft(SEX, 1) == 1 & !is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ 1,
             TRUE ~ 0
          ),
-         FORMA_TGW    = case_when(
+         HTS_TGW    = case_when(
             StrLeft(SEX, 1) == 1 & StrLeft(SELF_IDENT, 1) == 2 ~ 1,
             StrLeft(SEX, 1) == 1 & StrLeft(SELF_IDENT, 1) == 3 ~ 1,
             TRUE ~ 0
          ),
-         FORMA_PWID   = case_when(
+         HTS_PWID   = case_when(
             StrLeft(EXPOSE_DRUG_INJECT, 1) == 1 ~ 1,
             StrLeft(EXPOSE_DRUG_INJECT, 1) == 2 ~ 1,
             TRUE ~ 0
          ),
-         FORMA_FSW    = case_when(
+         HTS_FSW    = case_when(
             StrLeft(SEX, 1) == 2 & StrLeft(EXPOSE_SEX_PAYMENT, 1) == 1 ~ 1,
             StrLeft(SEX, 1) == 2 & StrLeft(EXPOSE_SEX_PAYMENT, 1) == 2 ~ 1,
             TRUE ~ 0
          ),
-         FORMA_GENPOP = FORMA_MSM + FORMA_TGW + FORMA_PWID + FORMA_FSW,
-         FORMA_GENPOP = if_else(FORMA_GENPOP > 0, 0, 1)
+         HTS_GENPOP = HTS_MSM + HTS_TGW + HTS_PWID + HTS_FSW,
+         HTS_GENPOP = if_else(HTS_GENPOP > 0, 0, 1)
       )
 }

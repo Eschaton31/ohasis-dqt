@@ -2,8 +2,9 @@
 ##  Philippine Standard Geographic Codes
 ##------------------------------------------------------------------------------
 
-id_col <- c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC")
-object <- tbl(db_conn, "addr_reg") %>%
+continue <- 1
+id_col   <- c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC")
+object   <- tbl(db_conn, "addr_reg") %>%
    select(
       PSGC_REG  = REG,
       NAME_REG  = NAME,

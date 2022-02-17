@@ -14,10 +14,18 @@ shell("cls")
 ################################################################################
 
 rm(list = ls())
-Sys.setenv(TZ = "UTC")
+Sys.setenv(TZ = "Asia/Hong_Kong")
 options(
    # browser = Sys.getenv("BROWSER"),
-   browser = NULL,
+   browser   = function(url) {
+      if (grepl('^https?:', url)) {
+         if (!.Call('.jetbrains_processBrowseURL', url)) {
+            browseURL(url, .jetbrains$ther_old_browser)
+         }
+      } else {
+         .Call('.jetbrains_showFile', url, url)
+      }
+   },
    help_type = "html"
 )
 
@@ -47,12 +55,12 @@ drive_auth(cache = ".secrets")
 
 # Dropbox
 # trigger auth on purpose --> store a token in the specified cache
-if (!file.exists(".secrets/hivregistry.nec.RDS")) {
+if (!file.exists(".secrets/hivregistry.nec@gmail.com.RDS")) {
    token <- drop_auth()
-   saveRDS(token, ".secrets/hivregistry.nec.RDS")
+   saveRDS(token, ".secrets/hivregistry.nec@gmail.com.RDS")
    rm('token')
 } else {
-   drop_auth(rdstoken = ".secrets/hivregistry.nec.RDS")
+   drop_auth(rdstoken = ".secrets/hivregistry.nec@gmail.com.RDS")
 }
 
 ##------------------------------------------------------------------------------
@@ -62,3 +70,9 @@ if (!file.exists(".secrets/hivregistry.nec.RDS")) {
 # initiate the project & database
 ohasis <- DB()
 
+# example warehouse
+# Form A
+ohasis$warehouse(table = "form_a", path = "src/data_warehouse/upsert")
+
+# HTS Forms
+ohasis$warehouse(table = "form_hts", path = "src/data_warehouse/upsert")

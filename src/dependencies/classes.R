@@ -281,19 +281,19 @@ DB <- setRefClass(
             # get snapshots
             snapshot      <- .self$get_snapshots(dl_conn, table)
             snapshot$data <- if_else(!is.na(snapshot$data), snapshot$data + 1, snapshot$data)
-            snapshot_old  <- if_else(snapshot$old < snapshot$data, snapshot$old, snapshot$data)
-            snapshot_new  <- snapshot$new
+            snapshot_old  <- if_else(snapshot$old < snapshot$data, snapshot$old, snapshot$data) %>% as.character()
+            snapshot_new  <- snapshot$new %>% as.character()
 
             if (refresh)
-               snapshot_old <- as.POSIXct("1970-01-01 00:00:00", tz = "UTC")
+               snapshot_old <- "1970-01-01 00:00:00"
 
             # run data lake script for object
             log_info("Getting new data...")
             source(file.path(path, paste0(table, '.R')), local = TRUE)
 
-            if (nrow(object) > 0 ||
-               !dbExistsTable(dl_conn, table) ||
-               !identical(sort(names(object)), sort(dbListFields(dl_conn, table)))) {
+            if (continue > 0 ||
+               (!dbExistsTable(dl_conn, table) ||
+                  !identical(sort(names(object)), sort(dbListFields(dl_conn, table))))) {
                log_info("Payload = {nrow(object)} rows.")
                .self$upsert(dl_conn, table, object, id_col)
                # update reference
@@ -304,7 +304,7 @@ DB <- setRefClass(
                   run_title = paste0(.self$timestamp, " (", .self$run_title, ")"),
                   table     = table,
                   rows      = nrow(object),
-                  snapshot  = snapshot_new %>% as.character()
+                  snapshot  = snapshot_new
                )
 
                # log if successful
@@ -343,17 +343,17 @@ DB <- setRefClass(
 
             # get snapshots
             snapshot     <- .self$get_snapshots(dw_conn, table)
-            snapshot_old <- if_else(snapshot$old < snapshot$data, snapshot$old, snapshot$data, snapshot$old)
-            snapshot_new <- snapshot$new
+            snapshot_old <- if_else(snapshot$old < snapshot$data, snapshot$old, snapshot$data, snapshot$old) %>% as.character()
+            snapshot_new <- snapshot$new %>% as.character()
 
             if (refresh)
-               snapshot_old <- as.POSIXct("1970-01-01 00:00:00", tz = "UTC")
+               snapshot_old <- "1970-01-01 00:00:00"
 
             # run data lake script for object
             log_info("Getting new data...")
             source(file.path(path, paste0(table, '.R')), local = TRUE)
 
-            if (nrow(object) > 0 ||
+            if (continue > 0 ||
                !dbExistsTable(dw_conn, table) ||
                !identical(sort(names(object)), sort(dbListFields(dw_conn, table)))) {
                log_info("Payload = {nrow(object)} rows.")
@@ -366,7 +366,7 @@ DB <- setRefClass(
                   run_title = paste0(.self$timestamp, " (", .self$run_title, ")"),
                   table     = table,
                   rows      = nrow(object),
-                  snapshot  = snapshot_new %>% as.character()
+                  snapshot  = snapshot_new
                )
 
                # log if successful
@@ -425,7 +425,6 @@ DB <- setRefClass(
 
       # consistency checks for live database
       check_consistency = function() {
-         .self$db_checks <<- list()
          db_conn   <- .self$conn("db")
          checklist <- list()
 

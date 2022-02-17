@@ -2,8 +2,9 @@
 ##  List of reporting units
 ##------------------------------------------------------------------------------
 
-id_col <- c("FACI_ID", "SUB_FACI_ID")
-object <- tbl(db_conn, "facility") %>%
+continue <- 1
+id_col   <- c("FACI_ID", "SUB_FACI_ID")
+object   <- tbl(db_conn, "facility") %>%
    group_by(FACI_ID) %>%
    summarise(
       EDIT_NUM = max(EDIT_NUM, na.rm = TRUE)
