@@ -1,4 +1,5 @@
 /.Renviron
 /.secrets
 /.idea
-.httr-oauth
+/.httr-oauth
+/kath.R

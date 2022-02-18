@@ -8,16 +8,34 @@ Project <- setRefClass(
    fields  = list(
       mo        = "character",
       yr        = "character",
+      prev_mo   = "character",
+      prev_yr   = "character",
+      prev_date = "Date",
+      next_mo   = "character",
+      next_yr   = "character",
+      next_date = "Date",
       run_title = "character"
    ),
    methods = list(
       # set the current reporting period
-      set_report = function() {
+      set_report   = function() {
          # reporting date
          mo <<- .self$input(prompt = "What is the reporting month?", max.char = 2)
          mo <<- mo %>% stri_pad_left(width = 2, pad = "0")
          yr <<- .self$input(prompt = "What is the reporting year?", max.char = 4)
          yr <<- yr %>% stri_pad_left(width = 4, pad = "0")
+
+         # prev date
+         dates     <- .self$get_date_ref("prev", yr, mo)
+         prev_mo   <<- dates$mo
+         prev_yr   <<- dates$yr
+         prev_date <<- as.Date(paste(sep = "-", prev_yr, prev_mo, "01"))
+
+         # next date
+         dates     <- .self$get_date_ref("next", yr, mo)
+         next_mo   <<- dates$mo
+         next_yr   <<- dates$yr
+         next_date <<- as.Date(paste(sep = "-", next_yr, next_mo, "01"))
 
          # label the current run
          run_title <<- .self$input(prompt = "Label the current run (brief, concise)")
@@ -25,8 +43,61 @@ Project <- setRefClass(
          log_success("Project parameters defined!")
       },
 
+      # get reference dates for the report
+      get_date_ref = function(type = NULL, yr = NULL, mo = NULL) {
+         # next dates
+         if (type == 'next') {
+            dateMo <- ifelse(as.numeric(mo) == 12, '01', stringi::stri_pad_left(as.character(as.numeric(mo) + 1), 2, '0'))
+            dateYr <- ifelse(as.numeric(mo) == 12, as.numeric(yr) + 1, as.numeric(yr)) %>% as.character()
+         }
+
+         # prev dates
+         if (type == 'prev') {
+            dateMo <- ifelse(as.numeric(mo) == 1, '12', stringi::stri_pad_left(as.character(as.numeric(mo) - 1), 2, '0'))
+            dateYr <- ifelse(as.numeric(mo) == 1, as.numeric(yr) - 1, as.numeric(yr)) %>% as.character()
+         }
+
+         dateReturn <- list(mo = dateMo, yr = dateYr)
+
+         return(dateReturn)
+      },
+
+      # get official dataset files
+      get_data     = function(surveillance = NULL, yr = NULL, mo = NULL, path = NULL, file_type = "dta") {
+
+         if (tolower(surveillance) == "harp_dx") {
+            path    <- Sys.getenv("HARP_DX")
+            pattern <- paste0('*reg_', yr, '-', mo, '.*\\.', file_type)
+         }
+
+         # function to find the latest file
+         get_latest <- function()
+            sort(list.files(path = path, full.names = TRUE, pattern = pattern), decreasing = TRUE)
+
+         # initiate the first file
+         file <- get_latest()
+
+         # if first file called is non-existent, look to previous month's report
+         while (length(file) == 0) {
+            if (as.numeric(mo) > 1) {
+               # for months feb-dec, check previous month
+               mo <- as.numeric(mo) - 1
+            } else {
+               # for jan, check previous year & month of dec
+               mo <- 12
+               yr <- as.numeric(yr) - 1
+            }
+            mo <- str_pad(mo, 2, 'left', '0')
+            yr <- as.character(yr)
+
+            file <- get_latest()
+         }
+
+         return(file[1])
+      },
+
       # taking user input
-      input      = function(prompt, options = NULL, default = NULL, max.char = NULL) {
+      input        = function(prompt, options = NULL, default = NULL, max.char = NULL) {
          if (!is.null(options) && !is.null(default)) {
             options <- paste(collapse = "/", options)
             options <- stri_replace_first_fixed(options, default, stri_trans_totitle(default))
@@ -71,7 +142,7 @@ DB <- setRefClass(
          "This method is called when you create an instance of this class."
 
          # get current time
-         .self$timestamp <<- format(Sys.time(), "%Y.%m.%d.%H%M%S")
+         timestamp <<- format(Sys.time(), "%Y.%m.%d.%H%M%S")
 
          # set the report
          callSuper()$set_report()
@@ -88,7 +159,7 @@ DB <- setRefClass(
 
          # check database consistency
          log_info("Checking database for inconsistencies...")
-         .self$db_checks <<- .self$check_consistency()
+         db_checks <<- .self$check_consistency()
          if (length(.self$db_checks) > 0)
             log_warn("DB inconsistencies found! See `db_checks` for more info.")
          else
