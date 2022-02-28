@@ -1,11 +1,9 @@
-##------------------------------------------------------------------------------
-##  OHASIS ID Registry
-##------------------------------------------------------------------------------
+##  OHASIS ID Registry ---------------------------------------------------------
 
 continue <- 0
 id_col   <- "PATIENT_ID"
 # px identifiers (demographics, address, etc.)
-object   <- tbl(db_conn, "registry") %>%
+object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "registry")) %>%
    filter(
       (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
          (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |

@@ -1,11 +1,9 @@
-##------------------------------------------------------------------------------
-##  HTS Form
-##------------------------------------------------------------------------------
+##  HTS Form -------------------------------------------------------------------
 
 continue <- 0
 id_col   <- "REC_ID"
 # px identifiers (demographics, address, etc.)
-object   <- tbl(dl_conn, "px_pii") %>%
+object   <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
    # keep only hts form
    filter(
       DISEASE == "HIV",
@@ -28,7 +26,7 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # facility data in form
       left_join(
-         y  = tbl(dl_conn, "px_faci_info") %>%
+         y  = tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_faci_info")) %>%
             filter(
                substr(MODALITY, 1, 6) != "101102"
             ) %>%
@@ -39,6 +37,8 @@ if ((object %>% count() %>% collect())$n > 0) {
                SERVICE_SUB_FACI,
                REFER_TYPE,
                SERVICE_BY,
+               PROVIDER_TYPE,
+               PROVIDER_TYPE_OTHER,
                CLINIC_NOTES,
                COUNSEL_NOTES
             ),
@@ -47,15 +47,20 @@ if ((object %>% count() %>% collect())$n > 0) {
       collect() %>%
       # ob section
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_ob"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_ob")),
                by = "REC_ID"
             ) %>%
             mutate(
@@ -74,32 +79,37 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # confirmatory data
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_confirm"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_confirm")),
                by = "REC_ID"
             ) %>%
             mutate(
-               CONFIRM_TYPE   = case_when(
+               CONFIRM_TYPE = case_when(
                   CONFIRM_TYPE == "1" ~ "1_Central NRL",
                   CONFIRM_TYPE == "2" ~ "2_CrCL",
                   TRUE ~ as.character(CONFIRM_TYPE)
                ),
-               CONFIRM_RESULT = case_when(
-                  stri_detect_fixed(CONFIRM_RESULT, "Positive") ~ "1_Positive",
-                  stri_detect_fixed(CONFIRM_RESULT, "Negative") ~ "2_Negative",
-                  stri_detect_fixed(CONFIRM_RESULT, "Inconclusive") ~ "3_Indeterminate",
-                  stri_detect_fixed(CONFIRM_RESULT, "Indeterminate") ~ "3_Indeterminate",
-                  stri_detect_fixed(CONFIRM_RESULT, "PENDING") ~ "4_Pending",
-                  TRUE ~ CONFIRM_RESULT
+               FINAL_RESULT = case_when(
+                  FINAL_RESULT %like% "%Positive%" ~ "1_Positive",
+                  FINAL_RESULT %like% "%Negative%" ~ "2_Negative",
+                  FINAL_RESULT %like% "%Inconclusive%" ~ "3_Indeterminate",
+                  FINAL_RESULT %like% "%Indeterminate%" ~ "3_Indeterminate",
+                  FINAL_RESULT %like% "%PENDING%" ~ "4_Pending",
+                  TRUE ~ FINAL_RESULT
                ),
-               CLIENT_TYPE    = case_when(
+               CLIENT_TYPE  = case_when(
                   CLIENT_TYPE == "1" ~ "1_Inpatient",
                   CLIENT_TYPE == "2" ~ "2_Walk-in / Outpatient",
                   CLIENT_TYPE == "3" ~ "3_Mobile HTS Client",
@@ -131,15 +141,20 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # contact info
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_contact"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_contact")),
                by = "REC_ID"
             ) %>%
             mutate(
@@ -168,15 +183,20 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # consent section
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_consent"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_consent")),
                by = "REC_ID"
             ) %>%
             mutate(
@@ -195,15 +215,20 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # occupation section
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_occupation"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_occupation")),
                by = "REC_ID"
             ) %>%
             mutate(
@@ -236,15 +261,20 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # ofw data
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_ofw"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_ofw")),
                by = "REC_ID"
             ) %>%
             mutate(
@@ -265,15 +295,20 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # exposure history
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_expose_hist"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_expose_hist")),
                by = "REC_ID"
             ) %>%
             mutate(
@@ -329,15 +364,20 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # medical history
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_med_profile"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_med_profile")),
                by = "REC_ID"
             ) %>%
             mutate(
@@ -375,34 +415,39 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # reasons for testing
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_test_reason"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_test_reason")),
                by = "REC_ID"
             ) %>%
             mutate(
-               IS_REASON = case_when(
+               IS_REASON == case_when(
                   IS_REASON == "0" ~ "0_No",
                   IS_REASON == "1" ~ "1_Yes",
                   TRUE ~ as.character(IS_REASON)
                ),
-               REASON    = case_when(
-                  REASON = "1" ~ "HIV_EXPOSE",
-                  REASON = "2" ~ "PHYSICIAN",
-                  REASON = "3" ~ "EMPLOY_OFW",
-                  REASON = "4" ~ "EMPLOY_LOCAL",
-                  REASON = "5" ~ "INSURANCE",
-                  REASON = "6" ~ "NO_REASON",
-                  REASON = "7" ~ "RETEST",
-                  REASON = "8" ~ "PEER_ED",
-                  REASON = "9" ~ "TEXT_EMAIL",
-                  REASON = "8888" ~ "OTHER",
+               REASON = case_when(
+                  REASON == "1" ~ "HIV_EXPOSE",
+                  REASON == "2" ~ "PHYSICIAN",
+                  REASON == "3" ~ "EMPLOY_OFW",
+                  REASON == "4" ~ "EMPLOY_LOCAL",
+                  REASON == "5" ~ "INSURANCE",
+                  REASON == "6" ~ "NO_REASON",
+                  REASON == "7" ~ "RETEST",
+                  REASON == "8" ~ "PEER_ED",
+                  REASON == "9" ~ "TEXT_EMAIL",
+                  REASON == "8888" ~ "OTHER",
                   TRUE ~ REASON
                )
             ) %>%
@@ -420,7 +465,7 @@ if ((object %>% count() %>% collect())$n > 0) {
                ~stri_replace_all_fixed(., '_IS_REASON', '')
             ) %>%
             select(
-               -ends_with("TEXT") & !contains("OTHER")
+               -(ends_with("TEXT") & !contains("OTHER"))
             ) %>%
             select(
                REC_ID,
@@ -431,15 +476,20 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # previous test data
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_prev_test"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_prev_test")),
                by = "REC_ID"
             ) %>%
             mutate(
@@ -470,15 +520,20 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # staging section
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_staging"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_staging")),
                by = "REC_ID"
             ) %>%
             mutate(
@@ -507,15 +562,20 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # agreed section
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_cfbs"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_cfbs")),
                by = "REC_ID"
             ) %>%
             mutate(
@@ -534,15 +594,20 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # reach
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_reach"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_reach")),
                by = "REC_ID"
             ) %>%
             mutate(
@@ -579,15 +644,20 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # linkage
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_linkage"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_linkage")),
                by = "REC_ID"
             ) %>%
             mutate_at(
@@ -612,15 +682,20 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # services
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_other_service"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_other_service")),
                by = "REC_ID"
             ) %>%
             mutate(
@@ -652,7 +727,7 @@ if ((object %>% count() %>% collect())$n > 0) {
                ~stri_replace_all_fixed(., '_GIVEN', '')
             ) %>%
             select(
-               -ends_with("OTHER_SERVICE") & (!contains("LUBES") | !contains("CONDOMS"))
+               -(ends_with("OTHER_SERVICE") & (!contains("LUBES") | !contains("CONDOMS")))
             ) %>%
             rename_at(
                .vars = vars(ends_with('_OTHER_SERVICE')),
@@ -660,22 +735,28 @@ if ((object %>% count() %>% collect())$n > 0) {
             ) %>%
             select(
                REC_ID,
-               starts_with("SERVICE_") & !matches("\\d")
+               matches("SERVICE_HIV_101"),
+               starts_with("SERVICE_") & !matches("\\d"),
             ) %>%
             collect(),
          by = "REC_ID"
       ) %>%
       # linkage
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_test_refuse"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_test_refuse")),
                by = "REC_ID"
             ) %>%
             filter(
@@ -690,15 +771,20 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # t0 data
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
                   (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
             ) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
+                  filter(FORM == "HTS Form"),
+               by = "REC_ID"
+            ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_test"),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_test")),
                by = "REC_ID"
             ) %>%
             filter(TEST_TYPE == 10, RESULT != 0) %>%
@@ -725,7 +811,7 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # rhivda data
       left_join(
-         y  = tbl(db_conn, "px_record") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
             filter(
                (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                   (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
@@ -733,20 +819,18 @@ if ((object %>% count() %>% collect())$n > 0) {
             ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(db_conn, "px_test"),
-               by = "REC_ID"
-            ) %>%
-            inner_join(
-               y  = tbl(db_conn, "px_test_hiv") %>%
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_test_hiv")) %>%
                   select(
                      REC_ID,
                      TEST_TYPE,
                      TEST_NUM,
-                     DATE_COLLECT,
-                     DATE_RECEIVE,
                      FINAL_RESULT,
                      KIT_NAME
                   ),
+               by = "REC_ID"
+            ) %>%
+            left_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_test")),
                by = c("REC_ID", "TEST_TYPE", "TEST_NUM")
             ) %>%
             filter(FINAL_RESULT != 0) %>%
@@ -760,8 +844,6 @@ if ((object %>% count() %>% collect())$n > 0) {
                REC_ID,
                TEST_TYPE,
                DATE        = DATE_PERFORM,
-               DATE_COLLECT,
-               DATE_RECEIVE,
                BASE_RESULT = RESULT,
                RESULT      = FINAL_RESULT,
                KIT         = KIT_NAME
@@ -798,13 +880,11 @@ if ((object %>% count() %>% collect())$n > 0) {
             pivot_wider(
                id_cols     = c(REC_ID, TEST_TYPE),
                names_from  = TEST_TYPE,
-               values_from = c(DATE, DATE_COLLECT, DATE_RECEIVE, RESULT, KIT),
+               values_from = c(DATE, RESULT, KIT),
                names_glue  = "{TEST_TYPE}_{.value}"
             ) %>%
             select(
                REC_ID,
-               DATE_COLLECT = T1_DATE_COLLECT,
-               DATE_RECEIVE = T1_DATE_RECEIVE,
                T1_DATE,
                T1_KIT,
                T1_RESULT,
@@ -814,6 +894,28 @@ if ((object %>% count() %>% collect())$n > 0) {
                T3_DATE,
                T3_KIT,
                T3_RESULT
+            ) %>%
+            collect(),
+         by = "REC_ID"
+      ) %>%
+      # date collect receive
+      left_join(
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
+            filter(
+               (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
+                  (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
+                  (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
+            ) %>%
+            select(REC_ID) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_test_hiv")) %>%
+                  filter(TEST_TYPE == 31, TEST_NUM == 1) %>%
+                  select(
+                     REC_ID,
+                     DATE_COLLECT,
+                     DATE_RECEIVE
+                  ),
+               by = "REC_ID"
             ) %>%
             collect(),
          by = "REC_ID"

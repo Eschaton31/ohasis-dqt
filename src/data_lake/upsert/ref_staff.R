@@ -1,10 +1,8 @@
-##------------------------------------------------------------------------------
-##  List of users/staff
-##------------------------------------------------------------------------------
+##  List of users/staff --------------------------------------------------------
 
 continue <- 0
 id_col   <- "STAFF_ID"
-object   <- tbl(db_conn, "users") %>%
+object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "users")) %>%
    filter(
       (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
          (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |

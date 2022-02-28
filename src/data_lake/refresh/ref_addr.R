@@ -1,17 +1,15 @@
-##------------------------------------------------------------------------------
-##  Philippine Standard Geographic Codes
-##------------------------------------------------------------------------------
+##  Philippine Standard Geographic Codes ---------------------------------------
 
 continue <- 1
 id_col   <- c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC")
-object   <- tbl(db_conn, "addr_reg") %>%
+object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_reg")) %>%
    select(
       PSGC_REG  = REG,
       NAME_REG  = NAME,
       NHSSS_REG = NHSSS
    ) %>%
    left_join(
-      y  = tbl(db_conn, "addr_prov") %>%
+      y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_prov")) %>%
          select(
             PSGC_REG   = REG,
             PSGC_PROV  = PROV,
@@ -21,7 +19,7 @@ object   <- tbl(db_conn, "addr_reg") %>%
       by = "PSGC_REG"
    ) %>%
    left_join(
-      y  = tbl(db_conn, "addr_munc") %>%
+      y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_munc")) %>%
          select(
             PSGC_PROV  = PROV,
             PSGC_MUNC  = MUNC,
@@ -32,7 +30,7 @@ object   <- tbl(db_conn, "addr_reg") %>%
       by = "PSGC_PROV"
    ) %>%
    union(
-      y = tbl(db_conn, "addr_reg") %>%
+      y = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_reg")) %>%
          select(
             PSGC_REG  = REG,
             NAME_REG  = NAME,
@@ -49,14 +47,14 @@ object   <- tbl(db_conn, "addr_reg") %>%
          )
    ) %>%
    union(
-      y = tbl(db_conn, "addr_reg") %>%
+      y = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_reg")) %>%
          select(
             PSGC_REG  = REG,
             NAME_REG  = NAME,
             NHSSS_REG = NHSSS
          ) %>%
          left_join(
-            y  = tbl(db_conn, "addr_prov") %>%
+            y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_prov")) %>%
                select(
                   PSGC_REG   = REG,
                   PSGC_PROV  = PROV,
@@ -73,7 +71,7 @@ object   <- tbl(db_conn, "addr_reg") %>%
          )
    ) %>%
    union(
-      y = tbl(db_conn, "addr_reg") %>%
+      y = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_reg")) %>%
          head(n = 1) %>%
          mutate(
             PSGC_REG   = NA_character_,

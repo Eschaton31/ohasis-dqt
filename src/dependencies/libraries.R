@@ -1,6 +1,4 @@
-##------------------------------------------------------------------------------
-##  Required Libraries
-##------------------------------------------------------------------------------
+##  Required Libraries ---------------------------------------------------------
 
 # easy loader for libraries
 if (!require(pacman))
@@ -9,6 +7,7 @@ if (!require(pacman))
 # load libraries
 library(pacman)
 p_load(
+   magrittr,
    ggplot2,
    RColorBrewer,
    DescTools,
@@ -43,5 +42,6 @@ p_load(
    gmailr,
    googledrive,
    googlesheets4,
-   rdrop2
+   rdrop2,
+   slackr
 )

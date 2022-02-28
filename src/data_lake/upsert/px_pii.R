@@ -1,10 +1,8 @@
-##------------------------------------------------------------------------------
-##  Person Identifiable Information
-##------------------------------------------------------------------------------
+##  Person Identifiable Information --------------------------------------------
 
 continue <- 0
 id_col   <- "REC_ID"
-object   <- tbl(db_conn, "px_record") %>%
+object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
    filter(
       (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
          (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
@@ -33,7 +31,7 @@ if ((object %>% count() %>% collect())$n > 0) {
          )
       ) %>%
       left_join(
-         y  = tbl(db_conn, "px_info") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_info")) %>%
             mutate(
                SEX = case_when(
                   SEX == 1 ~ '1_Male',
@@ -54,7 +52,7 @@ if ((object %>% count() %>% collect())$n > 0) {
          by = "REC_ID"
       ) %>%
       left_join(
-         y  = tbl(db_conn, "px_name") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_name")) %>%
             select(
                REC_ID,
                FIRST,
@@ -65,7 +63,7 @@ if ((object %>% count() %>% collect())$n > 0) {
          by = "REC_ID"
       ) %>%
       left_join(
-         y  = tbl(db_conn, "px_faci") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_faci")) %>%
             mutate(
                SERVICE_TYPE = case_when(
                   SERVICE_TYPE == '*00001' ~ 'Mortality',
@@ -102,7 +100,7 @@ if ((object %>% count() %>% collect())$n > 0) {
          )
       ) %>%
       left_join(
-         y  = tbl(db_conn, "px_form") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_form")) %>%
             filter(FORM != '') %>%
             mutate(
                FORM_VERSION = if_else(
@@ -118,9 +116,9 @@ if ((object %>% count() %>% collect())$n > 0) {
          by = "REC_ID"
       ) %>%
       left_join(
-         y  = tbl(db_conn, "px_profile") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_profile")) %>%
             left_join(
-               y  = tbl(db_conn, "addr_country") %>%
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_country")) %>%
                   select(
                      NATIONALITY = COUNTRY_CODE,
                      COUNTRY_NAME
@@ -178,7 +176,7 @@ if ((object %>% count() %>% collect())$n > 0) {
          by = "REC_ID"
       ) %>%
       left_join(
-         y  = tbl(db_conn, "px_addr") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_addr")) %>%
             select(
                REC_ID,
                ADDR_TYPE,

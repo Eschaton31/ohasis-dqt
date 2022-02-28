@@ -1,6 +1,4 @@
-##------------------------------------------------------------------------------
-##  Classes
-##------------------------------------------------------------------------------
+##  Classes --------------------------------------------------------------------
 
 # main project class
 Project <- setRefClass(
@@ -8,6 +6,7 @@ Project <- setRefClass(
    fields  = list(
       mo        = "character",
       yr        = "character",
+      date      = "Date",
       prev_mo   = "character",
       prev_yr   = "character",
       prev_date = "Date",
@@ -20,10 +19,11 @@ Project <- setRefClass(
       # set the current reporting period
       set_report   = function() {
          # reporting date
-         mo <<- .self$input(prompt = "What is the reporting month?", max.char = 2)
-         mo <<- mo %>% stri_pad_left(width = 2, pad = "0")
-         yr <<- .self$input(prompt = "What is the reporting year?", max.char = 4)
-         yr <<- yr %>% stri_pad_left(width = 4, pad = "0")
+         mo   <<- input(prompt = "What is the reporting month?", max.char = 2)
+         mo   <<- mo %>% stri_pad_left(width = 2, pad = "0")
+         yr   <<- input(prompt = "What is the reporting year?", max.char = 4)
+         yr   <<- yr %>% stri_pad_left(width = 4, pad = "0")
+         date <<- as.Date(paste(sep = "-", yr, mo, "01"))
 
          # prev date
          dates     <- .self$get_date_ref("prev", yr, mo)
@@ -38,7 +38,7 @@ Project <- setRefClass(
          next_date <<- as.Date(paste(sep = "-", next_yr, next_mo, "01"))
 
          # label the current run
-         run_title <<- .self$input(prompt = "Label the current run (brief, concise)")
+         run_title <<- input(prompt = "Label the current run (brief, concise)")
 
          log_success("Project parameters defined!")
       },
@@ -63,11 +63,11 @@ Project <- setRefClass(
       },
 
       # get official dataset files
-      get_data     = function(surveillance = NULL, yr = NULL, mo = NULL, path = NULL, file_type = "dta") {
+      get_data     = function(surveillance = NULL, refYr = NULL, refMo = NULL, path = NULL, file_type = "dta") {
 
          if (tolower(surveillance) == "harp_dx") {
             path    <- Sys.getenv("HARP_DX")
-            pattern <- paste0('*reg_', yr, '-', mo, '.*\\.', file_type)
+            pattern <- paste0('*reg_', refYr, '-', refMo, '.*\\.', file_type)
          }
 
          # function to find the latest file
@@ -79,63 +79,37 @@ Project <- setRefClass(
 
          # if first file called is non-existent, look to previous month's report
          while (length(file) == 0) {
-            if (as.numeric(mo) > 1) {
+            if (as.numeric(refMo) > 1) {
                # for months feb-dec, check previous month
-               mo <- as.numeric(mo) - 1
+               refMo <- as.numeric(refMo) - 1
             } else {
                # for jan, check previous year & month of dec
-               mo <- 12
-               yr <- as.numeric(yr) - 1
+               refMo <- 12
+               refYr <- as.numeric(refYr) - 1
             }
-            mo <- str_pad(mo, 2, 'left', '0')
-            yr <- as.character(yr)
+            refMo <- str_pad(refMo, 2, 'left', '0')
+            refYr <- as.character(refYr)
 
             file <- get_latest()
          }
 
          return(file[1])
-      },
-
-      # taking user input
-      input        = function(prompt, options = NULL, default = NULL, max.char = NULL) {
-         if (!is.null(options) && !is.null(default)) {
-            options <- paste(collapse = "/", options)
-            options <- stri_replace_first_fixed(options, default, stri_trans_totitle(default))
-            prompt  <- paste0(prompt, " [", options, "]")
-         } else if (!is.null(default)) {
-            prompt <- paste0(prompt, " [", default, "]")
-         }
-
-         # get user input
-         data <- readline(paste0(prompt, ": "))
-
-         # if empty, use default
-         if (data == "" & !is.null(default))
-            data <- default
-
-         # if no default, throw error
-         if (data == "" & is.null(default))
-            stop("This is a required input!")
-
-         # check if max characters defined
-         if (!is.null(max.char) && nchar(data) > max.char)
-            stop("Input exceeds the maximum number of characters!")
-
-
-         # return value
-         return(data)
       }
    )
 )
 
-# data_warehouse class
+# DBMS class
 DB <- setRefClass(
    Class    = "DB",
    contains = "Project",
    fields   = list(
-      timestamp = "character",
-      internet  = "data.frame",
-      db_checks = "list"
+      timestamp   = "character",
+      internet    = "data.frame",
+      db_checks   = "list",
+      ref_addr    = "data.frame",
+      ref_country = "data.frame",
+      ref_faci    = "data.frame",
+      ref_staff   = "data.frame"
    ),
    methods  = list(
       initialize        = function(mo = NULL, yr = NULL, title = NULL) {
@@ -148,17 +122,21 @@ DB <- setRefClass(
          callSuper()$set_report()
 
          # check internet speed
-         check_speed <- export("Project")$input(prompt = "Run the speed test?", c("yes", "no"), "yes")
+         check_speed <- input(
+            prompt  = "Run the speed test?",
+            options = c("1" = "yes", "2" = "no"),
+            default = "1"
+         )
          check_speed <- substr(toupper(check_speed), 1, 1)
-         if (check_speed == "Y") {
-            log_info("Checking internet speed...")
+         if (check_speed == "1") {
+            log_info("Checking internet speed.")
             internet <<- .self$speedtest()
             log_info("Current download speed: {internet$speed_down_megabits_sec} Mbps")
             log_info("Current upload speed: {internet$speed_up_megabits_sec} Mbps")
          }
 
          # check database consistency
-         log_info("Checking database for inconsistencies...")
+         log_info("Checking database for inconsistencies.")
          db_checks <<- .self$check_consistency()
          if (length(.self$db_checks) > 0)
             log_warn("DB inconsistencies found! See `db_checks` for more info.")
@@ -166,35 +144,45 @@ DB <- setRefClass(
             log_info("DB is clean.")
 
          # update data lake
-         update <- export("Project")$input(prompt = "Update the data lake?", c("all", "yes", "no"), "yes")
+         update <- input(
+            prompt  = "Update the data lake?",
+            options = c("1" = "yes", "2" = "no", "3" = "all"),
+            default = "1"
+         )
          update <- substr(toupper(update), 1, 1)
-         if (update %in% c("Y", "A")) {
+         if (update %in% c("1", "3")) {
             # get required refresh data & upsert only
-            for (path in (c("refresh", "upsert"))) {
-               if (path == "refresh")
-                  refresh <- TRUE
-               else
-                  refresh <- FALSE
-
-               lake_dir <- file.path("src", "data_lake", path)
-
+            for (update_type in (c("refresh", "upsert"))) {
                # if all should be updated
-               if (update == "A")
-                  update_all <- TRUE
+               if (update == "3")
+                  default_yes <- TRUE
                else
-                  update_all <- FALSE
+                  default_yes <- FALSE
 
-               lake_table <- function(table) {
-                  table <- stri_replace_last_fixed(table, ".R", "")
-                  .self$lake(table, refresh = refresh, path = lake_dir, default = update_all)
+               lake_table <- function(table_name) {
+                  table_name <- stri_replace_last_fixed(table_name, ".R", "")
+                  .self$data_factory("lake", table_name, update_type, default_yes)
                }
 
+               lake_dir <- file.path("src/data_lake", update_type)
                lapply(list.files(lake_dir, pattern = "ref_*"), lake_table)
                lapply(list.files(lake_dir, pattern = "px_*"), lake_table)
+               lapply(list.files(lake_dir, pattern = "lab_*"), lake_table)
             }
 
             log_info("Data lake updated!")
          }
+
+         # download latest references before final initialization
+         log_info("Downloading references.")
+         db_conn           <- .self$conn("db")
+         lw_conn           <- .self$conn("lw")
+         .self$ref_addr    <<- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "ref_addr")) %>% collect()
+         .self$ref_country <<- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_country")) %>% collect()
+         .self$ref_faci    <<- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "ref_faci")) %>% collect()
+         .self$ref_staff   <<- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "ref_staff")) %>% collect()
+         dbDisconnect(db_conn)
+         dbDisconnect(lw_conn)
 
          log_success("OHASIS initialized!")
       },
@@ -209,62 +197,51 @@ DB <- setRefClass(
                password = Sys.getenv("DB_PASS"),
                host     = Sys.getenv("DB_HOST"),
                port     = Sys.getenv("DB_PORT"),
-               timeout  = -1,
-               Sys.getenv("DB_NAME")
+               timeout  = -1
             )
 
-         # live data lake
-         if (db == "dl")
+         # live data lake / warehouse
+         if (db == "lw")
             db_conn <- dbConnect(
                RMariaDB::MariaDB(),
-               user     = Sys.getenv("DL_USER"),
-               password = Sys.getenv("DL_PASS"),
-               host     = Sys.getenv("DL_HOST"),
-               port     = Sys.getenv("DL_PORT"),
-               timeout  = -1,
-               Sys.getenv("DL_NAME")
+               user     = Sys.getenv("LW_USER"),
+               password = Sys.getenv("LW_PASS"),
+               host     = Sys.getenv("LW_HOST"),
+               port     = Sys.getenv("LW_PORT"),
+               timeout  = -1
             )
-
-         # live data warehouse
-         if (db == "dw")
-            db_conn <- dbConnect(
-               RMariaDB::MariaDB(),
-               user     = Sys.getenv("DW_USER"),
-               password = Sys.getenv("DW_PASS"),
-               host     = Sys.getenv("DW_HOST"),
-               port     = Sys.getenv("DW_PORT"),
-               timeout  = -1,
-               Sys.getenv("DW_NAME")
-            )
-
          return(db_conn)
       },
 
       # upsert data
-      upsert            = function(db_conn = NULL, table = NULL, data = NULL, id_col = NULL) {
+      upsert            = function(db_conn = NULL, db_type = NULL, table_name = NULL, data = NULL, id_col = NULL) {
+         db_name     <- paste0("ohasis_", db_type)
+         table_space <- Id(schema = db_name, table = table_name)
+         table_sql   <- DBI::SQL(paste0('`', db_name, '`.`', table_name, '`'))
+
          # check if table exists, if not create
-         if (!dbExistsTable(db_conn, table)) {
-            sql <- .self$create(table, data, id_col)
+         if (!dbExistsTable(db_conn, table_space)) {
+            sql <- .self$create(db_name, table_name, data, id_col)
             dbExecute(db_conn, sql)
          }
 
          # compare columns match, if not re-create table
          names_data  <- sort(names(data))
-         names_table <- sort(dbListFields(db_conn, table))
+         names_table <- sort(dbListFields(db_conn, table_space))
          if (!identical(names_data, names_table) & length(setdiff(names_data, names_table)) > 0) {
             # get current records (assuming change is only added columns)
-            df <- dbReadTable(db_conn, table)
+            df <- dbReadTable(db_conn, table_space)
 
             # recreate table using new columns
-            dbRemoveTable(db_conn, table)
-            dbCreateTable(db_conn, table, data)
+            sql <- .self$create(db_name, table_name, data, id_col)
+            dbExecute(db_conn, sql)
 
             # re-insert data
-            dbAppendTable(db_conn, table, df)
+            dbAppendTable(db_conn, table_sql, df)
          }
 
          # upsert data
-         chunk_size <- 100
+         chunk_size <- 10000
          if (nrow(data) >= chunk_size) {
             # upload in chunks to monitor progress
             n_rows     <- nrow(data)
@@ -277,20 +254,20 @@ DB <- setRefClass(
             pb$tick(0)
             for (i in seq_len(length(data))) {
                chunk_bytes <- as.numeric(object.size(data[[i]]))
-               dbxUpsert(db_conn, table, data[[i]], id_col)
+               dbxUpsert(db_conn, table_space, data[[i]], id_col)
                pb$tick(chunk_bytes)
             }
             cat("\n")
          } else {
-            dbxUpsert(db_conn, table, data, id_col)
+            dbxUpsert(db_conn, table_space, data, id_col)
          }
       },
 
       # create table
-      create            = function(table = NULL, data = NULL, id_col = NULL) {
+      create            = function(db_name = NULL, table_name = NULL, data = NULL, id_col = NULL) {
          # attached columns
          user_cols <- c("CREATED_BY", "UPDATED_BY", "DELETED_BY", "PROVIDER_ID", "SIGNATORY_1", "SIGNATORY_2", "SIGNATORY_2", "USER_ID", "STAFF_ID")
-         text_faci <- c("PREV_TEST_FACI", "DELIVER_FACI")
+         text_faci <- c("PREV_TEST_FACI", "DELIVER_FACI", "FACI_LABEL", "FACI_NAME", "FACI_NAME_CLEAN")
 
          # construct create based on data types
          df_str <- data %>%
@@ -304,13 +281,15 @@ DB <- setRefClass(
                   Var1 %in% text_faci ~ "TEXT NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
                   Var1 %in% user_cols & !(Var1 %in% id_col) ~ "CHAR(10) NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
                   Var1 %in% user_cols & Var1 %in% id_col ~ "CHAR(10) NULL COLLATE 'utf8_general_ci'",
+                  Var1 == "FACI_CODE" ~ "CHAR(3) NULL COLLATE 'utf8_general_ci'",
+                  Var1 == "REC_ID" ~ "CHAR(25) NULL COLLATE 'utf8_general_ci'",
+                  Var1 == "PATIENT_ID" ~ "CHAR(18) NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
                   stri_detect_fixed(Var1, "PSGC") ~ "CHAR(9) NULL COLLATE 'utf8_general_ci'",
+                  stri_detect_fixed(Var1, "ADDR") ~ "TEXT NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
                   stri_detect_fixed(Var1, "SUB_FACI") ~ "CHAR(10) NULL COLLATE 'utf8_general_ci'",
                   stri_detect_fixed(Var1, "SUB_SOURCE") ~ "CHAR(10) NULL COLLATE 'utf8_general_ci'",
                   stri_detect_fixed(Var1, "FACI") ~ "CHAR(6) NULL COLLATE 'utf8_general_ci'",
                   stri_detect_fixed(Var1, "SOURCE") ~ "CHAR(6) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "REC_ID" ~ "CHAR(25) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "PATIENT_ID" ~ "CHAR(18) NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
                   Mode == "numeric" & Class == "Date" ~ "DATE NULL DEFAULT NULL",
                   Mode == "numeric" & Class == "POSIXct" ~ "DATETIME NULL DEFAULT NULL",
                   Mode == "numeric" ~ "INT(11) NULL DEFAULT NULL",
@@ -323,65 +302,72 @@ DB <- setRefClass(
          # implode into query
          pk_sql     <- paste(collapse = "`,`", id_col)
          create_sql <- paste(collapse = ",", df_str$SQL)
-         create_sql <- paste0("CREATE TABLE `", table, "` (\n",
+         create_sql <- paste0("CREATE TABLE `", db_name, "`.`", table_name, "` (\n",
                               create_sql, ",\nPRIMARY KEY(`", pk_sql, "`)\n)\n",
                               "COLLATE='utf8_general_ci'\nENGINE=InnoDB;")
          return(create_sql)
       },
 
       # update lake
-      lake              = function(table = NULL, refresh = FALSE, path = NULL, default = FALSE) {
+      data_factory      = function(db_type = NULL, table_name = NULL, update_type = NULL, default_yes = FALSE) {
+         # append "ohasis_" as db name
+         db_name <- paste0("ohasis_", db_type)
+
          # get input
-         if (default == TRUE) {
-            update <- "Y"
-            log_info("Updating `{table}`.")
+         if (default_yes == TRUE) {
+            update <- "1"
+            log_info("Updating `{table_name}` @ the `{db_type}`.")
          } else {
-            update <- export("Project")$input(prompt = paste0("Update `", table, "`?"),
-                                              c("yes", "no"),
-                                              "yes")
+            update <- input(
+               prompt  = paste0("Update `", table_name, "`?"),
+               options = c("yes", "no"),
+               default = "1"
+            )
          }
          update <- substr(toupper(update), 1, 1)
 
          # update
-         if (update == "Y") {
+         if (update == "1") {
             # open connections
-            log_info("Opening connections...")
+            log_info("Opening connections.")
             db_conn <- .self$conn("db")
-            dl_conn <- .self$conn("dl")
+            lw_conn <- .self$conn("lw")
 
             # get snapshots
-            snapshot      <- .self$get_snapshots(dl_conn, table)
+            snapshot      <- .self$get_snapshots(db_type, table_name)
             snapshot$data <- if_else(!is.na(snapshot$data), snapshot$data + 1, snapshot$data)
             snapshot_old  <- if_else(snapshot$old < snapshot$data, snapshot$old, snapshot$data) %>% as.character()
             snapshot_new  <- snapshot$new %>% as.character()
 
-            if (refresh)
+            if (update_type == "refresh")
                snapshot_old <- "1970-01-01 00:00:00"
 
             # run data lake script for object
-            log_info("Getting new data...")
-            source(file.path(path, paste0(table, '.R')), local = TRUE)
+            log_info("Getting new data.")
+            factory_file <- file.path("src", paste0("data_", db_type), "refresh", paste0(table_name, '.R'))
+            if (!file.exists(factory_file))
+               factory_file <- file.path("src", paste0("data_", db_type), "upsert", paste0(table_name, '.R'))
 
-            if (continue > 0 ||
-               (!dbExistsTable(dl_conn, table) ||
-                  !identical(sort(names(object)), sort(dbListFields(dl_conn, table))))) {
+            source(factory_file, local = TRUE)
+
+            if (continue > 0) {
                log_info("Payload = {nrow(object)} rows.")
-               .self$upsert(dl_conn, table, object, id_col)
+               .self$upsert(lw_conn, db_type, table_name, object, id_col)
                # update reference
                df <- data.frame(
-                  user      = Sys.getenv("DL_USER"),
+                  user      = Sys.getenv("LW_USER"),
                   report_yr = .self$yr,
                   report_mo = .self$mo,
                   run_title = paste0(.self$timestamp, " (", .self$run_title, ")"),
-                  table     = table,
+                  table     = table_name,
                   rows      = nrow(object),
                   snapshot  = snapshot_new
                )
 
                # log if successful
                dbAppendTable(
-                  dl_conn,
-                  "logs",
+                  lw_conn,
+                  DBI::SQL(paste0('`', db_name, '`.`logs`')),
                   df
                )
                log_info("Done!\n")
@@ -391,98 +377,39 @@ DB <- setRefClass(
 
             # close connections
             dbDisconnect(db_conn)
-            dbDisconnect(dl_conn)
-         }
-      },
-
-
-      # update warehouse
-      warehouse         = function(table = NULL, refresh = FALSE, path = NULL) {
-         # get input
-         update <- export("Project")$input(prompt = paste0("Update `", table, "`?"),
-                                           c("yes", "no"),
-                                           "yes")
-         update <- substr(toupper(update), 1, 1)
-
-         # update
-         if (update == "Y") {
-            # open connections
-            log_info("Opening connections...")
-            db_conn <- .self$conn("db")
-            dl_conn <- .self$conn("dl")
-            dw_conn <- .self$conn("dw")
-
-            # get snapshots
-            snapshot     <- .self$get_snapshots(dw_conn, table)
-            snapshot_old <- if_else(snapshot$old < snapshot$data, snapshot$old, snapshot$data, snapshot$old) %>% as.character()
-            snapshot_new <- snapshot$new %>% as.character()
-
-            if (refresh)
-               snapshot_old <- "1970-01-01 00:00:00"
-
-            # run data lake script for object
-            log_info("Getting new data...")
-            source(file.path(path, paste0(table, '.R')), local = TRUE)
-
-            if (continue > 0 ||
-               !dbExistsTable(dw_conn, table) ||
-               !identical(sort(names(object)), sort(dbListFields(dw_conn, table)))) {
-               log_info("Payload = {nrow(object)} rows.")
-               .self$upsert(dw_conn, table, object, id_col)
-               # update reference
-               df <- data.frame(
-                  user      = Sys.getenv("DL_USER"),
-                  report_yr = .self$yr,
-                  report_mo = .self$mo,
-                  run_title = paste0(.self$timestamp, " (", .self$run_title, ")"),
-                  table     = table,
-                  rows      = nrow(object),
-                  snapshot  = snapshot_new
-               )
-
-               # log if successful
-               dbAppendTable(
-                  dw_conn,
-                  "logs",
-                  df
-               )
-               log_info("Done!\n")
-            } else {
-               log_info("None found.\n")
-            }
-
-            # close connections
-            dbDisconnect(db_conn)
-            dbDisconnect(dl_conn)
-            dbDisconnect(dw_conn)
+            dbDisconnect(lw_conn)
          }
       },
 
       # get snapshot
-      get_snapshots     = function(db_conn = NULL, ref_table = NULL) {
-         snapshot <- list()
+      get_snapshots     = function(db_type = NULL, table_name = NULL) {
+         snapshot    <- list()
+         db_conn     <- .self$conn("lw")
+         db_name     <- paste0("ohasis_", db_type)
+         table_space <- Id(schema = db_name, table = table_name)
 
          # check current snapshot
-         snapshot$old <- tbl(db_conn, "logs") %>%
-            filter(table == ref_table) %>%
+         snapshot$old <- tbl(db_conn, dbplyr::in_schema(db_name, "logs")) %>%
+            filter(table == table_name) %>%
             summarise(id = max(id, na.rm = TRUE)) %>%
             inner_join(
-               y  = tbl(db_conn, "logs"),
+               y  = tbl(db_conn, dbplyr::in_schema(db_name, "logs")),
                by = "id"
             )
 
          # check if already available
          if ((snapshot$old %>% tally() %>% collect())$n > 0) {
             snapshot$old <- (snapshot$old %>% collect())$snapshot
-            log_info("Current data lake snapshot as of `{format(snapshot$old, \"%a %b %d, %Y %X\")}`.")
+            log_info("Latest snapshot = `{format(snapshot$old, \"%a %b %d, %Y %X\")}`.")
          } else {
             snapshot$old <- as.POSIXct("1970-01-01 00:00:00", tz = "UTC")
             log_info("No version found in data lake.")
          }
 
          # check if already exists
-         if (dbExistsTable(db_conn, ref_table) && "SNAPSHOT" %in% dbListFields(db_conn, ref_table)) {
-            sql           <- dbSendQuery(db_conn, paste0("SELECT MAX(SNAPSHOT) AS SNAPSHOT FROM `", ref_table, "`;"))
+         if (dbExistsTable(db_conn, table_space) &&
+            "SNAPSHOT" %in% dbListFields(db_conn, table_space)) {
+            sql           <- dbSendQuery(db_conn, paste0("SELECT MAX(SNAPSHOT) AS SNAPSHOT FROM `", db_name, "`.`", table_name, "`;"))
             snapshot$data <- dbFetch(sql)$SNAPSHOT %>% as.POSIXct(tz = "UTC")
             dbClearResult(sql)
          } else {
@@ -491,6 +418,7 @@ DB <- setRefClass(
 
          snapshot$new <- as.POSIXct(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), tz = "UTC")
 
+         dbDisconnect(db_conn)
          return(snapshot)
       },
 
@@ -500,19 +428,24 @@ DB <- setRefClass(
          checklist <- list()
 
          # get list of queries
-         checks <- list.files("src/diagnostics") %>% sort(decreasing = TRUE)
+         checks <- list.files("src/diagnostics")
          for (query in checks) {
             issue <- stri_replace_last_fixed(query, ".sql", "")
-            rs    <- dbSendQuery(db_conn, read_file(file.path("src/diagnostics", query)))
 
-            data <- dbFetch(rs)
+            if (stri_detect_regex(query, "^delete")) {
+               dbExecute(db_conn, read_file(file.path("src/diagnostics", query)))
+            } else {
+               rs <- dbSendQuery(db_conn, read_file(file.path("src/diagnostics", query)))
 
-            # if there are issues, break
-            if (dbGetRowCount(rs) > 0)
-               checklist[[issue]] <- data
+               data <- dbFetch(rs)
 
-            # clear results
-            dbClearResult(rs)
+               # if there are issues, break
+               if (dbGetRowCount(rs) > 0)
+                  checklist[[issue]] <- data
+
+               # clear results
+               dbClearResult(rs)
+            }
          }
          dbDisconnect(db_conn)
          return(checklist)

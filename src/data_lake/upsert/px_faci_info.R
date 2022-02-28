@@ -1,10 +1,8 @@
-##------------------------------------------------------------------------------
-##  Person Identifiable Information
-##------------------------------------------------------------------------------
+##  Person Identifiable Information --------------------------------------------
 
 continue <- 0
 id_col   <- "REC_ID"
-object   <- tbl(db_conn, "px_record") %>%
+object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
    filter(
       (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
          (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
@@ -22,7 +20,7 @@ if ((object %>% count() %>% collect())$n > 0) {
    continue <- 1
    object   <- object %>%
       left_join(
-         y  = tbl(db_conn, "px_faci") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_faci")) %>%
             filter(SERVICE_TYPE != "101102") %>%
             select(
                -starts_with("CREATED_"),
@@ -32,7 +30,7 @@ if ((object %>% count() %>% collect())$n > 0) {
          by = "REC_ID"
       ) %>%
       left_join(
-         y  = tbl(db_conn, "px_remarks") %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_remarks")) %>%
             pivot_wider(
                id_cols      = c("REC_ID", "REMARK_TYPE"),
                names_from   = REMARK_TYPE,

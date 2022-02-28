@@ -1,62 +1,64 @@
-##------------------------------------------------------------------------------
-##  HARP Registry Linkage Controller
-##------------------------------------------------------------------------------
+##  HARP Registry Linkage Controller -------------------------------------------
 
 # update warehouse - Form A
-ohasis$warehouse(table = "form_a", path = "src/data_warehouse/upsert")
+ohasis$data_factory("warehouse", "form_a", "upsert", TRUE)
 
 # update warehouse - HTS Form
-ohasis$warehouse(table = "form_hts", path = "src/data_warehouse/upsert")
+ohasis$data_factory("warehouse", "form_hts", "upsert", TRUE)
 
 # update warehouse - OHASIS IDs
-ohasis$warehouse(table = "id_registry", path = "src/data_warehouse/upsert")
+ohasis$data_factory("warehouse", "id_registry", "upsert", TRUE)
 
 # define datasets
 if (!exists('nhsss'))
    nhsss <- list()
 
-# open connections
-log_info("Opening connections...")
-dw_conn <- ohasis$conn("dw")
-db_conn <- ohasis$conn("db")
+##  Begin linkage of datasets --------------------------------------------------
 
-# check if registry is to be re-loaded
-nhsss$harp_dx$reload <- ohasis$input(prompt = "Reload the previous HARP Dx dataset?", c("yes", "no"), "yes")
-nhsss$harp_dx$reload <- StrLeft(nhsss$harp_dx$reload, 1) %>% toupper()
+source("src/official/harp_dx/01_load_corrections.R")
+source("src/official/harp_dx/02_load_harp.R")
+source("src/official/harp_dx/03_data_initial.R")
+source("src/official/harp_dx/04_data_convert.R")
 
-# if Yes, reload registry
-if (nhsss$harp_dx$reload == "Y") {
-   log_info("Reloading the HARP Dx dataset from the previous reporting period.")
-   df <- ohasis$get_data("harp_dx", ohasis$prev_yr, ohasis$prev_mo) %>%
-      read_dta() %>%
-      # convert Stata string missing data to NAs
-      mutate_if(
-         .predicate = is.character,
-         ~if_else(. == '', NA_character_, .)
-      )
-
-   # remove legacy columns
-   legaci_ids <- c("rec_id", "central_id")
-   for (id in legaci_ids) {
-      if (id %in% names(df))
-         df <- df %>% select(-as.symbol(!!id))
-   }
-   rm(id, legaci_ids)
-
-   log_info("Updating `harp_dx`.")
-   # delete existing data, full refresh always
-   if (dbExistsTable(dw_conn, "harp_dx"))
-      dbExecute(dw_conn, "DROP TABLE `harp_dx`;")
-
-   # upload info
-   ohasis$upsert(dw_conn, "harp_dx", df %>% select(REC_ID, PATIENT_ID, idnum), "PATIENT_ID")
-   rm(df)
+slack <- slackr_users()
+users <- c(
+   'jrpalo',
+   'kmasilo',
+   'jmvelayo',
+   'mcrendon',
+   'mgzapanta',
+   'appadilla',
+   'cjmaranan.doh',
+   'mcamoroso.doh',
+   'nspalaypayon'
+)
+link  <- "https://www.dropbox.com/s/41i0nzu8xtb8qeb/JAN%202022_2.0.rar?dl=0"
+for (user in users) {
+   id <- (slack %>% filter(name == user))$id
+   slackr_msg(
+      channel = id,
+      paste0(">Hi! The HARP Dx Registry dataset for the reporting period of ",
+             month.abb[as.numeric(ohasis$mo)], " ", ohasis$yr,
+             " has now been updated with the necessary changes for tagging of advanced HIV disease. You may click on the link below to download the updated dataset.\n><", link,
+             "|", toupper(month.abb[as.numeric(ohasis$mo)]), " ", ohasis$yr, ">"),
+      mrkdwn  = "true"
+   )
 }
 
-##------------------------------------------------------------------------------
-##  Begin linkage of datasets
-##------------------------------------------------------------------------------
+slackr_msg(
+   channel = "harp",
+   paste0(">Hi! The HARP Dx Registry dataset for the reporting period of ",
+          month.abb[as.numeric(ohasis$mo)], " ", ohasis$yr,
+          " is now available. Those concerned should have already received a message from the *Slackbot* and an email from <@U0328EFNAQL> containing the dataset.\n>Have a great day!"),
+   mrkdwn  = "true"
+)
 
-# source("01_initial.R")
-dbDisconnect(dw_conn)
-dbDisconnect(db_conn)
+df <- nhsss$harp_dx$converted$data %>%
+   mutate(
+      stata = if_else(
+         !is.na(ahd),
+         paste0("replace ahd = ", ahd, " if labcode == \"", labcode, "\""),
+         paste0("replace ahd = . if labcode == \"", labcode, "\"")
+      )
+   )
+write_clip(df$stata)
