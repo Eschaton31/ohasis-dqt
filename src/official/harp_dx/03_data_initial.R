@@ -9,7 +9,7 @@ log_info("Opening connections.")
 lw_conn <- ohasis$conn("lw")
 db_conn <- ohasis$conn("db")
 
-# Form A
+# Form A + HTS Forms
 log_info("Dropping already-reported records.")
 nhsss$harp_dx$initial$data <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_a")) %>%
    union_all(tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_hts"))) %>%
@@ -154,9 +154,20 @@ nhsss$harp_dx$initial$data %<>%
          true      = floor((visit_date - BIRTHDATE) / 365.25) %>% as.numeric(),
          false     = as.numeric(NA)
       ),
+   ) %>%
+   left_join(
+      y  = nhsss$harp_dx$corr$dup_munc %>%
+         select(
+            PERM_PSGC_MUNC = PSGC_MUNC,
+            DUP_MUNC
+         ),
+      by = "PERM_PSGC_MUNC"
    )
 
+##  Getting summary of initial unfiltered reports ------------------------------
+
 log_info("Getting summary of reports before prioritization and dropping.")
+nhsss$harp_dx$initial$raw_data       <- nhsss$harp_dx$initial$data
 nhsss$harp_dx$initial$report_summary <- nhsss$harp_dx$initial$data %>%
    # confirmlab
    mutate(
@@ -197,6 +208,8 @@ nhsss$harp_dx$initial$report_summary <- nhsss$harp_dx$initial$data %>%
       reports = n()
    )
 
+##  Sorting confirmatory results -----------------------------------------------
+
 log_info("Prioritizing reports.")
 nhsss$harp_dx$initial$data %<>%
    arrange(lab_year, lab_month, desc(CONFIRM_TYPE), visit_date, confirm_date) %>%
@@ -207,10 +220,13 @@ nhsss$harp_dx$initial$data %<>%
       TEST_SUB_FACI = SERVICE_SUB_FACI,
    )
 
+##  Adding CD4 results ---------------------------------------------------------
+
 log_info("Attaching baseline CD4 data.")
 ceiling_date <- ohasis$next_date
 nhsss$harp_dx$initial$data %<>%
    # get cd4 data
+   # TODO: attach max dates for filtering of cd4 data
    left_join(
       y  = tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "lab_cd4")) %>%
          filter(
@@ -234,7 +250,8 @@ nhsss$harp_dx$initial$data %<>%
    ) %>%
    mutate(
       # calculate distance from confirmatory date
-      CD4_CONFIRM  = difftime(as.Date(confirm_date), as.Date(CD4_DATE), units = "days") %>% as.numeric(),
+      CD4_DATE     = as.Date(CD4_DATE),
+      CD4_CONFIRM  = difftime(as.Date(confirm_date), CD4_DATE, units = "days") %>% as.numeric(),
 
       # baseline is within 182 days
       BASELINE_CD4 = if_else(
@@ -429,6 +446,53 @@ if (update == "1") {
    }
 
    # special checks
+   log_info("Checking for similarly names municipalities.")
+   nhsss$harp_dx$initial$check[["dup_munc"]] <- nhsss$harp_dx$initial$data %>%
+      filter(
+         DUP_MUNC == 1
+      ) %>%
+      mutate_at(
+         .vars = vars(contains("_PSGC_")),
+         ~if_else(is.na(.), "", .)
+      ) %>%
+      # permanent
+      rename_at(
+         .vars = vars(starts_with("PERM_PSGC")),
+         ~stri_replace_all_fixed(., "PERM_", "")
+      ) %>%
+      left_join(
+         y  = ohasis$ref_addr %>%
+            select(
+               PSGC_REG,
+               PSGC_PROV,
+               PSGC_MUNC,
+               NAME_REG,
+               NAME_PROV,
+               NAME_MUNC,
+            ),
+         by = c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC")
+      ) %>%
+      select(
+         REC_ID,
+         PATIENT_ID,
+         FORM_VERSION,
+         CONFIRM_CODE,
+         UIC,
+         PATIENT_CODE,
+         FIRST,
+         MIDDLE,
+         LAST,
+         SUFFIX,
+         BIRTHDATE,
+         SEX,
+         TEST_FACI_NAME,
+         CONFIRM_TYPE,
+         SPECIMEN_REFER_TYPE,
+         NAME_REG,
+         NAME_PROV,
+         NAME_MUNC,
+      )
+
    log_info("Checking for males tagged as pregnant.")
    nhsss$harp_dx$initial$check[["pregnant_m"]] <- nhsss$harp_dx$initial$data %>%
       filter(
@@ -629,50 +693,13 @@ if (update == "1") {
 ##  Consolidate issues ---------------------------------------------------------
 
 # write into NHSSS GSheet
-if ("check" %in% names(nhsss$harp_dx$initial)) {
-   log_info("Uploading to GSheets..")
-   drive_list <- list()
-   nhsss$harp_dx$initial$empty_sheets <- ""
-   nhsss$harp_dx$initial$gsheet       <- paste0("initial_", format(Sys.time(), "%Y.%m.%d"))
-   nhsss$harp_dx$initial$drive_path   <- paste0("~/DQT/Data Factory/HARP Dx/", ohasis$yr, ".", ohasis$mo, "/Validation/")
-   nhsss$harp_dx$initial$drive_file   <- drive_get(paste0(nhsss$harp_dx$initial$drive_path, nhsss$harp_dx$initial$gsheet))
-   nhsss$harp_dx$initial$drive_link   <- paste0("https://docs.google.com/spreadsheets/d/", nhsss$harp_dx$initial$drive_file$id, "/|GSheets Link: ", nhsss$harp_dx$initial$gsheet)
-
-   # create folder if not exists
-   drive_mkdir(stri_replace_last_fixed(nhsss$harp_dx$initial$drive_path, "/"))
-
-   # create as new if not existing
-   if (nrow(nhsss$harp_dx$initial$drive_file) == 0) {
-      drive_rm(paste0("~/", nhsss$harp_dx$initial$gsheet))
-      gs4_create(nhsss$harp_dx$initial$gsheet, sheets = nhsss$harp_dx$initial$check)
-      drive_mv(nhsss$harp_dx$initial$gsheet, nhsss$harp_dx$initial$drive_path, overwrite = TRUE)
-
-      # acquire sheet_id
-      nhsss$harp_dx$initial$drive_file <- drive_get(paste0(nhsss$harp_dx$initial$drive_path, nhsss$harp_dx$initial$gsheet))
-   } else {
-      for (issue in names(nhsss$harp_dx$initial$check)) {
-         # add issue
-         if (nrow(nhsss$harp_dx$initial$check[[issue]]) > 0)
-            sheet_write(nhsss$harp_dx$initial$check[[issue]], nhsss$harp_dx$initial$drive_file$id, issue)
-      }
-   }
-
-   # delete list of empty dataframes from sheet
-   log_info("Deleting empty sheets.")
-   for (issue in names(nhsss$harp_dx$initial$check)) {
-      if (issue %in% sheet_names(nhsss$harp_dx$initial$drive_file$id))
-         if (nrow(nhsss$harp_dx$initial$check[[issue]]) == 0 & issue %in% sheet_names(nhsss$harp_dx$initial$drive_file$id))
-            nhsss$harp_dx$initial$empty_sheets <- c(nhsss$harp_dx$initial$empty_sheets, issue)
-   }
-   if (length(nhsss$harp_dx$initial$empty_sheets[-1]) > 0)
-      sheet_delete(nhsss$harp_dx$initial$drive_file$id, nhsss$harp_dx$initial$empty_sheets[-1])
-
-   # log in slack
-   slackr_msg(
-      paste0(">HARP Dx conso validation sheets for *initial* have been updated.\n><", nhsss$harp_dx$initial$drive_link, ">"),
-      mrkdwn = "true"
+data_name <- "initial"
+if ("check" %in% names(nhsss$harp_dx[[data_name]]))
+   .validation_gsheets(
+      data_name   = data_name,
+      parent_list = nhsss$harp_dx[[data_name]]$check,
+      drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/")
    )
-}
 
 log_info("Done!")
 

@@ -10,6 +10,11 @@ log_info("Generating `harp_dx`.`converted`.")
 log_info("Getting latest `idnum` for reference.")
 nhsss$harp_dx$params$p10y         <- (as.numeric(ohasis$yr) - 10)
 nhsss$harp_dx$params$latest_idnum <- max(as.integer(nhsss$harp_dx$initial$data$IDNUM), na.rm = TRUE)
+nhsss$harp_dx$params$latest_idnum <- if_else(
+   condition = is.infinite(nhsss$harp_dx$params$latest_idnum),
+   true      = max(as.integer(nhsss$harp_dx$official$old$idnum), na.rm = TRUE),
+   false     = nhsss$harp_dx$params$latest_idnum %>% as.integer()
+)
 
 # new clients
 log_info("Performing initial conversion.")
@@ -138,7 +143,7 @@ nhsss$harp_dx$converted$data <- nhsss$harp_dx$initial$data %>%
       ),
 
       # clinical pic
-      who_staging          = StrLeft(WHO_CLASS, 1),
+      who_staging          = StrLeft(WHO_CLASS, 1) %>% as.integer(),
       other_reason_test    = stri_trans_toupper(TEST_REASON_OTHER_TEXT),
       CLINICAL_PIC         = case_when(
          StrLeft(CLINICAL_PIC, 1) == "1" ~ "0_Asymptomatic",
@@ -476,12 +481,12 @@ nhsss$harp_dx$converted$data %<>%
       ),
       CD4_DATE             = if_else(
          condition = is.na(CD4_RESULT),
-         true      = NA_POSIXct_,
+         true      = NA_Date_,
          false     = CD4_DATE
       ),
 
       # WHO Case Definition of advanced HIV classification
-      CD4_CONFIRM          = difftime(as.Date(confirm_date), as.Date(CD4_DATE), units = "days") %>% as.numeric(),
+      CD4_CONFIRM          = difftime(as.Date(confirm_date), CD4_DATE, units = "days") %>% as.numeric(),
       baseline_cd4         = if_else(
          condition = CD4_CONFIRM <= 182,
          true      = baseline_cd4,
@@ -498,7 +503,7 @@ nhsss$harp_dx$converted$data %<>%
          false     = as.numeric(NA)
       ),
       ahd                  = case_when(
-         who_staging %in% c("3", "4") ~ 1,
+         who_staging %in% c(3, 4) ~ 1,
          AGE >= 5 &
             baseline_cd4 %in% c(3, 4, 5) ~ 1,
          AGE >= 1 &
@@ -513,7 +518,7 @@ nhsss$harp_dx$converted$data %<>%
       classd               = if_else(
          condition = !is.na(who_staging),
          true      = who_staging,
-         false     = NA_character_) %>% as.numeric(),
+         false     = NA_integer_) %>% as.numeric(),
       description_symptoms = stri_trans_toupper(SYMPTOMS),
       classd               = case_when(
          stri_detect_regex(description_symptoms, paste(collapse = "|", (nhsss$harp_dx$corr$classd %>% filter(class == 3))$symptom)) ~ 3,
@@ -563,7 +568,7 @@ nhsss$harp_dx$converted$data %<>%
       SCREEN_AGREED        = case_when(
          FORM_VERSION == "Form A (v2017)" ~ "1",
          !is.na(SCREEN_AGREED) ~ StrLeft(SCREEN_AGREED, 1),
-      ),
+      ) %>% as.integer(),
 
       # other services (HTS)
       given_ssnt           = case_when(
@@ -1196,48 +1201,13 @@ if (update == "1") {
 ##  Consolidate issues ---------------------------------------------------------
 
 # write into NHSSS GSheet
-if ("check" %in% names(nhsss$harp_dx$converted)) {
-   log_info("Uploading to GSheets..")
-   nhsss$harp_dx$converted$empty_sheets <- ""
-   nhsss$harp_dx$converted$gsheet       <- paste0("converted_", format(Sys.time(), "%Y.%m.%d"))
-   nhsss$harp_dx$converted$drive_path   <- paste0("~/DQT/Data Factory/HARP Dx/", ohasis$yr, ".", ohasis$mo, "/Validation/")
-   nhsss$harp_dx$converted$drive_file   <- drive_get(paste0(nhsss$harp_dx$converted$drive_path, nhsss$harp_dx$converted$gsheet))
-   nhsss$harp_dx$converted$drive_link   <- paste0("https://docs.google.com/spreadsheets/d/", nhsss$harp_dx$converted$drive_file$id, "/|GSheets Link: ", nhsss$harp_dx$converted$gsheet)
-
-   # create folder if not exists
-   drive_mkdir(stri_replace_last_fixed(nhsss$harp_dx$converted$drive_path, "/"))
-
-   # create as new if not existing
-   if (nrow(nhsss$harp_dx$converted$drive_file) == 0) {
-      drive_rm(paste0("~/", nhsss$harp_dx$converted$gsheet))
-      gs4_create(nhsss$harp_dx$converted$gsheet, sheets = nhsss$harp_dx$converted$check)
-      drive_mv(nhsss$harp_dx$converted$gsheet, nhsss$harp_dx$converted$drive_path, overwrite = TRUE)
-
-      # acquire sheet_id
-      nhsss$harp_dx$converted$drive_file <- drive_get(paste0(nhsss$harp_dx$converted$drive_path, nhsss$harp_dx$converted$gsheet))
-   } else {
-      for (issue in names(nhsss$harp_dx$converted$check)) {
-         # add issue
-         if (nrow(nhsss$harp_dx$converted$check[[issue]]) > 0)
-            sheet_write(nhsss$harp_dx$converted$check[[issue]], nhsss$harp_dx$converted$drive_file$id, issue)
-      }
-   }
-
-   # delete list of empty dataframes from sheet
-   log_info("Deleting empty sheets.")
-   for (issue in names(nhsss$harp_dx$converted$check)) {
-      if (nrow(nhsss$harp_dx$converted$check[[issue]]) == 0 & issue %in% sheet_names(nhsss$harp_dx$converted$drive_file$id))
-         nhsss$harp_dx$converted$empty_sheets <- c(nhsss$harp_dx$converted$empty_sheets, issue)
-   }
-   if (length(nhsss$harp_dx$converted$empty_sheets[-1]) > 0)
-      sheet_delete(nhsss$harp_dx$converted$drive_file$id, nhsss$harp_dx$converted$empty_sheets[-1])
-
-   # log in slack
-   slackr_msg(
-      paste0(">HARP Dx conso validation sheets for *converted* have been updated.\n><", nhsss$harp_dx$converted$drive_link, ">"),
-      mrkdwn = "true"
+data_name <- "converted"
+if ("check" %in% names(nhsss$harp_dx[[data_name]]))
+   .validation_gsheets(
+      data_name   = data_name,
+      parent_list = nhsss$harp_dx[[data_name]]$check,
+      drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/")
    )
-}
 
 log_info("Done!")
 

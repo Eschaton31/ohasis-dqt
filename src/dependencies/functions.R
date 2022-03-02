@@ -46,6 +46,16 @@ input <- function(prompt = NULL, options = NULL, default = NULL, max.char = NULL
    return(data)
 }
 
+# directory checker-creator
+check_dir <- function(dir) {
+   if (!dir.exists(file.path(dir))) {
+      dir.create(file.path(dir), TRUE, TRUE)
+      log_info("Directory successfully created.")
+   } else {
+      log_warn("Directory already exists.\n")
+   }
+}
+
 # stata univar tab
 .tab <- function(dataframe, column, nrows = 100L) {
    column <- enquo(column)
@@ -124,6 +134,7 @@ input <- function(prompt = NULL, options = NULL, default = NULL, max.char = NULL
       print(n = Inf)
 }
 
+# sheets cleaning per id
 .cleaning_list <- function(data_to_clean = NULL, cleaning_list = NULL, corr_id_name = NULL, corr_id_type = NULL) {
    for (i in seq_len(nrow(cleaning_list))) {
 
@@ -149,4 +160,48 @@ input <- function(prompt = NULL, options = NULL, default = NULL, max.char = NULL
 
       return(data_to_clean)
    }
+}
+
+# upload to gdrive/gsheets validations
+.validation_gsheets <- function(data_name = NULL, parent_list = NULL, drive_path = NULL) {
+   log_info("Uploading to GSheets..")
+   empty_sheets <- ""
+   gsheet       <- paste0(data_name, "_", format(Sys.time(), "%Y.%m.%d"))
+   drive_file   <- drive_get(paste0(drive_path, gsheet))
+   drive_link   <- paste0("https://docs.google.com/spreadsheets/d/", drive_file$id, "/|GSheets Link: ", gsheet)
+   slack_msg    <- paste0(">HARP Dx conso validation sheets for `", data_name, "` have been updated.\n><", drive_link, ">")
+
+   # list of validations
+   issues_list <- names(parent_list)
+
+   # create as new if not existing
+   if (nrow(drive_file) == 0) {
+      drive_rm(paste0("~/", gsheet))
+      gs4_create(gsheet, sheets = parent_list)
+      drive_mv(drive_get(paste0("~/", gsheet))$id %>% as_id(), drive_path, overwrite = TRUE)
+
+      # acquire sheet_id
+      drive_file <- drive_get(paste0(drive_path, gsheet))
+      drive_link <- paste0("https://docs.google.com/spreadsheets/d/", drive_file$id, "/|GSheets Link: ", gsheet)
+      slack_msg  <- paste0(">HARP Dx conso validation sheets for `", data_name, "` have been updated.\n><", drive_link, ">")
+   } else {
+      for (issue in issues_list) {
+         # add issue
+         if (nrow(parent_list[[issue]]) > 0)
+            sheet_write(parent_list[[issue]], drive_file$id, issue)
+      }
+   }
+
+   # delete list of empty dataframes from sheet
+   log_info("Deleting empty sheets.")
+   for (issue in issues_list)
+      if (nrow(parent_list[[issue]]) == 0 & issue %in% sheet_names(drive_file$id))
+         empty_sheets <- append(empty_sheets, issue)
+
+   # delete if existing sheet no longer has values in new run
+   if (length(empty_sheets[-1]) > 0)
+      sheet_delete(drive_file$id, empty_sheets[-1])
+
+   # log in slack
+   slackr_msg(slack_msg, mrkdwn = "true")
 }

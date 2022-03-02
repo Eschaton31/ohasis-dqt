@@ -43,5 +43,16 @@ p_load(
    googledrive,
    googlesheets4,
    rdrop2,
-   slackr
+   slackr,
+   fastLink,
+   stringdist,
+   phonics,
+   glue
 )
+
+# special libraries
+if (!require(remotes))
+   install.packages("remotes", repos = "https://cloud.r-project.org")
+
+if (!require(kwb.nextcloud))
+   remotes::install_github("KWB-R/kwb.nextcloud")

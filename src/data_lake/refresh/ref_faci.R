@@ -28,18 +28,19 @@ object_1 <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "facility")) %>%
       by = 'FACI_ID'
    ) %>%
    mutate(
-      SNAPSHOT        = case_when(
+      SNAPSHOT          = case_when(
          SUB_UPDATED_AT > CREATED_AT ~ SUB_UPDATED_AT,
          SUB_CREATED_AT > CREATED_AT ~ SUB_CREATED_AT,
          TRUE ~ CREATED_AT
       ),
-      REG             = if_else(!is.na(SUB_REG), SUB_REG, REG),
-      PROV            = if_else(!is.na(SUB_PROV), SUB_PROV, PROV),
-      MUNC            = if_else(!is.na(SUB_MUNC), SUB_MUNC, MUNC),
-      ALT_FACI_NAME   = if_else(!is.na(SUB_ALT_FACI_NAME), SUB_ALT_FACI_NAME, ALT_FACI_NAME),
-      FACI_NAME       = if_else(!is.na(ALT_FACI_NAME), ALT_FACI_NAME, FACI_NAME),
-      FACI_NAME_CLEAN = if_else(!is.na(SUB_FACI_NAME_CLEAN), SUB_FACI_NAME_CLEAN, FACI_NAME_CLEAN),
-      CREATED_AT      = if_else(!is.na(SUB_CREATED_AT), SUB_CREATED_AT, CREATED_AT),
+      REG               = if_else(!is.na(SUB_REG), SUB_REG, REG),
+      PROV              = if_else(!is.na(SUB_PROV), SUB_PROV, PROV),
+      MUNC              = if_else(!is.na(SUB_MUNC), SUB_MUNC, MUNC),
+      SUB_ALT_FACI_NAME = if_else(is.na(SUB_ALT_FACI_NAME), SUB_FACI_NAME, SUB_ALT_FACI_NAME),
+      ALT_FACI_NAME     = if_else(!is.na(SUB_ALT_FACI_NAME), SUB_ALT_FACI_NAME, ALT_FACI_NAME),
+      FACI_NAME         = if_else(!is.na(ALT_FACI_NAME), ALT_FACI_NAME, FACI_NAME),
+      FACI_NAME_CLEAN   = if_else(!is.na(SUB_FACI_NAME_CLEAN), SUB_FACI_NAME_CLEAN, FACI_NAME_CLEAN),
+      CREATED_AT        = if_else(!is.na(SUB_CREATED_AT), SUB_CREATED_AT, CREATED_AT),
    ) %>%
    filter(
       SNAPSHOT >= snapshot_old,

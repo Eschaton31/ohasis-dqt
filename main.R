@@ -16,17 +16,19 @@ shell("cls")
 rm(list = ls())
 Sys.setenv(TZ = "Asia/Hong_Kong")
 options(
-   # browser = Sys.getenv("BROWSER"),
-   browser   = function(url) {
-      if (grepl('^https?:', url)) {
-         if (!.Call('.jetbrains_processBrowseURL', url)) {
-            browseURL(url, .jetbrains$ther_old_browser)
-         }
-      } else {
-         .Call('.jetbrains_showFile', url, url)
-      }
-   },
-   help_type = "html"
+   browser = Sys.getenv("BROWSER"),
+   # browser             = function(url) {
+   #    if (grepl('^https?:', url)) {
+   #       if (!.Call('.jetbrains_processBrowseURL', url)) {
+   #          browseURL(url, .jetbrains$ther_old_browser)
+   #       }
+   #    } else {
+   #       .Call('.jetbrains_showFile', url, url)
+   #    }
+   # },
+   help_type           = "html",
+   RStata.StataPath    = Sys.getenv("STATA_PATH"),
+   RStata.StataVersion = as.integer(Sys.getenv("STATA_VER"))
 )
 
 ##  Load Environment Variables -------------------------------------------------
@@ -54,7 +56,7 @@ gs4_auth(cache = ".secrets")
 # Dropbox
 # trigger auth on purpose --> store a token in the specified cache
 if (!file.exists(".secrets/hivregistry.nec@gmail.com.RDS")) {
-   token <- drop_auth()
+   token <- drop_auth(new_user = TRUE)
    saveRDS(token, ".secrets/hivregistry.nec@gmail.com.RDS")
    rm('token')
 } else {
@@ -66,6 +68,32 @@ if (!file.exists(".secrets/hivregistry.nec@gmail.com.RDS")) {
 # initiate the project & database
 ohasis <- DB()
 
+########
+
+main_path  <- "~/DQT/Documentation/Encoding/"
+main_drive <- drive_ls(main_path)
+
+df <- data.frame()
+for (reporting in main_drive$name) {
+   if (StrIsNumeric(reporting)) {
+      list_ei <- drive_ls(paste0(main_path, reporting, "/"))
+
+      for (ei in seq_len(nrow(list_ei))) {
+         ei_df <- read_sheet(list_ei[ei, "id"] %>% as.character()) %>%
+            mutate_all(
+               ~as.character(.)
+            ) %>%
+            mutate(
+               encoder         = list_ei[ei, "name"]
+            )
+
+         df <- bind_rows(df, ei_df)
+      }
+   }
+}
+ df%>% filter(`Record ID` %in% ohasis$db_checks$duped_rec_id$REC_ID)
+
+########
 
 df_1 <- readRDS("C:/Users/johnb/Downloads/forms_final (2).RDS")
 df_1 <- read_dta("C:/Users/johnb/Downloads/JAN 2022.dta") %>%
@@ -118,4 +146,5 @@ for (i in nrow(df)) {
 
 
 write_dta(readRDS('H:/Software/OHASIS/Consolidation/Output/2022.01/2022.02.21.173316 (COB Export)/Forms - Death.RDS'),
-        'H:/System/HARP/3_Mortality/Consolidation/input/2022.01/Forms - Death.dta')
+          'H:/System/HARP/3_Mortality/Consolidation/input/2022.01/Forms - Death.dta')
+

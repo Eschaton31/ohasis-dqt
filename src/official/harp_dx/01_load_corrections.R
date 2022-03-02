@@ -4,44 +4,38 @@
 currEnv <- ls()[ls() != "currEnv"]
 
 # drive path
-drive_dx_path <- "~/DQT/Data Factory/HARP Dx/"
-drive_dx_data <- drive_ls(drive_dx_path)
+primary_files <- drive_ls(paste0(nhsss$harp_dx$gdrive$path$primary, ".all/"))
+report_files  <- drive_ls(paste0(nhsss$harp_dx$gdrive$path$primary, ohasis$ym, "/Cleaning/"))
 
 # list of correction files
 log_info("Getting list of correction datasets.")
 
 log_info("Downloading sheets for all reporting periods.")
-corr_list <- drive_ls((drive_dx_data %>% filter(name == ".all"))$id)
-for (i in seq_len(nrow(corr_list))) {
-   corr_id                         <- corr_list[i,]$id
-   corr_name                       <- corr_list[i,]$name
-   nhsss$harp_dx$corr[[corr_name]] <- read_sheet(corr_id)
-}
+for (i in seq_len(nrow(primary_files))) {
+   corr_id     <- primary_files[i,]$id
+   corr_name   <- primary_files[i,]$name
+   corr_sheets <- sheet_names(corr_id)
 
-# create monthly folder if not exists
-log_info("Downloading sheets for this reporting period.")
-drive_dx_curr_path <- paste0(drive_dx_path, ohasis$yr, ".", ohasis$mo, "/")
-drive_dx_curr_data <- drive_dx_data %>% filter(name == paste0(ohasis$yr, ".", ohasis$mo))
-if (nrow(drive_dx_curr_data) == 0)
-   drive_mkdir(stri_replace_last_fixed(drive_dx_curr_path, "/", ""))
-
-# create cleaning folder if not exists
-drive_dx_data      <- drive_ls(drive_dx_curr_path)
-drive_dx_curr_path <- paste0(drive_dx_curr_path, "Cleaning/")
-drive_dx_curr_data <- drive_dx_data %>% filter(name == "Cleaning")
-if (nrow(drive_dx_curr_data) == 0)
-   drive_mkdir(stri_replace_last_fixed(drive_dx_curr_path, "/", ""))
-
-corr_list <- drive_ls(drive_dx_curr_path)
-if (nrow(corr_list) > 0) {
-   for (i in seq_len(nrow(corr_list))) {
-      corr_id                         <- corr_list[i,]$id
-      corr_name                       <- corr_list[i,]$name
+   if (length(corr_sheets) > 1) {
+      nhsss$harp_dx$corr[[corr_name]] <- list()
+      for (sheet in corr_sheets)
+         nhsss$harp_dx$corr[[corr_name]][[sheet]] <- read_sheet(corr_id, sheet)
+   } else {
       nhsss$harp_dx$corr[[corr_name]] <- read_sheet(corr_id)
    }
 }
 
-# rm(corr_list, i, corr_id, corr_name)
+# create monthly folder if not exists
+log_info("Downloading sheets for this reporting period.")
+
+if (nrow(report_files) > 0) {
+   for (i in seq_len(nrow(report_files))) {
+      corr_id                         <- report_files[i,]$id
+      corr_name                       <- report_files[i,]$name
+      nhsss$harp_dx$corr[[corr_name]] <- read_sheet(corr_id)
+   }
+}
+
 log_info("Done!")
 
 # clean-up created objects

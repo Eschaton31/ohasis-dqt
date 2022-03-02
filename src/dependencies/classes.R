@@ -6,6 +6,7 @@ Project <- setRefClass(
    fields  = list(
       mo        = "character",
       yr        = "character",
+      ym        = "character",
       date      = "Date",
       prev_mo   = "character",
       prev_yr   = "character",
@@ -23,6 +24,7 @@ Project <- setRefClass(
          mo   <<- mo %>% stri_pad_left(width = 2, pad = "0")
          yr   <<- input(prompt = "What is the reporting year?", max.char = 4)
          yr   <<- yr %>% stri_pad_left(width = 4, pad = "0")
+         ym   <<- paste0(yr, ".", mo)
          date <<- as.Date(paste(sep = "-", yr, mo, "01"))
 
          # prev date
@@ -103,20 +105,22 @@ DB <- setRefClass(
    Class    = "DB",
    contains = "Project",
    fields   = list(
-      timestamp   = "character",
-      internet    = "data.frame",
-      db_checks   = "list",
-      ref_addr    = "data.frame",
-      ref_country = "data.frame",
-      ref_faci    = "data.frame",
-      ref_staff   = "data.frame"
+      timestamp    = "character",
+      output_title = "character",
+      internet     = "data.frame",
+      db_checks    = "list",
+      ref_addr     = "data.frame",
+      ref_country  = "data.frame",
+      ref_faci     = "data.frame",
+      ref_staff    = "data.frame"
    ),
    methods  = list(
       initialize        = function(mo = NULL, yr = NULL, title = NULL) {
          "This method is called when you create an instance of this class."
 
          # get current time
-         timestamp <<- format(Sys.time(), "%Y.%m.%d.%H%M%S")
+         timestamp    <<- format(Sys.time(), "%Y.%m.%d.%H%M%S")
+         output_title <<- paste0(timestamp, "-", Sys.getenv("LW_USER"))
 
          # set the report
          callSuper()$set_report()

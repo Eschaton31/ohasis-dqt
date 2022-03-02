@@ -20,6 +20,7 @@ oh_id_schema  <- dbplyr::in_schema(db_name, "id_registry")
 legaci_ids <- c("rec_id", "central_id")
 
 # check if registry is to be re-loaded
+# TODO: add checking of latest version
 reload <- input(
    prompt  = "How do you want to load the previous HARP Dx dataset?",
    options = c("1" = "reprocess", "2" = "download"),
@@ -30,7 +31,7 @@ reload <- StrLeft(reload, 1) %>% toupper()
 ##  Re-process the dataset -----------------------------------------------------
 
 # if Yes, re-process registry
-if (reload == "R") {
+if (reload == "1") {
    log_info("Re-processing the HARP Dx dataset from the previous reporting period.")
    if (dbExistsTable(lw_conn, old_tblspace))
       old_dataset <- tbl(lw_conn, old_tblschema) %>%
@@ -103,6 +104,8 @@ if (reload == "R") {
    # upload info
    ohasis$upsert(lw_conn, "warehouse", old_tblname, old_dataset, "PATIENT_ID")
 
+   # TODO: add logs insert for harp_dx
+
    # assign to global environment
    nhsss$harp_dx$official$old <- old_dataset
    rm(old_dataset)
@@ -115,10 +118,17 @@ if (reload == "R") {
 
 ##  Re-download the dataset ----------------------------------------------------
 
-# if Yes, re-process registry
-if (reload == "D") {
+# if Yes, re-downlaod registry
+if (reload == "2") {
    log_info("Downloading the HARP Dx dataset from the previous reporting period.")
-   nhsss$harp_dx$official$old <- tbl(lw_conn, old_tblschema) %>% collect()
+   nhsss$harp_dx$official$old <- tbl(lw_conn, old_tblschema) %>%
+      select(-CENTRAL_ID) %>%
+      left_join(
+         y  = tbl(lw_conn, oh_id_schema) %>%
+            select(CENTRAL_ID, PATIENT_ID),
+         by = "PATIENT_ID"
+      ) %>%
+      collect()
 }
 log_info("Closing connections.")
 dbDisconnect(lw_conn)
@@ -127,3 +137,5 @@ log_info("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))
+
+# TODO: Add option to process locally
