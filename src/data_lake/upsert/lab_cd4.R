@@ -91,9 +91,14 @@ if ((object %>% count() %>% collect())$n > 0) {
             #    !stri_detect_fixed(CD4_RESULT, "-") ~ NA_character_,
             TRUE ~ CD4_RESULT
          ),
+         ORDER = case_when(
+            !is.na(DELETED_BY) ~ 9999,
+            TRUE ~ 1
+         )
          # CD4_RESULT = as.numeric(CD4_RESULT)
       ) %>%
       filter(!is.na(CD4_RESULT)) %>%
-      arrange(PATIENT_ID, desc(CD4_DATE)) %>%
-      distinct(PATIENT_ID, CD4_MO, CD4_YR, CD4_RESULT, .keep_all = TRUE)
+      arrange(PATIENT_ID, ORDER, desc(CD4_DATE)) %>%
+      distinct(PATIENT_ID, CD4_MO, CD4_YR, CD4_RESULT, .keep_all = TRUE) %>%
+      select(-ORDER)
 }
