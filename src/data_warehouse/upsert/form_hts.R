@@ -13,6 +13,17 @@ object   <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
       is.na(DELETED_BY)
    )
 
+for_delete <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
+   filter(
+      DISEASE == "HIV",
+      FORM_VERSION == "HTS Form (v2021)",
+      SNAPSHOT >= snapshot_old,
+      SNAPSHOT <= snapshot_new,
+      !is.na(DELETED_BY)
+   ) %>%
+   select(REC_ID) %>%
+   collect()
+
 # get number of affected rows
 if ((object %>% count() %>% collect())$n > 0) {
    continue <- 1

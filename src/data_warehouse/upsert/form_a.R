@@ -13,6 +13,18 @@ object   <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
       is.na(DELETED_BY)
    )
 
+for_delete <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
+   filter(
+      DISEASE == "HIV",
+      SERVICE_TYPE %in% c("HIV FBT", NA_character_),
+      substr(MODULE, 1, 1) == "2",
+      SNAPSHOT >= snapshot_old,
+      SNAPSHOT <= snapshot_new,
+      !is.na(DELETED_BY)
+   ) %>%
+   select(REC_ID) %>%
+   collect()
+
 # get number of affected rows
 if ((object %>% count() %>% collect())$n > 0) {
    continue <- 1
@@ -362,7 +374,7 @@ if ((object %>% count() %>% collect())$n > 0) {
                   IS_REASON == "1" ~ "1_Yes",
                   TRUE ~ as.character(IS_REASON)
                ),
-               REASON    = case_when(
+               REASON = case_when(
                   REASON == "1" ~ "HIV_EXPOSE",
                   REASON == "2" ~ "PHYSICIAN",
                   REASON == "3" ~ "EMPLOY_OFW",

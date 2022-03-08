@@ -135,15 +135,15 @@ DB <- setRefClass(
          if (check_speed == "1") {
             log_info("Checking internet speed.")
             internet <<- .self$speedtest()
-            log_info("Current download speed: {underline(internet$speed_down_megabits_sec)} Mbps")
-            log_info("Current upload speed: {underline(internet$speed_up_megabits_sec)} Mbps")
+            log_info("Current download speed: {underline(red(internet$speed_down_megabits_sec))} Mbps")
+            log_info("Current upload speed: {underline(red(internet$speed_up_megabits_sec))} Mbps")
          }
 
          # check database consistency
          log_info("Checking database for inconsistencies.")
          db_checks <<- .self$check_consistency()
          if (length(.self$db_checks) > 0)
-            log_warn("DB inconsistencies found! See {underline('db_checks')} for more info.")
+            log_warn("DB inconsistencies found! See {underline(red('db_checks'))} for more info.")
          else
             log_info("DB is clean.")
 
@@ -315,7 +315,8 @@ DB <- setRefClass(
       # update lake
       data_factory      = function(db_type = NULL, table_name = NULL, update_type = NULL, default_yes = FALSE) {
          # append "ohasis_" as db name
-         db_name <- paste0("ohasis_", db_type)
+         db_name     <- paste0("ohasis_", db_type)
+         table_space <- Id(schema = db_name, table = table_name)
 
          # get input
          if (default_yes == TRUE) {
@@ -337,6 +338,9 @@ DB <- setRefClass(
             db_conn <- .self$conn("db")
             lw_conn <- .self$conn("lw")
 
+            # data for deletion (warehouse)
+            for_delete <- data.frame()
+
             # get snapshots
             snapshot      <- .self$get_snapshots(db_type, table_name)
             snapshot$data <- if_else(!is.na(snapshot$data), snapshot$data + 1, snapshot$data)
@@ -353,6 +357,17 @@ DB <- setRefClass(
                factory_file <- file.path("src", paste0("data_", db_type), "upsert", paste0(table_name, '.R'))
 
             source(factory_file, local = TRUE)
+
+            # check if there is data for deletion
+            if (nrow(for_delete) > 0) {
+               log_info("Number of invalidated records = {red(formatC(nrow(for_delete), big.mark = ','))}.")
+               dbxDelete(
+                  lw_conn,
+                  table_space,
+                  for_delete
+               )
+               log_success("Invalidated records removed.")
+            }
 
             if (continue > 0) {
                log_info("Payload = {red(formatC(nrow(object), big.mark = ','))} rows.")
