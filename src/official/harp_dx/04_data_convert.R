@@ -986,7 +986,7 @@ nhsss$harp_dx$converted$data %<>%
          referred_by
       ),
       ~if_else(
-         condition = is.na(.),
+         condition = !is.na(.),
          true      = substr(., 1, stri_locate_first_fixed(., "_") - 1),
          false     = NA_character_
       ) %>% as.integer()
@@ -1017,6 +1017,11 @@ nhsss$harp_dx$converted$data %<>%
       )
    ) %>%
    mutate(
+      age_pregnant = if_else(
+         condition = pregnant == 1,
+         true      = age,
+         false     = as.numeric(NA)
+      ),
       age_vertical = if_else(
          condition = transmit == 'PERINATAL',
          true      = age,
@@ -1172,6 +1177,7 @@ if (update == "1") {
    vars <- c(
       "age_unknown",
       "age_vertical",
+      "age_pregnant",
       "yrlastfsex",
       "howmanyfse",
       "yrlastmsex",

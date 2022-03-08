@@ -373,7 +373,6 @@ if (update == "1") {
    vars <- c(
       "FORM_VERSION",
       "TEST_FACI",
-      "SOURCE_FACI",
       "SPECIMEN_REFER_TYPE",
       "PERM_PSGC_REG",
       "PERM_PSGC_PROV",
@@ -430,23 +429,38 @@ if (update == "1") {
       if (as.character(var) %in% c("T1_DATE", "T2_DATE", "T3_DATE", "SPECIMEN_REFER_TYPE"))
          nhsss$harp_dx$initial$check[[var]] <- nhsss$harp_dx$initial$check[[var]] %>%
             filter(StrLeft(CONFIRM_TYPE, 1) == "2")
-
-      if (as.character(var) == "SOURCE_FACI")
-         nhsss$harp_dx$initial$check[[var]] <- nhsss$harp_dx$initial$check[[var]] %>%
-            mutate(
-               CHECK = case_when(
-                  (StrLeft(SOURCE_FACI, 6) != StrLeft(TEST_FACI_NAME, 6)) ~ 1,
-                  StrLeft(CONFIRM_TYPE, 1) == "2" &
-                     StrLeft(SPECIMEN_REFER_TYPE, 1) == '4' &
-                     is.na(SOURCE_FACI) ~ 1
-               )
-            ) %>%
-            filter(CHECK == 1) %>%
-            select(-CHECK)
    }
 
    # special checks
-   log_info("Checking for similarly names municipalities.")
+   log_info("Checking for mismatch facilities (source != test).")
+   nhsss$harp_dx$initial$check[["SOURCE_FACI"]] <- nhsss$harp_dx$initial$data %>%
+      mutate(
+         CHECK = case_when(
+            (StrLeft(SOURCE_FACI, 6) != StrLeft(TEST_FACI_NAME, 6)) ~ 1,
+            is.na(SOURCE_FACI) ~ 1
+         )
+      ) %>%
+      filter(CHECK == 1) %>%
+      select(
+         REC_ID,
+         PATIENT_ID,
+         FORM_VERSION,
+         CONFIRM_CODE,
+         UIC,
+         PATIENT_CODE,
+         FIRST,
+         MIDDLE,
+         LAST,
+         SUFFIX,
+         BIRTHDATE,
+         SEX,
+         TEST_FACI_NAME,
+         CONFIRM_TYPE,
+         SPECIMEN_REFER_TYPE,
+         SOURCE_FACI
+      )
+
+   log_info("Checking for similarly named municipalities.")
    nhsss$harp_dx$initial$check[["dup_munc"]] <- nhsss$harp_dx$initial$data %>%
       filter(
          DUP_MUNC == 1
