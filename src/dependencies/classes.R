@@ -351,7 +351,7 @@ DB <- setRefClass(
                snapshot_old <- "1970-01-01 00:00:00"
 
             # run data lake script for object
-            log_info("Getting new data.")
+            log_info("Getting new/updated data.")
             factory_file <- file.path("src", paste0("data_", db_type), "refresh", paste0(table_name, '.R'))
             if (!file.exists(factory_file))
                factory_file <- file.path("src", paste0("data_", db_type), "upsert", paste0(table_name, '.R'))
@@ -389,9 +389,9 @@ DB <- setRefClass(
                   DBI::SQL(paste0('`', db_name, '`.`logs`')),
                   df
                )
-               log_success("Done!")
+               log_success("Done.")
             } else {
-               log_info("None found.")
+               log_info("No new/updated data found.")
             }
 
             # close connections
