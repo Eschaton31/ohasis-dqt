@@ -92,7 +92,7 @@ if ((object %>% count() %>% collect())$n > 0) {
             TRUE ~ CD4_RESULT
          ),
          ORDER = case_when(
-            !is.na(DELETED_BY) ~ 9999,
+            !is.na(DELETED_AT) ~ 9999,
             TRUE ~ 1
          )
          # CD4_RESULT = as.numeric(CD4_RESULT)

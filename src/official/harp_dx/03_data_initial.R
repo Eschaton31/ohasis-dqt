@@ -230,6 +230,7 @@ nhsss$harp_dx$initial$data %<>%
    left_join(
       y  = tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "lab_cd4")) %>%
          filter(
+            is.na(DELETED_AT),
             as.Date(CD4_DATE) < ceiling_date
          ) %>%
          left_join(
