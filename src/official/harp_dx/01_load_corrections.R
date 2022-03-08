@@ -8,9 +8,9 @@ primary_files <- drive_ls(paste0(nhsss$harp_dx$gdrive$path$primary, ".all/"))
 report_files  <- drive_ls(paste0(nhsss$harp_dx$gdrive$path$primary, ohasis$ym, "/Cleaning/"))
 
 # list of correction files
-log_info("Getting list of correction datasets.")
+.log_info("Getting list of correction datasets.")
 
-log_info("Downloading sheets for all reporting periods.")
+.log_info("Downloading sheets for all reporting periods.")
 for (i in seq_len(nrow(primary_files))) {
    corr_id     <- primary_files[i,]$id
    corr_name   <- primary_files[i,]$name
@@ -26,7 +26,7 @@ for (i in seq_len(nrow(primary_files))) {
 }
 
 # create monthly folder if not exists
-log_info("Downloading sheets for this reporting period.")
+.log_info("Downloading sheets for this reporting period.")
 
 if (nrow(report_files) > 0) {
    for (i in seq_len(nrow(report_files))) {
@@ -36,7 +36,7 @@ if (nrow(report_files) > 0) {
    }
 }
 
-log_success("Done!")
+.log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

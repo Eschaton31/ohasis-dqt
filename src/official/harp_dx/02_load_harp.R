@@ -4,7 +4,7 @@
 currEnv <- ls()[ls() != "currEnv"]
 
 # open connections
-log_info("Opening connections.")
+.log_info("Opening connections.")
 lw_conn <- ohasis$conn("lw")
 db_conn <- ohasis$conn("db")
 db_name <- "ohasis_warehouse"
@@ -32,7 +32,7 @@ reload <- StrLeft(reload, 1) %>% toupper()
 
 # if Yes, re-process registry
 if (reload == "1") {
-   log_info("Re-processing the HARP Dx dataset from the previous reporting period.")
+   .log_info("Re-processing the HARP Dx dataset from the previous reporting period.")
    if (dbExistsTable(lw_conn, old_tblspace))
       old_dataset <- tbl(lw_conn, old_tblschema) %>%
          select(-CENTRAL_ID) %>%
@@ -85,7 +85,7 @@ if (reload == "1") {
          )
 
    if (!is.null(old_corr)) {
-      log_info("Performing cleaning on the loaded dataset.")
+      .log_info("Performing cleaning on the loaded dataset.")
       old_dataset <- .cleaning_list(old_dataset, old_corr, "IDNUM", "integer")
    }
 
@@ -96,7 +96,7 @@ if (reload == "1") {
    }
    rm(id, legaci_ids)
 
-   log_info("Updating `harp_dx_old`.")
+   .log_info("Updating `harp_dx_old`.")
    # delete existing data, full refresh always
    if (dbExistsTable(lw_conn, old_tblspace))
       dbExecute(lw_conn, "DROP TABLE `ohasis_warehouse`.`harp_dx_old`;")
@@ -120,7 +120,7 @@ if (reload == "1") {
 
 # if Yes, re-downlaod registry
 if (reload == "2") {
-   log_info("Downloading the HARP Dx dataset from the previous reporting period.")
+   .log_info("Downloading the HARP Dx dataset from the previous reporting period.")
    nhsss$harp_dx$official$old <- tbl(lw_conn, old_tblschema) %>%
       select(-CENTRAL_ID) %>%
       left_join(
@@ -130,10 +130,10 @@ if (reload == "2") {
       ) %>%
       collect()
 }
-log_info("Closing connections.")
+.log_info("Closing connections.")
 dbDisconnect(lw_conn)
 dbDisconnect(db_conn)
-log_success("Done!")
+.log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

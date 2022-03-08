@@ -42,7 +42,7 @@ Project <- setRefClass(
          # label the current run
          run_title <<- input(prompt = "Label the current run (brief, concise)")
 
-         log_success("Project parameters defined!")
+         .log_success("Project parameters defined!")
       },
 
       # get reference dates for the report
@@ -133,19 +133,19 @@ DB <- setRefClass(
          )
          check_speed <- substr(toupper(check_speed), 1, 1)
          if (check_speed == "1") {
-            log_info("Checking internet speed.")
+            .log_info("Checking internet speed.")
             internet <<- .self$speedtest()
-            log_info("Current download speed: {underline(red(internet$speed_down_megabits_sec))} Mbps")
-            log_info("Current upload speed: {underline(red(internet$speed_up_megabits_sec))} Mbps")
+            .log_info("Current download speed: {underline(red(internet$speed_down_megabits_sec))} Mbps")
+            .log_info("Current upload speed: {underline(red(internet$speed_up_megabits_sec))} Mbps")
          }
 
          # check database consistency
-         log_info("Checking database for inconsistencies.")
+         .log_info("Checking database for inconsistencies.")
          db_checks <<- .self$check_consistency()
          if (length(.self$db_checks) > 0)
-            log_warn("DB inconsistencies found! See {underline(red('db_checks'))} for more info.")
+            .log_warn("DB inconsistencies found! See {underline(red('db_checks'))} for more info.")
          else
-            log_info("DB is clean.")
+            .log_info("DB is clean.")
 
          # update data lake
          update <- input(
@@ -174,11 +174,11 @@ DB <- setRefClass(
                lapply(list.files(lake_dir, pattern = "lab_*"), lake_table)
             }
 
-            log_info("Data lake updated!")
+            .log_info("Data lake updated!")
          }
 
          # download latest references before final initialization
-         log_info("Downloading references.")
+         .log_info("Downloading references.")
          db_conn           <- .self$conn("db")
          lw_conn           <- .self$conn("lw")
          .self$ref_addr    <<- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "ref_addr")) %>% collect()
@@ -188,7 +188,7 @@ DB <- setRefClass(
          dbDisconnect(db_conn)
          dbDisconnect(lw_conn)
 
-         log_success("OHASIS initialized!")
+         .log_success("OHASIS initialized!")
       },
 
       # refreshes db connection
@@ -321,7 +321,7 @@ DB <- setRefClass(
          # get input
          if (default_yes == TRUE) {
             update <- "1"
-            log_info("Updating {red(table_name)} @ the {red(db_type)}.")
+            .log_info("Updating {red(table_name)} @ the {red(db_type)}.")
          } else {
             update <- input(
                prompt  = paste0("Update ", red(table_name), "?"),
@@ -334,7 +334,7 @@ DB <- setRefClass(
          # update
          if (update == "1") {
             # open connections
-            log_info("Opening connections.")
+            .log_info("Opening connections.")
             db_conn <- .self$conn("db")
             lw_conn <- .self$conn("lw")
 
@@ -351,7 +351,7 @@ DB <- setRefClass(
                snapshot_old <- "1970-01-01 00:00:00"
 
             # run data lake script for object
-            log_info("Getting new/updated data.")
+            .log_info("Getting new/updated data.")
             factory_file <- file.path("src", paste0("data_", db_type), "refresh", paste0(table_name, '.R'))
             if (!file.exists(factory_file))
                factory_file <- file.path("src", paste0("data_", db_type), "upsert", paste0(table_name, '.R'))
@@ -360,17 +360,17 @@ DB <- setRefClass(
 
             # check if there is data for deletion
             if (nrow(for_delete) > 0) {
-               log_info("Number of invalidated records = {red(formatC(nrow(for_delete), big.mark = ','))}.")
+               .log_info("Number of invalidated records = {red(formatC(nrow(for_delete), big.mark = ','))}.")
                dbxDelete(
                   lw_conn,
                   table_space,
                   for_delete
                )
-               log_success("Invalidated records removed.")
+               .log_success("Invalidated records removed.")
             }
 
             if (continue > 0) {
-               log_info("Payload = {red(formatC(nrow(object), big.mark = ','))} rows.")
+               .log_info("Payload = {red(formatC(nrow(object), big.mark = ','))} rows.")
                .self$upsert(lw_conn, db_type, table_name, object, id_col)
                # update reference
                df <- data.frame(
@@ -389,9 +389,9 @@ DB <- setRefClass(
                   DBI::SQL(paste0('`', db_name, '`.`logs`')),
                   df
                )
-               log_success("Done.")
+               .log_success("Done.")
             } else {
-               log_info("No new/updated data found.")
+               .log_info("No new/updated data found.")
             }
 
             # close connections
@@ -419,10 +419,10 @@ DB <- setRefClass(
          # check if already available
          if ((snapshot$old %>% tally() %>% collect())$n > 0) {
             snapshot$old <- (snapshot$old %>% collect())$snapshot
-            log_info("Latest snapshot = {red(format(snapshot$old, \"%a %b %d, %Y %X\"))}.")
+            .log_info("Latest snapshot = {red(format(snapshot$old, \"%a %b %d, %Y %X\"))}.")
          } else {
             snapshot$old <- as.POSIXct("1970-01-01 00:00:00", tz = "UTC")
-            log_info("No version found in data lake.")
+            .log_info("No version found in data lake.")
          }
 
          # check if already exists

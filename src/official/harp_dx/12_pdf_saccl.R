@@ -4,7 +4,7 @@
 currEnv <- ls()[ls() != "currEnv"]
 
 # check if directories exist
-log_info("Checking drive/cloud directories.")
+.log_info("Checking drive/cloud directories.")
 dir_output         <- file.path("data", ohasis$ym, "harp_dx", "confirmatory")
 dir_cloud_base     <- glue("/HARP Cloud/HARP Forms/Confirmatory") %>% stri_replace_all_fixed(" ", "%20")
 dir_cloud_report   <- glue("{dir_cloud_base}/{ohasis$ym}")
@@ -16,14 +16,14 @@ if (!(glue("{ohasis$ym}/") %in% list_files(dir_cloud_base)))
    create_folder(glue("{dir_cloud_base}/{ohasis$ym}"))
 
 # get list of files already in nextcloud & gdrive
-log_info("Getting list of uploaded files.")
+.log_info("Getting list of uploaded files.")
 pdf_nextcloud <- invisible(list_files(dir_cloud_report, full_info = TRUE)) %>%
    filter(stri_detect_fixed(file, ".pdf"))
 pdf_dropbox   <- drop_dir(dir_dropbox_report) %>%
    filter(stri_detect_fixed(name, ".pdf"))
 
 # check with corrections list which files are not yet processed
-log_info("Excluding files that were already processed before.")
+.log_info("Excluding files that were already processed before.")
 pdf_for_dl <- pdf_dropbox %>%
    left_join(
       y  = nhsss$harp_dx$corr$pdf_results,
@@ -41,7 +41,7 @@ if ("pdf_results" %in% names(nhsss$harp_dx$corr))
 
 # parallelize downloading of pdf files from Dropbox
 if (nrow(pdf_for_dl) > 0) {
-   log_info("Downloading SACCL PDF results.")
+   .log_info("Downloading SACCL PDF results.")
    plan(multisession)
    invisible(
       future_map_chr(pdf_for_dl$path_display, function(file) {
@@ -61,7 +61,7 @@ if (nrow(pdf_for_dl) > 0) {
 # TODO: Add checking for number of pages in PDF
 confirm_df    <- tibble()
 confirm_files <- list.files(dir_output, full.names = TRUE)
-log_info("Consolidating metadata into a dataframe.")
+.log_info("Consolidating metadata into a dataframe.")
 for (file in list.files(dir_output, full.names = TRUE)) {
    df <- pdftools::pdf_data(file)
 
@@ -214,7 +214,7 @@ for (file in list.files(dir_output, full.names = TRUE)) {
 
 ##  Perform cleaning on the consolidated df ------------------------------------
 
-log_info("Cursory cleaning of consolidated data.")
+.log_info("Cursory cleaning of consolidated data.")
 confirm_df %<>%
    # convert major text data into uppercase
    mutate_at(
@@ -303,7 +303,7 @@ confirm_df %<>%
 
 ##  Add OHASIS Conversions -----------------------------------------------------
 
-log_info("Matching with OHASIS variables.")
+.log_info("Matching with OHASIS variables.")
 var_pairs <- ""
 for (var in names(nhsss$harp_dx$corr$pdf_saccl)) {
    confirm_df %<>%
@@ -429,7 +429,7 @@ if ("check" %in% names(nhsss$harp_dx[[data_name]]))
 
 ##  Upload renamed confirmatories to Nextcloud ---------------------------------
 
-log_info("Uploading renamed results to cloud.")
+.log_info("Uploading renamed results to cloud.")
 pdf_for_ul <- confirm_df
 if ("pdf_results" %in% names(nhsss$harp_dx$corr))
    pdf_for_ul %<>%
@@ -459,7 +459,7 @@ if (nrow(pdf_for_ul)) {
 
 # assign to global environment
 nhsss$harp_dx$pdf_saccl$data <- confirm_df
-log_success("Done!")
+.log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

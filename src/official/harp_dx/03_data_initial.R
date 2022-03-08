@@ -4,13 +4,13 @@
 currEnv <- ls()[ls() != "currEnv"]
 
 # open connections
-log_info("Generating `harp_dx`.`initial`.")
-log_info("Opening connections.")
+.log_info("Generating `harp_dx`.`initial`.")
+.log_info("Opening connections.")
 lw_conn <- ohasis$conn("lw")
 db_conn <- ohasis$conn("db")
 
 # Form A + HTS Forms
-log_info("Dropping already-reported records.")
+.log_info("Dropping already-reported records.")
 nhsss$harp_dx$initial$data <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_a")) %>%
    union_all(tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_hts"))) %>%
    # keep only positive results
@@ -41,7 +41,7 @@ nhsss$harp_dx$initial$data <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse",
       by = "CENTRAL_ID"
    )
 
-log_info("Performing initial cleaning.")
+.log_info("Performing initial cleaning.")
 nhsss$harp_dx$initial$data %<>%
    mutate_at(
       .vars = vars(FIRST, MIDDLE, LAST, SUFFIX),
@@ -166,7 +166,7 @@ nhsss$harp_dx$initial$data %<>%
 
 ##  Getting summary of initial unfiltered reports ------------------------------
 
-log_info("Getting summary of reports before prioritization and dropping.")
+.log_info("Getting summary of reports before prioritization and dropping.")
 nhsss$harp_dx$initial$raw_data       <- nhsss$harp_dx$initial$data
 nhsss$harp_dx$initial$report_summary <- nhsss$harp_dx$initial$data %>%
    # confirmlab
@@ -210,7 +210,7 @@ nhsss$harp_dx$initial$report_summary <- nhsss$harp_dx$initial$data %>%
 
 ##  Sorting confirmatory results -----------------------------------------------
 
-log_info("Prioritizing reports.")
+.log_info("Prioritizing reports.")
 nhsss$harp_dx$initial$data %<>%
    arrange(lab_year, lab_month, desc(CONFIRM_TYPE), visit_date, confirm_date) %>%
    distinct(CENTRAL_ID, .keep_all = TRUE) %>%
@@ -222,7 +222,7 @@ nhsss$harp_dx$initial$data %<>%
 
 ##  Adding CD4 results ---------------------------------------------------------
 
-log_info("Attaching baseline CD4 data.")
+.log_info("Attaching baseline CD4 data.")
 ceiling_date <- ohasis$next_date
 nhsss$harp_dx$initial$data %<>%
    # get cd4 data
@@ -268,13 +268,13 @@ nhsss$harp_dx$initial$data %<>%
    distinct(REC_ID, .keep_all = TRUE) %>%
    arrange(desc(CONFIRM_TYPE), IDNUM, CONFIRM_CODE)
 
-log_info("Closing connections.")
+.log_info("Closing connections.")
 dbDisconnect(lw_conn)
 dbDisconnect(db_conn)
 
 ##  Facilities -----------------------------------------------------------------
 
-log_info("Attaching facility names (OHASIS versions).")
+.log_info("Attaching facility names (OHASIS versions).")
 faci_ids <- list(
    c("FACI_ID", "SUB_FACI_ID", "FACI_NAME"),
    c("TEST_FACI", "TEST_SUB_FACI", "TEST_FACI_NAME"),
@@ -337,7 +337,7 @@ if (update == "1") {
       "confirm_date",
       "BIRTHDATE"
    )
-   log_info("Checking dates.")
+   .log_info("Checking dates.")
    for (var in vars) {
       var                                <- as.symbol(var)
       nhsss$harp_dx$initial$check[[var]] <- nhsss$harp_dx$initial$data %>%
@@ -397,7 +397,7 @@ if (update == "1") {
       "T3_DATE",
       "T3_RESULT"
    )
-   log_info("Checking if non-negotiable variables are missing.")
+   .log_info("Checking if non-negotiable variables are missing.")
    for (var in vars) {
       var                                <- as.symbol(var)
       nhsss$harp_dx$initial$check[[var]] <- nhsss$harp_dx$initial$data %>%
@@ -433,7 +433,7 @@ if (update == "1") {
    }
 
    # special checks
-   log_info("Checking for mismatch facilities (source != test).")
+   .log_info("Checking for mismatch facilities (source != test).")
    nhsss$harp_dx$initial$check[["SOURCE_FACI"]] <- nhsss$harp_dx$initial$data %>%
       mutate(
          CHECK = case_when(
@@ -461,7 +461,7 @@ if (update == "1") {
          SOURCE_FACI
       )
 
-   log_info("Checking for similarly named municipalities.")
+   .log_info("Checking for similarly named municipalities.")
    nhsss$harp_dx$initial$check[["dup_munc"]] <- nhsss$harp_dx$initial$data %>%
       filter(
          DUP_MUNC == 1
@@ -508,7 +508,7 @@ if (update == "1") {
          NAME_MUNC,
       )
 
-   log_info("Checking for males tagged as pregnant.")
+   .log_info("Checking for males tagged as pregnant.")
    nhsss$harp_dx$initial$check[["pregnant_m"]] <- nhsss$harp_dx$initial$data %>%
       filter(
          StrLeft(IS_PREGNANT, 1) == '1' | StrLeft(MED_IS_PREGNANT, 1) == '1',
@@ -534,7 +534,7 @@ if (update == "1") {
          MED_IS_PREGNANT
       )
 
-   log_info("Checking calculated age vs computed age.")
+   .log_info("Checking calculated age vs computed age.")
    nhsss$harp_dx$initial$check[["mismatch_age"]] <- nhsss$harp_dx$initial$data %>%
       filter(
          AGE != AGE_DTA
@@ -559,7 +559,7 @@ if (update == "1") {
          AGE_DTA
       )
 
-   log_info("Checking NRL-SACCL reports not assigned to DOH-EB.")
+   .log_info("Checking NRL-SACCL reports not assigned to DOH-EB.")
    nhsss$harp_dx$initial$check[["saccl_not_eb"]] <- nhsss$harp_dx$initial$data %>%
       filter(
          StrLeft(CONFIRM_TYPE, 1) == "1",
@@ -585,7 +585,7 @@ if (update == "1") {
       )
 
    # test kits
-   log_info("Checking invalid test kits.")
+   .log_info("Checking invalid test kits.")
    nhsss$harp_dx$initial$check[["T1_KIT"]] <- nhsss$harp_dx$initial$data %>%
       filter(
          !(T1_KIT %in% c("SD Bioline HIV 1/2 3.0", "SYSMEX HISCL HIV Ag + Ab Assay")) | is.na(T1_KIT)
@@ -671,7 +671,7 @@ if (update == "1") {
       "AGE",
       "AGE_MO"
    )
-   log_info("Checking range-median of data.")
+   .log_info("Checking range-median of data.")
    nhsss$harp_dx$initial$check$tabstat <- data.frame()
    for (var in vars) {
       var <- as.symbol(var)
@@ -716,7 +716,7 @@ if ("check" %in% names(nhsss$harp_dx[[data_name]]))
       drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/")
    )
 
-log_success("Done!")
+.log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

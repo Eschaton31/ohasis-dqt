@@ -3,7 +3,7 @@
 # list of current vars for code cleanup
 currEnv <- ls()[ls() != "currEnv"]
 
-log_info("Preparing dataset for initial deduplication.")
+.log_info("Preparing dataset for initial deduplication.")
 dedup_new <- nhsss$harp_dx$converted$data %>%
    mutate(
       # standardize PII
@@ -83,7 +83,7 @@ dedup_new %<>%
 
 ##  Grouped identifiers for deduplication --------------------------------------
 
-log_info("Deduplicating based on grouped identifiers.")
+.log_info("Deduplicating based on grouped identifiers.")
 nhsss$harp_dx$dedup_new <- list()
 group_pii               <- list(
    "UIC.Base"            = "uic",
@@ -136,7 +136,7 @@ if (length(nhsss$harp_dx[[data_name]]) > 0)
       drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/")
    )
 
-log_success("Done!")
+.log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

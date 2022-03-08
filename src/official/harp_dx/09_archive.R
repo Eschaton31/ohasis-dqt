@@ -3,14 +3,14 @@
 # list of current vars for code cleanup
 currEnv <- ls()[ls() != "currEnv"]
 
-log_info("Checking archive directory.")
+.log_info("Checking archive directory.")
 zip_dir <- file.path("archive", ohasis$ym, ohasis$output_title)
 check_dir(zip_dir)
 
-log_info("Backing up scripts.")
+.log_info("Backing up scripts.")
 dir_copy(file.path("src"), file.path(zip_dir, "src"), overwrite = TRUE)
 
-log_info("Placing files inside archive.")
+.log_info("Placing files inside archive.")
 for (files_dir in list.files(zip_dir, full.names = TRUE)) {
    files_dir  <- tools::file_path_as_absolute(files_dir)
    files_path <- strsplit(files_dir, "/")
@@ -28,7 +28,7 @@ for (files_dir in list.files(zip_dir, full.names = TRUE)) {
    }
 }
 
-log_success("Done!")
+.log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

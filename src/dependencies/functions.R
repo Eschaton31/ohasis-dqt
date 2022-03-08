@@ -50,30 +50,30 @@ input <- function(prompt = NULL, options = NULL, default = NULL, max.char = NULL
 check_dir <- function(dir) {
    if (!dir.exists(file.path(dir))) {
       dir.create(file.path(dir), TRUE, TRUE)
-      log_info("Directory successfully created.")
+      .log_info("Directory successfully created.")
    } else {
-      log_warn("Directory already exists.\n")
+      .log_warn("Directory already exists.\n")
    }
 }
 
 # logger
-log_info <- function(msg = NULL) {
-   log_type <- "INFO" %>% stri_pad_right(7, " ")
-   log      <- bold(blue(log_type)) %+% magenta(glue(' [{format(Sys.time(), "%Y-%m-%d %H:%M:%S")}]'))
+.log_info <- function(msg = NULL) {
+   .log_type <- "INFO" %>% stri_pad_right(7, " ")
+   log      <- bold(blue(.log_type)) %+% magenta(glue(' [{format(Sys.time(), "%Y-%m-%d %H:%M:%S")}]'))
    msg      <- glue(msg, .envir = parent.frame(1))
    cat(log, msg, "\n")
 }
 
-log_success <- function(msg = NULL) {
-   log_type <- "SUCCESS" %>% stri_pad_right(7, " ")
-   log      <- bold(green(log_type)) %+% magenta(glue(' [{format(Sys.time(), "%Y-%m-%d %H:%M:%S")}]'))
+.log_success <- function(msg = NULL) {
+   .log_type <- "SUCCESS" %>% stri_pad_right(7, " ")
+   log      <- bold(green(.log_type)) %+% magenta(glue(' [{format(Sys.time(), "%Y-%m-%d %H:%M:%S")}]'))
    msg      <- glue(msg, .envir = parent.frame(1))
    cat(log, msg, "\n")
 }
 
-log_warn <- function(msg = NULL) {
-   log_type <- "WARN" %>% stri_pad_right(7, " ")
-   log      <- bold(yellow(log_type)) %+% magenta(glue(' [{format(Sys.time(), "%Y-%m-%d %H:%M:%S")}]'))
+.log_warn <- function(msg = NULL) {
+   .log_type <- "WARN" %>% stri_pad_right(7, " ")
+   log      <- bold(yellow(.log_type)) %+% magenta(glue(' [{format(Sys.time(), "%Y-%m-%d %H:%M:%S")}]'))
    msg      <- glue(msg, .envir = parent.frame(1))
    cat(log, msg, "\n")
 }
@@ -186,7 +186,7 @@ log_warn <- function(msg = NULL) {
 
 # upload to gdrive/gsheets validations
 .validation_gsheets <- function(data_name = NULL, parent_list = NULL, drive_path = NULL) {
-   log_info("Uploading to GSheets..")
+   .log_info("Uploading to GSheets..")
    empty_sheets <- ""
    gsheet       <- paste0(data_name, "_", format(Sys.time(), "%Y.%m.%d"))
    drive_file   <- drive_get(paste0(drive_path, gsheet))
@@ -215,7 +215,7 @@ log_warn <- function(msg = NULL) {
    }
 
    # delete list of empty dataframes from sheet
-   log_info("Deleting empty sheets.")
+   .log_info("Deleting empty sheets.")
    for (issue in issues_list)
       if (nrow(parent_list[[issue]]) == 0 & issue %in% sheet_names(drive_file$id))
          empty_sheets <- append(empty_sheets, issue)

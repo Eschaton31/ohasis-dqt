@@ -4,10 +4,10 @@
 currEnv <- ls()[ls() != "currEnv"]
 
 # open connections
-log_info("Generating `harp_dx`.`converted`.")
+.log_info("Generating `harp_dx`.`converted`.")
 
 # latest_idnum
-log_info("Getting latest `idnum` for reference.")
+.log_info("Getting latest `idnum` for reference.")
 nhsss$harp_dx$params$p10y         <- (as.numeric(ohasis$yr) - 10)
 nhsss$harp_dx$params$latest_idnum <- max(as.integer(nhsss$harp_dx$initial$data$IDNUM), na.rm = TRUE)
 nhsss$harp_dx$params$latest_idnum <- if_else(
@@ -17,7 +17,7 @@ nhsss$harp_dx$params$latest_idnum <- if_else(
 )
 
 # new clients
-log_info("Performing initial conversion.")
+.log_info("Performing initial conversion.")
 nhsss$harp_dx$converted$data <- nhsss$harp_dx$initial$data %>%
    mutate(
       # generate idnum
@@ -215,7 +215,7 @@ nhsss$harp_dx$converted$data <- nhsss$harp_dx$initial$data %>%
 
 ##  Modes of transmission ------------------------------------------------------
 
-log_info("Tagging modes of transmission.")
+.log_info("Tagging modes of transmission.")
 nhsss$harp_dx$converted$data %<>%
    # mode of transmission
    mutate(
@@ -583,7 +583,7 @@ nhsss$harp_dx$converted$data %<>%
 
 ##  Address --------------------------------------------------------------------
 
-log_info("Attaching address names (HARP versions).")
+.log_info("Attaching address names (HARP versions).")
 nhsss$harp_dx$converted$data %<>%
    mutate_at(
       .vars = vars(contains("_PSGC_")),
@@ -707,7 +707,7 @@ nhsss$harp_dx$converted$data %<>%
 
 ##  Country --------------------------------------------------------------------
 
-log_info("Attaching country names.")
+.log_info("Attaching country names.")
 nhsss$harp_dx$converted$data %<>%
    # ofw
    left_join(
@@ -719,7 +719,7 @@ nhsss$harp_dx$converted$data %<>%
 
 ##  Facilities -----------------------------------------------------------------
 
-log_info("Attaching facility names (HARP versions).")
+.log_info("Attaching facility names (HARP versions).")
 nhsss$harp_dx$converted$data %<>%
    # confirmlab
    mutate(
@@ -799,7 +799,7 @@ nhsss$harp_dx$converted$data %<>%
 
 ##  Finalize -------------------------------------------------------------------
 
-log_info("Finalizing dataframe.")
+.log_info("Finalizing dataframe.")
 nhsss$harp_dx$converted$data %<>%
    # same vars as registry
    select(
@@ -1055,7 +1055,7 @@ if (update == "1") {
       "dxlab_standard",
       "pubpriv"
    )
-   log_info("Checking if non-negotiable variables are missing.")
+   .log_info("Checking if non-negotiable variables are missing.")
    for (var in vars) {
       var                                  <- as.symbol(var)
       nhsss$harp_dx$converted$check[[var]] <- nhsss$harp_dx$converted$data %>%
@@ -1087,7 +1087,7 @@ if (update == "1") {
       "idnum",
       "labcode"
    )
-   log_info("Checking if id variables are duplicated.")
+   .log_info("Checking if id variables are duplicated.")
    for (var in vars) {
       var                                                                <- as.symbol(var)
       nhsss$harp_dx$converted$check[[paste0("dup_", as.character(var))]] <- nhsss$harp_dx$converted$data %>%
@@ -1122,7 +1122,7 @@ if (update == "1") {
       "province",
       "muncity"
    )
-   log_info("Checking if required variables have UNKNOWN data or unpaired NHSSS versions.")
+   .log_info("Checking if required variables have UNKNOWN data or unpaired NHSSS versions.")
    for (var in vars) {
       var                                  <- as.symbol(var)
       nhsss$harp_dx$converted$check[[var]] <- nhsss$harp_dx$converted$data %>%
@@ -1185,7 +1185,7 @@ if (update == "1") {
       "age_sex",
       "age_inj"
    )
-   log_info("Checking range-median of data.")
+   .log_info("Checking range-median of data.")
    nhsss$harp_dx$converted$check$tabstat <- data.frame()
    for (var in vars) {
       var <- as.symbol(var)
@@ -1215,7 +1215,7 @@ if ("check" %in% names(nhsss$harp_dx[[data_name]]))
       drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/")
    )
 
-log_success("Done!")
+.log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

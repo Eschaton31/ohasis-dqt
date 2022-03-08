@@ -3,7 +3,7 @@
 # list of current vars for code cleanup
 currEnv <- ls()[ls() != "currEnv"]
 
-log_info("Preparing dataset for registry deduplication.")
+.log_info("Preparing dataset for registry deduplication.")
 data_new <- nhsss$harp_dx$converted$data %>%
    mutate(
       byr = if_else(
@@ -44,7 +44,7 @@ data_old <- nhsss$harp_dx$official$old %>%
 
 ##  Patient Record Linkage Algorithm -------------------------------------------
 
-log_info("Passing dataset through the record linkage algorithm.")
+.log_info("Passing dataset through the record linkage algorithm.")
 nhsss$harp_dx$dedup_old <- list()
 reclink_df              <- fastLink(
    dfA              = data_new,
@@ -192,7 +192,7 @@ if (length(nhsss$harp_dx[[data_name]]) > 0)
       drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/")
    )
 
-log_success("Done!")
+.log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

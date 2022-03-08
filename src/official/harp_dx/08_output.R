@@ -3,7 +3,7 @@
 # list of current vars for code cleanup
 currEnv <- ls()[ls() != "currEnv"]
 
-log_info("Checking output directory.")
+.log_info("Checking output directory.")
 output_version <- format(Sys.time(), "%Y%m%d")
 output_name    <- paste0(output_version, '_reg_', ohasis$yr, '-', ohasis$mo)
 output_dir     <- file.path("archive", ohasis$ym, ohasis$output_title, "harp_dx")
@@ -12,7 +12,7 @@ nhsss$harp_dx$official$new_file <- file.path(output_dir, paste0(output_name, ".d
 check_dir(output_dir)
 
 # write main file
-log_info("Saving in Stata data format.")
+.log_info("Saving in Stata data format.")
 write_dta(
    data = nhsss$harp_dx$official$new,
    path = nhsss$harp_dx$official$new_file
@@ -30,7 +30,7 @@ for (drop_var in c("dropped_notyet", "dropped_duplicates"))
 
 ##  Stata Labels ---------------------------------------------------------------
 
-log_info("Creating `lab def` do-files.")
+.log_info("Creating `lab def` do-files.")
 # key->value pairs
 label_df   <- nhsss$harp_dx$corr$stata_labels$lab_def
 label_list <- unique(label_df$label_name)
@@ -56,7 +56,7 @@ lab save ', var, ' using "', file.path(output_dir, paste0('Labels-', var, '.do')
    stata(label_name)
 }
 
-log_info("Attaching labels to variables.")
+.log_info("Attaching labels to variables.")
 # variable->label pairs
 var_df <- nhsss$harp_dx$corr$stata_labels$lab_val
 for (file in list.files(output_dir, "*.dta", full.names = TRUE)) {
@@ -97,7 +97,7 @@ sa "{file}", replace
    stata(stataCMD)
 }
 
-log_success("Done!")
+.log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

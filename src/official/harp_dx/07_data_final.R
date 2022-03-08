@@ -3,7 +3,7 @@
 # list of current vars for code cleanup
 currEnv <- ls()[ls() != "currEnv"]
 
-log_info("Appending with the previous registry.")
+.log_info("Appending with the previous registry.")
 nhsss$harp_dx$official$new <- nhsss$harp_dx$official$old %>%
    mutate(consent_test = as.integer(consent_test)) %>%
    bind_rows(nhsss$harp_dx$converted$data) %>%
@@ -15,7 +15,7 @@ nhsss$harp_dx$official$new <- nhsss$harp_dx$official$old %>%
 
 ##  Tag data to be reported later on and duplicates for dropping ---------------
 
-log_info("Tagging duplicates and postponed reports.")
+.log_info("Tagging duplicates and postponed reports.")
 for (drop_var in c("drop_notyet", "drop_duplicates"))
    if (drop_var %in% names(nhsss$harp_dx$corr))
       for (i in seq_len(nrow(nhsss$harp_dx$corr[[drop_var]]))) {
@@ -34,7 +34,7 @@ for (drop_var in c("drop_notyet", "drop_duplicates"))
 
 ##  Subsets for documentation --------------------------------------------------
 
-log_info("Generating subsets based on tags.")
+.log_info("Generating subsets based on tags.")
 nhsss$harp_dx$official$dropped_notyet <- nhsss$harp_dx$official$new %>%
    filter(drop_notyet == 1)
 
@@ -43,7 +43,7 @@ nhsss$harp_dx$official$dropped_duplicates <- nhsss$harp_dx$official$new %>%
 
 ##  Drop using taggings --------------------------------------------------------
 
-log_info("Finalizing dataset.")
+.log_info("Finalizing dataset.")
 nhsss$harp_dx$official$new %<>%
    mutate(
       drop        = drop_duplicates + drop_notyet,
@@ -52,7 +52,7 @@ nhsss$harp_dx$official$new %<>%
    filter(drop == 0) %>%
    select(-drop, -drop_duplicates, -drop_notyet, -mot)
 
-log_success("Done!")
+.log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))
