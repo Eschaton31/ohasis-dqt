@@ -1,3 +1,8 @@
+##  Notify via Slack -----------------------------------------------------------
+
+data_dta   <- strsplit(nhsss$harp_dx$official$new_file, "/")
+data_zip   <- stri_replace_last_fixed(data_dta[[1]][length(data_dta[[1]])], ".dta", ".zip")
+data_share <- drop_share(glue("/DQT/Data Factory/HARP Dx/{data_zip}"))$url
 
 slack <- slackr_users()
 users <- c(

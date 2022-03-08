@@ -16,16 +16,16 @@ shell("cls")
 rm(list = ls())
 Sys.setenv(TZ = "Asia/Hong_Kong")
 options(
-   browser = Sys.getenv("BROWSER"),
-   # browser             = function(url) {
-   #    if (grepl('^https?:', url)) {
-   #       if (!.Call('.jetbrains_processBrowseURL', url)) {
-   #          browseURL(url, .jetbrains$ther_old_browser)
-   #       }
-   #    } else {
-   #       .Call('.jetbrains_showFile', url, url)
-   #    }
-   # },
+   # browser = Sys.getenv("BROWSER"),
+   browser             = function(url) {
+      if (grepl('^https?:', url)) {
+         if (!.Call('.jetbrains_processBrowseURL', url)) {
+            browseURL(url, .jetbrains$ther_old_browser)
+         }
+      } else {
+         .Call('.jetbrains_showFile', url, url)
+      }
+   },
    help_type           = "html",
    RStata.StataPath    = Sys.getenv("STATA_PATH"),
    RStata.StataVersion = as.integer(Sys.getenv("STATA_VER"))
@@ -70,81 +70,29 @@ ohasis <- DB()
 
 ########
 
-main_path  <- "~/DQT/Documentation/Encoding/"
-main_drive <- drive_ls(main_path)
+# run registry
+source("src/official/harp_dx/00_main.R")
 
-df <- data.frame()
-for (reporting in main_drive$name) {
-   if (StrIsNumeric(reporting)) {
-      list_ei <- drive_ls(paste0(main_path, reporting, "/"))
+#######
 
-      for (ei in seq_len(nrow(list_ei))) {
-         ei_df <- read_sheet(list_ei[ei, "id"] %>% as.character()) %>%
-            mutate_all(
-               ~as.character(.)
-            ) %>%
-            mutate(
-               encoder         = list_ei[ei, "name"]
-            )
-
-         df <- bind_rows(df, ei_df)
-      }
-   }
-}
- df%>% filter(`Record ID` %in% ohasis$db_checks$duped_rec_id$REC_ID)
-
-########
-
-df_1 <- readRDS("C:/Users/johnb/Downloads/forms_final (2).RDS")
-df_1 <- read_dta("C:/Users/johnb/Downloads/JAN 2022.dta") %>%
-   # convert Stata string missing data to NAs
-   mutate_if(
-      .predicate = is.character,
-      ~if_else(. == '', NA_character_, .)
-   )
-df_2 <- nhsss$harp_dx$converted$data
-
-df_check <- df_1 %>%
-   mutate(kath        = 1,
-          who_staging = as.character(baseline_cd4)) %>%
-   select(idnum, labcode, dxlab_kath = class2022) %>%
-   full_join(
-      y  = df_2 %>%
-         mutate(bene = 1) %>%
-         select(REC_ID, labcode, dxlab_bene = class2022),
-      by = "labcode"
-   )
-
-df_check %>%
-   filter(dxlab_kath != dxlab_bene) %>%
-   select(idnum, dxlab_bene)
-
-df_1 %>% select(idnum, starts_with('baseline'))
-df_2 %>% select(idnum, starts_with('baseline'))
-
-df <- read_csv('C:/Users/johnb/Downloads/data.csv') %>% mutate(DATE = as.Date(DATE))
-df %<>%
-   distinct_all() %>%
-   arrange(id, DATE) %>%
-   group_by(id) %>%
+df  <- get_ei("2022.02")
+try <- df %>%
+   filter(Form %in% c("Form A", "HTS Form"),
+          !is.na(`Record ID`)) %>%
    mutate(
-      row_id   = row_number(),
-      timediff = c(NA, diff(DATE))
+      `Encoder` = stri_replace_first_fixed(encoder, "2022.02_", "")
+   ) %>%
+   select(
+      `Facility ID`,
+      `Facility Name`,
+      `Page ID`,
+      `Record ID`,
+      `ID Type`,
+      `Identifier`,
+      `Issues`,
+      `Validation`,
+      `Encoder`
    )
 
-
-df$two_month <- ""
-for (i in nrow(df)) {
-   prev_date <- df[i - 1,]$DATE %>% as.Date()
-   curr_date <- df[i,]$DATE %>% as.Date()
-
-   if (difftime(curr_date, prev_date, units = "days") <= 60)
-      df[i, "two_month"] <- "yes"
-}
-
-.tab(df, two_month)
-
-
-write_dta(readRDS('H:/Software/OHASIS/Consolidation/Output/2022.01/2022.02.21.173316 (COB Export)/Forms - Death.RDS'),
-          'H:/System/HARP/3_Mortality/Consolidation/input/2022.01/Forms - Death.dta')
-
+write_xlsx(try, "H:/Feb 2022 Form A EI.xlsx")
+#########

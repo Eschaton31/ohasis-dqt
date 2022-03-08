@@ -1209,7 +1209,7 @@ if ("check" %in% names(nhsss$harp_dx[[data_name]]))
       drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/")
    )
 
-log_info("Done!")
+log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

@@ -119,7 +119,7 @@ nhsss$harp_dx$initial$data %<>%
             false     = SUFFIX
          )
       ),
-      name                  = stri_trim_both(name),
+      name                  = str_squish(name),
 
       # Permanent
       use_curr              = if_else(
@@ -701,7 +701,7 @@ if ("check" %in% names(nhsss$harp_dx[[data_name]]))
       drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/")
    )
 
-log_info("Done!")
+log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

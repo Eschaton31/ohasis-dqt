@@ -192,7 +192,7 @@ if (length(nhsss$harp_dx[[data_name]]) > 0)
       drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/")
    )
 
-log_info("Done!")
+log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

@@ -36,7 +36,7 @@ p_load(
    writexl,
    clipr,
    dbx,
-   logger,
+   # logger,
    fs,
    progress,
    gmailr,
@@ -47,7 +47,9 @@ p_load(
    fastLink,
    stringdist,
    phonics,
-   glue
+   glue,
+   googleway,
+   crayon
 )
 
 # special libraries
@@ -56,3 +58,6 @@ if (!require(remotes))
 
 if (!require(kwb.nextcloud))
    remotes::install_github("KWB-R/kwb.nextcloud")
+
+# devtools::install_github("SymbolixAU/googlePolylines")
+# devtools::install_github("SymbolixAU/googleway")

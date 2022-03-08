@@ -36,7 +36,7 @@ if (nrow(report_files) > 0) {
    }
 }
 
-log_info("Done!")
+log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

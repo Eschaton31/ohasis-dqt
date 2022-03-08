@@ -28,7 +28,7 @@ for (files_dir in list.files(zip_dir, full.names = TRUE)) {
    }
 }
 
-log_info("Done!")
+log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

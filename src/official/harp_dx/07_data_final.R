@@ -52,7 +52,7 @@ nhsss$harp_dx$official$new %<>%
    filter(drop == 0) %>%
    select(-drop, -drop_duplicates, -drop_notyet, -mot)
 
-log_info("Done!")
+log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

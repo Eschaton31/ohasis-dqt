@@ -97,7 +97,7 @@ sa "{file}", replace
    stata(stataCMD)
 }
 
-log_info("Done!")
+log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

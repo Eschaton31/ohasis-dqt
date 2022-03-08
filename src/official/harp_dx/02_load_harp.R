@@ -133,7 +133,7 @@ if (reload == "2") {
 log_info("Closing connections.")
 dbDisconnect(lw_conn)
 dbDisconnect(db_conn)
-log_info("Done!")
+log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

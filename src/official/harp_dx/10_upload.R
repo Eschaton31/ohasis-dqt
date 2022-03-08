@@ -22,7 +22,7 @@ for (zip_file in list.files(pattern = "\\.", zip_dir, full.names = TRUE)) {
    upload_file(zip_file, dir_run)
 }
 
-##  Upload archive to nextcloud ------------------------------------------------
+##  Upload archive to Dropbox --------------------------------------------------
 
 log_info("Uploading dataset to Dropbox.")
 data_dta <- nhsss$harp_dx$official$new_file
@@ -33,7 +33,7 @@ drop_upload(
    "DQT/Data Factory/HARP Dx"
 )
 
-log_info("Done!")
+log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

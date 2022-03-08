@@ -135,15 +135,15 @@ DB <- setRefClass(
          if (check_speed == "1") {
             log_info("Checking internet speed.")
             internet <<- .self$speedtest()
-            log_info("Current download speed: {internet$speed_down_megabits_sec} Mbps")
-            log_info("Current upload speed: {internet$speed_up_megabits_sec} Mbps")
+            log_info("Current download speed: {underline(internet$speed_down_megabits_sec)} Mbps")
+            log_info("Current upload speed: {underline(internet$speed_up_megabits_sec)} Mbps")
          }
 
          # check database consistency
          log_info("Checking database for inconsistencies.")
          db_checks <<- .self$check_consistency()
          if (length(.self$db_checks) > 0)
-            log_warn("DB inconsistencies found! See `db_checks` for more info.")
+            log_warn("DB inconsistencies found! See {underline('db_checks')} for more info.")
          else
             log_info("DB is clean.")
 
@@ -320,11 +320,11 @@ DB <- setRefClass(
          # get input
          if (default_yes == TRUE) {
             update <- "1"
-            log_info("Updating `{table_name}` @ the `{db_type}`.")
+            log_info("Updating {red(table_name)} @ the {red(db_type)}.")
          } else {
             update <- input(
-               prompt  = paste0("Update `", table_name, "`?"),
-               options = c("yes", "no"),
+               prompt  = paste0("Update ", red(table_name), "?"),
+               options = c("1" = "yes", "2" = "no"),
                default = "1"
             )
          }
@@ -355,7 +355,7 @@ DB <- setRefClass(
             source(factory_file, local = TRUE)
 
             if (continue > 0) {
-               log_info("Payload = {nrow(object)} rows.")
+               log_info("Payload = {red(formatC(nrow(object), big.mark = ','))} rows.")
                .self$upsert(lw_conn, db_type, table_name, object, id_col)
                # update reference
                df <- data.frame(
@@ -374,9 +374,9 @@ DB <- setRefClass(
                   DBI::SQL(paste0('`', db_name, '`.`logs`')),
                   df
                )
-               log_info("Done!\n")
+               log_success("Done!")
             } else {
-               log_info("None found.\n")
+               log_info("None found.")
             }
 
             # close connections
@@ -404,7 +404,7 @@ DB <- setRefClass(
          # check if already available
          if ((snapshot$old %>% tally() %>% collect())$n > 0) {
             snapshot$old <- (snapshot$old %>% collect())$snapshot
-            log_info("Latest snapshot = `{format(snapshot$old, \"%a %b %d, %Y %X\")}`.")
+            log_info("Latest snapshot = {red(format(snapshot$old, \"%a %b %d, %Y %X\"))}.")
          } else {
             snapshot$old <- as.POSIXct("1970-01-01 00:00:00", tz = "UTC")
             log_info("No version found in data lake.")
