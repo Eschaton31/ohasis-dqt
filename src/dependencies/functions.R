@@ -78,6 +78,13 @@ check_dir <- function(dir) {
    cat(log, msg, "\n")
 }
 
+.log_error <- function(msg = NULL) {
+   .log_type <- "ERROR" %>% stri_pad_right(7, " ")
+   log      <- bold(red(.log_type)) %+% magenta(glue(' [{format(Sys.time(), "%Y-%m-%d %H:%M:%S")}]'))
+   msg      <- glue(msg, .envir = parent.frame(1))
+   cat(log, msg, "\n")
+}
+
 # stata univar tab
 .tab <- function(dataframe, column, nrows = 100L) {
    column <- enquo(column)

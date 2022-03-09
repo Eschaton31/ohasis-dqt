@@ -142,10 +142,22 @@ DB <- setRefClass(
          # check database consistency
          .log_info("Checking database for inconsistencies.")
          db_checks <<- .self$check_consistency()
-         if (length(.self$db_checks) > 0)
+         if (length(db_checks) > 0) {
             .log_warn("DB inconsistencies found! See {underline(red('db_checks'))} for more info.")
-         else
+            if ("duped_rec_id" %in% names(db_checks)) {
+               n_rows  <- nrow(db_checks$duped_recid) %>%
+                  underline() %>%
+                  red()
+               n_pairs <- n_groups(db_checks$duped_recid %>% group_by(REC_ID)) %>%
+                  underline() %>%
+                  red()
+               .log_error("Duplicated Record IDs: {n_rows} rows | {n_pairs} pairs")
+            }
+            if ("flipped_cid" %in% names(db_checks))
+               .log_error("Flipped Central IDs found in OHASIS registry.")
+         } else {
             .log_info("DB is clean.")
+         }
 
          # update data lake
          update <- input(
