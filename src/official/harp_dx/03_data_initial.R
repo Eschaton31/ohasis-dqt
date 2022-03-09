@@ -438,7 +438,7 @@ if (update == "1") {
       mutate(
          CHECK = case_when(
             (StrLeft(SOURCE_FACI, 6) != StrLeft(TEST_FACI_NAME, 6)) ~ 1,
-            is.na(SOURCE_FACI) ~ 1
+            (is.na(SPECIMEN_REFER_TYPE) | StrLeft(SPECIMEN_REFER_TYPE, 1) == "4") & is.na(SOURCE_FACI) ~ 1
          )
       ) %>%
       filter(CHECK == 1) %>%
