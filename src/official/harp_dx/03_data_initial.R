@@ -534,6 +534,32 @@ if (update == "1") {
          MED_IS_PREGNANT
       )
 
+   .log_info("Checking for pregnant females.")
+   nhsss$harp_dx$initial$check[["pregnant_f"]] <- nhsss$harp_dx$initial$data %>%
+      filter(
+         StrLeft(IS_PREGNANT, 1) == '1' | StrLeft(MED_IS_PREGNANT, 1) == '1',
+         StrLeft(SEX, 1) == '2'
+      ) %>%
+      select(
+         REC_ID,
+         PATIENT_ID,
+         FORM_VERSION,
+         CONFIRM_CODE,
+         UIC,
+         PATIENT_CODE,
+         FIRST,
+         MIDDLE,
+         LAST,
+         SUFFIX,
+         BIRTHDATE,
+         SEX,
+         TEST_FACI_NAME,
+         CONFIRM_TYPE,
+         SPECIMEN_REFER_TYPE,
+         IS_PREGNANT,
+         MED_IS_PREGNANT
+      )
+
    .log_info("Checking calculated age vs computed age.")
    nhsss$harp_dx$initial$check[["mismatch_age"]] <- nhsss$harp_dx$initial$data %>%
       filter(
