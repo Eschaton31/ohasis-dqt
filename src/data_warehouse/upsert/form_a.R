@@ -26,7 +26,12 @@ for_delete_1 <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
    collect()
 
 for_delete_2 <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
-   filter(FORM_VERSION != "Form A (v2017") %>%
+   inner_join(
+      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_a")) %>%
+         select(REC_ID),
+      by = "REC_ID"
+   ) %>%
+   filter(FORM_VERSION != "Form A (v2017)") %>%
    select(REC_ID) %>%
    collect()
 
