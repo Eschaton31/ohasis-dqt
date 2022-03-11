@@ -13,7 +13,7 @@ object   <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
       is.na(DELETED_BY)
    )
 
-for_delete <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
+for_delete_1 <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
    filter(
       DISEASE == "HIV",
       SERVICE_TYPE %in% c("HIV FBT", NA_character_),
@@ -24,6 +24,13 @@ for_delete <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
    ) %>%
    select(REC_ID) %>%
    collect()
+
+for_delete_2 <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
+   filter(FORM_VERSION != "Form A (v2017") %>%
+   select(REC_ID) %>%
+   collect()
+
+for_delete <- bind_rows(for_delete_1, for_delete_2)
 
 # get number of affected rows
 if ((object %>% count() %>% collect())$n > 0) {

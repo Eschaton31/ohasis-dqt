@@ -257,7 +257,7 @@ DB <- setRefClass(
          }
 
          # upsert data
-         chunk_size <- 10000
+         chunk_size <- 1000
          if (nrow(data) >= chunk_size) {
             # upload in chunks to monitor progress
             n_rows     <- nrow(data)
