@@ -145,13 +145,7 @@ DB <- setRefClass(
          if (length(db_checks) > 0) {
             .log_warn("DB inconsistencies found! See {underline(red('db_checks'))} for more info.")
             if ("duped_rec_id" %in% names(db_checks)) {
-               n_rows  <- nrow(db_checks$duped_recid) %>%
-                  underline() %>%
-                  red()
-               n_pairs <- n_groups(db_checks$duped_recid %>% group_by(REC_ID)) %>%
-                  underline() %>%
-                  red()
-               .log_error("Duplicated Record IDs: {n_rows} rows | {n_pairs} pairs")
+               .log_error("Duplicated Record IDs found.")
             }
             if ("flipped_cid" %in% names(db_checks))
                .log_error("Flipped Central IDs found in OHASIS registry.")
