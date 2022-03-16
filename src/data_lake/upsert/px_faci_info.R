@@ -109,6 +109,7 @@ if ((object %>% count() %>% collect())$n > 0) {
             CLIENT_TYPE == "4" ~ "4_Referral",
             CLIENT_TYPE == "6" ~ "6_Transient",
             CLIENT_TYPE == "7" ~ "7_Persons Deprived of Liberty",
+            CLIENT_TYPE == "8" ~ "8_Courier",
             TRUE ~ CLIENT_TYPE
          ),
          TX_STATUS     = case_when(
