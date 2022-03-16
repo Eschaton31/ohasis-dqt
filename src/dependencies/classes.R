@@ -293,6 +293,7 @@ DB <- setRefClass(
                   Var1 %in% user_cols & Var1 %in% id_col ~ "CHAR(10) NULL COLLATE 'utf8_general_ci'",
                   Var1 == "FACI_CODE" ~ "CHAR(3) NULL COLLATE 'utf8_general_ci'",
                   Var1 == "REC_ID" ~ "CHAR(25) NULL COLLATE 'utf8_general_ci'",
+                  Var1 == "REC_ID_GRP" ~ "VARCHAR(100) NULL COLLATE 'utf8_general_ci'",
                   Var1 == "PATIENT_ID" ~ "CHAR(18) NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
                   stri_detect_fixed(Var1, "PSGC") ~ "CHAR(9) NULL COLLATE 'utf8_general_ci'",
                   stri_detect_fixed(Var1, "ADDR") ~ "TEXT NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
@@ -364,13 +365,18 @@ DB <- setRefClass(
 
             source(factory_file, local = TRUE)
 
+            # keep connection alive
+            dbDisconnect(lw_conn)
+            lw_conn <- .self$conn("lw")
+
             # check if there is data for deletion
-            if (nrow(for_delete) > 0) {
+            if (nrow(for_delete) > 0 && dbExistsTable(lw_conn, table_space)) {
                .log_info("Number of invalidated records = {red(formatC(nrow(for_delete), big.mark = ','))}.")
                dbxDelete(
                   lw_conn,
                   table_space,
-                  for_delete
+                  for_delete,
+                  batch_size = 1000
                )
                .log_success("Invalidated records removed.")
             }
