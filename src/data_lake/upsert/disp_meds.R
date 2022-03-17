@@ -1,7 +1,7 @@
 ##  Grouped Medicine Data ------------------------------------------------------
 
 continue <- 0
-id_col   <- c("REC_ID", "REC_ID_GRP")
+id_col   <- c("REC_ID", "REC_ID_GRP", "MEDICINE")
 object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
    filter(
       (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
