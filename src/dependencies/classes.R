@@ -72,6 +72,16 @@ Project <- setRefClass(
             pattern <- paste0('*reg_', refYr, '-', refMo, '.*\\.', file_type)
          }
 
+         if (tolower(surveillance) == "harp_tx-reg") {
+            path    <- Sys.getenv("HARP_TX")
+            pattern <- paste0('*reg-art_', refYr, '-', refMo, '.*\\.', file_type)
+         }
+
+         if (tolower(surveillance) == "harp_tx-outcome") {
+            path    <- Sys.getenv("HARP_TX")
+            pattern <- paste0('*onart_', refYr, '-', refMo, '.*\\.', file_type)
+         }
+
          # function to find the latest file
          get_latest <- function()
             sort(list.files(path = path, full.names = TRUE, pattern = pattern), decreasing = TRUE)
