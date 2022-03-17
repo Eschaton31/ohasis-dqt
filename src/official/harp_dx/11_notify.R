@@ -14,16 +14,17 @@ users <- c(
    'appadilla',
    'cjmaranan.doh',
    'mcamoroso.doh',
-   'nspalaypayon'
+   'nspalaypayon',
+   'kapamittan'
 )
-link  <- "https://www.dropbox.com/s/41i0nzu8xtb8qeb/JAN%202022_2.0.rar?dl=0"
+link  <- "https://www.dropbox.com/t/WH1W3rnHydzuxLCj"
 for (user in users) {
    id <- (slack %>% filter(name == user))$id
    slackr_msg(
       channel = id,
       paste0(">Hi! The HARP Dx Registry dataset for the reporting period of ",
              month.abb[as.numeric(ohasis$mo)], " ", ohasis$yr,
-             " has now been updated with the necessary changes for tagging of advanced HIV disease. You may click on the link below to download the updated dataset.\n><", link,
+             " has now been uploaded. You may click on the link below to download the dataset.\n><", link,
              "|", toupper(month.abb[as.numeric(ohasis$mo)]), " ", ohasis$yr, ">"),
       mrkdwn  = "true"
    )
