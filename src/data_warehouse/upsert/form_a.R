@@ -608,15 +608,17 @@ if ((object %>% count() %>% collect())$n > 0) {
             ) %>%
             select(
                REC_ID,
-               T1_DATE,
-               T1_KIT,
-               T1_RESULT,
-               T2_DATE,
-               T2_KIT,
-               T2_RESULT,
-               T3_DATE,
-               T3_KIT,
-               T3_RESULT
+               any_of(
+                  c("T1_DATE",
+                    "T1_KIT",
+                    "T1_RESULT",
+                    "T2_DATE",
+                    "T2_KIT",
+                    "T2_RESULT",
+                    "T3_DATE",
+                    "T3_KIT",
+                    "T3_RESULT")
+               ),
             ) %>%
             collect(),
          by = "REC_ID"

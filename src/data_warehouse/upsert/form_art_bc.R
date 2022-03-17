@@ -78,16 +78,31 @@ if ((object %>% count() %>% collect())$n > 0) {
                names_from  = KP,
                values_from = c("IS_KP", "KP_OTHER"),
             ) %>%
+            rename_all(
+               ~case_when(
+                  . == "IS_KP_1" ~ "KP_PDL",
+                  . == "IS_KP_2" ~ "KP_TG",
+                  . == "IS_KP_3" ~ "KP_PWID",
+                  . == "IS_KP_5" ~ "KP_MSM",
+                  . == "IS_KP_6" ~ "KP_SW",
+                  . == "IS_KP_7" ~ "KP_OFW",
+                  . == "IS_KP_8" ~ "KP_PARTNER",
+                  . == "KP_OTHER_8888" ~ "KP_OTHER",
+                  TRUE ~ .
+               )
+            ) %>%
             select(
                REC_ID,
-               KP_PDL     = IS_KP_1,
-               KP_TG      = IS_KP_2,
-               KP_PWID    = IS_KP_3,
-               KP_MSM     = IS_KP_5,
-               KP_SW      = IS_KP_6,
-               KP_OFW     = IS_KP_7,
-               KP_PARTNER = IS_KP_8,
-               KP_OTHER   = KP_OTHER_8888,
+               any_of(
+                  c("KP_PDL",
+                    "KP_TG",
+                    "KP_PWID",
+                    "KP_MSM",
+                    "KP_SW",
+                    "KP_OFW",
+                    "KP_PARTNER",
+                    "KP_OTHER")
+               )
             ) %>%
             collect(),
          by = "REC_ID"
@@ -168,7 +183,7 @@ if ((object %>% count() %>% collect())$n > 0) {
             ) %>%
             select(REC_ID) %>%
             inner_join(
-               y  = tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_vaccine")),
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_vaccine")),
                by = "REC_ID"
             ) %>%
             mutate(
@@ -204,30 +219,32 @@ if ((object %>% count() %>% collect())$n > 0) {
             ) %>%
             select(
                REC_ID,
-               VAX_COVID19_1ST_DONE,
-               VAX_COVID19_1ST_VAX_USED,
-               VAX_COVID19_1ST_DATE,
-               VAX_COVID19_1ST_LOCATION,
-               VAX_COVID19_2ND_DONE,
-               VAX_COVID19_2ND_VAX_USED,
-               VAX_COVID19_2ND_DATE,
-               VAX_COVID19_2ND_LOCATION,
-               VAX_COVID19_BOOST_DONE,
-               VAX_COVID19_BOOST_VAX_USED,
-               VAX_COVID19_BOOST_DATE,
-               VAX_COVID19_BOOST_LOCATION,
-               VAX_HEPB_1ST_DONE,
-               VAX_HEPB_1ST_VAX_USED,
-               VAX_HEPB_1ST_DATE,
-               VAX_HEPB_1ST_LOCATION,
-               VAX_HEPB_2ND_DONE,
-               VAX_HEPB_2ND_VAX_USED,
-               VAX_HEPB_2ND_DATE,
-               VAX_HEPB_2ND_LOCATION,
-               VAX_HEPB_3RD_DONE,
-               VAX_HEPB_3RD_VAX_USED,
-               VAX_HEPB_3RD_DATE,
-               VAX_HEPB_3RD_LOCATION,
+               any_of(
+                  c('VAX_COVID19_1ST_DONE',
+                    'VAX_COVID19_1ST_VAX_USED',
+                    'VAX_COVID19_1ST_DATE',
+                    'VAX_COVID19_1ST_LOCATION',
+                    'VAX_COVID19_2ND_DONE',
+                    'VAX_COVID19_2ND_VAX_USED',
+                    'VAX_COVID19_2ND_DATE',
+                    'VAX_COVID19_2ND_LOCATION',
+                    'VAX_COVID19_BOOST_DONE',
+                    'VAX_COVID19_BOOST_VAX_USED',
+                    'VAX_COVID19_BOOST_DATE',
+                    'VAX_COVID19_BOOST_LOCATION',
+                    'VAX_HEPB_1ST_DONE',
+                    'VAX_HEPB_1ST_VAX_USED',
+                    'VAX_HEPB_1ST_DATE',
+                    'VAX_HEPB_1ST_LOCATION',
+                    'VAX_HEPB_2ND_DONE',
+                    'VAX_HEPB_2ND_VAX_USED',
+                    'VAX_HEPB_2ND_DATE',
+                    'VAX_HEPB_2ND_LOCATION',
+                    'VAX_HEPB_3RD_DONE',
+                    'VAX_HEPB_3RD_VAX_USED',
+                    'VAX_HEPB_3RD_DATE',
+                    'VAX_HEPB_3RD_LOCATION')
+               )
             ) %>%
             collect(),
          by = "REC_ID"
@@ -434,15 +451,17 @@ if ((object %>% count() %>% collect())$n > 0) {
             ) %>%
             select(
                REC_ID,
-               OI_SYPH_PRESENT,
-               OI_HEPB_PRESENT,
-               OI_HEPC_PRESENT,
-               OI_PCP_PRESENT,
-               OI_CMV_PRESENT,
-               OI_OROCAND_PRESENT,
-               OI_HERPES_PRESENT,
-               OI_OTHER_PRESENT,
-               OI_OTHER_TEXT
+               any_of(
+                  c('OI_SYPH_PRESENT',
+                    'OI_HEPB_PRESENT',
+                    'OI_HEPC_PRESENT',
+                    'OI_PCP_PRESENT',
+                    'OI_CMV_PRESENT',
+                    'OI_OROCAND_PRESENT',
+                    'OI_HERPES_PRESENT',
+                    'OI_OTHER_PRESENT',
+                    'OI_OTHER_TEXT')
+               )
             ) %>%
             collect(),
          by = "REC_ID"
@@ -474,20 +493,26 @@ if ((object %>% count() %>% collect())$n > 0) {
                   TRUE ~ PROPHYLAXIS
                )
             ) %>%
-            rename(
-               PRESENT = IS_OI,
-               TEXT    = OI_OTHER
-            ) %>%
             pivot_wider(
                id_cols     = REC_ID,
                names_from  = PROPHYLAXIS,
                values_from = IS_PROPH
             ) %>%
+            rename_all(
+               ~case_when(
+                  . == "COTRI_IS_PROPH" ~ "PROPH_COTRI",
+                  . == "AZITHRO_IS_PROPH" ~ "PROPH_AZITHRO",
+                  . == "FLUCANO_IS_PROPH" ~ "PROPH_FLUCANO",
+                  TRUE ~ .
+               )
+            ) %>%
             select(
                REC_ID,
-               PROPH_COTRI   = COTRI_IS_DONE,
-               PROPH_AZITHRO = AZITHRO_IS_DONE,
-               PROPH_FLUCANO = FLUCANO_IS_DONE,
+               any_of(
+                  c("PROPH_COTRI",
+                    "PROPH_AZITHRO",
+                    "PROPH_FLUCANO")
+               )
             ) %>%
             collect(),
          by = "REC_ID"
@@ -543,11 +568,11 @@ if ((object %>% count() %>% collect())$n > 0) {
                y  = tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "disp_meds")),
                by = "REC_ID"
             ) %>%
+            collect() %>%
             arrange(REC_ID, DISP_NUM) %>%
             group_by(REC_ID, REC_ID_GRP) %>%
-            collect() %>%
             left_join(
-               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_pii")) %>%
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "inventory_product")) %>%
                   select(
                      MEDICINE = ITEM,
                      SHORT
@@ -562,5 +587,16 @@ if ((object %>% count() %>% collect())$n > 0) {
                LATEST_NEXT_DATE = max(NEXT_DATE, na.rm = TRUE),
             ),
          by = "REC_ID"
+      ) %>%
+      mutate(
+         VISIT_DATE = case_when(
+            RECORD_DATE == as.Date(DISP_DATE) ~ RECORD_DATE,
+            RECORD_DATE < as.Date(DISP_DATE) & DISP_DATE >= -25567 ~ as.Date(DISP_DATE),
+            RECORD_DATE > as.Date(DISP_DATE) & DISP_DATE >= -25567 ~ as.Date(DISP_DATE),
+            is.na(RECORD_DATE) ~ as.Date(DISP_DATE),
+            is.na(DISP_DATE) ~ RECORD_DATE,
+            TRUE ~ RECORD_DATE
+         ),
+         .before    = RECORD_DATE
       )
 }
