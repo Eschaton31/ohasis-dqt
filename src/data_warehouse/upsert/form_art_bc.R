@@ -1,7 +1,7 @@
 ##  Form BC --------------------------------------------------------------------
 
 continue <- 0
-id_col   <- "REC_ID"
+id_col   <- c("REC_ID", "REC_ID_GRP")
 # px identifiers (demographics, address, etc.)
 object   <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
    filter(
@@ -588,6 +588,27 @@ if ((object %>% count() %>% collect())$n > 0) {
             ),
          by = "REC_ID"
       ) %>%
+      # arv disp data
+      left_join(
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
+            filter(
+               (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
+                  (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
+                  (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
+            ) %>%
+            select(REC_ID) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_medicine_disc")),
+               by = "REC_ID"
+            ) %>%
+            collect() %>%
+            distinct(REC_ID, MEDICINE) %>%
+            group_by(REC_ID) %>%
+            summarise(
+               NUM_OF_DISC = n()
+            ),
+         by = "REC_ID"
+      ) %>%
       mutate(
          VISIT_DATE = case_when(
             RECORD_DATE == as.Date(DISP_DATE) ~ RECORD_DATE,
@@ -598,5 +619,20 @@ if ((object %>% count() %>% collect())$n > 0) {
             TRUE ~ RECORD_DATE
          ),
          .before    = RECORD_DATE
+      ) %>%
+      # tag ART records
+      mutate(
+         NUM_OF_DRUGS = stri_count_fixed(MEDICINE_SUMMARY, '+') + 1,
+         NUM_OF_DRUGS = if_else(is.na(NUM_OF_DRUGS), as.integer(0), as.integer(NUM_OF_DRUGS)),
+         NUM_OF_DISC  = if_else(is.na(NUM_OF_DISC), as.integer(0), as.integer(NUM_OF_DISC)),
+         ART_RECORD   = case_when(
+            NUM_OF_DISC > 0 & NUM_OF_DRUGS == 0 ~ 'Care',
+            is.na(TX_STATUS) & !is.na(MEDICINE_SUMMARY) ~ 'ART',
+            !is.na(TX_STATUS) & substr(TX_STATUS, 1, 1) == 1 ~ 'ART',
+            !is.na(TX_STATUS) & substr(TX_STATUS, 1, 1) == 2 ~ 'ART',
+            substr(TX_STATUS, 1, 1) == 0 ~ 'Care',
+            !is.na(TX_STATUS) ~ 'Care',
+            TRUE ~ 'Care'
+         )
       )
 }
