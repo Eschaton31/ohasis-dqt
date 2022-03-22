@@ -14,10 +14,11 @@ object   <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
 
 for_delete <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
    filter(
-      DISEASE == "HIV",
-      substr(MODULE, 1, 1) == "3",
-      SNAPSHOT >= snapshot_old,
-      SNAPSHOT <= snapshot_new
+      !is.na(DELETED_BY)
+   ) %>%
+   inner_join(
+      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_art_bc")),
+      by = "REC_ID"
    ) %>%
    select(REC_ID) %>%
    collect()
