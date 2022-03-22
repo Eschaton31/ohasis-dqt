@@ -59,29 +59,29 @@ check_dir <- function(dir) {
 # logger
 .log_info <- function(msg = NULL) {
    .log_type <- "INFO" %>% stri_pad_right(7, " ")
-   log      <- bold(blue(.log_type)) %+% magenta(glue(' [{format(Sys.time(), "%Y-%m-%d %H:%M:%S")}]'))
-   msg      <- glue(msg, .envir = parent.frame(1))
+   log       <- bold(blue(.log_type)) %+% magenta(glue(' [{format(Sys.time(), "%Y-%m-%d %H:%M:%S")}]'))
+   msg       <- glue(msg, .envir = parent.frame(1))
    cat(log, msg, "\n")
 }
 
 .log_success <- function(msg = NULL) {
    .log_type <- "SUCCESS" %>% stri_pad_right(7, " ")
-   log      <- bold(green(.log_type)) %+% magenta(glue(' [{format(Sys.time(), "%Y-%m-%d %H:%M:%S")}]'))
-   msg      <- glue(msg, .envir = parent.frame(1))
+   log       <- bold(green(.log_type)) %+% magenta(glue(' [{format(Sys.time(), "%Y-%m-%d %H:%M:%S")}]'))
+   msg       <- glue(msg, .envir = parent.frame(1))
    cat(log, msg, "\n")
 }
 
 .log_warn <- function(msg = NULL) {
    .log_type <- "WARN" %>% stri_pad_right(7, " ")
-   log      <- bold(yellow(.log_type)) %+% magenta(glue(' [{format(Sys.time(), "%Y-%m-%d %H:%M:%S")}]'))
-   msg      <- glue(msg, .envir = parent.frame(1))
+   log       <- bold(yellow(.log_type)) %+% magenta(glue(' [{format(Sys.time(), "%Y-%m-%d %H:%M:%S")}]'))
+   msg       <- glue(msg, .envir = parent.frame(1))
    cat(log, msg, "\n")
 }
 
 .log_error <- function(msg = NULL) {
    .log_type <- "ERROR" %>% stri_pad_right(7, " ")
-   log      <- bold(red(.log_type)) %+% magenta(glue(' [{format(Sys.time(), "%Y-%m-%d %H:%M:%S")}]'))
-   msg      <- glue(msg, .envir = parent.frame(1))
+   log       <- bold(red(.log_type)) %+% magenta(glue(' [{format(Sys.time(), "%Y-%m-%d %H:%M:%S")}]'))
+   msg       <- glue(msg, .envir = parent.frame(1))
    cat(log, msg, "\n")
 }
 
@@ -192,13 +192,13 @@ check_dir <- function(dir) {
 }
 
 # upload to gdrive/gsheets validations
-.validation_gsheets <- function(data_name = NULL, parent_list = NULL, drive_path = NULL) {
+.validation_gsheets <- function(data_name = NULL, parent_list = NULL, drive_path = NULL, surv_name = NULL) {
    .log_info("Uploading to GSheets..")
    empty_sheets <- ""
    gsheet       <- paste0(data_name, "_", format(Sys.time(), "%Y.%m.%d"))
    drive_file   <- drive_get(paste0(drive_path, gsheet))
    drive_link   <- paste0("https://docs.google.com/spreadsheets/d/", drive_file$id, "/|GSheets Link: ", gsheet)
-   slack_msg    <- paste0(">HARP Dx conso validation sheets for `", data_name, "` have been updated.\n><", drive_link, ">")
+   slack_msg    <- glue(">HARP {surv_name} conso validation sheets for `{data_name}` have been updated.\n><{drive_link}>")
 
    # list of validations
    issues_list <- names(parent_list)
@@ -212,7 +212,7 @@ check_dir <- function(dir) {
       # acquire sheet_id
       drive_file <- drive_get(paste0(drive_path, gsheet))
       drive_link <- paste0("https://docs.google.com/spreadsheets/d/", drive_file$id, "/|GSheets Link: ", gsheet)
-      slack_msg  <- paste0(">HARP Dx conso validation sheets for `", data_name, "` have been updated.\n><", drive_link, ">")
+      slack_msg  <- glue(">HARP {surv_name} conso validation sheets for `{data_name}` have been updated.\n><{drive_link}>")
    } else {
       for (issue in issues_list) {
          # add issue
@@ -350,4 +350,31 @@ get_ei <- function(reporting = NULL) {
    }
 
    return(df)
+}
+
+# ohasis patient_id
+oh_px_id <- function(db_conn = NULL, faci_id = NULL) {
+   letter <- substr(stri_rand_shuffle(paste(collapse = "", LETTERS[seq_len(130)])), 1, 1)
+   number <- substr(stri_rand_shuffle(strrep("0123456789", 5)), 1, 3)
+
+   randomized <- stri_rand_shuffle(paste0(letter, number))
+   patient_id <- paste0(format(Sys.time(), "%Y%m%d"), faci_id, randomized)
+
+   pid_query <- dbSendQuery(db_conn, glue("SELECT PATIENT_ID FROM `ohasis_interim`.`px_info` WHERE PATIENT_ID = '{patient_id}'"))
+   pid_count <- dbFetch(pid_query)
+   dbClearResult(pid_query)
+
+   while (nrow(pid_count) > 0) {
+      letter <- substr(stri_rand_shuffle(strrep(LETTERS, 5)), 1, 1)
+      number <- substr(stri_rand_shuffle(strrep("0123456789", 5)), 1, 3)
+
+      randomized <- stri_rand_shuffle(paste0(letter, number))
+      patient_id <- paste0(format(Sys.time(), "%Y%m%d"), faci_id, randomized)
+
+      pid_query <- dbSendQuery(db_conn, glue("SELECT PATIENT_ID FROM `ohasis_interim`.`px_info` WHERE PATIENT_ID = '{patient_id}'"))
+      pid_count <- dbFetch(pid_query)
+      dbClearResult(pid_query)
+   }
+
+   return(patient_id)
 }
