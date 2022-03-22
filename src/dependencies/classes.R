@@ -188,6 +188,7 @@ DB <- setRefClass(
                lapply(list.files(lake_dir, pattern = "ref_*"), lake_table)
                lapply(list.files(lake_dir, pattern = "px_*"), lake_table)
                lapply(list.files(lake_dir, pattern = "lab_*"), lake_table)
+               lapply(list.files(lake_dir, pattern = "disp_*"), lake_table)
             }
 
             .log_info("Data lake updated!")
