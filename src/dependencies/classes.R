@@ -321,12 +321,20 @@ DB <- setRefClass(
                SQL  = paste0("`", Var1, "` ", Type),
             )
 
+         # add indices if not in pk
+         index <- ""
+         if (!("CENTRAL_ID" %in% id_col))
+            index <- ", INDEX `CENTRAL_ID` (`CENTRAL_ID`)"
+         if (!("PATIENT_ID" %in% id_col))
+            index <- ", INDEX `PATIENT_ID` (`PATIENT_ID`)"
+
          # implode into query
          pk_sql     <- paste(collapse = "`,`", id_col)
          create_sql <- paste(collapse = ",", df_str$SQL)
-         create_sql <- paste0("CREATE TABLE `", db_name, "`.`", table_name, "` (\n",
-                              create_sql, ",\nPRIMARY KEY(`", pk_sql, "`)\n)\n",
-                              "COLLATE='utf8_general_ci'\nENGINE=InnoDB;")
+         create_sql <- glue("CREATE TABLE `{db_name}`.`{table_name}` (\n",
+                            "{create_sql},\n",
+                            "\nPRIMARY KEY(`{pk_sql}`) {index}\n)\n",
+                            "COLLATE='utf8_general_ci'\nENGINE=InnoDB;")
          return(create_sql)
       },
 
