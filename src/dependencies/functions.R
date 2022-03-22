@@ -171,6 +171,7 @@ check_dir <- function(dir) {
       df       <- cleaning_list[i,]
       id       <- paste0("df['", corr_id_name, "'] %>% as.", corr_id_type, '()')
       id       <- eval(parse(text = id))
+      eb_id    <- tolower(corr_id_name) %>% as.symbol()
       variable <- df$VARIABLE %>% as.symbol()
 
       # evaluate data type of variable
@@ -181,7 +182,7 @@ check_dir <- function(dir) {
       data_to_clean %<>%
          mutate(
             !!variable := if_else(
-               condition = idnum == id,
+               condition = !!eb_id == id,
                true      = value,
                false     = !!variable
             )
