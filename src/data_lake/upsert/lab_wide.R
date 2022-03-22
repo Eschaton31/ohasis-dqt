@@ -29,7 +29,17 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       collect() %>%
       inner_join(
-         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_labs")) %>%
+         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
+            filter(
+               (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
+                  (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
+                  (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
+            ) %>%
+            select(REC_ID) %>%
+            inner_join(
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_labs")),
+               by = "REC_ID"
+            ) %>%
             select(
                REC_ID,
                TEST         = LAB_TEST,
