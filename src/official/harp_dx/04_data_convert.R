@@ -1212,7 +1212,8 @@ if ("check" %in% names(nhsss$harp_dx[[data_name]]))
    .validation_gsheets(
       data_name   = data_name,
       parent_list = nhsss$harp_dx[[data_name]]$check,
-      drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/")
+      drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/"),
+      surv_name = "Dx"
    )
 
 .log_success("Done!")
