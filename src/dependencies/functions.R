@@ -217,8 +217,10 @@ check_dir <- function(dir) {
    } else {
       for (issue in issues_list) {
          # add issue
-         if (nrow(parent_list[[issue]]) > 0)
+         if (nrow(parent_list[[issue]]) > 0) {
             sheet_write(parent_list[[issue]], drive_file$id, issue)
+            range_autofit(drive_file$id, issue)
+         }
       }
    }
 
