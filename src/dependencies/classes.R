@@ -340,7 +340,7 @@ DB <- setRefClass(
       },
 
       # update lake
-      data_factory      = function(db_type = NULL, table_name = NULL, update_type = NULL, default_yes = FALSE) {
+      data_factory      = function(db_type = NULL, table_name = NULL, update_type = NULL, default_yes = FALSE, from = NULL, to = NULL) {
          # append "ohasis_" as db name
          db_name     <- paste0("ohasis_", db_type)
          table_space <- Id(schema = db_name, table = table_name)
@@ -373,6 +373,14 @@ DB <- setRefClass(
             snapshot$data <- if_else(!is.na(snapshot$data), snapshot$data + 1, snapshot$data)
             snapshot_old  <- if_else(snapshot$old < snapshot$data, snapshot$old, snapshot$data) %>% as.character()
             snapshot_new  <- snapshot$new %>% as.character()
+
+            # if specified days to update
+            if (!is.null(from))
+               snapshot_old <- from
+
+            # if specified days to update
+            if (!is.null(to))
+               snapshot_new <- to
 
             if (update_type == "refresh")
                snapshot_old <- "1970-01-01 00:00:00"
