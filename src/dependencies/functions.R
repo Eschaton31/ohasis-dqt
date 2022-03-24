@@ -165,6 +165,7 @@ check_dir <- function(dir) {
 
 # sheets cleaning per id
 .cleaning_list <- function(data_to_clean = NULL, cleaning_list = NULL, corr_id_name = NULL, corr_id_type = NULL) {
+   data <- data_to_clean
    for (i in seq_len(nrow(cleaning_list))) {
 
       # load idnum and name of variable
@@ -179,7 +180,7 @@ check_dir <- function(dir) {
       value <- eval(parse(text = value))
 
       # update data
-      data_to_clean %<>%
+      data %<>%
          mutate(
             !!variable := if_else(
                condition = !!eb_id == id,
@@ -187,9 +188,8 @@ check_dir <- function(dir) {
                false     = !!variable
             )
          )
-
-      return(data_to_clean)
    }
+   return(data)
 }
 
 # upload to gdrive/gsheets validations
