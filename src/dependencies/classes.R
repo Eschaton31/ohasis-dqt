@@ -67,32 +67,37 @@ Project <- setRefClass(
       # get official dataset files
       get_data     = function(surveillance = NULL, refYr = NULL, refMo = NULL, path = NULL, file_type = "dta") {
 
-         if (tolower(surveillance) == "harp_dx") {
-            path    <- Sys.getenv("HARP_DX")
-            pattern <- paste0('*reg_', refYr, '-', refMo, '.*\\.', file_type)
-         }
+         metadata <- function() {
+            if (tolower(surveillance) == "harp_dx") {
+               path    <- Sys.getenv("HARP_DX")
+               pattern <- paste0('*reg_', refYr, '-', refMo, '.*\\.', file_type)
+            }
 
-         if (tolower(surveillance) == "harp_xx") {
-            path    <- Sys.getenv("HARP_XX")
-            pattern <- paste0('*mort_', refYr, '-', refMo, '.*\\.', file_type)
-         }
+            if (tolower(surveillance) == "harp_xx") {
+               path    <- Sys.getenv("HARP_XX")
+               pattern <- paste0('*mort_', refYr, '-', refMo, '.*\\.', file_type)
+            }
 
-         if (tolower(surveillance) == "harp_tx-reg") {
-            path    <- Sys.getenv("HARP_TX")
-            pattern <- paste0('*reg-art_', refYr, '-', refMo, '.*\\.', file_type)
-         }
+            if (tolower(surveillance) == "harp_tx-reg") {
+               path    <- Sys.getenv("HARP_TX")
+               pattern <- paste0('*reg-art_', refYr, '-', refMo, '.*\\.', file_type)
+            }
 
-         if (tolower(surveillance) == "harp_tx-outcome") {
-            path    <- Sys.getenv("HARP_TX")
-            pattern <- paste0('*onart_', refYr, '-', refMo, '.*\\.', file_type)
+            if (tolower(surveillance) == "harp_tx-outcome") {
+               path    <- Sys.getenv("HARP_TX")
+               pattern <- paste0('*onart_', refYr, '-', refMo, '.*\\.', file_type)
+            }
+
+            return(c(path, pattern))
          }
 
          # function to find the latest file
-         get_latest <- function()
+         get_latest <- function(path, pattern)
             sort(list.files(path = path, full.names = TRUE, pattern = pattern), decreasing = TRUE)
 
          # initiate the first file
-         file <- get_latest()
+         info <- metadata()
+         file <- get_latest(info[1], info[2])
 
          # if first file called is non-existent, look to previous month's report
          while (length(file) == 0) {
@@ -107,7 +112,8 @@ Project <- setRefClass(
             refMo <- str_pad(refMo, 2, 'left', '0')
             refYr <- as.character(refYr)
 
-            file <- get_latest()
+            info <- metadata()
+            file <- get_latest(info[1], info[2])
          }
 
          return(file[1])

@@ -49,8 +49,7 @@ p_load(
    phonics,
    glue,
    googleway,
-   crayon,
-   gender
+   crayon
 )
 
 # special libraries
