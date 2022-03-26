@@ -97,7 +97,7 @@ nhsss$harp_tx$reg.initial$data %<>%
       ),
 
       # tag tly clinic
-      tly_clinic     = case_when(
+      tly_clinic      = case_when(
          FACI_ID == "070021" ~ 1,
          SERVICE_FACI == "070021" ~ 1,
          TRUE ~ 0
@@ -182,6 +182,25 @@ if (update == "1") {
    # initialize checking layer
    nhsss$harp_tx$reg.initial$check <- list()
 
+   view_vars <- c(
+      "REC_ID",
+      "PATIENT_ID",
+      "FORM_VERSION",
+      "CONFIRMATORY_CODE",
+      "UIC",
+      "PATIENT_CODE",
+      "PHILHEALTH_NO",
+      "PHILSYS_ID",
+      "FIRST",
+      "MIDDLE",
+      "LAST",
+      "SUFFIX",
+      "BIRTHDATE",
+      "SEX",
+      "ART_FACI_CODE",
+      "VISIT_DATE"
+   )
+
    # dates
    vars <- c(
       "encoded_date",
@@ -200,22 +219,7 @@ if (update == "1") {
                !!var <= as.Date("1900-01-01")
          ) %>%
          select(
-            REC_ID,
-            PATIENT_ID,
-            FORM_VERSION,
-            CONFIRMATORY_CODE,
-            UIC,
-            PATIENT_CODE,
-            PHILHEALTH_NO,
-            PHILSYS_ID,
-            FIRST,
-            MIDDLE,
-            LAST,
-            SUFFIX,
-            BIRTHDATE,
-            SEX,
-            ART_FACI_CODE,
-            VISIT_DATE,
+            any_of(view_vars),
             !!var
          )
 
@@ -251,27 +255,34 @@ if (update == "1") {
             is.na(!!var)
          ) %>%
          select(
-            REC_ID,
-            PATIENT_ID,
-            FORM_VERSION,
-            CONFIRMATORY_CODE,
-            UIC,
-            PATIENT_CODE,
-            PHILHEALTH_NO,
-            PHILSYS_ID,
-            FIRST,
-            MIDDLE,
-            LAST,
-            SUFFIX,
-            BIRTHDATE,
-            SEX,
-            ART_FACI_CODE,
-            VISIT_DATE,
+            any_of(view_vars),
             !!var
          )
    }
 
    # special checks
+   .log_info("Checking for new clients tagged as refills.")
+   nhsss$harp_tx$reg.initial$check[["refill_enroll"]] <- nhsss$harp_tx$reg.initial$data %>%
+      filter(
+         StrLeft(TX_STATUS, 1) == "2"
+      ) %>%
+      select(
+         any_of(view_vars),
+         TX_STATUS,
+         VISIT_TYPE
+      )
+
+   .log_info("Checking for mismatch dispensed and visit dates.")
+   nhsss$harp_tx$reg.initial$check[["mismatch_disp"]] <- nhsss$harp_tx$reg.initial$data %>%
+      filter(
+         as.Date(DISP_DATE) != RECORD_DATE
+      ) %>%
+      select(
+         any_of(view_vars),
+         RECORD_DATE,
+         DISP_DATE
+      )
+
    .log_info("Checking for short names.")
    nhsss$harp_tx$reg.initial$check[["short_name"]] <- nhsss$harp_tx$reg.initial$data %>%
       mutate(
@@ -284,22 +295,7 @@ if (update == "1") {
          n_name <= 10 | n_first <= 3 | n_last <= 3
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRMATORY_CODE,
-         UIC,
-         PATIENT_CODE,
-         PHILHEALTH_NO,
-         PHILSYS_ID,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         ART_FACI_CODE,
-         VISIT_DATE,
+         any_of(view_vars),
       )
 
    .log_info("Checking for new clients that are not enrollees.")
@@ -308,22 +304,7 @@ if (update == "1") {
          VISIT_DATE < ohasis$date
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRMATORY_CODE,
-         UIC,
-         PATIENT_CODE,
-         PHILHEALTH_NO,
-         PHILSYS_ID,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         ART_FACI_CODE,
-         VISIT_DATE,
+         any_of(view_vars),
       )
 
    .log_info("Checking for mismatch record vs art faci.")
@@ -332,48 +313,19 @@ if (update == "1") {
          FACI_CODE != ART_FACI_CODE
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRMATORY_CODE,
-         UIC,
-         PATIENT_CODE,
-         PHILHEALTH_NO,
-         PHILSYS_ID,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
+         any_of(view_vars),
          FACI_CODE,
-         ART_FACI_CODE,
-         VISIT_DATE,
       )
 
    .log_info("Checking for possible PMTCT-N clients.")
    nhsss$harp_tx$reg.initial$check[["possible_pmtct"]] <- nhsss$harp_tx$reg.initial$data %>%
       filter(
-         NUM_OF_DRUGS == 1,
-         stri_detect_fixed(MEDICINE_SUMMARY, "syr")
+         (NUM_OF_DRUGS == 1 & stri_detect_fixed(MEDICINE_SUMMARY, "syr")) |
+            AGE <= 5 |
+            AGE_DTA <= 5
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRMATORY_CODE,
-         UIC,
-         PATIENT_CODE,
-         PHILHEALTH_NO,
-         PHILSYS_ID,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         ART_FACI_CODE,
-         VISIT_DATE,
+         any_of(view_vars),
          MEDICINE_SUMMARY,
       )
 
@@ -383,22 +335,7 @@ if (update == "1") {
          stri_detect_fixed(MEDICINE_SUMMARY, "FTC")
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRMATORY_CODE,
-         UIC,
-         PATIENT_CODE,
-         PHILHEALTH_NO,
-         PHILSYS_ID,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         ART_FACI_CODE,
-         VISIT_DATE,
+         any_of(view_vars),
          MEDICINE_SUMMARY,
       )
 
@@ -409,22 +346,7 @@ if (update == "1") {
          StrLeft(SEX, 1) == '1'
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRMATORY_CODE,
-         UIC,
-         PATIENT_CODE,
-         PHILHEALTH_NO,
-         PHILSYS_ID,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         ART_FACI_CODE,
-         VISIT_DATE,
+         any_of(view_vars),
          IS_PREGNANT,
       )
 
@@ -435,22 +357,7 @@ if (update == "1") {
          StrLeft(SEX, 1) == '2'
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRMATORY_CODE,
-         UIC,
-         PATIENT_CODE,
-         PHILHEALTH_NO,
-         PHILSYS_ID,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         ART_FACI_CODE,
-         VISIT_DATE,
+         any_of(view_vars),
          IS_PREGNANT,
       )
 
@@ -460,22 +367,7 @@ if (update == "1") {
          AGE != AGE_DTA
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRMATORY_CODE,
-         UIC,
-         PATIENT_CODE,
-         PHILHEALTH_NO,
-         PHILSYS_ID,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         ART_FACI_CODE,
-         VISIT_DATE,
+         any_of(view_vars),
          AGE,
          AGE_DTA
       )
@@ -486,23 +378,7 @@ if (update == "1") {
          ART_FACI_CODE == "DOH"
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRMATORY_CODE,
-         UIC,
-         PATIENT_CODE,
-         PHILHEALTH_NO,
-         PHILSYS_ID,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         FACI_CODE,
-         ART_FACI_CODE,
-         VISIT_DATE,
+         any_of(view_vars),
       )
 
    # range-median
@@ -531,6 +407,32 @@ if (update == "1") {
          ) %>%
          mutate_all(~as.character(.)) %>%
          bind_rows(nhsss$harp_tx$reg.initial$check$tabstat)
+   }
+}
+
+##  Remove already tagged data from validation ---------------------------------
+
+
+exclude <- input(
+   prompt  = "Exlude clients initially tagged for dropping from validations?",
+   options = c("1" = "yes", "2" = "no"),
+   default = "1"
+)
+exclude <- substr(toupper(exclude), 1, 1)
+if (exclude == "1") {
+   .log_info("Dropping unwanted records.")
+   if (update == "1") {
+      for (drop in c("drop_notart", "drop_notyet")) {
+         if (drop %in% names(nhsss$harp_tx$corr))
+            for (check in names(nhsss$harp_tx$reg.initial$check)) {
+               if (check != "tabstat")
+                  nhsss$harp_tx$reg.initial$check[[check]] %<>%
+                     anti_join(
+                        y  = nhsss$harp_tx$corr[[drop]],
+                        by = "REC_ID"
+                     )
+            }
+      }
    }
 }
 

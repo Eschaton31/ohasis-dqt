@@ -11,15 +11,16 @@ nhsss$harp_tx$official$new_reg <- nhsss$harp_tx$official$old_reg %>%
    mutate(
       drop_notyet     = 0,
       drop_duplicates = 0,
+      drop_notart     = 0,
    )
 
 ##  Tag data to be reported later on and duplicates for dropping ---------------
 
 .log_info("Tagging duplicates and postponed reports.")
-for (drop_var in c("drop_notyet", "drop_duplicates"))
+for (drop_var in c("drop_notyet", "drop_duplicates", "drop_notart"))
    if (drop_var %in% names(nhsss$harp_tx$corr))
       for (i in seq_len(nrow(nhsss$harp_tx$corr[[drop_var]]))) {
-         record_id <- nhsss$harp_tx$corr[[drop_var]][i, "REC_ID"]
+         record_id <- nhsss$harp_tx$corr[[drop_var]][i,]$REC_ID
 
          # tag based on record id
          nhsss$harp_tx$official$new_reg %<>%
@@ -41,15 +42,18 @@ nhsss$harp_tx$official$dropped_notyet <- nhsss$harp_tx$official$new_reg %>%
 nhsss$harp_tx$official$dropped_duplicates <- nhsss$harp_tx$official$new_reg %>%
    filter(drop_duplicates == 1)
 
+nhsss$harp_tx$official$dropped_notart <- nhsss$harp_tx$official$new_reg %>%
+   filter(drop_notart == 1)
+
 ##  Drop using taggings --------------------------------------------------------
 
 .log_info("Dropping tagged data.")
 nhsss$harp_tx$official$new_reg %<>%
    mutate(
-      drop = drop_duplicates + drop_notyet,
+      drop = drop_duplicates + drop_notyet + drop_notart,
    ) %>%
    filter(drop == 0) %>%
-   select(-drop, -drop_duplicates, -drop_notyet)
+   select(-drop, -drop_duplicates, -drop_notyet, -drop_notart)
 
 ##  Merge w/ Dx Registry -------------------------------------------------------
 
