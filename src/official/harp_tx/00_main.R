@@ -70,12 +70,11 @@ if (dedup == "1") {
 }
 rm(dedup)
 
-
 ##  Begin linkage of outcomes dataset ------------------------------------------
 
-source("src/official/harp_tx/10_data_outcome.initial.R")
-source("src/official/harp_tx/11_data_outcome.convert.R")
-source("src/official/harp_tx/06_data_reg.final.R")
+source("src/official/harp_tx/11_data_outcome.initial.R")
+source("src/official/harp_tx/12_data_outcome.convert.R")
+source("src/official/harp_tx/13_data_outcome.final.R")
 
 
 ##  Finalize dataset -----------------------------------------------------------
@@ -87,11 +86,10 @@ complete <- input(
    default = "2"
 )
 if (complete == "1") {
-   source("src/official/harp_tx/07_data_final.R")
-   source("src/official/harp_tx/08_output.R")
+   source("src/official/harp_tx/14_output.R")
 
    # TODO: Place these after pdf & ml conso
-   source("src/official/harp_tx/09_archive.R")
-   source("src/official/harp_tx/10_upload.R")
+   source("src/official/harp_tx/15_archive.R")
+   source("src/official/harp_tx/16_upload.R")
 }
 rm(complete)

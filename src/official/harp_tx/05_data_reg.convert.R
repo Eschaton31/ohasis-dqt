@@ -77,7 +77,44 @@ nhsss$harp_tx$reg.converted$data <- nhsss$harp_tx$reg.initial$data %>%
          condition = StrLeft(IS_PREGNANT, 1) == "1",
          true      = 1 %>% as.integer(),
          false     = NA_integer_
-      )
+      ),
+
+
+      # cd4 tagging
+      CD4_RESULT          = stri_replace_all_charclass(CD4_RESULT, "[:alpha:]", ""),
+      CD4_RESULT          = stri_replace_all_fixed(CD4_RESULT, " ", ""),
+      CD4_RESULT          = stri_replace_all_fixed(CD4_RESULT, "<", ""),
+      CD4_RESULT          = as.numeric(CD4_RESULT),
+      baseline_cd4        = case_when(
+         CD4_RESULT >= 500 ~ 1,
+         CD4_RESULT >= 350 & CD4_RESULT < 500 ~ 2,
+         CD4_RESULT >= 200 & CD4_RESULT < 350 ~ 3,
+         CD4_RESULT >= 50 & CD4_RESULT < 200 ~ 4,
+         CD4_RESULT < 50 ~ 5,
+      ),
+      CD4_DATE            = if_else(
+         condition = is.na(CD4_RESULT),
+         true      = NA_Date_,
+         false     = CD4_DATE
+      ),
+
+      # WHO Case Definition of advanced HIV classification
+      CD4_ENROLL          = difftime(VISIT_DATE, CD4_DATE, units = "days") %>% as.numeric(),
+      baseline_cd4        = if_else(
+         condition = CD4_ENROLL <= 182,
+         true      = baseline_cd4,
+         false     = as.numeric(NA)
+      ),
+      CD4_DATE            = if_else(
+         condition = CD4_ENROLL <= 182,
+         true      = CD4_DATE,
+         false     = as.numeric(NA)
+      ),
+      CD4_RESULT          = if_else(
+         condition = CD4_ENROLL <= 182,
+         true      = CD4_RESULT,
+         false     = as.numeric(NA)
+      ),
    )
 
 ##  Address --------------------------------------------------------------------
@@ -139,6 +176,9 @@ nhsss$harp_tx$reg.converted$data %<>%
       artstart_munc,
       artstart_addr     = CURR_ADDR,
       artstart_date     = VISIT_DATE,
+      baseline_cd4,
+      baseline_cd4_date         = CD4_DATE,
+      baseline_cd4_result       = CD4_RESULT,
       pregnant
    ) %>%
    # turn into codes
@@ -188,11 +228,12 @@ update <- input(
    default = "1"
 )
 update <- substr(toupper(update), 1, 1)
+
+nhsss$harp_tx$reg.converted$check <- list()
 if (update == "1") {
    # initialize checking layer
-   nhsss$harp_tx$reg.converted$check <- list()
    # duplicate id variables
-   vars                          <- c(
+   vars <- c(
       "confirmatory_code",
       "uic",
       "px_code",
@@ -201,10 +242,10 @@ if (update == "1") {
    )
    .log_info("Checking if id variables are duplicated.")
    for (var in vars) {
-      var                                                                <- as.symbol(var)
+      var                                                                    <- as.symbol(var)
       nhsss$harp_tx$reg.converted$check[[paste0("dup_", as.character(var))]] <- nhsss$harp_tx$reg.converted$data %>%
          filter(
-            is.na(!!var)
+            !is.na(!!var)
          ) %>%
          select(
             REC_ID,
@@ -231,7 +272,7 @@ if (update == "1") {
    )
    .log_info("Checking if required variables have UNKNOWN data or unpaired NHSSS versions.")
    for (var in vars) {
-      var                                  <- as.symbol(var)
+      var                                      <- as.symbol(var)
       nhsss$harp_tx$reg.converted$check[[var]] <- nhsss$harp_tx$reg.converted$data %>%
          filter(
             !!var %in% c("UNKNOWN", "OTHERS", NA_character_)
@@ -280,7 +321,7 @@ if (update == "1") {
 
 # write into NHSSS GSheet
 data_name <- "reg.converted"
-if ("check" %in% names(nhsss$harp_tx[[data_name]]))
+if (!is.empty(nhsss$harp_tx[[data_name]]$check))
    .validation_gsheets(
       data_name   = data_name,
       parent_list = nhsss$harp_tx[[data_name]]$check,

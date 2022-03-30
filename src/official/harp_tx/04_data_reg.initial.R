@@ -120,6 +120,54 @@ nhsss$harp_tx$reg.initial$data %<>%
       ART_SUB_FACI = SERVICE_SUB_FACI,
    )
 
+
+##  Adding CD4 results ---------------------------------------------------------
+
+.log_info("Attaching baseline CD4 data.")
+ceiling_date <- ohasis$next_date
+nhsss$harp_tx$reg.initial$data %<>%
+   # get cd4 data
+   # TODO: attach max dates for filtering of cd4 data
+   left_join(
+      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "lab_cd4")) %>%
+         filter(
+            is.na(DELETED_AT),
+            as.Date(CD4_DATE) < ceiling_date
+         ) %>%
+         left_join(
+            y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "id_registry")) %>%
+               select(CENTRAL_ID, PATIENT_ID),
+            by = 'PATIENT_ID'
+         ) %>%
+         collect() %>%
+         mutate(
+            CENTRAL_ID = if_else(
+               condition = is.na(CENTRAL_ID),
+               true      = PATIENT_ID,
+               false     = CENTRAL_ID
+            ),
+         ) %>%
+         select(-PATIENT_ID, -REC_ID),
+      by = 'CENTRAL_ID'
+   ) %>%
+   mutate(
+      # calculate distance from confirmatory date
+      CD4_DATE     = as.Date(CD4_DATE),
+      CD4_ENROLL   = difftime(as.Date(VISIT_DATE), CD4_DATE, units = "days") %>% as.numeric(),
+
+      # baseline is within 182 days
+      BASELINE_CD4 = if_else(
+         CD4_ENROLL >= -182 & CD4_ENROLL <= 182,
+         1,
+         0
+      ),
+
+      # make values absolute to take date nearest to confirmatory
+      CD4_ENROLL   = abs(CD4_ENROLL %>% as.numeric()),
+   ) %>%
+   arrange(CENTRAL_ID, CD4_ENROLL) %>%
+   distinct(CENTRAL_ID, .keep_all = TRUE)
+
 .log_info("Closing connections.")
 dbDisconnect(lw_conn)
 dbDisconnect(db_conn)
@@ -178,9 +226,10 @@ update <- input(
    default = "1"
 )
 update <- substr(toupper(update), 1, 1)
+
+nhsss$harp_tx$reg.initial$check <- list()
 if (update == "1") {
    # initialize checking layer
-   nhsss$harp_tx$reg.initial$check <- list()
 
    view_vars <- c(
       "REC_ID",
@@ -440,13 +489,15 @@ if (exclude == "1") {
 
 # write into NHSSS GSheet
 data_name <- "reg.initial"
-if ("check" %in% names(nhsss$harp_tx[[data_name]]))
+if (!is.empty(nhsss$harp_tx[[data_name]]$check))
    .validation_gsheets(
       data_name   = data_name,
       parent_list = nhsss$harp_tx[[data_name]]$check,
       drive_path  = paste0(nhsss$harp_tx$gdrive$path$report, "Validation/"),
       surv_name   = "Tx"
    )
+
+.log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))

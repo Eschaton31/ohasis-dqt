@@ -186,6 +186,126 @@ if (length(reclink_df$matches$inds.a) > 0) {
       )
 }
 
+##  Merge w/ registry using labcode --------------------------------------------
+
+dedup_new <- nhsss$harp_tx$official$new_reg %>%
+   filter(is.na(idnum)) %>%
+   mutate(
+      # standardize PII
+      LAST              = stri_trans_toupper(last),
+      MIDDLE            = stri_trans_toupper(middle),
+      FIRST             = stri_trans_toupper(first),
+      SUFFIX            = stri_trans_toupper(suffix),
+      UIC               = stri_trans_toupper(uic),
+      CONFIRMATORY_CODE = stri_trans_toupper(confirmatory_code),
+
+      # get components of birthdate
+      BIRTH_YR          = year(birthdate),
+      BIRTH_MO          = month(birthdate),
+      BIRTH_DY          = day(birthdate),
+
+      # extract parent info from uic
+      UIC_MOM           = if_else(!is.na(UIC), substr(UIC, 1, 2), NA_character_),
+      UIC_DAD           = if_else(!is.na(UIC), substr(UIC, 3, 4), NA_character_),
+
+      # variables for first 3 letters of names
+      FIRST_A           = if_else(!is.na(FIRST), substr(FIRST, 1, 3), NA_character_),
+      MIDDLE_A          = if_else(!is.na(MIDDLE), substr(MIDDLE, 1, 3), NA_character_),
+      LAST_A            = if_else(!is.na(LAST), substr(LAST, 1, 3), NA_character_),
+
+      LAST              = if_else(is.na(LAST), MIDDLE, LAST),
+      MIDDLE            = if_else(is.na(MIDDLE), LAST, MIDDLE),
+
+      # clean ids
+      CONFIRM_SIEVE     = if_else(!is.na(CONFIRMATORY_CODE), str_replace_all(CONFIRMATORY_CODE, "[^[:alnum:]]", ""), NA_character_),
+      FIRST_S           = if_else(!is.na(FIRST), str_replace_all(FIRST, "[^[:alnum:]]", ""), NA_character_),
+      MIDDLE_S          = if_else(!is.na(MIDDLE), str_replace_all(MIDDLE, "[^[:alnum:]]", ""), NA_character_),
+      LAST_S            = if_else(!is.na(LAST), str_replace_all(LAST, "[^[:alnum:]]", ""), NA_character_),
+      PHIC              = if_else(!is.na(philhealth_no), str_replace_all(philhealth_no, "[^[:alnum:]]", ""), NA_character_),
+
+      # code standard names
+      FIRST_NY          = if_else(!is.na(FIRST_S), nysiis(FIRST_S, stri_length(FIRST_S)), NA_character_),
+      MIDDLE_NY         = if_else(!is.na(MIDDLE_S), nysiis(MIDDLE_S, stri_length(MIDDLE_S)), NA_character_),
+      LAST_NY           = if_else(!is.na(LAST_S), nysiis(LAST_S, stri_length(LAST_S)), NA_character_),
+   )
+
+dedup_dx <- nhsss$harp_dx$official$new %>%
+   mutate(
+      # standardize PII
+      LAST              = stri_trans_toupper(last),
+      MIDDLE            = stri_trans_toupper(middle),
+      FIRST             = stri_trans_toupper(first),
+      SUFFIX            = stri_trans_toupper(name_suffix),
+      UIC               = stri_trans_toupper(uic),
+      CONFIRMATORY_CODE = stri_trans_toupper(labcode),
+
+      # get components of birthdate
+      BIRTH_YR          = year(bdate),
+      BIRTH_MO          = month(bdate),
+      BIRTH_DY          = day(bdate),
+
+      # extract parent info from uic
+      UIC_MOM           = if_else(!is.na(UIC), substr(UIC, 1, 2), NA_character_),
+      UIC_DAD           = if_else(!is.na(UIC), substr(UIC, 3, 4), NA_character_),
+
+      # variables for first 3 letters of names
+      FIRST_A           = if_else(!is.na(FIRST), substr(FIRST, 1, 3), NA_character_),
+      MIDDLE_A          = if_else(!is.na(MIDDLE), substr(MIDDLE, 1, 3), NA_character_),
+      LAST_A            = if_else(!is.na(LAST), substr(LAST, 1, 3), NA_character_),
+
+      LAST              = if_else(is.na(LAST), MIDDLE, LAST),
+      MIDDLE            = if_else(is.na(MIDDLE), LAST, MIDDLE),
+
+      # clean ids
+      CONFIRM_SIEVE     = if_else(!is.na(CONFIRMATORY_CODE), str_replace_all(CONFIRMATORY_CODE, "[^[:alnum:]]", ""), NA_character_),
+      FIRST_S           = if_else(!is.na(FIRST), str_replace_all(FIRST, "[^[:alnum:]]", ""), NA_character_),
+      MIDDLE_S          = if_else(!is.na(MIDDLE), str_replace_all(MIDDLE, "[^[:alnum:]]", ""), NA_character_),
+      LAST_S            = if_else(!is.na(LAST), str_replace_all(LAST, "[^[:alnum:]]", ""), NA_character_),
+      PHIC              = if_else(!is.na(philhealth), str_replace_all(philhealth, "[^[:alnum:]]", ""), NA_character_),
+
+      # code standard names
+      FIRST_NY          = if_else(!is.na(FIRST_S), nysiis(FIRST_S, stri_length(FIRST_S)), NA_character_),
+      MIDDLE_NY         = if_else(!is.na(MIDDLE_S), nysiis(MIDDLE_S, stri_length(MIDDLE_S)), NA_character_),
+      LAST_NY           = if_else(!is.na(LAST_S), nysiis(LAST_S, stri_length(LAST_S)), NA_character_),
+   )
+
+nhsss$harp_tx$dedup_dx$merge <- dedup_new %>%
+   select(
+      MASTER_RID          = REC_ID,
+      MASTER_PID          = PATIENT_ID,
+      MASTER_CID          = CENTRAL_ID,
+      MASTER_FIRST        = first,
+      MASTER_MIDDLE       = middle,
+      MASTER_LAST         = last,
+      MASTER_SUFFIX       = suffix,
+      MASTER_BIRTHDATE    = birthdate,
+      MASTER_CONFIRMATORY = confirmatory_code,
+      MASTER_UIC          = uic,
+      MASTER_INITIALS     = initials,
+      CONFIRM_SIEVE
+   ) %>%
+   inner_join(
+      y  = dedup_dx %>%
+         select(
+            USING_RID          = REC_ID,
+            USING_PID          = PATIENT_ID,
+            USING_CID          = CENTRAL_ID,
+            USING_IDNUM        = idnum,
+            USING_FIRST        = firstname,
+            USING_MIDDLE       = middle,
+            USING_LAST         = last,
+            USING_SUFFIX       = name_suffix,
+            USING_BIRTHDATE    = bdate,
+            USING_CONFIRMATORY = labcode2,
+            USING_UIC          = uic,
+            USING_INITIALS     = pxcode,
+            CONFIRM_SIEVE
+         ),
+      by = "CONFIRM_SIEVE"
+   ) %>%
+   select(
+      -CONFIRM_SIEVE
+   )
 
 ##  Consolidate issues ---------------------------------------------------------
 

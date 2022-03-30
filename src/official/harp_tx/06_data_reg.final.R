@@ -21,6 +21,7 @@ for (drop_var in c("drop_notyet", "drop_duplicates", "drop_notart"))
    if (drop_var %in% names(nhsss$harp_tx$corr))
       for (i in seq_len(nrow(nhsss$harp_tx$corr[[drop_var]]))) {
          record_id <- nhsss$harp_tx$corr[[drop_var]][i,]$REC_ID
+         drop_var  <- as.symbol(drop_var)
 
          # tag based on record id
          nhsss$harp_tx$official$new_reg %<>%
@@ -28,7 +29,8 @@ for (drop_var in c("drop_notyet", "drop_duplicates", "drop_notart"))
                !!drop_var := if_else(
                   condition = REC_ID == record_id,
                   true      = 1,
-                  false     = !!drop_var
+                  false     = !!drop_var,
+                  missing   = !!drop_var
                )
             )
       }
@@ -119,12 +121,14 @@ nhsss$harp_tx$official$new_reg %<>%
       idnum             = if_else(
          condition = use_dxreg == 1,
          true      = dxreg_idnum %>% as.integer(),
-         false     = idnum %>% as.integer()
+         false     = idnum %>% as.integer(),
+         missing   = idnum %>% as.integer()
       ),
       confirmatory_code = if_else(
-         condition = use_dxreg == 1,
+         condition = !is.na(dxreg_confirmatory_code),
          true      = dxreg_confirmatory_code,
-         false     = confirmatory_code
+         false     = confirmatory_code,
+         missing   = confirmatory_code
       ),
    )
 
@@ -159,7 +163,51 @@ nhsss$harp_tx$official$new_reg %<>%
    select(
       -use_dxreg,
       -starts_with("dxreg")
-   )
+   ) %>%
+   left_join(
+      y  = nhsss$harp_dx$official$new %>%
+         select(idnum, labcode2) %>%
+         mutate(
+            labcode2 = case_when(
+               idnum == 6978 ~ "R11-06-3387",
+               idnum == 56460 ~ "D18-09-15962",
+               TRUE ~ labcode2
+            )
+         ),
+      by = "idnum"
+   ) %>%
+   mutate(
+      # finalize age data
+      age_dta           = if_else(
+         condition = !is.na(birthdate),
+         true      = floor((artstart_date - birthdate) / 365.25) %>% as.numeric(),
+         false     = as.numeric(NA)
+      ),
+      age               = if_else(
+         condition = is.na(age),
+         true      = age_dta,
+         false     = age
+      ),
+      confirmatory_code = case_when(
+         is.na(confirmatory_code) & !is.na(uic) ~ glue("*{uic}"),
+         is.na(confirmatory_code) & !is.na(px_code) ~ glue("*{px_code}"),
+         TRUE ~ confirmatory_code
+      ),
+      confirmatory_code = if_else(
+         condition = !is.na(idnum),
+         true      = labcode2,
+         false     = as.character(confirmatory_code),
+         missing   = as.character(confirmatory_code)
+      ),
+      newonart          = if_else(
+         condition = year(artstart_date) == as.numeric(ohasis$yr) &
+            month(artstart_date) == as.numeric(ohasis$mo),
+         true      = 1,
+         false     = 0,
+         missing   = 0
+      ),
+   ) %>%
+   distinct_all()
 
 ##  Flag data for validation ---------------------------------------------------
 
@@ -169,9 +217,10 @@ update <- input(
    default = "1"
 )
 update <- substr(toupper(update), 1, 1)
+
+nhsss$harp_tx$reg.final$check <- list()
 if (update == "1") {
    # initialize checking layer
-   nhsss$harp_tx$reg.final$check <- list()
 
    # select these variables always
    view_vars <- c(
@@ -182,7 +231,7 @@ if (update == "1") {
       "month",
       "confirmatory_code",
       "uic",
-      "patient_code",
+      "px_code",
       "philhealth_no",
       "philsys_id",
       "first",
@@ -241,6 +290,18 @@ if (update == "1") {
    }
 
    # special checks
+   .log_info("Checking for mismatch age.")
+   nhsss$harp_tx$reg.final$check[["mismatch_age"]] <- nhsss$harp_tx$official$new_reg %>%
+      filter(
+         age != age_dta
+      ) %>%
+      select(
+         any_of(view_vars),
+         age,
+         age_dta,
+      ) %>%
+      arrange(artstart_hub)
+
    .log_info("Checking for TAT (confirmatory to enrollment).")
    nhsss$harp_tx$reg.final$check[["tat_confirm_enroll"]] <- nhsss$harp_tx$official$new_reg %>%
       left_join(
@@ -296,7 +357,7 @@ if (update == "1") {
 
 # write into NHSSS GSheet
 data_name <- "reg.final"
-if ("check" %in% names(nhsss$harp_tx[[data_name]]))
+if (!is.empty(nhsss$harp_tx[[data_name]]$check))
    .validation_gsheets(
       data_name   = data_name,
       parent_list = nhsss$harp_tx[[data_name]]$check,

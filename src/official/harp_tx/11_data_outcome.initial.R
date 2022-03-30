@@ -151,9 +151,10 @@ update <- input(
    default = "1"
 )
 update <- substr(toupper(update), 1, 1)
+
+nhsss$harp_tx$outcome.initial$check <- list()
 if (update == "1") {
    # initialize checking layer
-   nhsss$harp_tx$outcome.initial$check <- list()
 
    # dates
    vars <- c(
@@ -169,7 +170,7 @@ if (update == "1") {
          filter(
             is.na(!!var) |
                !!var >= ohasis$next_date |
-               !!var <= as.Date("1900-01-01")
+               !!var < as.Date("2002-01-01")
          ) %>%
          select(
             REC_ID,
@@ -190,10 +191,6 @@ if (update == "1") {
             ART_FACI_CODE,
             VISIT_DATE,
             !!var
-         ) %>%
-         mutate_if(
-            .predicate = is.numeric,
-            ~if_else(is.infinite(.), as.numeric(NA), .)
          )
 
       if (as.character(var) %in% c("LATEST_NEXT_DATE", "encoded_date"))
@@ -206,7 +203,6 @@ if (update == "1") {
 
    # non-negotiable variables
    vars <- c(
-      "FORM_VERSION",
       "ART_FACI_CODE",
       "MEDICINE_SUMMARY"
    )
@@ -296,11 +292,43 @@ if (update == "1") {
          VISIT_DATE,
       )
 
+   .log_info("Checking for mismatch visit vs disp date.")
+   nhsss$harp_tx$outcome.initial$check[["mismatch_disp"]] <- nhsss$harp_tx$outcome.initial$data %>%
+      mutate(
+         diff = abs(as.numeric(difftime(RECORD_DATE, as.Date(DISP_DATE), units = "days")))
+      ) %>%
+      filter(
+         diff > 21
+      ) %>%
+      select(
+         REC_ID,
+         PATIENT_ID,
+         FORM_VERSION,
+         art_id,
+         confirmatory_code,
+         uic,
+         px_code,
+         philhealth_no,
+         philsys_id,
+         first,
+         middle,
+         last,
+         suffix,
+         birthdate,
+         sex,
+         FACI_CODE,
+         ART_FACI_CODE,
+         RECORD_DATE,
+         DISP_DATE,
+         diff
+      )
+
    .log_info("Checking for possible PMTCT-N clients.")
    nhsss$harp_tx$outcome.initial$check[["possible_pmtct"]] <- nhsss$harp_tx$outcome.initial$data %>%
       filter(
-         NUM_OF_DRUGS == 1,
-         stri_detect_fixed(MEDICINE_SUMMARY, "syr")
+         (NUM_OF_DRUGS == 1 & stri_detect_fixed(MEDICINE_SUMMARY, "syr")) |
+            AGE <= 5 |
+            AGE_DTA <= 5
       ) %>%
       select(
          REC_ID,
@@ -489,7 +517,7 @@ if (update == "1") {
 
 # write into NHSSS GSheet
 data_name <- "outcome.initial"
-if ("check" %in% names(nhsss$harp_tx[[data_name]]))
+if (!is.empty(nhsss$harp_tx[[data_name]]$check))
    .validation_gsheets(
       data_name   = data_name,
       parent_list = nhsss$harp_tx[[data_name]]$check,

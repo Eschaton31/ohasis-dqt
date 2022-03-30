@@ -42,7 +42,6 @@ if (!("harp_xx" %in% names(nhsss)))
       )
 dbDisconnect(lw_conn)
 
-
 # updated outcomes
 .log_info("Performing initial conversion.")
 nhsss$harp_tx$outcome.converted$data <- nhsss$harp_tx$outcome.initial$data %>%
@@ -68,13 +67,15 @@ nhsss$harp_tx$outcome.converted$data <- nhsss$harp_tx$outcome.initial$data %>%
             prev_regimen = latest_regimen,
             prev_line    = line,
             prev_artreg  = art_reg1,
-            prev_hub     = hub
+            prev_hub     = hub,
+            prev_age     = age,
+            sathub,
          ),
       by = "art_id"
    ) %>%
    # get ohasis earliest visits
    left_join(
-      y  = first_visits %>% select(CENTRAL_ID, EARLIEST_VISIT),
+      y  = first_visits %>% select(CENTRAL_ID, EARLIEST_REC = REC_ID, EARLIEST_VISIT),
       by = "CENTRAL_ID"
    ) %>%
    mutate(
@@ -109,18 +110,20 @@ nhsss$harp_tx$outcome.converted$data <- nhsss$harp_tx$outcome.initial$data %>%
 
       # tag if new data is to be used
       use_db              = case_when(
-         is.na(prev_outcome) ~ 1,
-         LATEST_VISIT > prev_ffup ~ 1,
-         LATEST_NEXT_DATE > prev_pickup ~ 1,
+         is.na(prev_outcome) & !is.na(MEDICINE_SUMMARY) ~ 1,
+         LATEST_VISIT > prev_ffup & !is.na(MEDICINE_SUMMARY) ~ 1,
+         LATEST_NEXT_DATE > prev_pickup & !is.na(MEDICINE_SUMMARY) ~ 1,
          TRUE ~ 0
       ),
 
       # current age for class
       curr_age            = case_when(
          !is.na(birthdate) & use_db == 1 ~ abs(as.numeric(difftime(LATEST_VISIT, birthdate, units = "days")) / 365.25),
-         is.na(birthdate) & use_db == 1 ~ age + (year(LATEST_VISIT) - year(artstart_date)),
+         is.na(birthdate) & use_db == 1 & !is.na(age) ~ age + (year(LATEST_VISIT) - year(artstart_date)),
+         is.na(birthdate) & use_db == 1 & is.na(age) ~ prev_age + (year(LATEST_VISIT) - year(prev_ffup)),
          !is.na(birthdate) & use_db == 0 ~ abs(as.numeric(difftime(prev_ffup, birthdate, units = "days")) / 365.25),
-         is.na(birthdate) & use_db == 0 ~ age + (year(prev_ffup) - year(artstart_date)),
+         is.na(birthdate) & use_db == 0 & !is.na(age) ~ age + (year(prev_ffup) - year(artstart_date)),
+         is.na(birthdate) & use_db == 0 & is.na(age) ~ prev_age + (year(prev_ffup) - year(artstart_date)),
       ) %>% floor(),
       curr_class          = case_when(
          curr_age >= 10 ~ "Adult Patient",
@@ -133,6 +136,8 @@ nhsss$harp_tx$outcome.converted$data <- nhsss$harp_tx$outcome.initial$data %>%
          use_db == 1 & LATEST_NEXT_DATE >= artcutoff_date ~ "alive on arv",
          use_db == 1 & LATEST_NEXT_DATE < artcutoff_date ~ "lost to follow up",
          use_db == 0 & prev_ffup <= ref_death_date ~ "dead",
+         use_db == 0 & prev_pickup >= artcutoff_date ~ "alive on arv",
+         use_db == 0 & prev_pickup < artcutoff_date ~ "lost to follow up",
          use_db == 0 ~ prev_outcome
       ),
 
@@ -159,7 +164,7 @@ nhsss$harp_tx$outcome.converted$data <- nhsss$harp_tx$outcome.initial$data %>%
          days_to_pickup >= 90 &
             days_to_pickup < 180 ~ '2_3-5 months worth of ARVs',
          days_to_pickup >= 180 & days_to_pickup <= 365.25 ~ '3_6-12 months worth of ARVs',
-         days_to_pickup > 365.25 ~ '4_More than 1 project$yr worth of ARVs',
+         days_to_pickup > 365.25 ~ '4_More than 1 yr worth of ARVs',
          TRUE ~ '5_(no data)'
       ),
 
@@ -293,7 +298,8 @@ nhsss$harp_tx$outcome.converted$data %<>%
       who_staging,
       use_db,
       artstart_date,
-      oh_artstart  = EARLIEST_VISIT,
+      oh_artstart_rec = EARLIEST_REC,
+      oh_artstart     = EARLIEST_VISIT,
       prev_hub,
       prev_class,
       prev_outcome,
@@ -308,10 +314,10 @@ nhsss$harp_tx$outcome.converted$data %<>%
       curr_class,
       curr_outcome,
       curr_line,
-      curr_ffup    = LATEST_VISIT,
-      curr_pickup  = LATEST_NEXT_DATE,
-      curr_regimen = MEDICINE_SUMMARY, ,
-      curr_artreg  = art_reg1,
+      curr_ffup       = LATEST_VISIT,
+      curr_pickup     = LATEST_NEXT_DATE,
+      curr_regimen    = MEDICINE_SUMMARY, ,
+      curr_artreg     = art_reg1,
       curr_num_drugs,
       tx_reg,
       tx_prov,
@@ -319,7 +325,8 @@ nhsss$harp_tx$outcome.converted$data %<>%
       pubpriv,
       days_to_pickup,
       arv_worth,
-      ref_death_date
+      ref_death_date,
+      sathub
    ) %>%
    # remove codes
    mutate_at(
@@ -339,9 +346,10 @@ update <- input(
    default = "1"
 )
 update <- substr(toupper(update), 1, 1)
+
+nhsss$harp_tx$outcome.converted$check <- list()
 if (update == "1") {
    # initialize checking layer
-   nhsss$harp_tx$outcome.converted$check <- list()
 
    # non-negotiable variables
    vars <- c(
@@ -470,7 +478,7 @@ if (update == "1") {
 
 # write into NHSSS GSheet
 data_name <- "outcome.converted"
-if ("check" %in% names(nhsss$harp_tx[[data_name]]))
+if (!is.empty(nhsss$harp_tx[[data_name]]$check))
    .validation_gsheets(
       data_name   = data_name,
       parent_list = nhsss$harp_tx[[data_name]]$check,
