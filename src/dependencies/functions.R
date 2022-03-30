@@ -176,7 +176,11 @@ check_dir <- function(dir) {
       variable <- df$VARIABLE %>% as.symbol()
 
       # evaluate data type of variable
-      value <- paste0("'", df$NEW_VALUE, "'", ' %>% as.', df$FORMAT, '()')
+      if (df$NEW_VALUE == "NULL")
+         value <- paste0('as.', df$FORMAT, '(NA)')
+      else
+         value <- paste0("'", df$NEW_VALUE, "'", ' %>% as.', df$FORMAT, '()')
+
       value <- eval(parse(text = value))
 
       # update data

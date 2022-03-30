@@ -1,8 +1,7 @@
-/data
-/archive
+/data/
+/archive/
 /.secrets
 /.idea
 /.Renviron
 /.httr-oauth
 /kath.R
-archive
