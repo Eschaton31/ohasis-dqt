@@ -1043,12 +1043,29 @@ update <- input(
    default = "1"
 )
 update <- substr(toupper(update), 1, 1)
+
+nhsss$harp_dx$converted$check <- list()
 if (update == "1") {
    # initialize checking layer
-   nhsss$harp_dx$converted$check <- list()
-
+   view_vars <- c(
+      "REC_ID",
+      "PATIENT_ID",
+      "form",
+      "labcode",
+      "uic",
+      "firstname",
+      "middle",
+      "last",
+      "name_suffix",
+      "bdate",
+      "sex",
+      "CONFIRM_FACI",
+      "confirmlab",
+      "TEST_FACI",
+      "dxlab_standard",
+   )
    # non-negotiable variables
-   vars <- c(
+   vars      <- c(
       "idnum",
       "age",
       "confirmlab",
@@ -1063,21 +1080,7 @@ if (update == "1") {
             is.na(!!var)
          ) %>%
          select(
-            REC_ID,
-            PATIENT_ID,
-            form,
-            labcode,
-            uic,
-            firstname,
-            middle,
-            last,
-            name_suffix,
-            bdate,
-            sex,
-            CONFIRM_FACI,
-            confirmlab,
-            TEST_FACI,
-            dxlab_standard,
+            any_of(view_vars),
             !!var
          )
    }
@@ -1095,21 +1098,7 @@ if (update == "1") {
             is.na(!!var)
          ) %>%
          select(
-            REC_ID,
-            PATIENT_ID,
-            form,
-            labcode,
-            uic,
-            firstname,
-            middle,
-            last,
-            name_suffix,
-            bdate,
-            sex,
-            CONFIRM_FACI,
-            confirmlab,
-            TEST_FACI,
-            dxlab_standard,
+            any_of(view_vars),
             !!var
          ) %>%
          get_dupes(!!var)
@@ -1130,21 +1119,7 @@ if (update == "1") {
             !!var %in% c("UNKNOWN", "OTHERS", NA_character_)
          ) %>%
          select(
-            REC_ID,
-            PATIENT_ID,
-            form,
-            labcode,
-            uic,
-            firstname,
-            middle,
-            last,
-            name_suffix,
-            bdate,
-            sex,
-            CONFIRM_FACI,
-            confirmlab,
-            TEST_FACI,
-            dxlab_standard,
+            any_of(view_vars),
             !!var
          )
    }
@@ -1155,21 +1130,7 @@ if (update == "1") {
          transmit == "PERINATAL"
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         form,
-         labcode,
-         uic,
-         firstname,
-         middle,
-         last,
-         name_suffix,
-         bdate,
-         sex,
-         CONFIRM_FACI,
-         confirmlab,
-         TEST_FACI,
-         dxlab_standard,
+         any_of(view_vars),
          transmit
       )
 
@@ -1213,7 +1174,7 @@ if ("check" %in% names(nhsss$harp_dx[[data_name]]))
       data_name   = data_name,
       parent_list = nhsss$harp_dx[[data_name]]$check,
       drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/"),
-      surv_name = "Dx"
+      surv_name   = "Dx"
    )
 
 .log_success("Done!")

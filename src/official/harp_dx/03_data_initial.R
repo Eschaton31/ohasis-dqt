@@ -323,12 +323,29 @@ update <- input(
    default = "1"
 )
 update <- substr(toupper(update), 1, 1)
+
+nhsss$harp_dx$initial$check <- list()
 if (update == "1") {
    # initialize checking layer
-   nhsss$harp_dx$initial$check <- list()
-
+   view_vars <- c(
+      "REC_ID",
+      "PATIENT_ID",
+      "FORM_VERSION",
+      "CONFIRM_CODE",
+      "UIC",
+      "PATIENT_CODE",
+      "FIRST",
+      "MIDDLE",
+      "LAST",
+      "SUFFIX",
+      "BIRTHDATE",
+      "SEX",
+      "TEST_FACI_NAME",
+      "CONFIRM_TYPE",
+      "SPECIMEN_REFER_TYPE",
+   )
    # dates
-   vars <- c(
+   vars      <- c(
       "encoded_date",
       "report_date",
       "visit_date",
@@ -347,21 +364,7 @@ if (update == "1") {
                !!var <= as.Date("1900-01-01")
          ) %>%
          select(
-            REC_ID,
-            PATIENT_ID,
-            FORM_VERSION,
-            CONFIRM_CODE,
-            UIC,
-            PATIENT_CODE,
-            FIRST,
-            MIDDLE,
-            LAST,
-            SUFFIX,
-            BIRTHDATE,
-            SEX,
-            TEST_FACI_NAME,
-            CONFIRM_TYPE,
-            SPECIMEN_REFER_TYPE,
+            any_of(view_vars),
             !!var
          )
 
@@ -405,21 +408,7 @@ if (update == "1") {
             is.na(!!var)
          ) %>%
          select(
-            REC_ID,
-            PATIENT_ID,
-            FORM_VERSION,
-            CONFIRM_CODE,
-            UIC,
-            PATIENT_CODE,
-            FIRST,
-            MIDDLE,
-            LAST,
-            SUFFIX,
-            BIRTHDATE,
-            SEX,
-            TEST_FACI_NAME,
-            CONFIRM_TYPE,
-            SPECIMEN_REFER_TYPE,
+            any_of(view_vars),
             !!var
          )
 
@@ -443,22 +432,23 @@ if (update == "1") {
       ) %>%
       filter(CHECK == 1) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRM_CODE,
-         UIC,
-         PATIENT_CODE,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         TEST_FACI_NAME,
-         CONFIRM_TYPE,
-         SPECIMEN_REFER_TYPE,
+         any_of(view_vars),
          SOURCE_FACI
+      )
+
+   .log_info("Checking for short names.")
+   nhsss$harp_dx$initial$check[["short_name"]] <- nhsss$harp_dx$initial$data %>%
+      mutate(
+         n_first  = nchar(FIRST),
+         n_middle = nchar(MIDDLE),
+         n_last   = nchar(LAST),
+         n_name   = n_first + n_middle + n_last,
+      ) %>%
+      filter(
+         n_name <= 10 | n_first <= 3 | n_last <= 3
+      ) %>%
+      select(
+         any_of(view_vars),
       )
 
    .log_info("Checking for similarly named municipalities.")
@@ -488,21 +478,7 @@ if (update == "1") {
          by = c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC")
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRM_CODE,
-         UIC,
-         PATIENT_CODE,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         TEST_FACI_NAME,
-         CONFIRM_TYPE,
-         SPECIMEN_REFER_TYPE,
+         any_of(view_vars),
          NAME_REG,
          NAME_PROV,
          NAME_MUNC,
@@ -515,21 +491,7 @@ if (update == "1") {
          StrLeft(SEX, 1) == '1'
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRM_CODE,
-         UIC,
-         PATIENT_CODE,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         TEST_FACI_NAME,
-         CONFIRM_TYPE,
-         SPECIMEN_REFER_TYPE,
+         any_of(view_vars),
          IS_PREGNANT,
          MED_IS_PREGNANT
       )
@@ -541,21 +503,7 @@ if (update == "1") {
          StrLeft(SEX, 1) == '2'
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRM_CODE,
-         UIC,
-         PATIENT_CODE,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         TEST_FACI_NAME,
-         CONFIRM_TYPE,
-         SPECIMEN_REFER_TYPE,
+         any_of(view_vars),
          IS_PREGNANT,
          MED_IS_PREGNANT
       )
@@ -566,21 +514,7 @@ if (update == "1") {
          AGE != AGE_DTA
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRM_CODE,
-         UIC,
-         PATIENT_CODE,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         TEST_FACI_NAME,
-         CONFIRM_TYPE,
-         SPECIMEN_REFER_TYPE,
+         any_of(view_vars),
          AGE,
          AGE_DTA
       )
@@ -592,21 +526,7 @@ if (update == "1") {
          FACI_ID != "130000"
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRM_CODE,
-         UIC,
-         PATIENT_CODE,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         TEST_FACI_NAME,
-         CONFIRM_TYPE,
-         SPECIMEN_REFER_TYPE,
+         any_of(view_vars),
          FACI_NAME
       )
 
@@ -617,21 +537,7 @@ if (update == "1") {
          !(T1_KIT %in% c("SD Bioline HIV 1/2 3.0", "SYSMEX HISCL HIV Ag + Ab Assay")) | is.na(T1_KIT)
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRM_CODE,
-         UIC,
-         PATIENT_CODE,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         TEST_FACI_NAME,
-         CONFIRM_TYPE,
-         SPECIMEN_REFER_TYPE,
+         any_of(view_vars),
          T1_KIT
       )
    nhsss$harp_dx$initial$check[["T2_KIT"]] <- nhsss$harp_dx$initial$data %>%
@@ -639,21 +545,7 @@ if (update == "1") {
          !(T2_KIT %in% c("Alere Determine HIV-1/2", "VIDAS HIV DUO Ultra")) | is.na(T2_KIT)
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRM_CODE,
-         UIC,
-         PATIENT_CODE,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         TEST_FACI_NAME,
-         CONFIRM_TYPE,
-         SPECIMEN_REFER_TYPE,
+         any_of(view_vars),
          T2_KIT
       )
    nhsss$harp_dx$initial$check[["T3_KIT"]] <- nhsss$harp_dx$initial$data %>%
@@ -661,21 +553,7 @@ if (update == "1") {
          !(T3_KIT %in% c("Geenius HIV 1/2 Confirmatory Assay", "HIV 1/2 STAT-PAK Assay")) | is.na(T3_KIT)
       ) %>%
       select(
-         REC_ID,
-         PATIENT_ID,
-         FORM_VERSION,
-         CONFIRM_CODE,
-         UIC,
-         PATIENT_CODE,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         BIRTHDATE,
-         SEX,
-         TEST_FACI_NAME,
-         CONFIRM_TYPE,
-         SPECIMEN_REFER_TYPE,
+         any_of(view_vars),
          T3_KIT
       )
 
@@ -740,7 +618,7 @@ if ("check" %in% names(nhsss$harp_dx[[data_name]]))
       data_name   = data_name,
       parent_list = nhsss$harp_dx[[data_name]]$check,
       drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/"),
-      surv_name = "Dx"
+      surv_name   = "Dx"
    )
 
 .log_success("Done!")
