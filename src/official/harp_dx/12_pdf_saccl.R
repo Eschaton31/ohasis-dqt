@@ -24,12 +24,15 @@ pdf_dropbox   <- drop_dir(dir_dropbox_report) %>%
 
 # check with corrections list which files are not yet processed
 .log_info("Excluding files that were already processed before.")
-pdf_for_dl <- pdf_dropbox %>%
-   left_join(
-      y  = nhsss$harp_dx$corr$pdf_results,
-      by = c("name" = "FILENAME_PDF")
-   ) %>%
-   mutate(file = glue("{LABCODE}.pdf"))
+if ("pdf_results" %in% names(nhsss$harp_dx$corr))
+   pdf_for_dl <- pdf_dropbox %>%
+      left_join(
+         y  = nhsss$harp_dx$corr$pdf_results,
+         by = c("name" = "FILENAME_PDF")
+      ) %>%
+      mutate(file = glue("{LABCODE}.pdf"))
+else
+   pdf_for_dl <- pdf_dropbox
 
 if ("pdf_results" %in% names(nhsss$harp_dx$corr))
    pdf_for_dl %<>%
@@ -71,7 +74,7 @@ for (file in list.files(dir_output, full.names = TRUE)) {
          text = stri_replace_last_fixed(text, ",", "")
       )
    if (nrow(form) == 0)
-      form <- pdf_section(df[[1]], seq(30, 70), seq(550, 580)) %>%
+      form <- pdf_section(df[[1]], seq(30, 70), seq(550, 584)) %>%
          mutate(
             text = stri_replace_last_fixed(text, ",", "")
          ) %>%
@@ -328,9 +331,9 @@ update <- input(
 update <- substr(toupper(update), 1, 1)
 
 # TODO: add matching with ml
+nhsss$harp_dx$pdf_saccl$check <- list()
 if (update == "1") {
    # initialize checking layer
-   nhsss$harp_dx$pdf_saccl$check <- list()
 
    if ("pdf_results" %in% names(nhsss$harp_dx$corr)) {
       # un-paired results
@@ -425,7 +428,7 @@ if ("check" %in% names(nhsss$harp_dx[[data_name]]))
       data_name   = data_name,
       parent_list = nhsss$harp_dx[[data_name]]$check,
       drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/"),
-      surv_name = "Dx"
+      surv_name   = "Dx"
    )
 
 ##  Upload renamed confirmatories to Nextcloud ---------------------------------

@@ -342,7 +342,7 @@ if (update == "1") {
       "SEX",
       "TEST_FACI_NAME",
       "CONFIRM_TYPE",
-      "SPECIMEN_REFER_TYPE",
+      "SPECIMEN_REFER_TYPE"
    )
    # dates
    vars      <- c(

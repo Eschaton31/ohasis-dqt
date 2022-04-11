@@ -1,4 +1,4 @@
- ##  HARP Tx Registry Linkage Controller ----------------------------------------
+##  HARP Tx Registry Linkage Controller ----------------------------------------
 
 # update warehouse - lab data
 ohasis$data_factory("lake", "lab_wide", "upsert", TRUE)

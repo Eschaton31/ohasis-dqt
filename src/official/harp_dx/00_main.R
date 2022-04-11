@@ -93,10 +93,11 @@ source("src/official/harp_dx/12_pdf_saccl.R")
 # TODO: Add rename to `idnum_labcode.pdf` and upload to Form A folder (cloud)
 # TODO: Check if file exists before combining
 
-TIMESTAMP <- "2022-03-07 17:49:00"
+TIMESTAMP <- "2022-04-11 10:05:00"
+# import    <- nhsss$harp_dx$pdf_saccl$data %>%
 import    <- nhsss$harp_dx$pdf_saccl$data %>%
    mutate_all(~as.character(.)) %>%
-   left_join(
+   inner_join(
       y  = nhsss$harp_dx$corr$pdf_results %>%
          select(
             LABCODE,
@@ -113,6 +114,7 @@ px_confirm <- import %>%
       CREATED_AT   = TIMESTAMP,
       CREATED_BY   = "1300000001",
       FINAL_RESULT = case_when(
+         FORM == "*Computer" ~ "Duplicate",
          REMARKS == "Duplicate" ~ "Duplicate",
          TRUE ~ FINAL_RESULT
       ),
@@ -146,6 +148,32 @@ px_confirm <- import %>%
    ) %>%
    distinct(REC_ID, .keep_all = TRUE)
 
+px_test <- import %>%
+   mutate(
+      TEST_TYPE     = "31",
+      TEST_NUM      = "1",
+      FACI_ID       = "130023",
+      SUB_FACI_ID   = "130023_001",
+      CREATED_AT    = TIMESTAMP,
+      CREATED_BY    = "1300000001",
+      SPECIMEN_TYPE = case_when(
+         SPECIMEN_TYPE == "SERUM" ~ "1"
+      ),
+      RESULT        = substr(FINAL_RESULT_31, 1, 1)
+   ) %>%
+   select(
+      REC_ID,
+      FACI_ID,
+      SUB_FACI_ID,
+      TEST_TYPE,
+      TEST_NUM,
+      DATE_PERFORM = T1_DATE,
+      RESULT,
+      CREATED_AT,
+      CREATED_BY
+   ) %>%
+   distinct(REC_ID, .keep_all = TRUE)
+
 px_test_hiv <- import %>%
    mutate(
       TEST_TYPE     = "33",
@@ -157,7 +185,6 @@ px_test_hiv <- import %>%
       SPECIMEN_TYPE = case_when(
          SPECIMEN_TYPE == "SERUM" ~ "1"
       ),
-      RESULT        = substr(FINAL_RESULT_33, 1, 1)
    ) %>%
    select(
       REC_ID,
@@ -165,23 +192,24 @@ px_test_hiv <- import %>%
       SUB_FACI_ID,
       TEST_TYPE,
       TEST_NUM,
-      DATE_PERFORM = T3_DATE,
-      RESULT,
+      SPECIMEN_TYPE,
+      # DATE_RECEIVE = SPECIMEN_RECEIPT_DATE,
+      KIT_NAME = T3_KIT,
+      LOT_NO = T3_LOT_NO,
+      FINAL_RESULT = FINAL_RESULT_33,
       CREATED_AT,
       CREATED_BY
-   ) %>%
-   distinct(REC_ID, .keep_all = TRUE)
-
+   )
 
 db_conn     <- ohasis$conn("db")
 # table_space <- Id(schema = "ohasis_interim", table = "px_confirm")
 # dbxUpsert(
 #    db_conn,
 #    table_space,
-#    import,
+#    px_confirm,
 #    "REC_ID"
 # )
-table_space <- Id(schema = "ohasis_interim", table = "px_test")
+table_space <- Id(schema = "ohasis_interim", table = "px_test_hiv")
 dbxUpsert(
    db_conn,
    table_space,

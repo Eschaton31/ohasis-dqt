@@ -1062,7 +1062,7 @@ if (update == "1") {
       "CONFIRM_FACI",
       "confirmlab",
       "TEST_FACI",
-      "dxlab_standard",
+      "dxlab_standard"
    )
    # non-negotiable variables
    vars      <- c(

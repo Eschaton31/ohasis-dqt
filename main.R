@@ -117,13 +117,16 @@ sa "H:/20220329_onart_2022-02.dta", replace
 source("src/official/harp_dx/00_main.R")
 
 #######
+db_conn    <- ohasis$conn("db")
+px_confirm <- dbReadTable(db_conn, Id(schema = "ohasis_interim", table = "px_confirm"))
+dbDisconnect(db_conn)
 
-ei  <- get_ei("2022.02")
-try <- df %>%
+ei      <- get_ei("2022.03")
+encoded <- ei %>%
    filter(Form %in% c("Form A", "HTS Form"),
           !is.na(`Record ID`)) %>%
-   mutate(
-      `Encoder` = stri_replace_first_fixed(encoder, "2022.02_", "")
+   mutate(,
+      `Encoder` = stri_replace_first_fixed(encoder, "2022.03_", "")
    ) %>%
    select(
       `Facility ID`,
@@ -137,6 +140,89 @@ try <- df %>%
       `Encoder`
    )
 
+results <- nhsss$harp_dx$pdf_saccl$data %>%
+   mutate(
+      FILENAME_FORM = NA_character_,
+      FINAL_RESULT  = case_when(
+         FORM == "*Computer" ~ "Duplicate",
+         REMARKS == "Duplicate" ~ "Duplicate",
+         TRUE ~ FINAL_RESULT
+      ),
+      FINAL_RESULT  = case_when(
+         FORM == "*Computer" ~ "Duplicate",
+         REMARKS == "Duplicate" ~ "Duplicate",
+         TRUE ~ FINAL_RESULT
+      ),
+      LABCODE       = case_when(
+         FILENAME == 'SACCLHIV - D22-03-02610.pdf' ~ 'D22-03-02610',
+         FILENAME == 'SACCLHIV - D22-03-02636D.pdf' ~ 'D22-03-02636',
+         FILENAME == 'SACCLHIV - D22-03-02652D.pdf' ~ 'D22-03-02652',
+         FILENAME == 'SACCLHIV - D22-03-03306.pdf' ~ 'D22-03-03306',
+         FILENAME == 'SACCLHIV - D22-03-03316.pdf' ~ 'D22-03-03316',
+         TRUE ~ LABCODE
+      ),
+      FULLNAME      = case_when(
+         FILENAME == 'SACCLHIV - D22-03-02610.pdf' ~ 'FERANGCO, BERNABE L.',
+         FILENAME == 'SACCLHIV - D22-03-02636D.pdf' ~ 'ESPIRITU, CEVIR N.',
+         FILENAME == 'SACCLHIV - D22-03-02652D.pdf' ~ 'SUCGANG, DANDEE R.',
+         FILENAME == 'SACCLHIV - D22-03-03306.pdf' ~ 'BUSTILLO, ALJON G.',
+         FILENAME == 'SACCLHIV - D22-03-03316.pdf' ~ 'SERAD , JOEL B.',
+         TRUE ~ FULLNAME
+      )
+   ) %>%
+   distinct(LABCODE, .keep_all = TRUE) %>%
+   select(
+      FILENAME_PDF  = FILENAME,
+      LABCODE,
+      FULLNAME_PDF  = FULLNAME,
+      BIRTHDATE_PDF = BDATE,
+      FILENAME_FORM,
+      FINAL_INTERPRETATION,
+      FINAL_RESULT
+   )
+
+# match with pdf results
+match <- results %>%
+   # fuzzyjoin::stringdist_full_join(
+   # full_join(
+   inner_join(
+      y      = encoded %>% mutate(only = 1),
+      # by     = c("FULLNAME_PDF" = "Identifier"),
+      by     = c("LABCODE" = "Page ID"),
+      method = "osa"
+   ) %>%
+   mutate(
+      LABCODE = if_else(is.na(LABCODE), `Record ID`, LABCODE)
+   ) %>%
+   distinct(LABCODE, .keep_all = TRUE) %>%
+   anti_join(
+      y  = px_confirm %>% select(LABCODE = CONFIRM_CODE),
+      by = "LABCODE"
+   )
+
+nrow(encoded)
+nrow(results)
+nrow(match)
+write_clip(
+   match %>%
+      mutate(
+         `For Import` = NA_character_,
+         `PATIENT_ID` = NA_character_,
+      ) %>%
+      select(
+         `FILENAME_PDF`,
+         `LABCODE`,
+         `FULLNAME_PDF`,
+         `BIRTHDATE_PDF`,
+         `FILENAME_FORM`,
+         `FINAL_INTERPRETATION`,
+         `FINAL_RESULT`,
+         `REC_ID` = `Record ID`,
+         `PATIENT_ID`,
+         `For Import`,
+         `Identifier`
+      )
+)
 write_xlsx(try, "H:/Feb 2022 Form A EI.xlsx")
 #########
 
