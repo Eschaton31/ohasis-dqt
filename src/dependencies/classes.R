@@ -73,8 +73,8 @@ Project <- setRefClass(
                pattern <- paste0('*reg_', refYr, '-', refMo, '.*\\.', file_type)
             }
 
-            if (tolower(surveillance) == "harp_xx") {
-               path    <- Sys.getenv("HARP_XX")
+            if (tolower(surveillance) == "harp_dead") {
+               path    <- Sys.getenv("HARP_DEAD")
                pattern <- paste0('*mort_', refYr, '-', refMo, '.*\\.', file_type)
             }
 

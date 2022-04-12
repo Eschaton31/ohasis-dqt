@@ -24,15 +24,16 @@ pdf_dropbox   <- drop_dir(dir_dropbox_report) %>%
 
 # check with corrections list which files are not yet processed
 .log_info("Excluding files that were already processed before.")
-if ("pdf_results" %in% names(nhsss$harp_dx$corr))
+if ("pdf_results" %in% names(nhsss$harp_dx$corr)) {
    pdf_for_dl <- pdf_dropbox %>%
       left_join(
          y  = nhsss$harp_dx$corr$pdf_results,
          by = c("name" = "FILENAME_PDF")
       ) %>%
       mutate(file = glue("{LABCODE}.pdf"))
-else
+} else {
    pdf_for_dl <- pdf_dropbox
+}
 
 if ("pdf_results" %in% names(nhsss$harp_dx$corr))
    pdf_for_dl %<>%
@@ -339,7 +340,7 @@ if (update == "1") {
       # un-paired results
       nhsss$harp_dx$pdf_saccl$check[["unpaired"]] <- confirm_df %>%
          left_join(
-            y  = nhsss$harp_dx$corr$pdf_results %>% select(-FINAL_INTERPRETATION),
+            y  = nhsss$harp_dx$corr$pdf_results %>% select(-FINAL_INTERPRETATION, -SPECIMEN_RECEIPT_DATE),
             by = "LABCODE"
          ) %>%
          filter(is.na(FILENAME_FORM)) %>%
@@ -359,7 +360,7 @@ if (update == "1") {
 
       nhsss$harp_dx$pdf_saccl$check[["pdf_results"]] <- confirm_df %>%
          left_join(
-            y  = nhsss$harp_dx$corr$pdf_results %>% select(-FINAL_INTERPRETATION),
+            y  = nhsss$harp_dx$corr$pdf_results %>% select(-FINAL_INTERPRETATION, -SPECIMEN_RECEIPT_DATE),
             by = "LABCODE"
          ) %>%
          filter(is.na(FILENAME_PDF)) %>%
@@ -383,7 +384,7 @@ if (update == "1") {
       # un-encoded data
       nhsss$harp_dx$pdf_saccl$check[["unencoded"]] <- confirm_df %>%
          left_join(
-            y  = nhsss$harp_dx$corr$pdf_results %>% select(-FINAL_INTERPRETATION),
+            y  = nhsss$harp_dx$corr$pdf_results %>% select(-FINAL_INTERPRETATION, -SPECIMEN_RECEIPT_DATE),
             by = "LABCODE"
          ) %>%
          filter(is.na(REC_ID)) %>%

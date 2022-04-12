@@ -24,8 +24,8 @@ first_visits <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "art_first"))
 
 # get mortality data
 .log_info("Getting latest mortality dataset.")
-if (!("harp_xx" %in% names(nhsss)))
-   nhsss$harp_xx$official$new <- ohasis$get_data("harp_xx", ohasis$yr, ohasis$mo) %>%
+if (!("harp_dead" %in% names(nhsss)))
+   nhsss$harp_xx$official$new <- ohasis$get_data("harp_dead", ohasis$yr, ohasis$mo) %>%
       read_dta() %>%
       # convert Stata string missing data to NAs
       mutate_if(
@@ -47,7 +47,7 @@ dbDisconnect(lw_conn)
 nhsss$harp_tx$outcome.converted$data <- nhsss$harp_tx$outcome.initial$data %>%
    # get mortality data
    left_join(
-      y  = nhsss$harp_xx$official$new %>%
+      y  = nhsss$harp_dead$official$new %>%
          select(
             idnum,
             ref_death_date

@@ -184,8 +184,8 @@ results <- nhsss$harp_dx$pdf_saccl$data %>%
 # match with pdf results
 match <- results %>%
    # fuzzyjoin::stringdist_full_join(
-   # full_join(
-   inner_join(
+   full_join(
+   # inner_join(
       y      = encoded %>% mutate(only = 1),
       # by     = c("FULLNAME_PDF" = "Identifier"),
       by     = c("LABCODE" = "Page ID"),

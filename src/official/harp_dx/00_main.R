@@ -93,7 +93,7 @@ source("src/official/harp_dx/12_pdf_saccl.R")
 # TODO: Add rename to `idnum_labcode.pdf` and upload to Form A folder (cloud)
 # TODO: Check if file exists before combining
 
-TIMESTAMP <- "2022-04-11 10:05:00"
+TIMESTAMP <- "2022-04-12 21:11:00"
 # import    <- nhsss$harp_dx$pdf_saccl$data %>%
 import    <- nhsss$harp_dx$pdf_saccl$data %>%
    mutate_all(~as.character(.)) %>%
@@ -103,6 +103,10 @@ import    <- nhsss$harp_dx$pdf_saccl$data %>%
             LABCODE,
             REC_ID
          ),
+      by = "LABCODE"
+   ) %>%
+   inner_join(
+      y  = match %>% select(LABCODE),
       by = "LABCODE"
    )
 
@@ -150,7 +154,7 @@ px_confirm <- import %>%
 
 px_test <- import %>%
    mutate(
-      TEST_TYPE     = "31",
+      TEST_TYPE     = "33",
       TEST_NUM      = "1",
       FACI_ID       = "130023",
       SUB_FACI_ID   = "130023_001",
@@ -159,7 +163,7 @@ px_test <- import %>%
       SPECIMEN_TYPE = case_when(
          SPECIMEN_TYPE == "SERUM" ~ "1"
       ),
-      RESULT        = substr(FINAL_RESULT_31, 1, 1)
+      RESULT        = substr(FINAL_RESULT_33, 1, 1)
    ) %>%
    select(
       REC_ID,
@@ -167,7 +171,7 @@ px_test <- import %>%
       SUB_FACI_ID,
       TEST_TYPE,
       TEST_NUM,
-      DATE_PERFORM = T1_DATE,
+      DATE_PERFORM = T3_DATE,
       RESULT,
       CREATED_AT,
       CREATED_BY
@@ -194,25 +198,32 @@ px_test_hiv <- import %>%
       TEST_NUM,
       SPECIMEN_TYPE,
       # DATE_RECEIVE = SPECIMEN_RECEIPT_DATE,
-      KIT_NAME = T3_KIT,
-      LOT_NO = T3_LOT_NO,
+      KIT_NAME     = KIT_33,
+      LOT_NO       = T3_LOT_NO,
       FINAL_RESULT = FINAL_RESULT_33,
       CREATED_AT,
       CREATED_BY
    )
 
 db_conn     <- ohasis$conn("db")
-# table_space <- Id(schema = "ohasis_interim", table = "px_confirm")
-# dbxUpsert(
-#    db_conn,
-#    table_space,
-#    px_confirm,
-#    "REC_ID"
-# )
+table_space <- Id(schema = "ohasis_interim", table = "px_confirm")
+dbxUpsert(
+   db_conn,
+   table_space,
+   px_confirm,
+   "REC_ID"
+)
 table_space <- Id(schema = "ohasis_interim", table = "px_test_hiv")
 dbxUpsert(
    db_conn,
    table_space,
    px_test_hiv,
+   c("REC_ID", "TEST_TYPE", "TEST_NUM")
+)
+table_space <- Id(schema = "ohasis_interim", table = "px_test")
+dbxUpsert(
+   db_conn,
+   table_space,
+   px_test,
    c("REC_ID", "TEST_TYPE", "TEST_NUM")
 )
