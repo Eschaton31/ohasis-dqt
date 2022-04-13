@@ -225,10 +225,21 @@ if ((object %>% count() %>% collect())$n > 0) {
                DATE     = VAX_DATE,
             ) %>%
             pivot_wider(
+               id_cols     = c(REC_ID, DISEASE_VAX),
+               names_from  = VAX_NUM,
+               names_glue  = "{VAX_NUM}_{.value}",
+               values_from = c(VAX_USED, DONE, DATE, LOCATION)
+            ) %>%
+            pivot_wider(
                id_cols     = REC_ID,
-               names_from  = c("DISEASE_VAX", "VAX_NUM"),
-               values_from = c("VAX_USED", "DONE", "DATE", "LOCATION"),
-               names_glue  = "VAX_{DISEASE_VAX}_{VAX_NUM}_{.value}"
+               names_from  = DISEASE_VAX,,
+               names_glue  = "VAX_{DISEASE_VAX}_{.value}",
+               values_from = c(
+                  ends_with("VAX_USED"),
+                  ends_with("DONE"),
+                  ends_with("DATE"),
+                  ends_with("LOCATION")
+               )
             ) %>%
             select(
                REC_ID,
