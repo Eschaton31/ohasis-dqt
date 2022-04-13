@@ -483,7 +483,7 @@ if (!is.empty(nhsss$harp_tx[[data_name]]$check))
       data_name   = data_name,
       parent_list = nhsss$harp_tx[[data_name]]$check,
       drive_path  = paste0(nhsss$harp_tx$gdrive$path$report, "Validation/"),
-      surv_name   = "Dx"
+      surv_name   = "HARP Dx"
    )
 
 .log_success("Done!")

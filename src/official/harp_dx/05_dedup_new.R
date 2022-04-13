@@ -134,7 +134,7 @@ if (length(nhsss$harp_dx[[data_name]]) > 0)
       data_name   = data_name,
       parent_list = nhsss$harp_dx[[data_name]],
       drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/"),
-      surv_name = "Dx"
+      surv_name = "HARP Dx"
    )
 
 .log_success("Done!")
