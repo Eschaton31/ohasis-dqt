@@ -85,6 +85,11 @@ if ((object %>% count() %>% collect())$n > 0) {
                )
             ) %>%
             collect() %>%
+            mutate(
+               IMMEDIATE_INFO_TEXT_DUMMY = NA_character_,
+               ANTECEDENT_INFO_TEXT      = NA_character_,
+               UNDERLYING_INFO_TEXT      = NA_character_
+            ) %>%
             unite(
                starts_with("IMMEDIATE_INFO_TEXT"),
                col   = "IMMEDIATE_CAUSES",
@@ -259,7 +264,7 @@ if ((object %>% count() %>% collect())$n > 0) {
             ) %>%
             collect() %>%
             inner_join(
-               y    = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
+               y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
                   filter(
                      (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
                         (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
@@ -281,7 +286,7 @@ if ((object %>% count() %>% collect())$n > 0) {
                      REPORT_NOTES      = DISC_REASON_OTHER
                   ) %>%
                   collect(),
-               by   = "REC_ID"
+               by = "REC_ID"
             )
       )
 }
