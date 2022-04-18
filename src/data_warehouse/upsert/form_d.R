@@ -143,11 +143,11 @@ if ((object %>% count() %>% collect())$n > 0) {
       # diseases section
       left_join(
          y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
-            filter(
-               (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
-                  (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
-                  (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
-            ) %>%
+            # filter(
+            #    (CREATED_AT >= snapshot_old & CREATED_AT <= snapshot_new) |
+            #       (UPDATED_AT >= snapshot_old & UPDATED_AT <= snapshot_new) |
+            #       (DELETED_AT >= snapshot_old & DELETED_AT <= snapshot_new)
+            # ) %>%
             select(REC_ID) %>%
             inner_join(
                y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_oi")),
@@ -190,17 +190,17 @@ if ((object %>% count() %>% collect())$n > 0) {
             ) %>%
             rename_all(
                ~case_when(
-                  . == "DISEASE_HIV" ~ "OI_HIV_PRESENT",
-                  . == "DISEASE_HEPB" ~ "OI_HEPB_PRESENT",
-                  . == "DISEASE_HEPC" ~ "OI_HEPC_PRESENT",
-                  . == "DISEASE_TB" ~ "OI_TB_PRESENT",
-                  . == "DISEASE_PCP" ~ "OI_PCP_PRESENT",
-                  . == "DISEASE_MENINGITIS" ~ "OI_MENINGITIS_PRESENT",
-                  . == "DISEASE_CMV" ~ "OI_CMV_PRESENT",
-                  . == "DISEASE_OROCAND" ~ "OI_OROCAND_PRESENT",
-                  . == "DISEASE_TOXOPLASMOSIS" ~ "OI_TOXOPLASMOSIS_PRESENT",
-                  . == "DISEASE_COVID19" ~ "OI_COVID19_PRESENT",
-                  . == "DISEASE_OTHER" ~ "OI_OTHER_TEXT",
+                  . == "OI_HIV_PRESENT" ~ "DISEASE_HIV",
+                  . == "OI_HEPB_PRESENT" ~ "DISEASE_HEPB",
+                  . == "OI_HEPC_PRESENT" ~ "DISEASE_HEPC",
+                  . == "OI_TB_PRESENT" ~ "DISEASE_TB",
+                  . == "OI_PCP_PRESENT" ~ "DISEASE_PCP",
+                  . == "OI_MENINGITIS_PRESENT" ~ "DISEASE_MENINGITIS",
+                  . == "OI_CMV_PRESENT" ~ "DISEASE_CMV",
+                  . == "OI_OROCAND_PRESENT" ~ "DISEASE_OROCAND",
+                  . == "OI_TOXOPLASMOSIS_PRESENT" ~ "DISEASE_TOXOPLASMOSIS",
+                  . == "OI_COVID19_PRESENT" ~ "DISEASE_COVID19",
+                  . == "OI_OTHER_TEXT" ~ "DISEASE_OTHER",
                   TRUE ~ .
                )
             ) %>%
