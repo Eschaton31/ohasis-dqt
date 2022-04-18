@@ -424,7 +424,7 @@ if (update == "1") {
 
 # write into NHSSS GSheet
 data_name <- "pdf_saccl"
-if ("check" %in% names(nhsss$harp_dx[[data_name]]))
+if (!is.empty(nhsss$harp_dx[[data_name]]$check))
    .validation_gsheets(
       data_name   = data_name,
       parent_list = nhsss$harp_dx[[data_name]]$check,
