@@ -30,7 +30,13 @@ if ("pdf_results" %in% names(nhsss$harp_dx$corr)) {
          y  = nhsss$harp_dx$corr$pdf_results,
          by = c("name" = "FILENAME_PDF")
       ) %>%
-      mutate(file = glue("{LABCODE}.pdf"))
+      mutate(
+         file = if_else(
+            condition = !is.na(LABCODE),
+            true      = glue("{LABCODE}.pdf"),
+            false     = NA_character_
+         )
+      )
 } else {
    pdf_for_dl <- pdf_dropbox
 }
