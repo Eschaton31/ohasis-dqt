@@ -436,6 +436,16 @@ if (update == "1") {
          SOURCE_FACI
       )
 
+   .log_info("Checking for non-FBT confirmed.")
+   nhsss$harp_dx$initial$check[["non_fbt"]] <- nhsss$harp_dx$initial$data %>%
+      filter(
+         StrLeft(MODALITY, 6) != "101101" | is.na(MODALITY)
+      ) %>%
+      select(
+         any_of(view_vars),
+         MODALITY
+      )
+
    .log_info("Checking for short names.")
    nhsss$harp_dx$initial$check[["short_name"]] <- nhsss$harp_dx$initial$data %>%
       mutate(
