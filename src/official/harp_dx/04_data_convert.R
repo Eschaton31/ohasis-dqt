@@ -21,65 +21,65 @@ nhsss$harp_dx$params$latest_idnum <- if_else(
 nhsss$harp_dx$converted$data <- nhsss$harp_dx$initial$data %>%
    mutate(
       # generate idnum
-      idnum                = if_else(
+      idnum                     = if_else(
          condition = is.na(IDNUM),
          true      = nhsss$harp_dx$params$latest_idnum + row_number(),
          false     = as.integer(IDNUM)
       ),
 
       # Perm Region (as encoded)
-      PERMONLY_PSGC_REG    = if_else(
+      PERMONLY_PSGC_REG         = if_else(
          condition = use_curr == 0,
          true      = PERM_PSGC_REG,
          false     = NA_character_
       ),
-      PERMONLY_PSGC_PROV   = if_else(
+      PERMONLY_PSGC_PROV        = if_else(
          condition = use_curr == 0,
          true      = PERM_PSGC_PROV,
          false     = NA_character_
       ),
-      PERMONLY_PSGC_MUNC   = if_else(
+      PERMONLY_PSGC_MUNC        = if_else(
          condition = use_curr == 0,
          true      = PERM_PSGC_MUNC,
          false     = NA_character_
       ),
 
       # tagging vars
-      male                 = if_else(
+      male                      = if_else(
          condition = StrLeft(SEX, 1) == "1",
          true      = 1,
          false     = 0
       ),
-      female               = if_else(
+      female                    = if_else(
          condition = StrLeft(SEX, 1) == "2",
          true      = 1,
          false     = 0
       ),
 
       # report date
-      year                 = ohasis$yr %>% as.integer(),
-      month                = ohasis$mo %>% as.integer(),
+      year                      = ohasis$yr %>% as.integer(),
+      month                     = ohasis$mo %>% as.integer(),
 
       # confirmatory info
-      test_done            = case_when(
+      test_done                 = case_when(
          T3_KIT == "Geenius HIV 1/2 Confirmatory Assay" ~ "GEENIUS",
          T3_KIT == "HIV 1/2 STAT-PAK Assay" ~ "STAT-PAK",
          T3_KIT == "MP Diagnostics HIV BLOT 2.2" ~ "WESTERN BLOT",
          AGE <= 1 ~ "PCR"
       ),
-      rhivda_done          = if_else(
+      rhivda_done               = if_else(
          condition = StrLeft(CONFIRM_TYPE, 1) == "2",
          true      = 1,
          false     = as.numeric(NA)
       ),
-      sample_source        = if_else(
+      sample_source             = if_else(
          condition = !is.na(SPECIMEN_REFER_TYPE),
          true      = substr(SPECIMEN_REFER_TYPE, 3, 3),
          false     = NA_character_
       ),
 
       # demographics
-      pxcode               = paste0(
+      pxcode                    = paste0(
          if_else(
             condition = !is.na(FIRST),
             true      = StrLeft(FIRST, 1),
@@ -96,14 +96,14 @@ nhsss$harp_dx$converted$data <- nhsss$harp_dx$initial$data %>%
             false     = ""
          )
       ),
-      SEX                  = stri_trans_toupper(SEX),
-      self_identity        = if_else(
+      SEX                       = stri_trans_toupper(SEX),
+      self_identity             = if_else(
          condition = !is.na(SELF_IDENT),
          true      = substr(stri_trans_toupper(SELF_IDENT), 3, stri_length(SELF_IDENT)),
          false     = NA_character_
       ),
-      self_identity_other  = toupper(SELF_IDENT_OTHER),
-      self_identity        = case_when(
+      self_identity_other       = toupper(SELF_IDENT_OTHER),
+      self_identity             = case_when(
          self_identity_other == "N/A" ~ NA_character_,
          self_identity_other == "no answer" ~ NA_character_,
          self_identity == "OTHER" ~ "OTHERS",
@@ -113,47 +113,67 @@ nhsss$harp_dx$converted$data <- nhsss$harp_dx$initial$data %>%
          self_identity == "FEMALE" ~ "FEMALE",
          TRUE ~ self_identity
       ),
-      self_identity_other  = case_when(
+      self_identity_other       = case_when(
          self_identity_other == "NO ANSWER" ~ NA_character_,
          self_identity_other == "N/A" ~ NA_character_,
          TRUE ~ self_identity_other
       ),
-      CIVIL_STATUS         = stri_trans_toupper(CIVIL_STATUS),
-      nationalit           = case_when(
+      self_identity_other_sieve = if_else(
+         condition = !is.na(self_identity_other),
+         true      = str_replace_all(self_identity_other, "[^[:alnum:]]", ""),
+         false     = NA_character_
+      ),
+
+      # gender identity
+      gender_identity           = case_when(
+         SEX == "1_MALE" & self_identity == "MALE" ~ "cisgender male",
+         SEX == "1_MALE" & self_identity == "FEMALE" ~ "TGW",
+         SEX == "1_MALE" & self_identity_other_sieve == "BI" ~ "others",
+         SEX == "1_MALE" & self_identity_other_sieve == "BIMSM" ~ "others",
+         SEX == "1_MALE" & self_identity_other_sieve == "BISEXUAL" ~ "others",
+         SEX == "1_MALE" & self_identity_other_sieve == "GAY" ~ "others",
+         SEX == "1_MALE" & self_identity_other_sieve == "TGW" ~ "TGW",
+         SEX == "1_MALE" & self_identity_other_sieve == "TRANSGENDER" ~ "TGW",
+         SEX == "2_FEMALE" & self_identity == "FEMALE" ~ "cisgender female",
+         SEX == "2_FEMALE" & self_identity == "MALE" ~ "TGM",
+      ),
+
+      CIVIL_STATUS              = stri_trans_toupper(CIVIL_STATUS),
+      nationalit                = case_when(
          NATIONALITY == "Philippines" ~ "FILIPINO",
          NATIONALITY != "Philippines" ~ "NON-FILIPINO",
          TRUE ~ "UNKNOWN"
       ),
-      current_school_level = if_else(
+      current_school_level      = if_else(
          condition = StrLeft(IS_STUDENT, 1) == "1",
          true      = EDUC_LEVEL,
          false     = NA_character_
       ),
 
       # occupation
-      curr_work            = if_else(
+      curr_work                 = if_else(
          condition = StrLeft(IS_EMPLOYED, 1) == "1",
          true      = stri_trans_toupper(WORK),
          false     = NA_character_
       ),
-      prev_work            = if_else(
+      prev_work                 = if_else(
          condition = StrLeft(IS_EMPLOYED, 1) == "0" | is.na(IS_EMPLOYED),
          true      = stri_trans_toupper(WORK),
          false     = NA_character_
       ),
 
       # clinical pic
-      who_staging          = StrLeft(WHO_CLASS, 1) %>% as.integer(),
-      other_reason_test    = stri_trans_toupper(TEST_REASON_OTHER_TEXT),
-      CLINICAL_PIC         = case_when(
+      who_staging               = StrLeft(WHO_CLASS, 1) %>% as.integer(),
+      other_reason_test         = stri_trans_toupper(TEST_REASON_OTHER_TEXT),
+      CLINICAL_PIC              = case_when(
          StrLeft(CLINICAL_PIC, 1) == "1" ~ "0_Asymptomatic",
          StrLeft(CLINICAL_PIC, 1) == "2" ~ "1_Symptomatic",
       ),
-      OFW_STATION          = case_when(
+      OFW_STATION               = case_when(
          StrLeft(OFW_STATION, 1) == "1" ~ "0_On ship",
          StrLeft(OFW_STATION, 1) == "2" ~ "1_Land",
       ),
-      REFER_TYPE           = case_when(
+      REFER_TYPE                = case_when(
          StrLeft(REFER_TYPE, 1) == "1" ~ "1",
          StrLeft(REFER_TYPE, 1) == "2" ~ "1",
       )
@@ -848,6 +868,7 @@ nhsss$harp_dx$converted$data %<>%
       civilstat                 = CIVIL_STATUS,
       self_identity,
       self_identity_other,
+      gender_identity,
       nationality               = NATIONALITY,
       highest_educ              = EDUC_LEVEL,
       in_school                 = IS_STUDENT,
@@ -1059,6 +1080,7 @@ if (update == "1") {
       "name_suffix",
       "bdate",
       "sex",
+      "gender_identity",
       "CONFIRM_FACI",
       "confirmlab",
       "TEST_FACI",
