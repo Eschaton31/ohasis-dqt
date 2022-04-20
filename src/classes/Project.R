@@ -24,7 +24,7 @@ Project <- setRefClass(
          mo   <<- mo %>% stri_pad_left(width = 2, pad = "0")
          yr   <<- input(prompt = "What is the reporting year?", max.char = 4)
          yr   <<- yr %>% stri_pad_left(width = 4, pad = "0")
-         ym   <<- paste0(yr, "../dependencies", mo)
+         ym   <<- paste0(yr, ".", mo)
          date <<- as.Date(paste(sep = "-", yr, mo, "01"))
 
          # prev date
