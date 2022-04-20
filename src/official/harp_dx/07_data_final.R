@@ -18,19 +18,11 @@ nhsss$harp_dx$official$new <- nhsss$harp_dx$official$old %>%
 .log_info("Tagging duplicates and postponed reports.")
 for (drop_var in c("drop_notyet", "drop_duplicates"))
    if (drop_var %in% names(nhsss$harp_dx$corr))
-      for (i in seq_len(nrow(nhsss$harp_dx$corr[[drop_var]]))) {
-         record_id <- nhsss$harp_dx$corr[[drop_var]][i, "REC_ID"]
-
-         # tag based on record id
-         nhsss$harp_dx$official$new %<>%
-            mutate(
-               !!drop_var := if_else(
-                  condition = REC_ID == record_id,
-                  true      = 1,
-                  false     = !!drop_var
-               )
-            )
-      }
+      nhsss$harp_dx$official$new %<>%
+         anti_join(
+            y  = nhsss$harp_dx$corr[[drop_var]] %>% select(idnum = idnum_drop),
+            by = "idnum"
+         )
 
 ##  Subsets for documentation --------------------------------------------------
 
