@@ -89,7 +89,7 @@ check_dir <- function(dir) {
 .tab <- function(dataframe, column, nrows = 100L) {
    # column <- enquo(column)
 
-   dataframe %>%
+   tab_df <- dataframe %>%
       dplyr::group_by(
          across({{column}})
       ) %>%
@@ -114,7 +114,11 @@ check_dir <- function(dir) {
                `Cum. Percent` = num(round(cumsum(freq = `Freq.` / sum(`Freq.`)), 10), label = "%", digits = 2, scale = 100),
                `Freq.`        = num(`Freq.`, notation = "dec"),
             )
-      ) %>%
+      )
+
+   tab_df[nrow(tab_df), 1] <- "TOTAL"
+
+   tab_df %>%
       print(n = Inf)
 }
 
