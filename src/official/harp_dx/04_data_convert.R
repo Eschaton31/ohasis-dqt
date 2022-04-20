@@ -136,6 +136,8 @@ nhsss$harp_dx$converted$data <- nhsss$harp_dx$initial$data %>%
          SEX == "1_MALE" & self_identity_other_sieve == "TRANSGENDER" ~ "TGW",
          SEX == "2_FEMALE" & self_identity == "FEMALE" ~ "cisgender female",
          SEX == "2_FEMALE" & self_identity == "MALE" ~ "TGM",
+         is.na(self_identity) ~ "(no data)",
+         TRUE ~ "others"
       ),
 
       CIVIL_STATUS              = stri_trans_toupper(CIVIL_STATUS),
