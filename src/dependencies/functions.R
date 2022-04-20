@@ -87,43 +87,21 @@ check_dir <- function(dir) {
 
 # stata univar tab
 .tab <- function(dataframe, column, nrows = 100L) {
-   column <- enquo(column)
+   # column <- enquo(column)
 
    dataframe %>%
       dplyr::group_by(
-         !!column
+         across({{column}})
       ) %>%
       dplyr::summarise(
          `Freq.` = n()
       ) %>%
+      ungroup() %>%
       dplyr::mutate(
-         !!column       := as.character(!!column),
-         `Cum. Freq.`   = formatC((cumsum(`Freq.`)), big.mark = ",") %>%
-            stringr::str_pad(
-               .,
-               width = max(nchar(.)),
-               side  = "left",
-               pad   = " "
-            ),
-         Percent        = str_pad(
-            paste0(formatC(round((`Freq.` / sum(`Freq.`)), 4) * 100, digits = 2, format = "f"), "%"),
-            width = 6,
-            side  = "left",
-            pad   = " "
-         ),
-         `Cum. Percent` = str_pad(
-            paste0(formatC(round(cumsum(freq = `Freq.` / sum(`Freq.`)), 4) * 100, format = "f", digits = 2), "%"),
-            width = 7,
-            side  = "left",
-            pad   = " "
-         ),
-         `Freq.`        = formatC(`Freq.`, big.mark = ",") %>%
-            stringr::str_pad(
-               .,
-               width = max(nchar(.)),
-               side  = "left",
-               pad   = " "
-            ),
+         `Cum. Freq.`   = num(cumsum(`Freq.`), notation = "dec"),
+         Percent        = num(round((`Freq.` / sum(`Freq.`)), 10), notation = "dec", label = "%", digits = 2, scale = 100),
+         `Cum. Percent` = num(round(cumsum(freq = `Freq.` / sum(`Freq.`)), 10), label = "%", digits = 2, scale = 100),
+         `Freq.`        = num(`Freq.`, notation = "dec"),
       ) %>%
       dplyr::bind_rows(
          dataframe %>%
@@ -131,33 +109,10 @@ check_dir <- function(dir) {
                `Freq.` = n()
             ) %>%
             dplyr::mutate(
-               !!column       := 'TOTAL',
-               `Cum. Freq.`   = formatC((cumsum(`Freq.`)), big.mark = ",") %>%
-                  stringr::str_pad(
-                     .,
-                     width = max(nchar(.)),
-                     side  = "left",
-                     pad   = " "
-                  ),
-               Percent        = str_pad(
-                  paste0(formatC(round((`Freq.` / sum(`Freq.`)), 4) * 100, digits = 2, format = "f"), "%"),
-                  width = 6,
-                  side  = "left",
-                  pad   = " "
-               ),
-               `Cum. Percent` = str_pad(
-                  paste0(formatC(round(cumsum(freq = `Freq.` / sum(`Freq.`)), 4) * 100, format = "f", digits = 2), "%"),
-                  width = 7,
-                  side  = "left",
-                  pad   = " "
-               ),
-               `Freq.`        = formatC(`Freq.`, big.mark = ",") %>%
-                  stringr::str_pad(
-                     .,
-                     width = max(nchar(.)),
-                     side  = "left",
-                     pad   = " "
-                  ),
+               `Cum. Freq.`   = num(cumsum(`Freq.`), notation = "dec"),
+               Percent        = num(round((`Freq.` / sum(`Freq.`)), 10), notation = "dec", label = "%", digits = 2, scale = 100),
+               `Cum. Percent` = num(round(cumsum(freq = `Freq.` / sum(`Freq.`)), 10), label = "%", digits = 2, scale = 100),
+               `Freq.`        = num(`Freq.`, notation = "dec"),
             )
       ) %>%
       print(n = Inf)

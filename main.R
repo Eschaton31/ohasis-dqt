@@ -718,3 +718,24 @@ for (year in years) {
       }
    }
 }
+
+### import duplicates registry
+df <- googlesheets4::read_sheet("1I_v83Nb4r1R2fNK39GCWQ3RhoRB8LpxzWLpd4D5uiwc", "For 2022-Qr1")
+df %<>%
+   select(
+      dup_group,
+      idnum
+   ) %>%
+   arrange(desc(idnum)) %>%
+   group_by(dup_group) %>%
+   mutate(dup_num = row_number()) %>%
+   ungroup() %>%
+   left_join(
+      y = nhsss$harp_dx$official$old %>% select(idnum, CENTRAL_ID),
+      by = "idnum"
+   ) %>%
+   pivot_wider(
+      id_cols     = dup_group,
+      names_from  = dup_num,
+      values_from = c(idnum, CENTRAL_ID)
+   )
