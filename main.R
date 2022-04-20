@@ -39,7 +39,10 @@ if (Sys.info()['sysname'] == "Linux")
 
 source("src/dependencies/libraries.R")
 source("src/dependencies/functions.R")
-source("src/dependencies/classes.R")
+
+# classes
+source("src/classes/Project.R")
+source("src/classes/DB.R")
 
 ##  Load credentials and authentications ---------------------------------------
 
