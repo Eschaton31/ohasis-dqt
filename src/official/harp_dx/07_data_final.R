@@ -38,6 +38,12 @@ nhsss$harp_dx$official$dropped_duplicates <- nhsss$harp_dx$official$new %>%
 .log_info("Finalizing dataset.")
 nhsss$harp_dx$official$new %<>%
    mutate(
+      labcode2    = if_else(
+         condition = is.na(labcode2),
+         true      = labcode,
+         false     = labcode2,
+         missing   = labcode2
+      ),
       drop        = drop_duplicates + drop_notyet,
       who_staging = as.integer(who_staging)
    ) %>%
