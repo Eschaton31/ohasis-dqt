@@ -1,0 +1,252 @@
+##  Download encoding documentation --------------------------------------------
+
+db_conn    <- ohasis$conn("db")
+px_confirm <- dbReadTable(db_conn, Id(schema = "ohasis_interim", table = "px_confirm"))
+dbDisconnect(db_conn)
+
+ei      <- get_ei("2022.03")
+encoded <- ei %>%
+   filter(Form %in% c("Form A", "HTS Form"),
+          !is.na(`Record ID`)) %>%
+   mutate(,
+      `Encoder` = stri_replace_first_fixed(encoder, "2022.03_", "")
+   ) %>%
+   select(
+      `Facility ID`,
+      `Facility Name`,
+      `Page ID`,
+      `Record ID`,
+      `ID Type`,
+      `Identifier`,
+      `Issues`,
+      `Validation`,
+      `Encoder`
+   )
+
+##  Get pdf results data frame -------------------------------------------------
+
+results <- nhsss$harp_dx$pdf_saccl$data %>%
+   mutate(
+      FILENAME_FORM = NA_character_,
+      FINAL_RESULT  = case_when(
+         FORM == "*Computer" ~ "Duplicate",
+         REMARKS == "Duplicate" ~ "Duplicate",
+         TRUE ~ FINAL_RESULT
+      ),
+      FINAL_RESULT  = case_when(
+         FORM == "*Computer" ~ "Duplicate",
+         REMARKS == "Duplicate" ~ "Duplicate",
+         TRUE ~ FINAL_RESULT
+      ),
+      LABCODE       = case_when(
+         FILENAME == 'SACCLHIV - D22-03-02610.pdf' ~ 'D22-03-02610',
+         FILENAME == 'SACCLHIV - D22-03-02636D.pdf' ~ 'D22-03-02636',
+         FILENAME == 'SACCLHIV - D22-03-02652D.pdf' ~ 'D22-03-02652',
+         FILENAME == 'SACCLHIV - D22-03-03306.pdf' ~ 'D22-03-03306',
+         FILENAME == 'SACCLHIV - D22-03-03316.pdf' ~ 'D22-03-03316',
+         TRUE ~ LABCODE
+      ),
+      FULLNAME      = case_when(
+         FILENAME == 'SACCLHIV - D22-03-02610.pdf' ~ 'FERANGCO, BERNABE L.',
+         FILENAME == 'SACCLHIV - D22-03-02636D.pdf' ~ 'ESPIRITU, CEVIR N.',
+         FILENAME == 'SACCLHIV - D22-03-02652D.pdf' ~ 'SUCGANG, DANDEE R.',
+         FILENAME == 'SACCLHIV - D22-03-03306.pdf' ~ 'BUSTILLO, ALJON G.',
+         FILENAME == 'SACCLHIV - D22-03-03316.pdf' ~ 'SERAD , JOEL B.',
+         TRUE ~ FULLNAME
+      )
+   ) %>%
+   distinct(LABCODE, .keep_all = TRUE) %>%
+   select(
+      FILENAME_PDF  = FILENAME,
+      LABCODE,
+      FULLNAME_PDF  = FULLNAME,
+      BIRTHDATE_PDF = BDATE,
+      FILENAME_FORM,
+      FINAL_INTERPRETATION,
+      FINAL_RESULT
+   )
+
+##  Match w/ encoding documentation --------------------------------------------
+
+# match with pdf results
+match <- results %>%
+   # fuzzyjoin::stringdist_full_join(
+   full_join(
+      # inner_join(
+      y      = encoded %>% mutate(only = 1),
+      # by     = c("FULLNAME_PDF" = "Identifier"),
+      by     = c("LABCODE" = "Page ID"),
+      method = "osa"
+   ) %>%
+   mutate(
+      LABCODE = if_else(is.na(LABCODE), `Record ID`, LABCODE)
+   ) %>%
+   distinct(LABCODE, .keep_all = TRUE) %>%
+   anti_join(
+      y  = px_confirm %>% select(LABCODE = CONFIRM_CODE),
+      by = "LABCODE"
+   )
+
+nrow(encoded)
+nrow(results)
+nrow(match)
+
+# copy to clipboard for gsheets
+write_clip(
+   match %>%
+      mutate(
+         `For Import` = NA_character_,
+         `PATIENT_ID` = NA_character_,
+      ) %>%
+      select(
+         `FILENAME_PDF`,
+         `LABCODE`,
+         `FULLNAME_PDF`,
+         `BIRTHDATE_PDF`,
+         `FILENAME_FORM`,
+         `FINAL_INTERPRETATION`,
+         `FINAL_RESULT`,
+         `REC_ID` = `Record ID`,
+         `PATIENT_ID`,
+         `For Import`,
+         `Identifier`
+      )
+)
+
+##  Generate import dataframes -------------------------------------------------
+
+TIMESTAMP <- "2022-04-19 14:28:00"
+# import    <- nhsss$harp_dx$pdf_saccl$data %>%
+import    <- nhsss$harp_dx$pdf_saccl$data %>%
+   mutate_all(~as.character(.)) %>%
+   inner_join(
+      y  = nhsss$harp_dx$corr$pdf_results %>%
+         select(
+            LABCODE,
+            REC_ID
+         ),
+      by = "LABCODE"
+   ) %>%
+   inner_join(
+      y  = match %>% select(LABCODE),
+      by = "LABCODE"
+   ) %>%
+   distinct(LABCODE, .keep_all = TRUE)
+
+px_confirm <- import %>%
+   mutate(
+      FACI_ID      = "130023",
+      SUB_FACI_ID  = "130023_001",
+      CONFIRM_TYPE = "1",
+      CREATED_AT   = TIMESTAMP,
+      CREATED_BY   = "1300000001",
+      FINAL_RESULT = case_when(
+         FORM == "*Computer" ~ "Duplicate",
+         REMARKS == "Duplicate" ~ "Duplicate",
+         TRUE ~ FINAL_RESULT
+      ),
+      REMARKS      = case_when(
+         REMARKS == "Duplicate" ~ "Client already has a previous confirmatory record.",
+         FINAL_RESULT == "Negative" ~ "Laboratory evidence suggests no presence of HIV Antibodies at the time of testing.",
+         TRUE ~ REMARKS
+      ),
+      SIGNATORY_1  = if_else(SIGNATORY_1 == "NULL", NA_character_, SIGNATORY_1),
+      DATE_CONFIRM = as.character(DATE_CONFIRM),
+      DATE_CONFIRM = if_else(!is.na(DATE_CONFIRM), glue("{DATE_CONFIRM} 00:00:00"), NA_character_),
+      DATE_RELEASE = as.character(DATE_RELEASE),
+   ) %>%
+   select(
+      REC_ID,
+      FACI_ID,
+      SUB_FACI_ID,
+      CONFIRM_TYPE,
+      CONFIRM_CODE = LABCODE,
+      SOURCE       = SOURCE_FACI,
+      SUB_SOURCE   = SOURCE_SUB_FACI,
+      FINAL_RESULT,
+      REMARKS,
+      SIGNATORY_1,
+      SIGNATORY_2,
+      SIGNATORY_3,
+      DATE_CONFIRM,
+      DATE_RELEASE,
+      CREATED_AT,
+      CREATED_BY
+   ) %>%
+   distinct(REC_ID, .keep_all = TRUE)
+
+px_test <- import %>%
+   mutate(
+      TEST_TYPE     = "31",
+      TEST_NUM      = "1",
+      FACI_ID       = "130023",
+      SUB_FACI_ID   = "130023_001",
+      CREATED_AT    = TIMESTAMP,
+      CREATED_BY    = "1300000001",
+      SPECIMEN_TYPE = case_when(
+         SPECIMEN_TYPE == "SERUM" ~ "1"
+      ),
+      RESULT        = substr(FINAL_RESULT_31, 1, 1)
+   ) %>%
+   select(
+      REC_ID,
+      FACI_ID,
+      SUB_FACI_ID,
+      TEST_TYPE,
+      TEST_NUM,
+      DATE_PERFORM = T1_DATE,
+      RESULT,
+      CREATED_AT,
+      CREATED_BY
+   ) %>%
+   distinct(REC_ID, .keep_all = TRUE)
+
+px_test_hiv <- import %>%
+   mutate(
+      TEST_TYPE     = "31",
+      TEST_NUM      = "1",
+      FACI_ID       = "130023",
+      SUB_FACI_ID   = "130023_001",
+      CREATED_AT    = TIMESTAMP,
+      CREATED_BY    = "1300000001",
+      SPECIMEN_TYPE = case_when(
+         SPECIMEN_TYPE == "SERUM" ~ "1"
+      ),
+   ) %>%
+   select(
+      REC_ID,
+      FACI_ID,
+      SUB_FACI_ID,
+      TEST_TYPE,
+      TEST_NUM,
+      SPECIMEN_TYPE,
+      # DATE_RECEIVE = SPECIMEN_RECEIPT_DATE,
+      KIT_NAME     = KIT_31,
+      LOT_NO       = T1_LOT_NO,
+      FINAL_RESULT = FINAL_RESULT_31,
+      CREATED_AT,
+      CREATED_BY
+   )
+
+db_conn     <- ohasis$conn("db")
+table_space <- Id(schema = "ohasis_interim", table = "px_confirm")
+dbxUpsert(
+   db_conn,
+   table_space,
+   px_confirm,
+   "REC_ID"
+)
+table_space <- Id(schema = "ohasis_interim", table = "px_test_hiv")
+dbxUpsert(
+   db_conn,
+   table_space,
+   px_test_hiv,
+   c("REC_ID", "TEST_TYPE", "TEST_NUM")
+)
+table_space <- Id(schema = "ohasis_interim", table = "px_test")
+dbxUpsert(
+   db_conn,
+   table_space,
+   px_test,
+   c("REC_ID", "TEST_TYPE", "TEST_NUM")
+)
