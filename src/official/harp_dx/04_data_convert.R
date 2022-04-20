@@ -116,28 +116,12 @@ nhsss$harp_dx$converted$data <- nhsss$harp_dx$initial$data %>%
       self_identity_other       = case_when(
          self_identity_other == "NO ANSWER" ~ NA_character_,
          self_identity_other == "N/A" ~ NA_character_,
-         TRUE ~ self_identity_other
+         TRUE ~ toupper(self_identity_other)
       ),
       self_identity_other_sieve = if_else(
          condition = !is.na(self_identity_other),
          true      = str_replace_all(self_identity_other, "[^[:alnum:]]", ""),
          false     = NA_character_
-      ),
-
-      # gender identity
-      gender_identity           = case_when(
-         SEX == "1_MALE" & self_identity == "MALE" ~ "cisgender male",
-         SEX == "1_MALE" & self_identity == "FEMALE" ~ "TGW",
-         SEX == "1_MALE" & self_identity_other_sieve == "BI" ~ "others",
-         SEX == "1_MALE" & self_identity_other_sieve == "BIMSM" ~ "others",
-         SEX == "1_MALE" & self_identity_other_sieve == "BISEXUAL" ~ "others",
-         SEX == "1_MALE" & self_identity_other_sieve == "GAY" ~ "others",
-         SEX == "1_MALE" & self_identity_other_sieve == "TGW" ~ "TGW",
-         SEX == "1_MALE" & self_identity_other_sieve == "TRANSGENDER" ~ "TGW",
-         SEX == "2_FEMALE" & self_identity == "FEMALE" ~ "cisgender female",
-         SEX == "2_FEMALE" & self_identity == "MALE" ~ "TGM",
-         is.na(self_identity) ~ "(no data)",
-         TRUE ~ "others"
       ),
 
       CIVIL_STATUS              = stri_trans_toupper(CIVIL_STATUS),
@@ -233,6 +217,14 @@ nhsss$harp_dx$converted$data <- nhsss$harp_dx$initial$data %>%
          true      = StrLeft(., 1),
          false     = NA_character_
       ) %>% as.integer()
+   )
+
+##  Gender identity  -----------------------------------------------------------
+
+nhsss$harp_dx$converted$data %<>%
+   left_join(
+      y  = nhsss$harp_dx$corr$gender_identity,
+      by = c("SEX", "self_identity", "self_identity_other_sieve")
    )
 
 ##  Modes of transmission ------------------------------------------------------
@@ -1156,6 +1148,16 @@ if (update == "1") {
       select(
          any_of(view_vars),
          transmit
+      )
+
+   nhsss$harp_dx$converted$check[["no_gender_ident"]] <- nhsss$harp_dx$converted$data %>%
+      filter(
+         !is.na(self_identity),
+         is.na(gender_identity)
+      ) %>%
+      select(
+         any_of(view_vars),
+         gender_identity
       )
 
    # range-median
