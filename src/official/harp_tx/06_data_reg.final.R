@@ -92,6 +92,7 @@ dbDisconnect(lw_conn)
 
 .log_info("Updating data using dx registry information.")
 nhsss$harp_tx$official$new_reg %<>%
+   select(-starts_with("labcode2")) %>%
    left_join(
       y  = nhsss$harp_dx$official$new %>%
          select(
