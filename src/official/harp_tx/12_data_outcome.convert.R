@@ -16,7 +16,7 @@ artcutoff_date <- as.Date(paste(sep = '-', artcutoff_yr, artcutoff_mo, '01'))
 # get latest visits
 .log_info("Getting earliest visits from OHASIS.")
 lw_conn      <- ohasis$conn("lw")
-oh_id_schema <- dbplyr::in_schema("ohasis_warehous", "id_registry")
+oh_id_schema <- dbplyr::in_schema("ohasis_warehouse", "id_registry")
 
 first_visits <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "art_first")) %>%
    select(CENTRAL_ID, REC_ID, EARLIEST_VISIT = VISIT_DATE) %>%
@@ -25,14 +25,26 @@ first_visits <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "art_first"))
 # get mortality data
 .log_info("Getting latest mortality dataset.")
 if (!("harp_dead" %in% names(nhsss)))
-   nhsss$harp_xx$official$new <- ohasis$get_data("harp_dead", ohasis$yr, ohasis$mo) %>%
+   nhsss$harp_dead$official$new <- ohasis$get_data("harp_dead", ohasis$yr, ohasis$mo) %>%
       read_dta() %>%
       # convert Stata string missing data to NAs
       mutate_if(
          .predicate = is.character,
          ~if_else(. == '', NA_character_, .)
       ) %>%
+      select(-starts_with("CENTRAL_ID")) %>%
+      left_join(
+         y  = tbl(lw_conn, oh_id_schema) %>%
+            select(CENTRAL_ID, PATIENT_ID) %>%
+            collect(),
+         by = "PATIENT_ID"
+      ) %>%
       mutate(
+         CENTRAL_ID       = if_else(
+            condition = is.na(CENTRAL_ID),
+            true      = PATIENT_ID,
+            false     = CENTRAL_ID
+         ),
          proxy_death_date = as.Date(ceiling_date(as.Date(paste(sep = '-', year, month, '01')), unit = 'month')) - 1,
          ref_death_date   = if_else(
             condition = is.na(date_of_death),
@@ -49,10 +61,10 @@ nhsss$harp_tx$outcome.converted$data <- nhsss$harp_tx$outcome.initial$data %>%
    left_join(
       y  = nhsss$harp_dead$official$new %>%
          select(
-            idnum,
+            CENTRAL_ID,
             ref_death_date
          ),
-      by = "idnum"
+      by = "CENTRAL_ID"
    ) %>%
    # get latest outcome data
    left_join(
@@ -66,9 +78,9 @@ nhsss$harp_tx$outcome.converted$data <- nhsss$harp_tx$outcome.initial$data %>%
             prev_pickup  = latest_nextpickup,
             prev_regimen = latest_regimen,
             prev_line    = line,
-            prev_artreg  = art_reg1,
+            prev_artreg  = art_reg,
             prev_hub     = hub,
-            prev_age     = age,
+            prev_age     = curr_age,
             sathub,
          ),
       by = "art_id"
