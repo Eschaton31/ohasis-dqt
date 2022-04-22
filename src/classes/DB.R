@@ -74,7 +74,7 @@ DB <- setRefClass(
                   .self$data_factory("lake", table_name, update_type, default_yes)
                }
 
-               lake_dir <- file.path("../data_lake", update_type)
+               lake_dir <- file.path(getwd(), "src", "data_lake", update_type)
                lapply(list.files(lake_dir, pattern = "ref_*"), lake_table)
                lapply(list.files(lake_dir, pattern = "px_*"), lake_table)
                lapply(list.files(lake_dir, pattern = "lab_*"), lake_table)
@@ -277,9 +277,9 @@ DB <- setRefClass(
 
             # run data lake script for object
             .log_info("Getting new/updated data.")
-            factory_file <- file.path("..", paste0("data_", db_type), "refresh", paste0(table_name, '.R'))
+            factory_file <- file.path(getwd(), "src", paste0("data_", db_type), "refresh", paste0(table_name, '.R'))
             if (!file.exists(factory_file))
-               factory_file <- file.path("..", paste0("data_", db_type), "upsert", paste0(table_name, '.R'))
+               factory_file <- file.path(getwd(), "src", paste0("data_", db_type), "upsert", paste0(table_name, '.R'))
 
             source(factory_file, local = TRUE)
 
@@ -377,14 +377,14 @@ DB <- setRefClass(
          checklist <- list()
 
          # get list of queries
-         checks <- list.files("../diagnostics")
+         checks <- list.files(file.path(getwd(), "src", "diagnostics"))
          for (query in checks) {
             issue <- stri_replace_last_fixed(query, ".sql", "")
 
             if (stri_detect_regex(query, "^delete")) {
-               dbExecute(db_conn, read_file(file.path("../diagnostics", query)))
+               dbExecute(db_conn, read_file(file.path(getwd(), "src", "diagnostics", query)))
             } else {
-               rs <- dbSendQuery(db_conn, read_file(file.path("../diagnostics", query)))
+               rs <- dbSendQuery(db_conn, read_file(file.path(getwd(), "src", "diagnostics", query)))
 
                data <- dbFetch(rs)
 
@@ -402,7 +402,7 @@ DB <- setRefClass(
 
       # speedtest
       speedtest         = function() {
-         data <- shell(paste0(file.path(getwd(), "../speedtest.exe"), " -f tsv --output-header -u Mbps"), intern = TRUE)
+         data <- shell(paste0(file.path(getwd(), getwd(), "src", "speedtest.exe"), " -f tsv --output-header -u Mbps"), intern = TRUE)
          data <- read.table(text = data, sep = "\t", header = TRUE) %>%
             mutate(
                speed_down_megabits_sec = download / 125000,

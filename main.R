@@ -88,7 +88,7 @@ df %<>%
    mutate(dup_num = row_number()) %>%
    ungroup() %>%
    left_join(
-      y = nhsss$harp_dx$official$old %>% select(idnum, CENTRAL_ID),
+      y  = nhsss$harp_dx$official$old %>% select(idnum, CENTRAL_ID),
       by = "idnum"
    ) %>%
    pivot_wider(
@@ -96,3 +96,30 @@ df %<>%
       names_from  = dup_num,
       values_from = c(idnum, CENTRAL_ID)
    )
+
+epic_sites <- read_xlsx("H:/Software/OHASIS/Data Sets/20211109_DevPartner_Supported_Sites.xlsx")
+epic_tld   <- df %>%
+   left_join(
+      y  = epic_sites,
+      by = c("hub" = "FACI_CODE")
+   ) %>%
+   left_join(
+      y  = ohasis$ref_faci %>%
+         distinct(FACI_CODE, .keep_all = TRUE) %>%
+         select(FACI_CODE, facility = FACI_NAME, tx_region = FACI_NHSSS_REG),
+      by = c("hub" = "FACI_CODE")
+   ) %>%
+   filter(site_epic_2022 == 1) %>%
+   mutate(
+      tld = if_else(stri_detect_fixed(art_reg, "dtg"), 1, 0, 0)
+   ) %>%
+   group_by(tx_region, facility, hub) %>%
+   summarise(
+      alive  = if_else(outcome == "alive on arv", 1, 0, 0) %>% sum(na.rm = TRUE),
+      on_tld = if_else(outcome == "alive on arv" & tld == 1, 1, 0, 0) %>% sum(na.rm = TRUE),
+   ) %>%
+   ungroup() %>%
+   mutate(
+      perc = round((on_tld / alive) * 100, digits = 2)
+   ) %>%
+   arrange(desc(on_tld))
