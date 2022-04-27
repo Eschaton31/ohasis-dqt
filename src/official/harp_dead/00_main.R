@@ -42,7 +42,7 @@ rm(path, drive_folders)
 
 ##  Begin linkage of datasets --------------------------------------------------
 
-# source("src/official/harp_dead/01_load_corrections.R")
+source("src/official/harp_dead/01_load_corrections.R")
 source("src/official/harp_dead/02_load_harp.R")
 source("src/official/harp_dead/03_data_initial.R")
 source("src/official/harp_dead/04_data_convert.R")

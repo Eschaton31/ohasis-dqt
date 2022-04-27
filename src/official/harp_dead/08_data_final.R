@@ -192,7 +192,8 @@ nhsss$harp_dead$official$new %<>%
 for (drop_var in c("drop_notyet", "drop_duplicates"))
    if (drop_var %in% names(nhsss$harp_dead$corr))
       for (i in seq_len(nrow(nhsss$harp_dead$corr[[drop_var]]))) {
-         record_id <- nhsss$harp_dead$corr[[drop_var]][i, "REC_ID"]
+         record_id <- nhsss$harp_dead$corr[[drop_var]][i,]$REC_ID
+         drop_var  <- as.symbol(drop_var)
 
          # tag based on record id
          nhsss$harp_dead$official$new %<>%
@@ -200,7 +201,8 @@ for (drop_var in c("drop_notyet", "drop_duplicates"))
                !!drop_var := if_else(
                   condition = REC_ID == record_id,
                   true      = 1,
-                  false     = !!drop_var
+                  false     = !!drop_var,
+                  missing   = !!drop_var
                )
             )
       }

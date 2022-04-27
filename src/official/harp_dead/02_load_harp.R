@@ -46,7 +46,7 @@ if (reload == "1") {
          right_join(
             y  = old_dta %>%
                read_dta() %>%
-               select(-CENTRAL_ID) %>%
+               select(-starts_with('CENTRAL_ID')) %>%
                # convert Stata string missing data to NAs
                mutate_if(
                   .predicate = is.character,
@@ -86,7 +86,16 @@ if (reload == "1") {
 
    if (!is.null(old_corr)) {
       .log_info("Performing cleaning on the loaded dataset.")
-      old_dataset <- .cleaning_list(old_dataset, old_corr, "IDNUM", "integer")
+      old_dataset <- .cleaning_list(old_dataset, old_corr, "MORT_ID", "integer")
+   }
+
+   # drop clients
+   if ("anti_join" %in% names(nhsss$harp_tx$corr)) {
+      old_dataset <- old_dataset %>%
+         anti_join(
+            y  = nhsss$harp_dead$corr$anti_join,
+            by = "mort_id"
+         )
    }
 
    # remove legacy columns

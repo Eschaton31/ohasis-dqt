@@ -5,7 +5,7 @@ currEnv <- ls()[ls() != "currEnv"]
 
 .log_info("Checking output directory.")
 output_version <- format(Sys.time(), "%Y%m%d")
-output_name    <- paste0(output_version, '_reg_', ohasis$yr, '-', ohasis$mo)
+output_name    <- paste0(output_version, '_mort_', ohasis$yr, '-', ohasis$mo)
 output_dir     <- file.path("archive", ohasis$ym, ohasis$output_title, "harp_dead")
 
 nhsss$harp_dead$official$new_file <- file.path(output_dir, paste0(output_name, ".dta"))
@@ -65,18 +65,18 @@ for (file in list.files(output_dir, "*.dta", full.names = TRUE)) {
 
    # use file
    stataCMD <- glue(r"(u "{file}", clear)")
-
-   # run label do-files
-   for (do_file in list.files(output_dir, "*.do", full.names = TRUE))
-      stataCMD <- glue(paste0(stataCMD, "\n", r"(do "{do_file}")"))
-
-   # label values
-   for (var in seq_len(nrow(var_df))) {
-      variable   <- var_df[var, "variable"] %>% as.character()
-      label_name <- var_df[var, "label_name"] %>% as.character()
-
-      stataCMD <- glue(paste0(stataCMD, "\n", r"(lab val {variable} {label_name})"))
-   }
+   #
+   # # run label do-files
+   # for (do_file in list.files(output_dir, "*.do", full.names = TRUE))
+   #    stataCMD <- glue(paste0(stataCMD, "\n", r"(do "{do_file}")"))
+   #
+   # # label values
+   # for (var in seq_len(nrow(var_df))) {
+   #    variable   <- var_df[var, "variable"] %>% as.character()
+   #    label_name <- var_df[var, "label_name"] %>% as.character()
+   #
+   #    stataCMD <- glue(paste0(stataCMD, "\n", r"(lab val {variable} {label_name})"))
+   # }
 
    # format and save file
    stataCMD <- glue(paste0(stataCMD, "\n", r"(
