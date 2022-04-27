@@ -108,15 +108,28 @@ if ((object %>% count() %>% collect())$n > 0) {
                na.rm = T,
                sep   = "; "
             ) %>%
+            rename_all(
+               ~case_when(
+                  . == "MAIN_INFO_TEXT_1" ~ "DEATH_DATE",
+                  . == "MAIN_INFO_TEXT_3" ~ "REPORTED_BY",
+                  . == "MAIN_INFO_TEXT_2" ~ "EB_VALIDATED",
+                  . == "MAIN_INFO_TEXT_4" ~ "DEATH_CERTIFICATE",
+                  TRUE ~ .
+               )
+            ) %>%
             select(
                REC_ID,
-               DEATH_DATE        = MAIN_INFO_TEXT_1,
-               REPORTED_BY       = MAIN_INFO_TEXT_3,
-               EB_VALIDATED      = MAIN_INFO_TEXT_2,
-               DEATH_CERTIFICATE = MAIN_INFO_TEXT_4,
-               IMMEDIATE_CAUSES,
-               ANTECEDENT_CAUSES,
-               UNDERLYING_CAUSES
+               any_of(
+                  c(
+                     "DEATH_DATE",
+                     "REPORTED_BY",
+                     "EB_VALIDATED",
+                     "DEATH_CERTIFICATE",
+                     "IMMEDIATE_CAUSES",
+                     "ANTECEDENT_CAUSES",
+                     "UNDERLYING_CAUSES"
+                  )
+               )
             ) %>%
             mutate(
                DEATH_DATE        = as.Date(DEATH_DATE),
