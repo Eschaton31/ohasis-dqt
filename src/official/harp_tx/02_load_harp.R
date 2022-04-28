@@ -56,6 +56,7 @@ if (reload == "1") {
             true      = PATIENT_ID,
             false     = CENTRAL_ID
          ),
+         art_id = as.integer(art_id)
       )
 
    if (!is.null(old_reg_corr)) {
