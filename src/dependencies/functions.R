@@ -148,7 +148,8 @@ check_dir <- function(dir) {
             !!variable := if_else(
                condition = !!eb_id == id,
                true      = value,
-               false     = !!variable
+               false     = !!variable,
+               missing   = !!variable
             )
          )
    }
