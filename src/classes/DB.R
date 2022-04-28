@@ -277,7 +277,7 @@ DB <- setRefClass(
 
             # rollback 1 month to get other changes
             snapshot_old <- as.POSIXct(snapshot_old) %m-%
-               weeks(1) %>%
+               days(3) %>%
                format("%Y-%m-%d %H:%M:%S")
 
             # run data lake script for object
