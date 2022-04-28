@@ -275,6 +275,11 @@ DB <- setRefClass(
             if (update_type == "refresh")
                snapshot_old <- "1970-01-01 00:00:00"
 
+            # rollback 1 month to get other changes
+            snapshot_old <- as.POSIXct(snapshot_old) %m-%
+               weeks(1) %>%
+               format("%Y-%m-%d %H:%M:%S")
+
             # run data lake script for object
             .log_info("Getting new/updated data.")
             factory_file <- file.path(getwd(), "src", paste0("data_", db_type), "refresh", paste0(table_name, '.R'))
