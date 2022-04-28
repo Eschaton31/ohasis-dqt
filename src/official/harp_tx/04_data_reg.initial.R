@@ -124,6 +124,8 @@ nhsss$harp_tx$reg.initial$data %<>%
 ##  Adding CD4 results ---------------------------------------------------------
 
 .log_info("Attaching baseline CD4 data.")
+dbDisconnect(lw_conn)
+lw_conn      <- ohasis$conn("lw")
 ceiling_date <- ohasis$next_date
 nhsss$harp_tx$reg.initial$data %<>%
    # get cd4 data
