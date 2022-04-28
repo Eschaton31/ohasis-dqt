@@ -303,6 +303,31 @@ if (update == "1") {
       ) %>%
       arrange(artstart_hub)
 
+   .log_info("Checking for mismatch birthdate.")
+   nhsss$harp_tx$reg.final$check[["uic_bdate"]] <- nhsss$harp_tx$official$new_reg %>%
+      mutate(
+         uic_bdate = if_else(
+            condition = stri_length(uic) == 14,
+            true      = StrRight(uic, 8),
+            false     = NA_character_
+         ),
+         uic_bdate = if_else(
+            condition = StrIsNumeric(uic_bdate),
+            true      = paste(sep = "-", StrRight(uic_bdate, 4), StrLeft(uic_bdate, 2), substr(uic_bdate, 3, 4)),
+            false     = NA_character_
+         ),
+         uic_bdate = as.Date(uic_bdate)
+      ) %>%
+      filter(
+         uic_bdate != birthdate | !is.na(uic_bdate) & is.na(birthdate)
+      ) %>%
+      select(
+         any_of(view_vars),
+         birthdate,
+         uic_bdate,
+      ) %>%
+      arrange(artstart_hub)
+
    .log_info("Checking for TAT (confirmatory to enrollment).")
    nhsss$harp_tx$reg.final$check[["tat_confirm_enroll"]] <- nhsss$harp_tx$official$new_reg %>%
       left_join(
