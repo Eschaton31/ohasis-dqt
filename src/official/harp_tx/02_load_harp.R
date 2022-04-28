@@ -82,7 +82,7 @@ if (reload == "1") {
    .log_info("Updating `harp_tx_old`.")
    # delete existing data, full refresh always
    if (dbExistsTable(lw_conn, old_tblspace))
-      dbxDelete(lw_conn, old_tblspace, batch_size = 1000)
+      dbExecute(lw_conn, "DROP TABLE `ohasis_warehouse`.`harp_tx_old`;")
 
    # upload info
    ohasis$upsert(lw_conn, "warehouse", old_tblname, old_dataset, "PATIENT_ID")
