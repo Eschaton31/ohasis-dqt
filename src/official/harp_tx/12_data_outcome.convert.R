@@ -122,9 +122,15 @@ nhsss$harp_tx$outcome.converted$data <- nhsss$harp_tx$outcome.initial$data %>%
 
       # tag if new data is to be used
       use_db              = case_when(
-         is.na(prev_outcome) & !is.na(MEDICINE_SUMMARY) ~ 1,
-         LATEST_VISIT > prev_ffup & !is.na(MEDICINE_SUMMARY) ~ 1,
-         LATEST_NEXT_DATE > prev_pickup & !is.na(MEDICINE_SUMMARY) ~ 1,
+         is.na(prev_outcome) &
+            !is.na(MEDICINE_SUMMARY) &
+            !is.na(LATEST_NEXT_DATE) ~ 1,
+         LATEST_VISIT > prev_ffup &
+            !is.na(MEDICINE_SUMMARY) &
+            !is.na(LATEST_NEXT_DATE) ~ 1,
+         LATEST_NEXT_DATE > prev_pickup &
+            !is.na(MEDICINE_SUMMARY) &
+            !is.na(LATEST_NEXT_DATE) ~ 1,
          TRUE ~ 0
       ),
 
