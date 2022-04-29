@@ -115,6 +115,24 @@ nhsss$harp_dead$official$new %<>%
          false     = muncity,
          missing   = muncity
       ),
+      final_region         = if_else(
+         condition = dxreg_muncity == "UNKNOWN",
+         true      = region,
+         false     = dxreg_region,
+         missing   = "UNKNOWN"
+      ),
+      final_province       = if_else(
+         condition = dxreg_muncity == "UNKNOWN",
+         true      = province,
+         false     = dxreg_province,
+         missing   = "UNKNOWN"
+      ),
+      final_muncity        = if_else(
+         condition = dxreg_muncity == "UNKNOWN",
+         true      = muncity,
+         false     = dxreg_muncity,
+         missing   = "UNKNOWN"
+      ),
    )
 
 # update these variables if missing in art reg
