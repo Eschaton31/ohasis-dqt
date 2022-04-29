@@ -116,6 +116,10 @@ check_dir <- function(dir) {
             )
       )
 
+   tab_df %<>%
+      mutate(
+         !!names(.)[1] := as.character(.[[1]])
+      )
    tab_df[nrow(tab_df), 1] <- "TOTAL"
 
    tab_df %>%
