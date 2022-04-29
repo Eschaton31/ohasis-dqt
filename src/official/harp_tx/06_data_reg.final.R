@@ -131,6 +131,12 @@ nhsss$harp_tx$official$new_reg %<>%
          false     = confirmatory_code,
          missing   = confirmatory_code
       ),
+      birthdate         = if_else(
+         condition = !is.na(dxreg_birthdate),
+         true      = dxreg_birthdate,
+         false     = birthdate,
+         missing   = birthdate
+      ),
    )
 
 # update these variables if missing in art reg
