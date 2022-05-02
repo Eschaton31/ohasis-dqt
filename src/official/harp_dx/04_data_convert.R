@@ -104,8 +104,8 @@ nhsss$harp_dx$converted$data <- nhsss$harp_dx$initial$data %>%
       ),
       self_identity_other       = toupper(SELF_IDENT_OTHER),
       self_identity             = case_when(
-         self_identity_other == "N/A" ~ NA_character_,
-         self_identity_other == "no answer" ~ NA_character_,
+         # self_identity_other == "N/A" ~ NA_character_,
+         # self_identity_other == "no answer" ~ NA_character_,
          self_identity == "OTHER" ~ "OTHERS",
          self_identity == "MAN" ~ "MALE",
          self_identity == "WOMAN" ~ "FEMALE",
@@ -113,11 +113,7 @@ nhsss$harp_dx$converted$data <- nhsss$harp_dx$initial$data %>%
          self_identity == "FEMALE" ~ "FEMALE",
          TRUE ~ self_identity
       ),
-      self_identity_other       = case_when(
-         self_identity_other == "NO ANSWER" ~ NA_character_,
-         self_identity_other == "N/A" ~ NA_character_,
-         TRUE ~ toupper(self_identity_other)
-      ),
+      self_identity_other       = toupper(self_identity_other),
       self_identity_other_sieve = if_else(
          condition = !is.na(self_identity_other),
          true      = str_replace_all(self_identity_other, "[^[:alnum:]]", ""),
