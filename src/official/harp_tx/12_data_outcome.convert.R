@@ -440,7 +440,7 @@ if (update == "1") {
    .log_info("Checking for resurrected clients.")
    nhsss$harp_tx$outcome.converted$check[["resurrect"]] <- nhsss$harp_tx$outcome.converted$data %>%
       filter(
-         prev_outcome == "dead" & (curr_outcome != "dead" | is.na(curr_outcome))
+         prev_outcome == "dead" & (curr_outcome != "dead" | is.na(curr_outcome)) | use_db == 1 & prev_outcome == "daed"
       ) %>%
       arrange(curr_hub)
 

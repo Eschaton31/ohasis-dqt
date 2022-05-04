@@ -84,8 +84,15 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
       onart
    ) %>%
    distinct_all() %>%
-   arrange(art_id)
+   arrange(art_id) %>%
+   mutate(central_id = CENTRAL_ID)
 
+.log_info("Performing late validation cleanings.")
+if ("new_outcome" %in% names(nhsss$harp_tx$corr))
+   nhsss$harp_tx$official$new_outcome <- .cleaning_list(nhsss$harp_tx$official$new_outcome, nhsss$harp_tx$corr$new_outcome, "CENTRAL_ID", "character")
+
+nhsss$harp_tx$official$new_outcome %<>%
+   select(-central_id)
 .log_success("Done!")
 
 # clean-up created objects
