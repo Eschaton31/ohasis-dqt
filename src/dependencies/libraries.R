@@ -49,15 +49,14 @@ p_load(
    phonics,
    glue,
    googleway,
-   crayon
+   crayon,
+   docxtractr,
+   XLConnect
 )
 
-# special libraries
-if (!require(remotes))
-   install.packages("remotes", repos = "https://cloud.r-project.org")
-
-if (!require(kwb.nextcloud))
-   remotes::install_github("KWB-R/kwb.nextcloud")
+p_load_gh(
+   "KWB-R/kwb.nextcloud"
+)
 
 # devtools::install_github("SymbolixAU/googlePolylines")
 # devtools::install_github("SymbolixAU/googleway")
