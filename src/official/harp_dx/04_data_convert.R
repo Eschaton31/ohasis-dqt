@@ -219,7 +219,7 @@ nhsss$harp_dx$converted$data <- nhsss$harp_dx$initial$data %>%
 
 nhsss$harp_dx$converted$data %<>%
    left_join(
-      y  = nhsss$harp_dx$corr$gender_identity,
+      y  = nhsss$harp_dx$corr$gender_identity$Sheet1,
       by = c("SEX", "self_identity", "self_identity_other_sieve")
    )
 
