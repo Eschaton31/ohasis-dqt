@@ -275,10 +275,10 @@ DB <- setRefClass(
             if (update_type == "refresh")
                snapshot_old <- "1970-01-01 00:00:00"
 
-            # rollback 1 month to get other changes
-            snapshot_old <- as.POSIXct(snapshot_old) %m-%
-               days(3) %>%
-               format("%Y-%m-%d %H:%M:%S")
+            # # rollback 1 month to get other changes
+            # snapshot_old <- as.POSIXct(snapshot_old) %m-%
+            #    days(3) %>%
+            #    format("%Y-%m-%d %H:%M:%S")
 
             # run data lake script for object
             .log_info("Getting new/updated data.")
