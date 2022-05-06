@@ -264,7 +264,8 @@ nhsss$harp_dead$converted$data %<>%
       place_of_death_region,
       place_of_death_province,
       place_of_death_muncity,
-      report_date
+      report_date,
+      report_notes            = REPORT_NOTES
    ) %>%
    # turn into codes
    mutate_at(
