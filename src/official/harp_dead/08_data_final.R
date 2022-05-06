@@ -115,23 +115,77 @@ nhsss$harp_dead$official$new %<>%
          false     = muncity,
          missing   = muncity
       ),
-      final_region         = if_else(
-         condition = dxreg_muncity == "UNKNOWN",
+      final_region   = if_else(
+         condition = dxreg_muncity == "UNKNOWN" & (muncity != "UNKNOWN" & !is.na(muncity)),
          true      = region,
          false     = dxreg_region,
          missing   = "UNKNOWN"
       ),
-      final_province       = if_else(
-         condition = dxreg_muncity == "UNKNOWN",
+      final_province = if_else(
+         condition = dxreg_muncity == "UNKNOWN" & (muncity != "UNKNOWN" & !is.na(muncity)),
          true      = province,
          false     = dxreg_province,
          missing   = "UNKNOWN"
       ),
-      final_muncity        = if_else(
-         condition = dxreg_muncity == "UNKNOWN",
+      final_muncity  = if_else(
+         condition = dxreg_muncity == "UNKNOWN" & (muncity != "UNKNOWN" & !is.na(muncity)),
          true      = muncity,
          false     = dxreg_muncity,
          missing   = "UNKNOWN"
+      ),
+      final_region   = if_else(
+         condition = final_muncity == "UNKNOWN" | is.na(final_muncity),
+         true      = mort_region,
+         false     = final_region,
+         missing   = final_region
+      ),
+      final_province = if_else(
+         condition = final_muncity == "UNKNOWN" | is.na(final_muncity),
+         true      = mort_province,
+         false     = final_province,
+         missing   = final_province
+      ),
+      final_muncity  = if_else(
+         condition = final_muncity == "UNKNOWN" | is.na(final_muncity),
+         true      = mort_muncity,
+         false     = final_muncity,
+         missing   = final_muncity
+      ),
+      final_region   = if_else(
+         condition = is.na(final_muncity),
+         true      = region,
+         false     = final_region,
+         missing   = final_region
+      ),
+      final_province = if_else(
+         condition = is.na(final_muncity),
+         true      = province,
+         false     = final_province,
+         missing   = final_province
+      ),
+      final_muncity  = if_else(
+         condition = is.na(final_muncity),
+         true      = muncity,
+         false     = final_muncity,
+         missing   = final_muncity
+      ),
+      final_region   = if_else(
+         condition = is.na(final_muncity),
+         true      = dxreg_region,
+         false     = final_region,
+         missing   = final_region
+      ),
+      final_province = if_else(
+         condition = is.na(final_muncity),
+         true      = dxreg_province,
+         false     = final_province,
+         missing   = final_province
+      ),
+      final_muncity  = if_else(
+         condition = is.na(final_muncity),
+         true      = dxreg_muncity,
+         false     = final_muncity,
+         missing   = final_muncity
       ),
    )
 
@@ -242,7 +296,22 @@ nhsss$harp_dead$official$new %<>%
       drop = drop_duplicates + drop_notyet,
    ) %>%
    filter(drop == 0) %>%
-   select(-drop, -drop_duplicates, -drop_notyet)
+   select(-drop, -drop_duplicates, -drop_notyet) %>%
+   select(
+      -any_of(
+         c(
+            "transmit",
+            "sexhow",
+            "labcode2",
+            "interval_mort",
+            "interval_reg",
+            "drop_tag",
+            "age_dta",
+            "motcat4",
+            "motcat"
+         )
+      )
+   )
 
 .log_success("Done!")
 
