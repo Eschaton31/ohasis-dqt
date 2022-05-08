@@ -58,5 +58,10 @@ p_load_gh(
    "KWB-R/kwb.nextcloud"
 )
 
+if (!require("remotes"))
+   install.packages("remotes")
+
+remotes::install_github(c("ropensci/tabulizerjars", "ropensci/tabulizer"), INSTALL_opts = "--no-multiarch")
+
 # devtools::install_github("SymbolixAU/googlePolylines")
 # devtools::install_github("SymbolixAU/googleway")
