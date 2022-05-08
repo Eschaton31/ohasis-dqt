@@ -349,3 +349,12 @@ oh_px_id <- function(db_conn = NULL, faci_id = NULL) {
 
    return(patient_id)
 }
+
+# clear environment function
+clear_env <- function() {
+   env <- ls(envir = .GlobalEnv)
+   if (!exists("currEnv", envir = .GlobalEnv))
+      currEnv <- env[env != "currEnv"]
+
+   rm(list = setdiff(env, currEnv), envir = .GlobalEnv)
+}
