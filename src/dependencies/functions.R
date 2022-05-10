@@ -209,13 +209,15 @@ check_dir <- function(dir) {
 # download entire dropbox folder
 remove_trailing_slashes <- function(x) gsub("/*$", "", x)
 
-download_folder <- function(path,
-                            local_path,
-                            dtoken = rdrop2::drop_auth(),
-                            unzip = TRUE,
-                            overwrite = FALSE,
-                            progress = interactive(),
-                            verbose = interactive()) {
+download_folder <- function(
+   path,
+   local_path,
+   dtoken = rdrop2::drop_auth(),
+   unzip = TRUE,
+   overwrite = FALSE,
+   progress = interactive(),
+   verbose = interactive()
+) {
    if (unzip && dir.exists(local_path))
       stop("a directory already exists at ", local_path)
    if (!unzip && file.exists(local_path))
@@ -351,10 +353,55 @@ oh_px_id <- function(db_conn = NULL, faci_id = NULL) {
 }
 
 # clear environment function
-clear_env <- function() {
+clear_env <- function(exclude = NULL) {
    env <- ls(envir = .GlobalEnv)
    if (!exists("currEnv", envir = .GlobalEnv))
       currEnv <- env[env != "currEnv"]
 
-   rm(list = setdiff(env, currEnv), envir = .GlobalEnv)
+   if (!is.null(exclude))
+      rm(list = setdiff(env, exclude), envir = .GlobalEnv)
+   else
+      rm(list = setdiff(env, currEnv), envir = .GlobalEnv)
+}
+
+# load correction data
+load_corr <- function(drive_path = NULL, report_period = NULL) {
+   corr <- list()
+
+   # drive path
+   primary_files <- drive_ls(paste0(drive_path, ".all/"))
+   report_files  <- drive_ls(paste0(drive_path, report_period, "/Cleaning/"))
+
+   # list of correction files
+   .log_info("Getting list of correction datasets.")
+
+   .log_info("Downloading sheets for all reporting periods.")
+   if (nrow(primary_files) > 0) {
+      for (i in seq_len(nrow(primary_files))) {
+         corr_id     <- primary_files[i,]$id
+         corr_name   <- primary_files[i,]$name
+         corr_sheets <- sheet_names(corr_id)
+
+         if (length(corr_sheets) > 1) {
+            corr[[corr_name]] <- list()
+            for (sheet in corr_sheets)
+               corr[[corr_name]][[sheet]] <- read_sheet(corr_id, sheet)
+         } else {
+            corr[[corr_name]] <- read_sheet(corr_id)
+         }
+      }
+   }
+
+   # create monthly folder if not exists
+   .log_info("Downloading sheets for this reporting period.")
+
+   if (nrow(report_files) > 0) {
+      for (i in seq_len(nrow(report_files))) {
+         corr_id           <- report_files[i,]$id
+         corr_name         <- report_files[i,]$name
+         corr[[corr_name]] <- read_sheet(corr_id)
+      }
+   }
+
+   return(corr)
 }
