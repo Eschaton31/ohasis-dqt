@@ -29,7 +29,8 @@ options(
    help_type           = "html",
    RStata.StataPath    = Sys.getenv("STATA_PATH"),
    RStata.StataVersion = as.integer(Sys.getenv("STATA_VER")),
-   java.parameters     = "-Xmx4g"
+   java.parameters     = "-Xmx4g",
+   scipen              = 999
 )
 
 ##  Load Environment Variables -------------------------------------------------
