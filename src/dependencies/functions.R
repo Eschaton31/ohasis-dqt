@@ -358,10 +358,13 @@ clear_env <- function(exclude = NULL) {
    if (!exists("currEnv", envir = .GlobalEnv))
       currEnv <- env[env != "currEnv"]
 
-   if (!is.null(exclude))
-      rm(list = setdiff(env, exclude), envir = .GlobalEnv)
-   else
+   if (!is.null(exclude)) {
+      remove <- setdiff(env, exclude)
+      remove <- setdiff(remove, lsf.str(envir = .GlobalEnv))
+      rm(list = remove, envir = .GlobalEnv)
+   } else {
       rm(list = setdiff(env, currEnv), envir = .GlobalEnv)
+   }
 }
 
 # load correction data
