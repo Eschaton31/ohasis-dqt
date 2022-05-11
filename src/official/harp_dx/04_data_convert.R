@@ -152,8 +152,8 @@ nhsss$harp_dx$converted$data <- nhsss$harp_dx$initial$data %>%
          StrLeft(CLINICAL_PIC, 1) == "2" ~ "1_Symptomatic",
       ),
       OFW_STATION               = case_when(
-         StrLeft(OFW_STATION, 1) == "1" ~ "0_On ship",
-         StrLeft(OFW_STATION, 1) == "2" ~ "1_Land",
+         StrLeft(OFW_STATION, 1) == "1" ~ "1_On ship",
+         StrLeft(OFW_STATION, 1) == "2" ~ "2_Land",
       ),
       REFER_TYPE                = case_when(
          StrLeft(REFER_TYPE, 1) == "1" ~ "1",
