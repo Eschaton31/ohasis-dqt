@@ -32,18 +32,18 @@ for_delete_1 <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
    select(REC_ID) %>%
    collect()
 
-# for_delete_2 <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
-#    filter(
-#       !is.na(DELETED_BY)
-#    ) %>%
-#    inner_join(
-#       y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_prep")),
-#       by = "REC_ID"
-#    ) %>%
-#    select(REC_ID) %>%
-#    collect()
+for_delete_2 <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
+   filter(
+      !is.na(DELETED_BY)
+   ) %>%
+   inner_join(
+      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_prep")),
+      by = "REC_ID"
+   ) %>%
+   select(REC_ID) %>%
+   collect()
 
-# for_delete <- bind_rows(for_delete_1, for_delete_2)
+for_delete <- bind_rows(for_delete_1, for_delete_2)
 
 # get number of affected rows
 if ((object %>% count() %>% collect())$n > 0) {
