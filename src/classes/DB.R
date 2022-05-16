@@ -274,7 +274,9 @@ DB <- setRefClass(
 
             if (update_type == "refresh") {
                snapshot_old <- "1970-01-01 00:00:00"
-               dbExecute(lw_conn, glue(r"(DROP TABLE `{db_name}`.`{table_name}}`;)"))
+
+               if (dbExistsTable(lw_conn, table_space))
+                  dbExecute(lw_conn, glue(r"(DROP TABLE `{db_name}`.`{table_name}`;)"))
             }
 
             # # rollback 1 month to get other changes
