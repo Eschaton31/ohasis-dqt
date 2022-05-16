@@ -214,9 +214,9 @@ DB <- setRefClass(
 
          # add indices if not in pk
          index <- ""
-         if (!("CENTRAL_ID" %in% id_col))
+         if (!("CENTRAL_ID" %in% id_col) & "CENTRAL_ID" %in% names(data))
             index <- ", INDEX `CENTRAL_ID` (`CENTRAL_ID`)"
-         if (!("PATIENT_ID" %in% id_col))
+         if (!("PATIENT_ID" %in% id_col) & "PATIENT_ID" %in% names(data))
             index <- ", INDEX `PATIENT_ID` (`PATIENT_ID`)"
 
          # implode into query
