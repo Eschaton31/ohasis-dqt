@@ -544,7 +544,7 @@ if (update == "1") {
    .log_info("Checking invalid test kits.")
    nhsss$harp_dx$initial$check[["T1_KIT"]] <- nhsss$harp_dx$initial$data %>%
       filter(
-         !(T1_KIT %in% c("SD Bioline HIV 1/2 3.0", "SYSMEX HISCL HIV Ag + Ab Assay")) | is.na(T1_KIT)
+         !(T1_KIT %in% c("SD Bioline HIV 1/2 3.0", "Abbott Bioline HIV 1/2 3.0", "SYSMEX HISCL HIV Ag + Ab Assay")) | is.na(T1_KIT)
       ) %>%
       select(
          any_of(view_vars),
@@ -552,7 +552,7 @@ if (update == "1") {
       )
    nhsss$harp_dx$initial$check[["T2_KIT"]] <- nhsss$harp_dx$initial$data %>%
       filter(
-         !(T2_KIT %in% c("Alere Determine HIV-1/2", "VIDAS HIV DUO Ultra")) | is.na(T2_KIT)
+         !(T2_KIT %in% c("Alere Determine HIV-1/2", "Abbott Determine HIV 1/2", "VIDAS HIV DUO Ultra")) | is.na(T2_KIT)
       ) %>%
       select(
          any_of(view_vars),
