@@ -249,7 +249,9 @@ if (update == "1") {
       "BIRTHDATE",
       "SEX",
       "ART_FACI_CODE",
-      "VISIT_DATE"
+      "VISIT_DATE",
+      "CLINIC_NOTES",
+      "COUNSEL_NOTES"
    )
 
    # dates
