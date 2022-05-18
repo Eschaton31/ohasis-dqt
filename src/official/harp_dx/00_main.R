@@ -27,20 +27,21 @@ drive_folders <- list(
 )
 invisible(
    lapply(drive_folders, function(folder) {
-      parent <- folder[1] # parent dir
-      path   <- folder[2] # name of dir to be checked
+	  parent <- folder[1] # parent dir
+	  path   <- folder[2] # name of dir to be checked
 
-      # get sub-folders
-      dribble <- drive_ls(parent)
+	  # get sub-folders
+	  dribble <- drive_ls(parent)
 
-      # create folder if not exists
-      if (nrow(dribble %>% filter(name == path)) == 0)
-         drive_mkdir(paste0(parent, path))
+	  # create folder if not exists
+	  if (nrow(dribble %>% filter(name == path)) == 0)
+		 drive_mkdir(paste0(parent, path))
    })
 )
 
 # get list of files in dir
 nhsss$harp_dx$gdrive$path <- path
+nhsss$harp_dx$gdrive$path <- gdrive_endpoint("HARP Dx", ohasis$ym)
 rm(path, drive_folders)
 
 ##  Begin linkage of datasets --------------------------------------------------

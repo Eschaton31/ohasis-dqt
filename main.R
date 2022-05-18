@@ -42,6 +42,7 @@ if (Sys.info()['sysname'] == "Linux")
 source("src/dependencies/libraries.R")
 source("src/dependencies/functions.R")
 source("src/dependencies/full_tables.R")
+source("src/dependencies/cloud.R")
 
 # classes
 source("src/classes/Project.R")

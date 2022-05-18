@@ -6,3 +6,4 @@
 /.httr-oauth
 /kath.R
 .httr-oauth
+.secrets
