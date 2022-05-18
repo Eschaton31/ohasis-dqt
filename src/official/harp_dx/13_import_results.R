@@ -4,7 +4,7 @@ db_conn    <- ohasis$conn("db")
 px_confirm <- dbReadTable(db_conn, Id(schema = "ohasis_interim", table = "px_confirm"))
 dbDisconnect(db_conn)
 
-ei      <- get_ei("2022.03")
+ei      <- get_ei("2022.04")
 encoded <- ei %>%
    filter(Form %in% c("Form A", "HTS Form"),
           !is.na(`Record ID`)) %>%
@@ -115,7 +115,7 @@ write_clip(
 
 ##  Generate import dataframes -------------------------------------------------
 
-TIMESTAMP <- "2022-04-19 14:28:00"
+TIMESTAMP <- "2022-05-17 09:19:00"
 # import    <- nhsss$harp_dx$pdf_saccl$data %>%
 import    <- nhsss$harp_dx$pdf_saccl$data %>%
    mutate_all(~as.character(.)) %>%
@@ -123,7 +123,8 @@ import    <- nhsss$harp_dx$pdf_saccl$data %>%
       y  = nhsss$harp_dx$corr$pdf_results %>%
          select(
             LABCODE,
-            REC_ID
+            REC_ID,
+            PATIENT_ID
          ),
       by = "LABCODE"
    ) %>%
@@ -131,7 +132,8 @@ import    <- nhsss$harp_dx$pdf_saccl$data %>%
       y  = match %>% select(LABCODE),
       by = "LABCODE"
    ) %>%
-   distinct(LABCODE, .keep_all = TRUE)
+   distinct(LABCODE, .keep_all = TRUE) %>%
+   filter(!is.na(REC_ID))
 
 px_confirm <- import %>%
    mutate(
@@ -175,7 +177,20 @@ px_confirm <- import %>%
    ) %>%
    distinct(REC_ID, .keep_all = TRUE)
 
-px_test <- import %>%
+px_record <- import %>%
+   mutate(
+      UPDATED_AT = TIMESTAMP,
+      UPDATED_BY = "1300000001",
+   ) %>%
+   select(
+      REC_ID,
+      PATIENT_ID,
+      UPDATED_AT,
+      UPDATED_BY
+   ) %>%
+   distinct(REC_ID, .keep_all = TRUE)
+
+px_test_31 <- import %>%
    mutate(
       TEST_TYPE     = "31",
       TEST_NUM      = "1",
@@ -201,7 +216,7 @@ px_test <- import %>%
    ) %>%
    distinct(REC_ID, .keep_all = TRUE)
 
-px_test_hiv <- import %>%
+px_test_hiv_31 <- import %>%
    mutate(
       TEST_TYPE     = "31",
       TEST_NUM      = "1",
@@ -220,10 +235,116 @@ px_test_hiv <- import %>%
       TEST_TYPE,
       TEST_NUM,
       SPECIMEN_TYPE,
-      # DATE_RECEIVE = SPECIMEN_RECEIPT_DATE,
+      DATE_RECEIVE = SPECIMEN_RECEIPT_DATE,
       KIT_NAME     = KIT_31,
       LOT_NO       = T1_LOT_NO,
       FINAL_RESULT = FINAL_RESULT_31,
+      CREATED_AT,
+      CREATED_BY
+   )
+
+px_test_32 <- import %>%
+   mutate(
+      TEST_TYPE     = "32",
+      TEST_NUM      = "1",
+      FACI_ID       = "130023",
+      SUB_FACI_ID   = "130023_001",
+      CREATED_AT    = TIMESTAMP,
+      CREATED_BY    = "1300000001",
+      SPECIMEN_TYPE = case_when(
+         SPECIMEN_TYPE == "SERUM" ~ "1"
+      ),
+      RESULT        = substr(FINAL_RESULT_32, 1, 1)
+   ) %>%
+   select(
+      REC_ID,
+      FACI_ID,
+      SUB_FACI_ID,
+      TEST_TYPE,
+      TEST_NUM,
+      DATE_PERFORM = T2_DATE,
+      RESULT,
+      CREATED_AT,
+      CREATED_BY
+   ) %>%
+   distinct(REC_ID, .keep_all = TRUE)
+
+px_test_hiv_32 <- import %>%
+   mutate(
+      TEST_TYPE     = "32",
+      TEST_NUM      = "1",
+      FACI_ID       = "130023",
+      SUB_FACI_ID   = "130023_001",
+      CREATED_AT    = TIMESTAMP,
+      CREATED_BY    = "1300000001",
+      SPECIMEN_TYPE = case_when(
+         SPECIMEN_TYPE == "SERUM" ~ "1"
+      ),
+   ) %>%
+   select(
+      REC_ID,
+      FACI_ID,
+      SUB_FACI_ID,
+      TEST_TYPE,
+      TEST_NUM,
+      SPECIMEN_TYPE,
+      # DATE_RECEIVE = SPECIMEN_RECEIPT_DATE,
+      KIT_NAME     = KIT_32,
+      LOT_NO       = T2_LOT_NO,
+      FINAL_RESULT = FINAL_RESULT_32,
+      CREATED_AT,
+      CREATED_BY
+   )
+
+px_test_33 <- import %>%
+   mutate(
+      TEST_TYPE     = "33",
+      TEST_NUM      = "1",
+      FACI_ID       = "130023",
+      SUB_FACI_ID   = "130023_001",
+      CREATED_AT    = TIMESTAMP,
+      CREATED_BY    = "1300000001",
+      SPECIMEN_TYPE = case_when(
+         SPECIMEN_TYPE == "SERUM" ~ "1"
+      ),
+      RESULT        = substr(FINAL_RESULT_33, 1, 1)
+   ) %>%
+   select(
+      REC_ID,
+      FACI_ID,
+      SUB_FACI_ID,
+      TEST_TYPE,
+      TEST_NUM,
+      DATE_PERFORM = T3_DATE,
+      RESULT,
+      CREATED_AT,
+      CREATED_BY
+   ) %>%
+   distinct(REC_ID, .keep_all = TRUE)
+
+px_test_hiv_33 <- import %>%
+   mutate(
+      TEST_TYPE     = "33",
+      TEST_NUM      = "1",
+      FACI_ID       = "130023",
+      SUB_FACI_ID   = "130023_001",
+      CREATED_AT    = TIMESTAMP,
+      CREATED_BY    = "1300000001",
+      SPECIMEN_TYPE = case_when(
+         SPECIMEN_TYPE == "SERUM" ~ "1"
+      ),
+   ) %>%
+   select(
+      REC_ID,
+      FACI_ID,
+      SUB_FACI_ID,
+      TEST_TYPE,
+      TEST_NUM,
+      SPECIMEN_TYPE,
+      # DATE_RECEIVE = SPECIMEN_RECEIPT_DATE,
+      KIT_NAME     = KIT_33,
+      LOT_NO       = T3_LOT_NO,
+      FINAL_RESULT = FINAL_RESULT_33,
       CREATED_AT,
       CREATED_BY
    )
@@ -236,17 +357,48 @@ dbxUpsert(
    px_confirm,
    "REC_ID"
 )
+table_space <- Id(schema = "ohasis_interim", table = "px_record")
+dbxUpsert(
+   db_conn,
+   table_space,
+   px_record,
+   c("REC_ID", "PATIENT_ID")
+)
 table_space <- Id(schema = "ohasis_interim", table = "px_test_hiv")
 dbxUpsert(
    db_conn,
    table_space,
-   px_test_hiv,
+   px_test_hiv_31,
+   c("REC_ID", "TEST_TYPE", "TEST_NUM")
+)
+dbxUpsert(
+   db_conn,
+   table_space,
+   px_test_hiv_32,
+   c("REC_ID", "TEST_TYPE", "TEST_NUM")
+)
+dbxUpsert(
+   db_conn,
+   table_space,
+   px_test_hiv_33,
    c("REC_ID", "TEST_TYPE", "TEST_NUM")
 )
 table_space <- Id(schema = "ohasis_interim", table = "px_test")
 dbxUpsert(
    db_conn,
    table_space,
-   px_test,
+   px_test_31,
+   c("REC_ID", "TEST_TYPE", "TEST_NUM")
+)
+dbxUpsert(
+   db_conn,
+   table_space,
+   px_test_32,
+   c("REC_ID", "TEST_TYPE", "TEST_NUM")
+)
+dbxUpsert(
+   db_conn,
+   table_space,
+   px_test_33,
    c("REC_ID", "TEST_TYPE", "TEST_NUM")
 )

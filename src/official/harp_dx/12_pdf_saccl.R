@@ -417,7 +417,7 @@ if (update == "1") {
       nhsss$harp_dx$pdf_saccl$check[[saccl_var]] <- confirm_df %>%
          filter(
             !is.na(!!saccl_var),
-            is.na(!!ohasis_var)
+            is.na(!!ohasis_var) | !!ohasis_var == "NULL"
          ) %>%
          distinct(
             !!saccl_var,
