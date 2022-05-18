@@ -78,7 +78,7 @@ gdrive_endpoint <- function(surv_name = NULL, report_period = NULL) {
 }
 
 # load correction data
-load_corr <- function(drive_path = NULL, report_period = NULL) {
+gdrive_correct <- function(drive_path = NULL, report_period = NULL) {
    corr <- list()
 
    # drive path

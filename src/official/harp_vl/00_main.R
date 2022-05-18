@@ -48,7 +48,7 @@ rm(path, drive_folders)
 
 ##  Begin linkage of datasets --------------------------------------------------
 
-nhsss$harp_vl$corr <- load_corr(nhsss$harp_vl$gdrive$path, ohasis$ym)
+nhsss$harp_vl$corr <- gdrive_correct(nhsss$harp_vl$gdrive$path, ohasis$ym)
 
 # optional to reload/process ml dataset
 update <- input(
