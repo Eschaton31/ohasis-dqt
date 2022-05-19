@@ -115,7 +115,7 @@ write_clip(
 
 ##  Generate import dataframes -------------------------------------------------
 
-TIMESTAMP <- "2022-05-17 09:19:00"
+TIMESTAMP <- "2022-05-19 15:17:00"
 # import    <- nhsss$harp_dx$pdf_saccl$data %>%
 import    <- nhsss$harp_dx$pdf_saccl$data %>%
    mutate_all(~as.character(.)) %>%

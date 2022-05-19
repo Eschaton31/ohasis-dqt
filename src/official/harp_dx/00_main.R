@@ -16,7 +16,7 @@ if (!exists('nhsss'))
 ##  Generate pre-requisites and endpoints --------------------------------------
 
 nhsss$harp_dx$gdrive$path <- gdrive_endpoint("HARP Dx", ohasis$ym)
-nhsss$harp_vl$corr        <- gdrive_correct(nhsss$harp_vl$gdrive$path, ohasis$ym)
+nhsss$harp_dx$corr        <- gdrive_correct(nhsss$harp_dx$gdrive$path, ohasis$ym)
 
 ##  Begin linkage of datasets --------------------------------------------------
 
