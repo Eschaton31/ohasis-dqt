@@ -62,7 +62,7 @@ dedup_new_uic <- dedup_new %>%
    mutate(UIC = row_number()) %>%
    ungroup() %>%
    pivot_wider(
-      id_cols      = c('CENTRAL_ID', 'UIC'),
+      id_cols      = CENTRAL_ID,
       names_from   = 'UIC',
       names_prefix = 'UIC_',
       values_from  = FIRST_TWO
@@ -120,8 +120,7 @@ invisible(
          mutate(DUP_IDS = paste(collapse = ', ', dedup_id))
 
       # if any found, include in list for review
-      if (nrow(df) > 0)
-         .GlobalEnv$nhsss$harp_dx$dedup_new[[dedup_name]] <- df
+      .GlobalEnv$nhsss$harp_dx$dedup_new[[dedup_name]] <- df
    })
 )
 
@@ -134,7 +133,7 @@ if (length(nhsss$harp_dx[[data_name]]) > 0)
       data_name   = data_name,
       parent_list = nhsss$harp_dx[[data_name]],
       drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/"),
-      surv_name = "HARP Dx"
+      surv_name   = "HARP Dx"
    )
 
 .log_success("Done!")
