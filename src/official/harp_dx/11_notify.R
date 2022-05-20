@@ -8,16 +8,15 @@ slack <- slackr_users()
 users <- c(
    'jrpalo',
    'kmasilo',
-   'jmvelayo',
    'mcrendon',
-   'mgzapanta',
    'appadilla',
-   'cjmaranan.doh',
-   'mcamoroso.doh',
-   'nspalaypayon',
-   'kapamittan'
+   'kapamittan',
+   'jsmartinez',
+   'cjtinaja',
+   'mgzapanta',
+   'nspalaypayon'
 )
-link  <- "https://www.dropbox.com/t/WH1W3rnHydzuxLCj"
+link  <- "https://www.dropbox.com/s/jmdzjudf94wbm13/20220519_reg_2022-04.zip?dl=0"
 for (user in users) {
    id <- (slack %>% filter(name == user))$id
    slackr_msg(

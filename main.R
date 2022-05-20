@@ -67,7 +67,9 @@ if (!file.exists(".secrets/hivregistry.nec@gmail.com.RDS")) {
    saveRDS(token, ".secrets/hivregistry.nec@gmail.com.RDS")
    rm('token')
 } else {
-   drop_auth(rdstoken = ".secrets/hivregistry.nec@gmail.com.RDS")
+   token <- readRDS(".secrets/hivregistry.nec@gmail.com.RDS")
+   drop_acc(dtoken = token)
+   rm('token')
 }
 
 ##  Load primary classes -------------------------------------------------------
