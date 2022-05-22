@@ -426,6 +426,216 @@ DB <- setRefClass(
             )
 
          return(data)
+      },
+
+      # method to decode address data
+      get_addr          = function(data, addr_set = NULL, type = "nhsss") {
+         # addr_set format:
+         # reg, prov, munc
+
+         type <- tolower(type)
+         if (type == "nhsss") {
+            get_reg  <- as.symbol("NHSSS_REG")
+            get_prov <- as.symbol("NHSSS_PROV")
+            get_munc <- as.symbol("NHSSS_MUNC")
+         } else if (type == "label") {
+            get_reg  <- as.symbol("LABEL_REG")
+            get_prov <- as.symbol("LABEL_PROV")
+            get_munc <- as.symbol("LABEL_MUNC")
+         } else if (type == "name") {
+            get_reg  <- as.symbol("NAME_REG")
+            get_prov <- as.symbol("NAME_PROV")
+            get_munc <- as.symbol("NAME_MUNC")
+         }
+
+         coded_reg  <- addr_set[1] %>% as.symbol()
+         coded_prov <- addr_set[2] %>% as.symbol()
+         coded_munc <- addr_set[3] %>% as.symbol()
+
+         named_reg  <- names(addr_set)[1]
+         named_prov <- names(addr_set)[2]
+         named_munc <- names(addr_set)[3]
+
+         # rename columns
+         data %<>%
+            select(
+               -any_of(
+                  c(
+                     "PSGC_REG",
+                     "PSGC_PROV",
+                     "PSGC_MUNC"
+                  )
+               )
+            ) %>%
+            mutate_at(
+               .vars = vars(!!coded_reg, !!coded_prov, !!coded_munc),
+               ~if_else(is.na(.), "", .)
+            ) %>%
+            rename_all(
+               ~case_when(
+                  . == coded_reg ~ "PSGC_REG",
+                  . == coded_prov ~ "PSGC_PROV",
+                  . == coded_munc ~ "PSGC_MUNC",
+                  TRUE ~ .
+               )
+            ) %>%
+            left_join(
+               y  = .self$ref_addr %>%
+                  select(
+                     PSGC_REG,
+                     PSGC_PROV,
+                     PSGC_MUNC,
+                     !!named_reg  := !!get_reg,
+                     !!named_prov := !!get_prov,
+                     !!named_munc := !!get_munc,
+                  ),
+               by = c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC")
+            ) %>%
+            relocate(!!named_reg, !!named_prov, !!named_munc, .before = PSGC_REG) %>%
+            select(
+               -PSGC_REG,
+               -PSGC_PROV,
+               -PSGC_MUNC
+            )
+      },
+
+      # method to decode faci data
+      get_faci          = function(data, faci_set = NULL, type = "nhsss") {
+         # faci_set format:
+         # name = c(faci_id, sub_faci_id)
+
+         type <- tolower(type)
+         if (type == "nhsss")
+            get <- as.symbol("FACI_NAME_CLEAN")
+         else if (type == "code")
+            get <- as.symbol("FACI_CODE")
+         else if (type == "label")
+            get <- as.symbol("FACI_LABEL")
+         else if (type == "name")
+            get <- as.symbol("FACI_NAME")
+
+         final_faci  <- names(faci_set) %>% as.symbol()
+         faci_id     <- faci_set[[1]][1] %>% as.symbol()
+         sub_faci_id <- faci_set[[1]][2] %>% as.symbol()
+
+         # rename columns
+         data %<>%
+            # clean variables first
+            mutate(
+               !!faci_id     := if_else(
+                  condition = is.na(!!faci_id),
+                  true      = "",
+                  false     = !!faci_id
+               ),
+               !!sub_faci_id := case_when(
+                  is.na(!!sub_faci_id) ~ "",
+                  StrLeft(!!sub_faci_id, 6) != !!faci_id ~ "",
+                  TRUE ~ !!sub_faci_id
+               )
+            ) %>%
+            # get referenced data
+            left_join(
+               y  = .self$ref_faci %>%
+                  select(
+                     !!faci_id     := FACI_ID,
+                     !!sub_faci_id := SUB_FACI_ID,
+                     !!final_faci  := !!get
+                  ),
+               by = c(as.character(faci_id), as.character(sub_faci_id))
+            ) %>%
+            # move then rename to old version
+            relocate(!!final_faci, .after = !!sub_faci_id)
+      },
+
+      # method to decode user/staff data
+      get_staff         = function(data, user_set = NULL) {
+         # column
+         coded_user <- user_set[1] %>% as.symbol()
+         named_user <- names(user_set[1]) %>% as.symbol()
+
+         data %<>%
+            left_join(
+               y  = .self$ref_staff %>%
+                  select(
+                     !!coded_user := STAFF_ID,
+                     !!named_user := STAFF_NAME
+                  ),
+               by = as.character(coded_user)
+            ) %>%
+            # move then rename to old version
+            relocate(!!named_user, .after = !!coded_user) %>%
+            select(-as.character(coded_user))
+      },
+
+      # method to pull client records from OHASIS
+      get_patient       = function(pid = NULL) {
+         lw_conn <- .self$conn("lw")
+
+         # get central id if available
+         cid_q <- "SELECT CENTRAL_ID FROM ohasis_warehouse.id_registry WHERE PATIENT_ID = ?"
+         cid_d <- dbxSelect(lw_conn, cid_q, pid)$CENTRAL_ID
+
+         # get list
+         if (length(cid_d) > 0) {
+            pid_q <- "SELECT PATIENT_ID FROM ohasis_warehouse.id_registry WHERE CENTRAL_ID = ?"
+            pid_d <- dbxSelect(lw_conn, pid_q, cid_d)$PATIENT_ID
+         } else {
+            pid_d <- pid
+         }
+
+         final_q <- "SELECT * FROM ohasis_lake.px_pii WHERE PATIENT_ID IN (?)"
+         final_d <- dbxSelect(lw_conn, final_q, list(pid_d))
+
+         # convert addresses
+         final_d <- .self$get_addr(
+            final_d,
+            c(
+               "PERM_REG"  = "PERM_PSGC_REG",
+               "PERM_PROV" = "PERM_PSGC_PROV",
+               "PERM_MUNC" = "PERM_PSGC_MUNC"
+            ),
+            "name"
+         )
+         final_d <- .self$get_addr(
+            final_d,
+            c(
+               "CURR_REG"  = "CURR_PSGC_REG",
+               "CURR_PROV" = "CURR_PSGC_PROV",
+               "CURR_MUNC" = "CURR_PSGC_MUNC"
+            ),
+            "name"
+         )
+         final_d <- .self$get_addr(
+            final_d,
+            c(
+               "BIRTH_REG"  = "BIRTH_PSGC_REG",
+               "BIRTH_PROV" = "BIRTH_PSGC_PROV",
+               "BIRTH_MUNC" = "BIRTH_PSGC_MUNC"
+            ),
+            "name"
+         )
+
+         # get faci data
+         final_d <- .self$get_faci(
+            final_d,
+            list("RECORD_FACI" = c("FACI_ID", "SUB_FACI_ID")),
+            "name"
+         )
+
+         # get user data
+         final_d <- .self$get_staff(final_d, c("CREATED" = "CREATED_BY"))
+         final_d <- .self$get_staff(final_d, c("UPDATED" = "UPDATED_BY"))
+         final_d <- .self$get_staff(final_d, c("DELETED" = "DELETED_BY"))
+
+         final_d %<>%
+            select(
+               -starts_with("DEATH_PSGC"),
+               -starts_with("SERVICE_PSGC")
+            ) %>%
+            arrange(RECORD_DATE, MODULE)
+
+         return(final_d)
+         dbDisconnect(lw_conn)
       }
    )
 )
