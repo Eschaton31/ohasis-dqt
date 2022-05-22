@@ -570,15 +570,16 @@ DB <- setRefClass(
       # method to pull client records from OHASIS
       get_patient       = function(pid = NULL) {
          lw_conn <- .self$conn("lw")
+         db_conn <- .self$conn("db")
 
          # get central id if available
-         cid_q <- "SELECT CENTRAL_ID FROM ohasis_warehouse.id_registry WHERE PATIENT_ID = ?"
-         cid_d <- dbxSelect(lw_conn, cid_q, pid)$CENTRAL_ID
+         cid_q <- "SELECT CENTRAL_ID FROM ohasis_interim.registry WHERE PATIENT_ID = ?"
+         cid_d <- dbxSelect(db_conn, cid_q, pid)$CENTRAL_ID
 
          # get list
          if (length(cid_d) > 0) {
-            pid_q <- "SELECT PATIENT_ID FROM ohasis_warehouse.id_registry WHERE CENTRAL_ID = ?"
-            pid_d <- dbxSelect(lw_conn, pid_q, cid_d)$PATIENT_ID
+            pid_q <- "SELECT PATIENT_ID FROM ohasis_interim.registry WHERE CENTRAL_ID = ?"
+            pid_d <- dbxSelect(db_conn, pid_q, cid_d)$PATIENT_ID
          } else {
             pid_d <- pid
          }
@@ -636,6 +637,7 @@ DB <- setRefClass(
 
          return(final_d)
          dbDisconnect(lw_conn)
+         dbDisconnect(db_conn)
       }
    )
 )
