@@ -753,7 +753,7 @@ DB <- setRefClass(
                old_dataset <- old_dataset %>%
                   anti_join(
                      y  = remove_rows,
-                     by = id_col
+                     by = names(id_col)
                   )
             }
 
