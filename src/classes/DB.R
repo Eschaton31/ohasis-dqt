@@ -638,6 +638,110 @@ DB <- setRefClass(
          return(final_d)
          dbDisconnect(lw_conn)
          dbDisconnect(db_conn)
+      },
+
+      # method to load old dataset
+      load_old_dta      = function(
+         path = NULL,
+         corr = NULL,
+         warehouse_table = NULL,
+         id_col = NULL,
+         dta_pid = NULL,
+         remove_cols = NULL,
+         remove_rows = NULL
+      ) {
+         # open connections
+         .log_info("Opening connections.")
+         db_conn <- ohasis$conn("lw")
+         db_name <- "ohasis_warehouse"
+
+         # references for old dataset
+         old_tblspace  <- Id(schema = db_name, table = warehouse_table)
+         old_tblschema <- dbplyr::in_schema(db_name, warehouse_table)
+         oh_id_schema  <- dbplyr::in_schema(db_name, "id_registry")
+
+         # check if dataset is to be re-loaded
+         # TODO: add checking of latest version
+         reload <- input(
+            prompt  = "How do you want to load the previous dataset?",
+            options = c("1" = "reprocess", "2" = "download"),
+            default = "1"
+         )
+
+
+         # if Yes, re-process registry
+         if (reload == "1") {
+            .log_info("Re-processing the dataset from the previous reporting period.")
+
+            old_dataset <- path %>%
+               read_dta() %>%
+               # convert Stata string missing data to NAs
+               mutate_if(
+                  .predicate = is.character,
+                  ~if_else(. == '', NA_character_, .)
+               ) %>%
+               select(-any_of(remove_cols)) %>%
+               rename_all(
+                  ~case_when(
+                     . == dta_pid ~ "PATIENT_ID"
+                  )
+               ) %>%
+               left_join(
+                  y  = tbl(db_conn, oh_id_schema) %>%
+                     select(CENTRAL_ID, PATIENT_ID) %>%
+                     collect(),
+                  by = "PATIENT_ID"
+               ) %>%
+               mutate(
+                  CENTRAL_ID = if_else(
+                     condition = is.na(CENTRAL_ID),
+                     true      = PATIENT_ID,
+                     false     = CENTRAL_ID
+                  )
+               ) %>%
+               relocate(CENTRAL_ID, .before = 1)
+
+            if (!is.null(corr)) {
+               .log_info("Performing cleaning on the dataset.")
+               old_dataset <- .cleaning_list(old_dataset, corr, toupper(names(id_col)), id_col)
+            }
+
+            # drop clients
+            if (!is.null(remove_rows)) {
+               old_dataset <- old_dataset %>%
+                  anti_join(
+                     y  = remove_rows,
+                     by = id_col
+                  )
+            }
+
+            .log_info("Updating warehouse table.")
+            # delete existing data, full refresh always
+            if (dbExistsTable(db_conn, old_tblspace))
+               dbExecute(db_conn, glue(r"("DROP TABLE `ohasis_warehouse`.`{warehouse_table}`;")"))
+
+            # upload info
+            ohasis$upsert(db_conn, "warehouse", warehouse_table, old_dataset, "PATIENT_ID")
+         }
+
+         if (reload == "2") {
+            .log_info("Downloading the dataset from the previous reporting period.")
+            old_dataset <- tbl(db_conn, old_tblschema) %>%
+               select(-CENTRAL_ID) %>%
+               left_join(
+                  y  = tbl(db_conn, oh_id_schema) %>%
+                     select(CENTRAL_ID, PATIENT_ID),
+                  by = "PATIENT_ID"
+               ) %>%
+               relocate(CENTRAL_ID, .before = 1) %>%
+               collect()
+         }
+
+         .log_info("Closing connections.")
+         dbDisconnect(db_conn)
+
+         .log_success("Done.")
+         return(old_dataset)
       }
    )
 )
