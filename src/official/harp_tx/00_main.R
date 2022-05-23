@@ -1,54 +1,30 @@
-##  HARP Tx Registry Linkage Controller ----------------------------------------
-
-# update warehouse - lab data
-ohasis$data_factory("lake", "lab_wide", "upsert", TRUE)
-
-# update warehouse - dispensed data
-ohasis$data_factory("lake", "disp_meds", "upsert", TRUE)
-
-# update warehouse - Form ART / BC
-ohasis$data_factory("warehouse", "form_art_bc", "upsert", TRUE)
-
-# update warehouse - OHASIS IDs
-ohasis$data_factory("warehouse", "id_registry", "upsert", TRUE)
+##  Generate pre-requisites and endpoints --------------------------------------
 
 # define datasets
 if (!exists('nhsss'))
    nhsss <- list()
 
-##  Google Drive Endpoint ------------------------------------------------------
+if (!("harp_tx" %in% names(nhsss)))
+   nhsss$harp_tx <- new.env()
 
-path         <- list()
-path$primary <- "~/DQT/Data Factory/HARP Tx/"
-path$report  <- paste0(path$primary, ohasis$ym, "/")
+local(envir = nhsss$harp_tx, {
+   gdrive      <- list()
+   gdrive$path <- gdrive_endpoint("HARP Tx", ohasis$ym)
+   corr        <- gdrive_correct(gdrive$path, ohasis$ym)
 
-# create folders if not exists
-drive_folders <- list(
-   c(path$primary, ohasis$ym),
-   c(path$report, "Cleaning"),
-   c(path$report, "Validation")
-)
-invisible(
-   lapply(drive_folders, function(folder) {
-      parent <- folder[1] # parent dir
-      path   <- folder[2] # name of dir to be checked
+   tables           <- list()
+   tables$lake      <- c("lab_wide", "disp_meds")
+   tables$warehouse <- c("form_art_bc", "id_registry")
+})
 
-      # get sub-folders
-      dribble <- drive_ls(parent)
-
-      # create folder if not exists
-      if (nrow(dribble %>% filter(name == path)) == 0)
-         drive_mkdir(paste0(parent, path))
-   })
-)
-
-# get list of files in dir
-nhsss$harp_tx$gdrive$path <- path
-rm(path, drive_folders)
+# run through all tables
+local(envir = nhsss$harp_tx, invisible({
+   lapply(tables$lake, function(table) ohasis$data_factory("lake", table, "upsert", TRUE))
+   lapply(tables$warehouse, function(table) ohasis$data_factory("warehouse", table, "upsert", TRUE))
+}))
 
 ##  Begin linkage of art registry ----------------------------------------------
 
-source("src/official/harp_tx/01_load_corrections.R")
 source("src/official/harp_tx/02_load_harp.R")
 source("src/official/harp_tx/03_load_visits.R")
 source("src/official/harp_tx/04_data_reg.initial.R")
