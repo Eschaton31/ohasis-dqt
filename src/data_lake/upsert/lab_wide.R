@@ -14,6 +14,10 @@ object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
       CREATED_AT,
       UPDATED_AT,
       DELETED_AT
+   ) %>%
+   inner_join(
+      y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_labs")) %>% select(REC_ID),
+      by = "REC_ID"
    )
 
 # get number of affected rows
