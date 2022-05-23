@@ -1,4 +1,4 @@
-##  Generate pre-requisites and endpoints --------------------------------------
+##  HARP Tx Linkage Controller -------------------------------------------------
 
 # define datasets
 if (!exists('nhsss'))
@@ -7,29 +7,15 @@ if (!exists('nhsss'))
 if (!("harp_tx" %in% names(nhsss)))
    nhsss$harp_tx <- new.env()
 
-local(envir = nhsss$harp_tx, {
-   gdrive      <- list()
-   gdrive$path <- gdrive_endpoint("HARP Tx", ohasis$ym)
-   corr        <- gdrive_correct(gdrive$path, ohasis$ym)
-
-   tables           <- list()
-   tables$lake      <- c("lab_wide", "disp_meds")
-   tables$warehouse <- c("form_art_bc", "id_registry")
-})
-
-# run through all tables
-local(envir = nhsss$harp_tx, invisible({
-   lapply(tables$lake, function(table) ohasis$data_factory("lake", table, "upsert", TRUE))
-   lapply(tables$warehouse, function(table) ohasis$data_factory("warehouse", table, "upsert", TRUE))
-}))
+nhsss$harp_tx$wd <- file.path(getwd(), "src", "official", "harp_tx")
 
 ##  Begin linkage of art registry ----------------------------------------------
 
-source("src/official/harp_tx/02_load_harp.R")
-source("src/official/harp_tx/03_load_visits.R")
-source("src/official/harp_tx/04_data_reg.initial.R")
-source("src/official/harp_tx/05_data_reg.convert.R")
-source("src/official/harp_tx/06_data_reg.final.R")
+source(file.path(nhsss$harp_tx$wd, "02_load_reqs.R"))
+source(file.path(nhsss$harp_tx$wd, "03_load_visits.R"))
+source(file.path(nhsss$harp_tx$wd, "04_data_reg.initial.R"))
+source(file.path(nhsss$harp_tx$wd, "05_data_reg.convert.R"))
+source(file.path(nhsss$harp_tx$wd, "06_data_reg.final.R"))
 
 ##  PII Deduplication ----------------------------------------------------------
 
