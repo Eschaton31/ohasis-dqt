@@ -34,10 +34,9 @@ rm(dedup)
 
 ##  Begin linkage of outcomes dataset ------------------------------------------
 
-source("src/official/harp_tx/11_data_outcome.initial.R")
-source("src/official/harp_tx/12_data_outcome.convert.R")
-source("src/official/harp_tx/13_data_outcome.final.R")
-
+source(file.path(nhsss$harp_tx$wd, "11_data_outcome.initial.R"))
+source(file.path(nhsss$harp_tx$wd, "12_data_outcome.convert.R"))
+source(file.path(nhsss$harp_tx$wd, "13_data_outcome.final.R"))
 
 ##  Finalize dataset -----------------------------------------------------------
 

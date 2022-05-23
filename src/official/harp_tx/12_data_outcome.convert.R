@@ -437,6 +437,14 @@ if (update == "1") {
       ) %>%
       arrange(curr_hub)
 
+   .log_info("Checking for extreme dispensing.")
+   nhsss$harp_tx$outcome.converted$check[["mismatch_faci"]] <- nhsss$harp_tx$outcome.converted$data %>%
+      filter(
+         prev_ffup == curr_ffup,
+         curr_hub != prev_hub
+      ) %>%
+      arrange(curr_hub)
+
    .log_info("Checking for resurrected clients.")
    nhsss$harp_tx$outcome.converted$check[["resurrect"]] <- nhsss$harp_tx$outcome.converted$data %>%
       filter(
