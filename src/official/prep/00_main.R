@@ -13,7 +13,7 @@ ohasis$data_factory("warehouse", "form_prep", "upsert", TRUE)
 ohasis$data_factory("warehouse", "id_registry", "upsert", TRUE)
 
 # define datasets
-if (!exists('nhsss'))
+if (!exists("nhsss"))
    nhsss <- list()
 
 ##  Google Drive Endpoint ------------------------------------------------------

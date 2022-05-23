@@ -1,7 +1,7 @@
 ##  HARP Tx Linkage Controller -------------------------------------------------
 
 # define datasets
-if (!exists('nhsss'))
+if (!exists("nhsss"))
    nhsss <- list()
 
 if (!("harp_tx" %in% names(nhsss)))
