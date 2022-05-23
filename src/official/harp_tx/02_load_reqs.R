@@ -1,7 +1,7 @@
 ##  Generate pre-requisites and endpoints --------------------------------------
 
 check <- input(
-   prompt  = "Check the GDrive Endpoints?",
+   prompt  = glue("Check the {green('GDrive Endpoints')}?"),
    options = c("1" = "yes", "2" = "no"),
    default = "2"
 )
@@ -16,7 +16,7 @@ if (check == "1") {
 
 # run through all tables
 check <- input(
-   prompt  = "Update data to be used for consolidation?",
+   prompt  = glue("Update {green('data/forms')} to be used for consolidation?"),
    options = c("1" = "yes", "2" = "no"),
    default = "2"
 )
@@ -67,3 +67,4 @@ if (check == "1") {
       }
    })
 }
+rm(check)

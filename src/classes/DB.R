@@ -500,23 +500,49 @@ DB <- setRefClass(
       },
 
       # method to decode faci data
-      get_faci          = function(data, faci_set = NULL, type = "nhsss") {
+      get_faci          = function(data, faci_set = NULL, type = "nhsss", addr_vars = NULL) {
          # faci_set format:
          # name = c(faci_id, sub_faci_id)
 
+         # addr_set format:
+         # reg, prov, munc
+
          type <- tolower(type)
-         if (type == "nhsss")
-            get <- as.symbol("FACI_NAME_CLEAN")
-         else if (type == "code")
-            get <- as.symbol("FACI_CODE")
-         else if (type == "label")
-            get <- as.symbol("FACI_LABEL")
-         else if (type == "name")
-            get <- as.symbol("FACI_NAME")
+         if (type == "nhsss") {
+            get      <- as.symbol("FACI_NAME_CLEAN")
+            get_reg  <- "FACI_NHSSS_REG"
+            get_prov <- "FACI_NHSSS_PROV"
+            get_munc <- "FACI_NHSSS_MUNC"
+         } else if (type == "code") {
+            get      <- as.symbol("FACI_CODE")
+            get_reg  <- "FACI_NHSSS_REG"
+            get_prov <- "FACI_NHSSS_PROV"
+            get_munc <- "FACI_NHSSS_MUNC"
+         } else if (type == "label") {
+            get      <- as.symbol("FACI_LABEL")
+            get_reg  <- "FACI_NAME_REG"
+            get_prov <- "FACI_NAME_PROV"
+            get_munc <- "FACI_NAME_MUNC"
+         } else if (type == "name") {
+            get      <- as.symbol("FACI_NAME")
+            get_reg  <- "FACI_NAME_REG"
+            get_prov <- "FACI_NAME_PROV"
+            get_munc <- "FACI_NAME_MUNC"
+         }
 
          final_faci  <- names(faci_set) %>% as.symbol()
          faci_id     <- faci_set[[1]][1] %>% as.symbol()
          sub_faci_id <- faci_set[[1]][2] %>% as.symbol()
+
+         if (!is.null(addr_vars)) {
+            named_reg  <- addr_vars[1]
+            named_prov <- addr_vars[2]
+            named_munc <- addr_vars[3]
+         } else {
+            named_reg  <- ""
+            named_prov <- ""
+            named_munc <- ""
+         }
 
          # rename columns
          data %<>%
@@ -536,10 +562,25 @@ DB <- setRefClass(
             # get referenced data
             left_join(
                y  = .self$ref_faci %>%
+                  rename_all(
+                     ~case_when(
+                        . == get_reg & named_reg != "" ~ named_reg,
+                        . == get_prov & named_prov != "" ~ named_prov,
+                        . == get_munc & named_munc != "" ~ named_munc,
+                        TRUE ~ .
+                     )
+                  ) %>%
                   select(
                      !!faci_id     := FACI_ID,
                      !!sub_faci_id := SUB_FACI_ID,
-                     !!final_faci  := !!get
+                     !!final_faci  := !!get,
+                     any_of(
+                        c(
+                           named_reg,
+                           named_prov,
+                           named_munc
+                        )
+                     )
                   ),
                by = c(as.character(faci_id), as.character(sub_faci_id))
             ) %>%
