@@ -48,7 +48,8 @@ if (check == "1") {
          corr            = corr$old_reg,
          warehouse_table = "harp_tx_old",
          id_col          = c("art_id" = "integer"),
-         dta_pid         = "CENTRAL_ID",
+         dta_pid         = "PATIENT_ID",
+         remove_cols     = "CENTRAL_ID",
          remove_rows     = corr$anti_join
       )
 

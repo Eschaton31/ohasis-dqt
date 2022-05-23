@@ -724,7 +724,8 @@ DB <- setRefClass(
                select(-any_of(remove_cols)) %>%
                rename_all(
                   ~case_when(
-                     . == dta_pid ~ "PATIENT_ID"
+                     . == dta_pid ~ "PATIENT_ID",
+                     TRUE ~ .
                   )
                ) %>%
                left_join(
@@ -759,7 +760,7 @@ DB <- setRefClass(
             .log_info("Updating warehouse table.")
             # delete existing data, full refresh always
             if (dbExistsTable(db_conn, old_tblspace))
-               dbExecute(db_conn, glue(r"("DROP TABLE `ohasis_warehouse`.`{warehouse_table}`;")"))
+               dbExecute(db_conn, glue(r"(DROP TABLE `ohasis_warehouse`.`{warehouse_table}`;)"))
 
             # upload info
             ohasis$upsert(db_conn, "warehouse", warehouse_table, old_dataset, "PATIENT_ID")
