@@ -192,7 +192,7 @@ DB <- setRefClass(
                   Var1 %in% text_faci ~ "TEXT NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
                   Var1 %in% user_cols & !(Var1 %in% id_col) ~ "CHAR(10) NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
                   Var1 %in% user_cols & Var1 %in% id_col ~ "CHAR(10) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "FACI_CODE" ~ "CHAR(3) NULL COLLATE 'utf8_general_ci'",
+                  Var1 == "FACI_CODE" ~ "VARCHAR(255) NULL COLLATE 'utf8_general_ci'",
                   Var1 == "REC_ID" ~ "CHAR(25) NULL COLLATE 'utf8_general_ci'",
                   Var1 == "REC_ID_GRP" ~ "VARCHAR(100) NULL COLLATE 'utf8_general_ci'",
                   Var1 == "CENTRAL_ID" ~ "CHAR(18) NULL COLLATE 'utf8_general_ci'",
