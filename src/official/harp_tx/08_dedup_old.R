@@ -276,6 +276,12 @@ group_pii               <- list(
    "ConfirmCode.Fixed"   = "CONFIRM_SIEVE",
    "PxCode.Base"         = "PATIENT_CODE",
    "PxCode.Fixed"        = "PXCODE_SIEVE",
+   "PxConfirm.Base"      = c("PATIENT_CODE", "CONFIRMATORY_CODE"),
+   "PxConfirm.Fixed"     = c("PXCODE_SIEVE", "CONFIRM_SIEVE"),
+   "ConfirmUIC.Base"     = c("CONFIRMATORY_CODE", "UIC"),
+   "ConfirmUIC.Fixed"    = c("CONFIRM_SIEVE", "UIC"),
+   "PxUIC.Base"          = c("PATIENT_CODE", "UIC"),
+   "PxUIC.Fixed"         = c("PXCODE_SIEVE", "UIC"),
    "Name.Base"           = c("FIRST", "LAST", "birthdate"),
    "Name.Fixed"          = c("FIRST_NY", "LAST_NY", "birthdate"),
    "Name.Partial"        = c("FIRST_A", "LAST_A", "birthdate"),
@@ -308,8 +314,7 @@ invisible(
          mutate(DUP_IDS = paste(collapse = ', ', dedup_id))
 
       # if any found, include in list for review
-      if (nrow(df) > 0)
-         .GlobalEnv$nhsss$harp_tx$dedup_old[[dedup_name]] <- df
+      .GlobalEnv$nhsss$harp_tx$dedup_old[[dedup_name]] <- df
    })
 )
 
