@@ -133,7 +133,7 @@ check_dir <- function(dir) {
 
       # load idnum and name of variable
       df       <- cleaning_list[i,] %>% as.data.frame()
-      id       <- paste0("df['", corr_id_name, "'] %>% as.", corr_id_type, '()')
+      id       <- paste0("df[,'", corr_id_name, "'] %>% as.", corr_id_type, '()')
       id       <- eval(parse(text = id))
       eb_id    <- tolower(corr_id_name) %>% as.symbol()
       variable <- df$VARIABLE %>% as.symbol()
