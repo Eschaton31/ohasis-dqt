@@ -27,15 +27,15 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
          true      = curr_transhub,
          false     = prev_transhub,
       ),
-      realhub          = if_else(
+      realhub           = if_else(
          condition = use_db == 1,
          true      = curr_realhub,
          false     = prev_transhub,
       ),
-      realhub_branch          = if_else(
+      realhub_branch    = if_else(
          condition = use_db == 1,
          true      = curr_realhub_branch,
-         false     = prev_transhub_branch,
+         false     = prev_realhub_branch,
       ),
       latest_ffupdate   = if_else(
          condition = use_db == 1,
@@ -86,6 +86,77 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
       ),
    ) %>%
    select(
+      -any_of(
+         c(
+            "tx_reg",
+            "tx_prov",
+            "tx_munc",
+            "real_reg",
+            "real_prov",
+            "real_munc"
+         )
+      )
+   ) %>%
+   mutate(
+      # finalize realhub data
+      realhub_branch = if_else(
+         condition = is.na(realhub),
+         true      = branch,
+         false     = realhub_branch
+      ),
+      realhub        = if_else(
+         condition = is.na(realhub),
+         true      = hub,
+         false     = realhub
+      )
+   ) %>%
+   left_join(
+      y  = ohasis$ref_faci %>%
+         distinct(FACI_CODE, .keep_all = TRUE) %>%
+         select(
+            branch  = FACI_CODE,
+            tx_reg  = FACI_NHSSS_REG,
+            tx_prov = FACI_NHSSS_PROV,
+            tx_munc = FACI_NHSSS_MUNC,
+         ) %>%
+         mutate(
+            hub     = case_when(
+               stri_detect_regex(branch, "^TLY") ~ "TLY",
+               TRUE ~ branch
+            ),
+            branch  = if_else(
+               condition = nchar(branch) == 3,
+               true      = NA_character_,
+               false     = branch
+            ),
+            .before = 1
+         ),
+      by = c("hub", "branch")
+   ) %>%
+   left_join(
+      y  = ohasis$ref_faci %>%
+         distinct(FACI_CODE, .keep_all = TRUE) %>%
+         select(
+            realhub_branch = FACI_CODE,
+            real_reg       = FACI_NHSSS_REG,
+            real_prov      = FACI_NHSSS_PROV,
+            real_munc      = FACI_NHSSS_MUNC,
+         ) %>%
+         mutate(
+            realhub = case_when(
+               stri_detect_regex(realhub_branch, "^TLY") ~ "TLY",
+               TRUE ~ realhub_branch
+            ),
+            realhub_branch  = if_else(
+               condition = nchar(realhub_branch) == 3,
+               true      = NA_character_,
+               false     = realhub_branch
+            ),
+            .before = 1
+         ),
+      by = c("realhub", "realhub_branch")
+   ) %>%
+   select(
       REC_ID,
       CENTRAL_ID,
       art_id,
@@ -96,12 +167,14 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
       branch,
       sathub,
       transhub,
-      realhub,
-      realhub_branch,
       tx_reg,
       tx_prov,
       tx_munc,
-      pubpriv,
+      realhub,
+      realhub_branch,
+      real_reg,
+      real_prov,
+      real_munc,
       artstart_date,
       class   = curr_class,
       outcome = curr_outcome,
