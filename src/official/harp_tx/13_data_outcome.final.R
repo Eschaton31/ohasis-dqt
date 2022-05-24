@@ -12,6 +12,31 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
          true      = curr_hub,
          false     = prev_hub,
       ),
+      branch            = if_else(
+         condition = use_db == 1,
+         true      = curr_branch,
+         false     = prev_branch,
+      ),
+      sathub            = if_else(
+         condition = use_db == 1,
+         true      = curr_sathub,
+         false     = prev_sathub,
+      ),
+      transhub          = if_else(
+         condition = use_db == 1,
+         true      = curr_transhub,
+         false     = prev_transhub,
+      ),
+      realhub          = if_else(
+         condition = use_db == 1,
+         true      = curr_realhub,
+         false     = prev_transhub,
+      ),
+      realhub_branch          = if_else(
+         condition = use_db == 1,
+         true      = curr_realhub_branch,
+         false     = prev_transhub_branch,
+      ),
       latest_ffupdate   = if_else(
          condition = use_db == 1,
          true      = curr_ffup,
@@ -61,13 +86,18 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
       ),
    ) %>%
    select(
+      REC_ID,
       CENTRAL_ID,
       art_id,
       idnum,
       sex,
       curr_age,
       hub,
+      branch,
       sathub,
+      transhub,
+      realhub,
+      realhub_branch,
       tx_reg,
       tx_prov,
       tx_munc,

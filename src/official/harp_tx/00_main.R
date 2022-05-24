@@ -26,9 +26,9 @@ dedup <- input(
    default = "2"
 )
 if (dedup == "1") {
-   source("src/official/harp_tx/07_dedup_new.R")
-   source("src/official/harp_tx/08_dedup_old.R")
-   source("src/official/harp_tx/09_dedup_dx.R")
+   source(file.path(nhsss$harp_tx$wd, "07_dedup_new.R"))
+   source(file.path(nhsss$harp_tx$wd, "08_dedup_old.R"))
+   source(file.path(nhsss$harp_tx$wd, "09_dedup_dx.R"))
 }
 rm(dedup)
 
@@ -47,10 +47,10 @@ complete <- input(
    default = "2"
 )
 if (complete == "1") {
-   source("src/official/harp_tx/14_output.R")
+   source(file.path(nhsss$harp_tx$wd, "14_output.R"))
 
    # TODO: Place these after pdf & ml conso
-   source("src/official/harp_tx/15_archive.R")
-   source("src/official/harp_tx/16_upload.R")
+   source(file.path(nhsss$harp_tx$wd, "15_archive.R"))
+   source(file.path(nhsss$harp_tx$wd, "16_upload.R"))
 }
 rm(complete)

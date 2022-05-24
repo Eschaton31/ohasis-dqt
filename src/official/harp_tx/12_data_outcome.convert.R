@@ -72,16 +72,20 @@ nhsss$harp_tx$outcome.converted$data <- nhsss$harp_tx$outcome.initial$data %>%
          mutate(hub = toupper(hub)) %>%
          select(
             art_id,
-            prev_class   = class,
-            prev_outcome = outcome,
-            prev_ffup    = latest_ffupdate,
-            prev_pickup  = latest_nextpickup,
-            prev_regimen = latest_regimen,
-            prev_line    = line,
-            prev_artreg  = art_reg,
-            prev_hub     = hub,
-            prev_age     = curr_age,
-            sathub,
+            prev_class          = class,
+            prev_outcome        = outcome,
+            prev_ffup           = latest_ffupdate,
+            prev_pickup         = latest_nextpickup,
+            prev_regimen        = latest_regimen,
+            prev_line           = line,
+            prev_artreg         = art_reg,
+            prev_hub            = hub,
+            prev_branch         = branch,
+            prev_sathub         = sathub,
+            prev_transhub       = transhub,
+            prev_realhub        = realhub,
+            prev_realhub_branch = realhub_branch,
+            prev_age            = curr_age,
          ),
       by = "art_id"
    ) %>%
@@ -203,51 +207,6 @@ nhsss$harp_tx$outcome.converted$data <- nhsss$harp_tx$outcome.initial$data %>%
       dtg1                = if_else(stri_detect_fixed(arv_reg, "dtg"), "dtg", NA_character_),
    )
 
-##  Facilities -----------------------------------------------------------------
-
-.log_info("Attaching facility names (HARP versions).")
-nhsss$harp_tx$outcome.converted$data %<>%
-   # txhub
-   mutate(
-      ART_FACI     = if_else(
-         condition = is.na(ART_FACI),
-         true      = "",
-         false     = ART_FACI
-      ),
-      ART_SUB_FACI = case_when(
-         is.na(ART_SUB_FACI) ~ "",
-         StrLeft(ART_SUB_FACI, 6) != ART_FACI ~ "",
-         TRUE ~ ART_SUB_FACI
-      )
-   ) %>%
-   left_join(
-      na_matches = "never",
-      y          = ohasis$ref_faci %>%
-         left_join(
-            y  = ohasis$ref_addr %>%
-               select(
-                  FACI_PSGC_REG  = PSGC_REG,
-                  FACI_PSGC_PROV = PSGC_PROV,
-                  FACI_PSGC_MUNC = PSGC_MUNC,
-                  tx_reg         = NHSSS_REG,
-                  tx_prov        = NHSSS_PROV,
-                  tx_munc        = NHSSS_MUNC
-               ),
-            by = c("FACI_PSGC_REG", "FACI_PSGC_PROV", "FACI_PSGC_MUNC")
-         ) %>%
-         select(
-            ART_FACI     = FACI_ID,
-            ART_SUB_FACI = SUB_FACI_ID,
-            curr_hub     = FACI_CODE,
-            pubpriv      = PUBPRIV,
-            tx_reg,
-            tx_prov,
-            tx_munc
-         ),
-      by         = c("ART_FACI", "ART_SUB_FACI")
-   ) %>%
-   relocate(curr_hub, .before = ART_FACI)
-
 ##  Finalize -------------------------------------------------------------------
 
 .log_info("Finalizing dataframe.")
@@ -316,9 +275,14 @@ nhsss$harp_tx$outcome.converted$data %<>%
       who_staging,
       use_db,
       artstart_date,
-      oh_artstart_rec = EARLIEST_REC,
-      oh_artstart     = EARLIEST_VISIT,
+      oh_artstart_rec     = EARLIEST_REC,
+      oh_artstart         = EARLIEST_VISIT,
       prev_hub,
+      prev_branch,
+      prev_sathub,
+      prev_transhub,
+      prev_realhub,
+      prev_realhub_branch,
       prev_class,
       prev_outcome,
       prev_line,
@@ -327,24 +291,30 @@ nhsss$harp_tx$outcome.converted$data %<>%
       prev_regimen,
       prev_artreg,
       prev_num_drugs,
-      curr_hub,
+      curr_hub            = ART_FACI_CODE,
+      curr_branch         = ART_BRANCH,
+      curr_sathub         = SATELLITE_FACI_CODE,
+      curr_transhub       = TRANSIENT_FACI_CODE,
       curr_age,
       curr_class,
       curr_outcome,
       curr_line,
-      curr_ffup       = LATEST_VISIT,
-      curr_pickup     = LATEST_NEXT_DATE,
-      curr_regimen    = MEDICINE_SUMMARY, ,
-      curr_artreg     = art_reg1,
+      curr_ffup           = LATEST_VISIT,
+      curr_pickup         = LATEST_NEXT_DATE,
+      curr_regimen        = MEDICINE_SUMMARY, ,
+      curr_artreg         = art_reg1,
       curr_num_drugs,
       tx_reg,
       tx_prov,
       tx_munc,
-      pubpriv,
+      curr_realhub        = ACTUAL_FACI_CODE,
+      curr_realhub_branch = ACTUAL_BRANCH,
+      real_reg,
+      real_prov,
+      real_munc,
       days_to_pickup,
       arv_worth,
       ref_death_date,
-      sathub
    ) %>%
    # remove codes
    mutate_at(
@@ -373,7 +343,6 @@ if (update == "1") {
    vars <- c(
       "curr_age",
       "curr_hub",
-      "pubpriv",
       "curr_class",
       "curr_outcome",
       "curr_regimen",
