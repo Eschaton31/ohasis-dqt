@@ -10,7 +10,6 @@ if (check == "1") {
    local(envir = nhsss$harp_tx, {
       gdrive      <- list()
       gdrive$path <- gdrive_endpoint("HARP Tx", ohasis$ym)
-      corr        <- gdrive_correct(gdrive$path, ohasis$ym)
    })
 }
 
@@ -42,6 +41,9 @@ check <- input(
 if (check == "1") {
    .log_info("Getting previous datasets.")
    local(envir = nhsss$harp_tx, {
+      .log_info("Getting corrections.")
+      corr <- gdrive_correct(gdrive$path, ohasis$ym)
+
       official         <- list()
       official$old_reg <- ohasis$load_old_dta(
          path            = ohasis$get_data("harp_tx-reg", ohasis$prev_yr, ohasis$prev_mo),
