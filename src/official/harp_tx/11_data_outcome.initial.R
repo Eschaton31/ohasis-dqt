@@ -104,7 +104,11 @@ nhsss$harp_tx$outcome.initial$data %<>%
          true      = FACI_DISP,
          false     = NA_character_
       ),
-      SATELLITE_SUB_FACI = NA_character_,
+      SATELLITE_SUB_FACI = if_else(
+         condition = StrLeft(CLIENT_TYPE, 1) == "5",
+         true      = FACI_SUB_DISP,
+         false     = NA_character_
+      ),
 
       # transient
       TRANSIENT_FACI  = if_else(
@@ -112,7 +116,11 @@ nhsss$harp_tx$outcome.initial$data %<>%
          true      = FACI_DISP,
          false     = NA_character_
       ),
-      TRANSIENT_SUB_FACI = NA_character_,
+      TRANSIENT_SUB_FACI = if_else(
+         condition = StrLeft(CLIENT_TYPE, 1) == "6",
+         true      = FACI_SUB_DISP,
+         false     = NA_character_
+      ),
    )
 
 ##  Sort by earliest visit of client for the report ----------------------------
