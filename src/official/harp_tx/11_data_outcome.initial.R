@@ -194,9 +194,20 @@ nhsss$harp_tx$outcome.initial$data %<>%
       ),
       .after        = ACTUAL_FACI_CODE
    ) %>%
+   mutate(
+      ART_BRANCH         = case_when(
+         ART_FACI_CODE == "TLY" & is.na(ART_BRANCH) ~ "TLY-ANGLO",
+         TRUE ~ ART_BRANCH
+      ),
+      ACTUAL_BRANCH = case_when(
+         ACTUAL_FACI_CODE == "TLY" & is.na(ACTUAL_BRANCH) ~ "TLY-ANGLO",
+         TRUE ~ ACTUAL_BRANCH
+      ),
+   ) %>%
    mutate_at(
       .vars = vars(ACTUAL_FACI_CODE, ART_FACI_CODE),
       ~case_when(
+         stri_detect_regex(., "^SAIL") ~ "SAIL",
          stri_detect_regex(., "^TLY") ~ "TLY",
          TRUE ~ .
       )

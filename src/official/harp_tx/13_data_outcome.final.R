@@ -110,29 +110,42 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
          false     = realhub
       )
    ) %>%
+   mutate(
+      branch         = case_when(
+         hub == "TLY" & is.na(branch) ~ "TLY-ANGLO",
+         TRUE ~ branch
+      ),
+      realhub_branch = case_when(
+         realhub == "TLY" & is.na(realhub_branch) ~ "TLY-ANGLO",
+         TRUE ~ realhub_branch
+      ),
+   ) %>%
+   mutate_at(
+      .vars = vars(hub, realhub),
+      ~case_when(
+         stri_detect_regex(., "^SAIL") ~ "SAIL",
+         stri_detect_regex(., "^TLY") ~ "TLY",
+         TRUE ~ .
+      )
+   ) %>%
    left_join(
       y  = ohasis$ref_faci %>%
-         distinct(FACI_CODE, .keep_all = TRUE) %>%
+         filter(SUB_FACI_ID == "") %>%
          select(
-            branch  = FACI_CODE,
+            hub     = FACI_CODE,
             tx_reg  = FACI_NHSSS_REG,
             tx_prov = FACI_NHSSS_PROV,
             tx_munc = FACI_NHSSS_MUNC,
          ) %>%
          mutate(
-            hub     = case_when(
-               stri_detect_regex(branch, "^SAIL") ~ "SHP",
-               stri_detect_regex(branch, "^TLY") ~ "TLY",
-               TRUE ~ branch
+            hub = case_when(
+               stri_detect_regex(hub, "^SAIL") ~ "SHP",
+               stri_detect_regex(hub, "^TLY") ~ "TLY",
+               TRUE ~ hub
             ),
-            branch  = if_else(
-               condition = nchar(branch) == 3,
-               true      = NA_character_,
-               false     = branch
-            ),
-            .before = 1
-         ),
-      by = c("hub", "branch")
+         ) %>%
+         distinct(hub, .keep_all = TRUE),
+      by = "hub"
    ) %>%
    left_join(
       y  = ohasis$ref_faci %>%
@@ -144,16 +157,22 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
             real_munc      = FACI_NHSSS_MUNC,
          ) %>%
          mutate(
-            realhub = case_when(
+            realhub        = case_when(
+               stri_detect_regex(realhub_branch, "^SAIL") ~ "SAIL",
                stri_detect_regex(realhub_branch, "^TLY") ~ "TLY",
                TRUE ~ realhub_branch
             ),
-            realhub_branch  = if_else(
+            realhub_branch = if_else(
                condition = nchar(realhub_branch) == 3,
                true      = NA_character_,
                false     = realhub_branch
             ),
-            .before = 1
+            realhub_branch = if_else(
+               condition = is.na(realhub_branch) & realhub == "TLY",
+               true      = "TLY-ANGLO",
+               false     = realhub_branch
+            ),
+            .before        = 1
          ),
       by = c("realhub", "realhub_branch")
    ) %>%
