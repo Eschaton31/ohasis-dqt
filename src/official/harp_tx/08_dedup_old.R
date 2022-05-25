@@ -282,6 +282,8 @@ group_pii               <- list(
    "ConfirmUIC.Fixed"    = c("CONFIRM_SIEVE", "UIC"),
    "PxUIC.Base"          = c("PATIENT_CODE", "UIC"),
    "PxUIC.Fixed"         = c("PXCODE_SIEVE", "UIC"),
+   "PxBD.Base"           = c("PATIENT_CODE", "birthdate"),
+   "PxBD.Fixed"          = c("PXCODE_SIEVE", "birthdate"),
    "Name.Base"           = c("FIRST", "LAST", "birthdate"),
    "Name.Fixed"          = c("FIRST_NY", "LAST_NY", "birthdate"),
    "Name.Partial"        = c("FIRST_A", "LAST_A", "birthdate"),
