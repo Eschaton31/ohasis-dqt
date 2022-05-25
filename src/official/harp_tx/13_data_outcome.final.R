@@ -121,6 +121,7 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
          ) %>%
          mutate(
             hub     = case_when(
+               stri_detect_regex(branch, "^SAIL") ~ "SHP",
                stri_detect_regex(branch, "^TLY") ~ "TLY",
                TRUE ~ branch
             ),

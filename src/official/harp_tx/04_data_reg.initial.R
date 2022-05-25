@@ -7,7 +7,6 @@ currEnv <- ls()[ls() != "currEnv"]
 .log_info("Generating `harp_tx`.`reg-initial`.")
 .log_info("Opening connections.")
 lw_conn <- ohasis$conn("lw")
-db_conn <- ohasis$conn("db")
 
 # Form BC not yet reported
 .log_info("Dropping already-reported records.")
@@ -31,10 +30,10 @@ nhsss$harp_tx$reg.initial$data %<>%
    ) %>%
    mutate(
       # date variables
-      encoded_date    = as.Date(CREATED_AT),
+      encoded_date       = as.Date(CREATED_AT),
 
       # name
-      name            = paste0(
+      name               = paste0(
          if_else(
             condition = is.na(LAST),
             true      = "",
@@ -56,56 +55,97 @@ nhsss$harp_tx$reg.initial$data %<>%
             false     = SUFFIX
          )
       ),
-      name            = str_squish(name),
+      name               = str_squish(name),
 
       # Age
-      AGE             = if_else(
+      AGE                = if_else(
          condition = is.na(AGE) & !is.na(AGE_MO),
          true      = AGE_MO / 12,
          false     = as.double(AGE)
       ),
-      AGE_DTA         = if_else(
+      AGE_DTA            = if_else(
          condition = !is.na(BIRTHDATE),
          true      = floor((VISIT_DATE - BIRTHDATE) / 365.25) %>% as.numeric(),
          false     = as.numeric(NA)
       ),
 
       # tag those without ART_FACI
-      use_record_faci = if_else(
+      use_record_faci    = if_else(
          condition = is.na(SERVICE_FACI),
          true      = 1,
          false     = 0
       ),
-      SERVICE_FACI    = if_else(
+      SERVICE_FACI       = if_else(
          condition = use_record_faci == 1,
          true      = FACI_ID,
          false     = SERVICE_FACI
       ),
 
       # tag sail clinics as ship
-      sail_clinic     = case_when(
+      sail_clinic        = case_when(
          FACI_ID == "040200" ~ 1,
          SERVICE_FACI == "040200" ~ 1,
+         FACI_ID == "040211" ~ 1,
+         SERVICE_FACI == "040211" ~ 1,
          FACI_ID == "130748" ~ 1,
          SERVICE_FACI == "130748" ~ 1,
          TRUE ~ 0
       ),
-      SERVICE_FACI    = if_else(
-         condition = sail_clinic == 1,
-         true      = "130025",
-         false     = SERVICE_FACI
-      ),
 
       # tag tly clinic
-      tly_clinic      = case_when(
+      tly_clinic         = case_when(
          FACI_ID == "070021" ~ 1,
+         FACI_ID == "040198" ~ 1,
+         FACI_ID == "070021" ~ 1,
+         FACI_ID == "130173" ~ 1,
+         FACI_ID == "130707" ~ 1,
+         FACI_ID == "130708" ~ 1,
+         FACI_ID == "130749" ~ 1,
+         FACI_ID == "130751" ~ 1,
+         FACI_ID == "130001" ~ 1,
          SERVICE_FACI == "070021" ~ 1,
+         SERVICE_FACI == "040198" ~ 1,
+         SERVICE_FACI == "070021" ~ 1,
+         SERVICE_FACI == "130173" ~ 1,
+         SERVICE_FACI == "130707" ~ 1,
+         SERVICE_FACI == "130708" ~ 1,
+         SERVICE_FACI == "130749" ~ 1,
+         SERVICE_FACI == "130751" ~ 1,
+         SERVICE_FACI == "130001" ~ 1,
          TRUE ~ 0
       ),
-      SERVICE_FACI    = if_else(
-         condition = tly_clinic == 1,
-         true      = "130001",
-         false     = SERVICE_FACI
+
+      # convert to HARP facility
+      ACTUAL_FACI        = SERVICE_FACI,
+      ACTUAL_SUB_FACI    = SERVICE_SUB_FACI,
+      SERVICE_FACI       = case_when(
+         tly_clinic == 1 ~ "130001",
+         sail_clinic == 1 ~ "130025",
+         TRUE ~ SERVICE_FACI
+      ),
+
+      # satellite
+      SATELLITE_FACI     = if_else(
+         condition = StrLeft(CLIENT_TYPE, 1) == "5",
+         true      = FACI_DISP,
+         false     = NA_character_
+      ),
+      SATELLITE_SUB_FACI = if_else(
+         condition = StrLeft(CLIENT_TYPE, 1) == "5",
+         true      = FACI_SUB_DISP,
+         false     = NA_character_
+      ),
+
+      # transient
+      TRANSIENT_FACI     = if_else(
+         condition = StrLeft(CLIENT_TYPE, 1) == "6",
+         true      = FACI_DISP,
+         false     = NA_character_
+      ),
+      TRANSIENT_SUB_FACI = if_else(
+         condition = StrLeft(CLIENT_TYPE, 1) == "6",
+         true      = FACI_SUB_DISP,
+         false     = NA_character_
       ),
    )
 
@@ -172,52 +212,79 @@ nhsss$harp_tx$reg.initial$data %<>%
 
 .log_info("Closing connections.")
 dbDisconnect(lw_conn)
-dbDisconnect(db_conn)
 
 ##  Facilities -----------------------------------------------------------------
 
 .log_info("Attaching facility names (OHASIS versions).")
-faci_ids <- list(
-   c("FACI_ID", "SUB_FACI_ID", "FACI_CODE"),
-   c("ART_FACI", "ART_SUB_FACI", "ART_FACI_CODE")
-)
-
-for (i in seq_len(length(faci_ids))) {
-   faci_id     <- faci_ids[[i]][1] %>% as.symbol()
-   faci_name   <- faci_ids[[i]][3] %>% as.symbol()
-   sub_faci_id <- faci_ids[[i]][2] %>% as.symbol()
-
-   # rename columns
-   nhsss$harp_tx$reg.initial$data %<>%
-      # clean variables first
-      mutate(
-         !!faci_id     := if_else(
-            condition = is.na(!!faci_id),
-            true      = "",
-            false     = !!faci_id
-         ),
-         !!sub_faci_id := case_when(
-            is.na(!!sub_faci_id) ~ "",
-            StrLeft(!!sub_faci_id, 6) != !!faci_id ~ "",
-            TRUE ~ !!sub_faci_id
-         )
-      ) %>%
-      # get referenced data
-      left_join(
-         y  = ohasis$ref_faci %>%
-            select(
-               !!faci_id     := FACI_ID,
-               !!sub_faci_id := SUB_FACI_ID,
-               !!faci_name   := FACI_CODE
-            ),
-         by = c(as.character(faci_id), as.character(sub_faci_id))
-      ) %>%
-      # move then rename to old version
-      relocate(!!faci_name, .after = !!sub_faci_id)
-}
+local(envir = nhsss$harp_tx, {
+   # record faci
+   reg.initial$data <- ohasis$get_faci(
+      reg.initial$data,
+      list("FACI_CODE" = c("FACI_ID", "SUB_FACI_ID")),
+      "code"
+   )
+   # art faci
+   reg.initial$data <- ohasis$get_faci(
+      reg.initial$data,
+      list("ART_FACI_CODE" = c("ART_FACI", "ART_SUB_FACI")),
+      "code",
+      c("tx_reg", "tx_prov", "tx_munc")
+   )
+   # epic / gf faci
+   reg.initial$data <- ohasis$get_faci(
+      reg.initial$data,
+      list("ACTUAL_FACI_CODE" = c("ACTUAL_FACI", "ACTUAL_SUB_FACI")),
+      "code",
+      c("real_reg", "real_prov", "real_munc")
+   )
+   # satellite
+   reg.initial$data <- ohasis$get_faci(
+      reg.initial$data,
+      list("SATELLITE_FACI_CODE" = c("SATELLITE_FACI", "SATELLITE_SUB_FACI")),
+      "code"
+   )
+   # satellite
+   reg.initial$data <- ohasis$get_faci(
+      reg.initial$data,
+      list("TRANSIENT_FACI_CODE" = c("TRANSIENT_FACI", "TRANSIENT_SUB_FACI")),
+      "code"
+   )
+})
 
 # arrange via faci
 nhsss$harp_tx$reg.initial$data %<>%
+   mutate(
+      ART_BRANCH = if_else(
+         condition = nchar(ART_FACI_CODE) > 3,
+         true      = ART_FACI_CODE,
+         false     = NA_character_
+      ),
+      .after     = ART_FACI_CODE
+   ) %>%
+   mutate(
+      ACTUAL_BRANCH = if_else(
+         condition = nchar(ACTUAL_FACI_CODE) > 3,
+         true      = ACTUAL_FACI_CODE,
+         false     = NA_character_
+      ),
+      .after        = ACTUAL_FACI_CODE
+   ) %>%
+   mutate_at(
+      .vars = vars(ACTUAL_FACI_CODE, ART_FACI_CODE),
+      ~case_when(
+         stri_detect_regex(., "^TLY") ~ "TLY",
+         TRUE ~ .
+      )
+   ) %>%
+   mutate(
+      ART_BRANCH = case_when(
+         sail_clinic == 1 ~ ACTUAL_BRANCH,
+         tly_clinic == 1 & is.na(ACTUAL_BRANCH) ~ "TLY-ANGLO",
+         tly_clinic == 1 & ACTUAL_BRANCH == "TLY" ~ "TLY-ANGLO",
+         tly_clinic == 1 & ACTUAL_BRANCH != "TLY" ~ ACTUAL_BRANCH,
+         TRUE ~ ART_BRANCH
+      ),
+   ) %>%
    arrange(ART_FACI_CODE, VISIT_DATE, LATEST_NEXT_DATE)
 
 ##  Flag data for validation ---------------------------------------------------
@@ -249,6 +316,11 @@ if (update == "1") {
       "BIRTHDATE",
       "SEX",
       "ART_FACI_CODE",
+      "ART_BRANCH",
+      "SATELLITE_FACI_CODE",
+      "TRANSIENT_FACI_CODE",
+      "ACTUAL_FACI_CODE",
+      "ACTUAL_BRANCH",
       "VISIT_DATE",
       "CLINIC_NOTES",
       "COUNSEL_NOTES"
