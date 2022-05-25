@@ -4,9 +4,11 @@
 currEnv <- ls()[ls() != "currEnv"]
 
 .log_info("Appending with the previous registry.")
-nhsss$harp_tx$official$new_reg <- nhsss$harp_tx$official$old_reg %>%
-   mutate(artstart_stage = as.integer(artstart_stage)) %>%
-   bind_rows(nhsss$harp_tx$reg.converted$data) %>%
+nhsss$harp_tx$official$new_reg <- nhsss$harp_tx$reg.converted$data %>%
+   bind_rows(
+      nhsss$harp_tx$official$old_reg %>%
+         mutate(artstart_stage = as.integer(artstart_stage))
+   ) %>%
    arrange(art_id) %>%
    mutate(
       drop_notyet     = 0,

@@ -148,15 +148,6 @@ nhsss$harp_tx$reg.converted$data %<>%
 
 .log_info("Finalizing dataframe.")
 nhsss$harp_tx$reg.converted$data %<>%
-   select(
-      -any_of(
-         c(
-            "artstart_reg",
-            "artstart_prov",
-            "artstart_munc"
-         )
-      )
-   ) %>%
    mutate(
       # finalize ACTUAL_FACI_CODE data
       ACTUAL_BRANCH    = if_else(
@@ -169,53 +160,6 @@ nhsss$harp_tx$reg.converted$data %<>%
          true      = ART_FACI_CODE,
          false     = ACTUAL_FACI_CODE
       )
-   ) %>%
-   left_join(
-      y  = ohasis$ref_faci %>%
-         distinct(FACI_CODE, .keep_all = TRUE) %>%
-         select(
-            ART_BRANCH    = FACI_CODE,
-            artstart_reg  = FACI_NHSSS_REG,
-            artstart_prov = FACI_NHSSS_PROV,
-            artstart_munc = FACI_NHSSS_MUNC,
-         ) %>%
-         mutate(
-            ART_FACI_CODE = case_when(
-               stri_detect_regex(ART_BRANCH, "^SAIL") ~ "SHP",
-               stri_detect_regex(ART_BRANCH, "^TLY") ~ "TLY",
-               TRUE ~ ART_BRANCH
-            ),
-            ART_BRANCH    = if_else(
-               condition = nchar(ART_BRANCH) == 3,
-               true      = NA_character_,
-               false     = ART_BRANCH
-            ),
-            .before       = 1
-         ),
-      by = c("ART_FACI_CODE", "ART_BRANCH")
-   ) %>%
-   left_join(
-      y  = ohasis$ref_faci %>%
-         distinct(FACI_CODE, .keep_all = TRUE) %>%
-         select(
-            ACTUAL_BRANCH      = FACI_CODE,
-            artstart_real_reg  = FACI_NHSSS_REG,
-            artstart_real_prov = FACI_NHSSS_PROV,
-            artstart_real_munc = FACI_NHSSS_MUNC,
-         ) %>%
-         mutate(
-            ACTUAL_FACI_CODE = case_when(
-               stri_detect_regex(ACTUAL_BRANCH, "^TLY") ~ "TLY",
-               TRUE ~ ACTUAL_BRANCH
-            ),
-            ACTUAL_BRANCH    = if_else(
-               condition = nchar(ACTUAL_BRANCH) == 3,
-               true      = NA_character_,
-               false     = ACTUAL_BRANCH
-            ),
-            .before          = 1
-         ),
-      by = c("ACTUAL_FACI_CODE", "ACTUAL_BRANCH")
    ) %>%
    # same vars as registry
    select(
@@ -240,17 +184,14 @@ nhsss$harp_tx$reg.converted$data %<>%
       philhealth_no       = PHILHEALTH_NO,
       artstart_hub        = ART_FACI_CODE,
       artstart_branch     = ART_BRANCH,
+      artstart_realhub    = ACTUAL_FACI_CODE,
+      artstart_realbranch = ACTUAL_BRANCH,
       artstart_stage,
       artstart_reg,
       artstart_prov,
       artstart_munc,
       artstart_addr       = CURR_ADDR,
       artstart_date       = VISIT_DATE,
-      artstart_realhub    = ACTUAL_FACI_CODE,
-      artstart_realbranch = ACTUAL_BRANCH,
-      real_reg,
-      real_prov,
-      real_munc,
       baseline_cd4,
       baseline_cd4_date   = CD4_DATE,
       baseline_cd4_result = CD4_RESULT,
