@@ -459,9 +459,9 @@ if (update == "1") {
       nhsss$harp_tx$outcome.converted$check$tabstat <- df %>%
          summarise(
             VARIABLE = as.character(var),
-            MIN      = min(!!var, na.rm = TRUE),
-            MEDIAN   = median(!!var, na.rm = TRUE),
-            MAX      = max(!!var, na.rm = TRUE),
+            MIN      = suppress_warnings(min(!!var, na.rm = TRUE), "returning [\\-]*Inf"),
+            MEDIAN   = suppress_warnings(median(!!var, na.rm = TRUE), "returning [\\-]*Inf"),
+            MAX      = suppress_warnings(max(!!var, na.rm = TRUE), "returning [\\-]*Inf"),
             NAs      = sum(if_else(is.na(!!var), 1, 0, 0))
          ) %>%
          mutate_all(~as.character(.)) %>%
