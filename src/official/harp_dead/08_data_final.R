@@ -219,7 +219,8 @@ for (var in reg_vars) {
 nhsss$harp_dead$official$new %<>%
    select(
       -use_dxreg,
-      -starts_with("dxreg")
+      -starts_with("dxreg"),
+      -starts_with("labcode2")
    ) %>%
    left_join(
       y  = nhsss$harp_dx$official$new %>%
