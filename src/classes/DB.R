@@ -5,14 +5,15 @@ DB <- setRefClass(
    Class    = "DB",
    contains = "Project",
    fields   = list(
-      timestamp    = "character",
-      output_title = "character",
-      internet     = "data.frame",
-      db_checks    = "list",
-      ref_addr     = "data.frame",
-      ref_country  = "data.frame",
-      ref_faci     = "data.frame",
-      ref_staff    = "data.frame"
+      timestamp     = "character",
+      output_title  = "character",
+      internet      = "data.frame",
+      db_checks     = "list",
+      ref_addr      = "data.frame",
+      ref_country   = "data.frame",
+      ref_faci      = "data.frame",
+      ref_faci_code = "data.frame",
+      ref_staff     = "data.frame"
    ),
    methods  = list(
       initialize        = function(mo = NULL, yr = NULL, title = NULL) {
@@ -92,6 +93,33 @@ DB <- setRefClass(
          .self$ref_country <<- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_country")) %>% collect()
          .self$ref_faci    <<- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "ref_faci")) %>% collect()
          .self$ref_staff   <<- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "ref_staff")) %>% collect()
+
+         # subset of ref_faci
+         .self$ref_faci_code <<- ref_faci %>%
+            filter(!is.na(FACI_CODE)) %>%
+            distinct(FACI_CODE, .keep_all = TRUE) %>%
+            rename(
+               SUB_FACI_CODE = FACI_CODE
+            ) %>%
+            mutate(
+               FACI_CODE     = case_when(
+                  stri_detect_regex(SUB_FACI_CODE, "^SAIL") ~ "SAIL",
+                  stri_detect_regex(SUB_FACI_CODE, "^TLY") ~ "TLY",
+                  TRUE ~ SUB_FACI_CODE
+               ),
+               SUB_FACI_CODE = if_else(
+                  condition = nchar(SUB_FACI_CODE) == 3,
+                  true      = NA_character_,
+                  false     = SUB_FACI_CODE
+               ),
+               SUB_FACI_CODE = case_when(
+                  FACI_CODE == "TLY" & is.na(SUB_FACI_CODE) ~ "TLY-ANGLO",
+                  FACI_CODE == "SHP" & is.na(SUB_FACI_CODE) ~ "SHIP-MAKATI",
+                  TRUE ~ SUB_FACI_CODE
+               ),
+            ) %>%
+            relocate(FACI_CODE, SUB_FACI_CODE, .before = 1)
+
          dbDisconnect(db_conn)
          dbDisconnect(lw_conn)
 
