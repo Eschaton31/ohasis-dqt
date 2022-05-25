@@ -208,7 +208,19 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
    ) %>%
    distinct_all() %>%
    arrange(art_id) %>%
-   mutate(central_id = CENTRAL_ID)
+   mutate(central_id = CENTRAL_ID) %>%
+   mutate(
+      branch         = case_when(
+         hub == "SHP" & is.na(branch) ~ "SHIP-MAKATI",
+         hub == "TLY" & is.na(branch) ~ "TLY-ANGLO",
+         TRUE ~ branch
+      ),
+      realhub_branch = case_when(
+         realhub == "SHP" & is.na(realhub_branch) ~ "SHIP-MAKATI",
+         realhub == "TLY" & is.na(realhub_branch) ~ "TLY-ANGLO",
+         TRUE ~ realhub_branch
+      ),
+   )
 
 .log_info("Performing late validation cleanings.")
 if ("new_outcome" %in% names(nhsss$harp_tx$corr))

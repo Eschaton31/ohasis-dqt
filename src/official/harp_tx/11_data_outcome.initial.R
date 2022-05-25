@@ -221,7 +221,19 @@ nhsss$harp_tx$outcome.initial$data %<>%
          TRUE ~ ART_BRANCH
       ),
    ) %>%
-   arrange(ART_FACI_CODE, VISIT_DATE, LATEST_NEXT_DATE)
+   arrange(ART_FACI_CODE, VISIT_DATE, LATEST_NEXT_DATE) %>%
+   mutate(
+      ART_BRANCH         = case_when(
+         ART_FACI_CODE == "SHP" & is.na(ART_BRANCH) ~ "SHIP-MAKATI",
+         ART_FACI_CODE == "TLY" & is.na(ART_BRANCH) ~ "TLY-ANGLO",
+         TRUE ~ ART_BRANCH
+      ),
+      ACTUAL_BRANCH = case_when(
+         ACTUAL_FACI_CODE == "SHP" & is.na(ACTUAL_BRANCH) ~ "SHIP-MAKATI",
+         ACTUAL_FACI_CODE == "TLY" & is.na(ACTUAL_BRANCH) ~ "TLY-ANGLO",
+         TRUE ~ ACTUAL_BRANCH
+      ),
+   )
 
 ##  Flag data for validation ---------------------------------------------------
 
