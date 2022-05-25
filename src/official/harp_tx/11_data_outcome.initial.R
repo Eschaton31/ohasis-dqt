@@ -245,6 +245,8 @@ if (update == "1") {
       "ART_BRANCH",
       "SATELLITE_FACI_CODE",
       "TRANSIENT_FACI_CODE",
+      "ACTUAL_FACI_CODE",
+      "ACTUAL_BRANCH",
       "VISIT_DATE",
       "CLINIC_NOTES",
       "COUNSEL_NOTES"
