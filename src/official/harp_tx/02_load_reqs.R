@@ -13,6 +13,19 @@ if (check == "1") {
    })
 }
 
+check <- input(
+   prompt  = glue("Re-download the {green('data corrections')}?"),
+   options = c("1" = "yes", "2" = "no"),
+   default = "2"
+)
+if (check == "1") {
+   .log_info("Downloading corrections list.")
+   local(envir = nhsss$harp_tx, {
+      .log_info("Getting corrections.")
+      corr <- gdrive_correct(gdrive$path, ohasis$ym)
+   })
+}
+
 # run through all tables
 check <- input(
    prompt  = glue("Update {green('data/forms')} to be used for consolidation?"),
@@ -41,9 +54,6 @@ check <- input(
 if (check == "1") {
    .log_info("Getting previous datasets.")
    local(envir = nhsss$harp_tx, {
-      .log_info("Getting corrections.")
-      corr <- gdrive_correct(gdrive$path, ohasis$ym)
-
       official         <- list()
       official$old_reg <- ohasis$load_old_dta(
          path            = ohasis$get_data("harp_tx-reg", ohasis$prev_yr, ohasis$prev_mo),
