@@ -12,10 +12,10 @@ lw_conn <- ohasis$conn("lw")
 .log_info("Dropping already-reported records.")
 nhsss$prep$reg.initial$data <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "prep_first")) %>%
    select(CENTRAL_ID, REC_ID) %>%
-   anti_join(
-      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "prep_old")),
-      by = "CENTRAL_ID"
-   ) %>%
+   # anti_join(
+   #    y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "prep_old")),
+   #    by = "CENTRAL_ID"
+   # ) %>%
    left_join(
       y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_prep")),
       by = "REC_ID"
@@ -114,6 +114,35 @@ local(envir = nhsss$prep, {
 
 # arrange via faci
 nhsss$prep$reg.initial$data %<>%
+   mutate(
+      PREP_BRANCH = if_else(
+         condition = nchar(PREP_FACI_CODE) > 3,
+         true      = PREP_FACI_CODE,
+         false     = NA_character_
+      ),
+      .after      = PREP_FACI_CODE
+   ) %>%
+   mutate(
+      PREP_BRANCH = case_when(
+         PREP_FACI_CODE == "TLY" & is.na(PREP_BRANCH) ~ "TLY-ANGLO",
+         TRUE ~ PREP_BRANCH
+      ),
+   ) %>%
+   mutate_at(
+      .vars = vars(PREP_FACI_CODE),
+      ~case_when(
+         stri_detect_regex(., "^SAIL") ~ "SAIL",
+         stri_detect_regex(., "^TLY") ~ "TLY",
+         TRUE ~ .
+      )
+   ) %>%
+   mutate(
+      PREP_BRANCH = case_when(
+         PREP_FACI_CODE == "TLY" & is.na(PREP_BRANCH) ~ "TLY-ANGLO",
+         PREP_FACI_CODE == "SHP" & is.na(PREP_BRANCH) ~ "SHIP-MAKATI",
+         TRUE ~ PREP_BRANCH
+      ),
+   ) %>%
    arrange(PREP_FACI_CODE, VISIT_DATE, LATEST_NEXT_DATE)
 
 ##  Flag data for validation ---------------------------------------------------
@@ -145,11 +174,7 @@ if (update == "1") {
       "BIRTHDATE",
       "SEX",
       "PREP_FACI_CODE",
-      "ART_BRANCH",
-      "SATELLITE_FACI_CODE",
-      "TRANSIENT_FACI_CODE",
-      "ACTUAL_FACI_CODE",
-      "ACTUAL_BRANCH",
+      "PREP_BRANCH",
       "VISIT_DATE",
       "CLINIC_NOTES",
       "COUNSEL_NOTES"
@@ -189,9 +214,6 @@ if (update == "1") {
    vars <- c(
       "FORM_VERSION",
       "PREP_FACI_CODE",
-      "CURR_PSGC_REG",
-      "CURR_PSGC_PROV",
-      "CURR_PSGC_MUNC",
       "FIRST",
       "LAST",
       "CENTRAL_ID",
@@ -215,14 +237,14 @@ if (update == "1") {
    }
 
    # special checks
-   .log_info("Checking for new clients tagged as refills.")
+   .log_info("Checking for new clients tagged as follow-up.")
    nhsss$prep$reg.initial$check[["refill_enroll"]] <- nhsss$prep$reg.initial$data %>%
       filter(
-         StrLeft(TX_STATUS, 1) == "2"
+         StrLeft(PREP_VISIT, 1) == "2"
       ) %>%
       select(
          any_of(view_vars),
-         TX_STATUS,
+         PREP_VISIT,
          VISIT_TYPE
       )
 
@@ -283,36 +305,14 @@ if (update == "1") {
          MEDICINE_SUMMARY,
       )
 
-   .log_info("Checking for possible PrEP clients.")
-   nhsss$prep$reg.initial$check[["possible_prep"]] <- nhsss$prep$reg.initial$data %>%
+   .log_info("Checking for young clients.")
+   nhsss$prep$reg.initial$check[["young_prep"]] <- nhsss$prep$reg.initial$data %>%
       filter(
-         stri_detect_fixed(MEDICINE_SUMMARY, "FTC")
+         AGE < 15
       ) %>%
       select(
          any_of(view_vars),
          MEDICINE_SUMMARY,
-      )
-
-   .log_info("Checking for males tagged as pregnant.")
-   nhsss$prep$reg.initial$check[["pregnant_m"]] <- nhsss$prep$reg.initial$data %>%
-      filter(
-         StrLeft(IS_PREGNANT, 1) == '1',
-         StrLeft(SEX, 1) == '1'
-      ) %>%
-      select(
-         any_of(view_vars),
-         IS_PREGNANT,
-      )
-
-   .log_info("Checking for pregnant females.")
-   nhsss$prep$reg.initial$check[["pregnant_f"]] <- nhsss$prep$reg.initial$data %>%
-      filter(
-         StrLeft(IS_PREGNANT, 1) == '1',
-         StrLeft(SEX, 1) == '2'
-      ) %>%
-      select(
-         any_of(view_vars),
-         IS_PREGNANT,
       )
 
    .log_info("Checking calculated age vs computed age.")
@@ -326,7 +326,7 @@ if (update == "1") {
          AGE_DTA
       )
 
-   .log_info("Checking ART reports tagged as DOH-EB.")
+   .log_info("Checking PrEP reports tagged as DOH-EB.")
    nhsss$prep$reg.initial$check[["art_eb"]] <- nhsss$prep$reg.initial$data %>%
       filter(
          PREP_FACI_CODE == "DOH"
@@ -365,7 +365,6 @@ if (update == "1") {
 }
 
 ##  Remove already tagged data from validation ---------------------------------
-
 
 exclude <- input(
    prompt  = "Exlude clients initially tagged for dropping from validations?",
