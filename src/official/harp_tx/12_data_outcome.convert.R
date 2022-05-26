@@ -62,6 +62,7 @@ nhsss$harp_tx$outcome.converted$data <- nhsss$harp_tx$outcome.initial$data %>%
       y  = nhsss$harp_dead$official$new %>%
          select(
             CENTRAL_ID,
+            mort_id,
             ref_death_date
          ),
       by = "CENTRAL_ID"
@@ -258,6 +259,7 @@ nhsss$harp_tx$outcome.converted$data %<>%
       CENTRAL_ID,
       art_id,
       idnum,
+      mort_id,
       year,
       month,
       confirmatory_code,

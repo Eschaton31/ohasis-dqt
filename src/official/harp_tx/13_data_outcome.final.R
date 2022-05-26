@@ -128,6 +128,22 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
          TRUE ~ .
       )
    ) %>%
+   mutate(
+      branch         = case_when(
+         hub == "SHP" & is.na(branch) ~ "SHIP-MAKATI",
+         hub == "TLY" & is.na(branch) ~ "TLY-ANGLO",
+         TRUE ~ branch
+      ),
+      realhub_branch = case_when(
+         realhub == "SHP" & is.na(realhub_branch) ~ "SHIP-MAKATI",
+         realhub == "TLY" & is.na(realhub_branch) ~ "TLY-ANGLO",
+         TRUE ~ realhub_branch
+      ),
+      realhub        = case_when(
+         stri_detect_regex(realhub_branch, "^SAIL") ~ "SAIL",
+         TRUE ~ realhub
+      ),
+   ) %>%
    left_join(
       y  = ohasis$ref_faci %>%
          filter(SUB_FACI_ID == "") %>%
@@ -148,31 +164,13 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
       by = "hub"
    ) %>%
    left_join(
-      y  = ohasis$ref_faci %>%
-         distinct(FACI_CODE, .keep_all = TRUE) %>%
+      y  = ohasis$ref_faci_code %>%
          select(
-            realhub_branch = FACI_CODE,
+            realhub        = FACI_CODE,
+            realhub_branch = SUB_FACI_CODE,
             real_reg       = FACI_NHSSS_REG,
             real_prov      = FACI_NHSSS_PROV,
             real_munc      = FACI_NHSSS_MUNC,
-         ) %>%
-         mutate(
-            realhub        = case_when(
-               stri_detect_regex(realhub_branch, "^SAIL") ~ "SAIL",
-               stri_detect_regex(realhub_branch, "^TLY") ~ "TLY",
-               TRUE ~ realhub_branch
-            ),
-            realhub_branch = if_else(
-               condition = nchar(realhub_branch) == 3,
-               true      = NA_character_,
-               false     = realhub_branch
-            ),
-            realhub_branch = if_else(
-               condition = is.na(realhub_branch) & realhub == "TLY",
-               true      = "TLY-ANGLO",
-               false     = realhub_branch
-            ),
-            .before        = 1
          ),
       by = c("realhub", "realhub_branch")
    ) %>%
@@ -181,6 +179,7 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
       CENTRAL_ID,
       art_id,
       idnum,
+      mort_id,
       sex,
       curr_age,
       hub,
@@ -208,19 +207,7 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
    ) %>%
    distinct_all() %>%
    arrange(art_id) %>%
-   mutate(central_id = CENTRAL_ID) %>%
-   mutate(
-      branch         = case_when(
-         hub == "SHP" & is.na(branch) ~ "SHIP-MAKATI",
-         hub == "TLY" & is.na(branch) ~ "TLY-ANGLO",
-         TRUE ~ branch
-      ),
-      realhub_branch = case_when(
-         realhub == "SHP" & is.na(realhub_branch) ~ "SHIP-MAKATI",
-         realhub == "TLY" & is.na(realhub_branch) ~ "TLY-ANGLO",
-         TRUE ~ realhub_branch
-      ),
-   )
+   mutate(central_id = CENTRAL_ID)
 
 .log_info("Performing late validation cleanings.")
 if ("new_outcome" %in% names(nhsss$harp_tx$corr))
