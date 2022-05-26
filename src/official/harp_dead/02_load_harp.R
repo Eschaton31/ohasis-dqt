@@ -90,7 +90,7 @@ if (reload == "1") {
    }
 
    # drop clients
-   if ("anti_join" %in% names(nhsss$harp_tx$corr)) {
+   if ("anti_join" %in% names(nhsss$harp_dead$corr)) {
       old_dataset <- old_dataset %>%
          anti_join(
             y  = nhsss$harp_dead$corr$anti_join,
