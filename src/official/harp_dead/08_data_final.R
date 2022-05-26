@@ -187,6 +187,64 @@ nhsss$harp_dead$official$new %<>%
          false     = final_muncity,
          missing   = final_muncity
       ),
+   ) %>%
+   # additional process to ensure final_region
+   mutate(
+
+      final_region   = if_else(
+         condition = final_muncity == "UNKNOWN" & mort_muncity != "UNKNOWN",
+         true      = mort_region,
+         false     = final_region,
+         missing   = final_region
+      ),
+      final_province = if_else(
+         condition = final_muncity == "UNKNOWN" & mort_muncity != "UNKNOWN",
+         true      = mort_province,
+         false     = final_province,
+         missing   = final_province
+      ),
+      final_muncity  = if_else(
+         condition = final_muncity == "UNKNOWN" & mort_muncity != "UNKNOWN",
+         true      = mort_muncity,
+         false     = final_muncity,
+         missing   = final_muncity
+      ),
+      final_region   = if_else(
+         condition = is.na(final_muncity) & mort_muncity != "UNKNOWN",
+         true      = mort_region,
+         false     = final_region,
+         missing   = final_region
+      ),
+      final_province = if_else(
+         condition = is.na(final_muncity) & mort_muncity != "UNKNOWN",
+         true      = mort_province,
+         false     = final_province,
+         missing   = final_province
+      ),
+      final_muncity  = if_else(
+         condition = is.na(final_muncity) & mort_muncity != "UNKNOWN",
+         true      = mort_muncity,
+         false     = final_muncity,
+         missing   = final_muncity
+      ),
+      final_region   = if_else(
+         condition = final_muncity == "UNKNOWN" & muncity != "UNKNOWN",
+         true      = region,
+         false     = final_region,
+         missing   = final_region
+      ),
+      final_province = if_else(
+         condition = final_muncity == "UNKNOWN" & muncity != "UNKNOWN",
+         true      = province,
+         false     = final_province,
+         missing   = final_province
+      ),
+      final_muncity  = if_else(
+         condition = final_muncity == "UNKNOWN" & muncity != "UNKNOWN",
+         true      = muncity,
+         false     = final_muncity,
+         missing   = final_muncity
+      ),
    )
 
 # update these variables if missing in art reg
