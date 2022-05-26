@@ -106,7 +106,7 @@ nhsss$harp_tx$outcome.initial$data %<>%
       ),
       SATELLITE_SUB_FACI = if_else(
          condition = StrLeft(CLIENT_TYPE, 1) == "5",
-         true      = FACI_SUB_DISP,
+         true      = SUB_FACI_DISP,
          false     = NA_character_
       ),
 
@@ -118,7 +118,7 @@ nhsss$harp_tx$outcome.initial$data %<>%
       ),
       TRANSIENT_SUB_FACI = if_else(
          condition = StrLeft(CLIENT_TYPE, 1) == "6",
-         true      = FACI_SUB_DISP,
+         true      = SUB_FACI_DISP,
          false     = NA_character_
       ),
    )
