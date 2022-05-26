@@ -30,7 +30,7 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
       realhub           = if_else(
          condition = use_db == 1,
          true      = curr_realhub,
-         false     = prev_transhub,
+         false     = prev_realhub,
       ),
       realhub_branch    = if_else(
          condition = use_db == 1,
@@ -146,7 +146,7 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
    ) %>%
    left_join(
       y  = ohasis$ref_faci %>%
-         filter(SUB_FACI_ID == "") %>%
+         filter(SUB_FACI_ID == "", nchar(FACI_CODE) == 3) %>%
          select(
             hub     = FACI_CODE,
             tx_reg  = FACI_NHSSS_REG,
