@@ -331,3 +331,11 @@ suppress_warnings <- function(.expr, .f, ...) {
       })
    ))
 }
+
+remove_code <- function(var) {
+   if_else(
+      condition = !is.na(var) & stri_detect_fixed(var, '_'),
+      true      = substr(var, stri_locate_first_fixed(var, '_') + 1, nchar(var)),
+      false     = var
+   )
+}
