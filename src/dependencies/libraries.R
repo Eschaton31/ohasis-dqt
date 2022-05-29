@@ -51,7 +51,8 @@ p_load(
    googleway,
    crayon,
    docxtractr,
-   XLConnect
+   XLConnect,
+   gender
 )
 
 p_load_gh(
@@ -62,6 +63,7 @@ if (!require("remotes"))
    install.packages("remotes")
 
 remotes::install_github(c("ropensci/tabulizerjars", "ropensci/tabulizer"), INSTALL_opts = "--no-multiarch")
+remotes::install_github("lmullen/genderdata")
 
 # devtools::install_github("SymbolixAU/googlePolylines")
 # devtools::install_github("SymbolixAU/googleway")
