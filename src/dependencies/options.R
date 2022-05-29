@@ -14,5 +14,6 @@ options(
    RStata.StataPath    = Sys.getenv("STATA_PATH"),
    RStata.StataVersion = as.integer(Sys.getenv("STATA_VER")),
    java.parameters     = "-Xmx4g",
-   scipen              = 999
+   scipen              = 999,
+   timeout             = 9999999
 )
