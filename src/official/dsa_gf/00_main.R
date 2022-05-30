@@ -1,77 +1,138 @@
 ##  GF Logsheet Controller -----------------------------------------------------
 
-# update warehouse - lab data
-ohasis$data_factory("lake", "lab_wide", "upsert", TRUE)
-
-# update warehouse - dispensed data
-ohasis$data_factory("lake", "disp_meds", "upsert", TRUE)
-
-# update warehouse - Form ART / BC
-ohasis$data_factory("warehouse", "form_art_bc", "upsert", TRUE)
-
-# update warehouse - PrEP
-ohasis$data_factory("warehouse", "form_prep", "upsert", TRUE)
-
-# update warehouse - Form A
-ohasis$data_factory("warehouse", "form_a", "upsert", TRUE)
-
-# update warehouse - HTS Form
-ohasis$data_factory("warehouse", "form_hts", "upsert", TRUE)
-
-# update warehouse - HTS Form
-ohasis$data_factory("warehouse", "form_cfbs", "upsert", TRUE)
-
-# update warehouse - OHASIS IDs
-ohasis$data_factory("warehouse", "id_registry", "upsert", TRUE)
-
-# update earlies / latest art vistis
-source("src/official/harp_tx/03_load_visits.R")
-
 # define datasets
-if (!exists('gf'))
-   gf <- list()
+if (!exists("gf"))
+   gf <- new.env()
 
-##  Google Drive Endpoint ------------------------------------------------------
-
-path         <- list()
-path$primary <- "~/DQT/Data Factory/DSA - GF/"
-path$report  <- paste0(path$primary, ohasis$ym, "/")
-
-# create folders if not exists
-drive_folders <- list(
-   c(path$primary, ohasis$ym),
-   c(path$report, "Cleaning"),
-   c(path$report, "Validation")
-)
-invisible(
-   lapply(drive_folders, function(folder) {
-      parent <- folder[1] # parent dir
-      path   <- folder[2] # name of dir to be checked
-
-      # get sub-folders
-      dribble <- drive_ls(parent)
-
-      # create folder if not exists
-      if (nrow(dribble %>% filter(name == path)) == 0)
-         drive_mkdir(paste0(parent, path))
-   })
-)
-
-# get list of files in dir
-gf$logsheet$gdrive$path <- path
-rm(path, drive_folders)
+gf$wd <- file.path(getwd(), "src", "official", "dsa_gf")
 
 ##  Begin linkage of datasets --------------------------------------------------
 
-# list of sites
-gf$sites <- read_sheet("1y0i8l-HNieOIQ1QGIezVLltwut3y1FxHryvhno9GNb4") %>%
-   distinct(FACI_ID, .keep_all = TRUE) %>%
-   rename_at(
-      .vars = vars(starts_with("DSA")),
-      ~"DSA"
-   ) %>%
-   filter(DSA == TRUE) %>%
-   mutate(WITH_DSA = 1)
+# update latest art visits references
+source("src/official/loghsset/03_load_visits.R")
 
-source("src/official/dsa_gf/01_load_harp.R")
-source("src/official/dsa_gf/02_data_logsheet.initial.R")
+source(file.path(gf$wd, "01_load_reqs.R"))
+source(file.path(gf$wd, "02_loghseet_psfi.R"))
+source(file.path(gf$wd, "03_loghseet_ohasis.R"))
+
+faci_users <- ohasis$ref_staff %>%
+   mutate(
+      FACI_ID     = StrLeft(STAFF_ID, 6),
+      SUB_FACI_ID = NA_character_
+   )
+
+faci_users <- ohasis$get_faci(
+   faci_users,
+   list("user_faci" = c("FACI_ID", "SUB_FACI_ID")),
+   "code",
+   c("site_region", "site_province", "site_muncity")
+)
+View(
+   faci_users %>%
+      select(
+         STAFF_ID,
+         STAFF_NAME,
+         starts_with("site")
+      ) %>%
+      mutate_all(~toupper(.)) %>%
+      distinct_all(),
+   "users"
+)
+View(
+   ohasis$ref_faci %>%
+      select(FACI_NAME, FACI_ID, contains("NHSSS")),
+   "faci"
+)
+
+psfi_staff <- read_sheet("1qR9sp9VjwGO23vVEr4rMukX6jhDilCa3dbAxcsm2eFI", sheet = "psfi_reference") %>%
+   mutate(Region = as.character(Region),
+          Name   = str_squish(toupper(Name)))
+for_match  <- read_sheet("1qR9sp9VjwGO23vVEr4rMukX6jhDilCa3dbAxcsm2eFI", sheet = "staff") %>%
+   filter(is.na(USER_ID))
+
+df <- for_match %>%
+   mutate(
+      Region = case_when(
+         site_region == "CALABARZON" ~ "4A",
+         site_region == "MIMAROPA" ~ "4B",
+         TRUE ~ stri_replace_all_fixed(site_region, "REGION ", "")
+      )
+   ) %>%
+   rename(Name = provider_name)
+
+df_faci <- faci_users %>%
+   select(
+      STAFF_ID,
+      Name = STAFF_NAME,
+      starts_with("site")
+   ) %>%
+   mutate_all(~toupper(.)) %>%
+   distinct_all()
+
+reclink_df <- fastLink(
+   dfA              = df,
+   dfB              = df_faci,
+   varnames         = "Name",
+   stringdist.match = "Name",
+   partial.match    = "Name",
+   # threshold.match  = 0.95,
+   cut.a            = 0.90,
+   cut.p            = 0.85,
+   dedupe.matches   = FALSE,
+   n.cores          = 4,
+
+)
+
+if (length(reclink_df$matches$inds.a) > 0) {
+   reclink_matched <- getMatches(
+      dfA         = df,
+      dfB         = df_faci,
+      fl.out      = reclink_df,
+      combine.dfs = FALSE
+   )
+
+   reclink_review <- reclink_matched$dfA.match %>%
+      mutate(
+         MATCH_ID = row_number()
+      ) %>%
+      select(
+         MATCH_ID,
+         row_id,
+         Name,
+         site_muncity,
+         site_province,
+         posterior
+      ) %>%
+      left_join(
+         y  = reclink_matched$dfB.match %>%
+            mutate(
+               MATCH_ID = row_number()
+            ) %>%
+            select(
+               MATCH_ID,
+               PSFI_STAFF_ID,
+               PSFI_NAME = Name,
+               Region,
+               `Deployment Facility`,
+               posterior
+            ),
+         by = "MATCH_ID"
+      ) %>%
+      select(-posterior.y) %>%
+      rename(posterior = posterior.x) %>%
+      arrange(desc(posterior)) %>%
+      relocate(posterior, .before = MATCH_ID) %>%
+      # Additional sift through of matches
+      mutate(
+         # levenshtein
+         LV       = stringdist::stringsim(Name, PSFI_NAME, method = 'lv'),
+         # jaro-winkler
+         JW       = stringdist::stringsim(Name, PSFI_NAME, method = 'jw'),
+         # qgram
+         QGRAM    = stringdist::stringsim(Name, PSFI_NAME, method = 'qgram', q = 3),
+         AVG_DIST = (LV + QGRAM + JW) / 3,
+      ) %>%
+      # choose 60% and above match
+      filter(AVG_DIST >= 0.60, !is.na(posterior))
+
+}

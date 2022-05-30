@@ -3,7 +3,6 @@
 # list of current vars for code cleanup
 currEnv <- ls()[ls() != "currEnv"]
 
-
 .log_info("Setting scope of the reports")
 start <- input(prompt = "What is the start date for the reports? (YYYY-MM-DD)")
 end   <- input(prompt = "What is the end date for the reports? (YYYY-MM-DD)")
@@ -152,7 +151,7 @@ everprep <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_prep")) %>%
    collect() %>%
    distinct(PATIENT_ID) %>%
    left_join(
-      y  = id_registry,
+      y  = gf$id_registry,
       by = 'PATIENT_ID'
    ) %>%
    mutate(
@@ -172,6 +171,7 @@ latest_art <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "art_last")) %>
       y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_art_bc")) %>%
          select(
             REC_ID,
+            REC_ID_GRP,
             VISIT_DATE,
             FACI_ID,
             SERVICE_FACI,
@@ -182,28 +182,22 @@ latest_art <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "art_last")) %>
    collect() %>%
    filter(LATEST_VISIT == VISIT_DATE) %>%
    mutate(
-      SERVICE_SUB_FACI = if_else(
-         condition = is.na(SERVICE_FACI),
-         true      = "",
-         false     = SERVICE_SUB_FACI
-      ),
-      SERVICE_SUB_FACI = if_else(
-         condition = is.na(SERVICE_SUB_FACI),
-         true      = "",
-         false     = SERVICE_SUB_FACI
-      ),
-      SERVICE_FACI     = if_else(
+      SERVICE_FACI = if_else(
          condition = is.na(SERVICE_FACI),
          true      = FACI_ID,
          false     = SERVICE_FACI
       ),
-   ) %>%
-   left_join(
-      y  = ohasis$ref_faci %>%
-         select(SERVICE_FACI = FACI_ID, SERVICE_SUB_FACI = SUB_FACI_ID, TX_REGION = FACI_NAME_REG, TX_FACI = FACI_NAME),
-      by = c("SERVICE_FACI", "SERVICE_SUB_FACI")
-   ) %>%
-   distinct_all()
+   )
+
+earliest_art <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "art_first")) %>%
+   collect()
+
+latest_art <- ohasis$get_faci(
+   latest_art,
+   list("TX_FACI" = c("SERVICE_FACI", "SERVICE_SUB_FACI")),
+   "name",
+   c("TX_REGION", "TX_PROVINCE", "TX_MUNCITY")
+)
 
 .log_info("Getting earliest positive result data.")
 earliest_pos <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_a")) %>%
@@ -229,6 +223,8 @@ earliest_pos <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_a")) %>
    distinct(CENTRAL_ID, .keep_all = TRUE) %>%
    select(CENTRAL_ID, DATE_CONFIRM)
 
+dbDisconnect(lw_conn)
+
 ##  Combine testing data  ------------------------------------------------------
 
 .log_info("Creating unified reach dataset.")
@@ -237,7 +233,7 @@ reach <- form_a %>%
    bind_rows(form_cfbs) %>%
    # get cid for merging
    left_join(
-      y  = id_registry,
+      y  = gf$id_registry,
       by = "PATIENT_ID"
    ) %>%
    mutate(
@@ -252,62 +248,62 @@ reach <- form_a %>%
          StrLeft(MODALITY, 6) == "101104" ~ "Non-laboratory FBT",
          StrLeft(MODALITY, 6) == "101105" ~ "Self-testing",
          StrLeft(MODALITY, 6) == "101304" ~ "Reach",
+         TRUE ~ MODALITY
       ),
       .before    = 1
    ) %>%
-   mutate_if(
-      .predicate = is.character,
-      ~if_else(!is.na(.) & stri_detect_fixed(., '_'), substr(., stri_locate_first_fixed(., '_') + 1, 1000), .)
+   rename(
+      GF_FACI     = TEST_FACI,
+      GF_SUB_FACI = TEST_SUB_FACI
    ) %>%
    # unified facility variable for matching w/ DSA signed
    mutate(
-      HTS_SUB_FACI = if_else(
-         condition = !is.na(TEST_FACI),
-         true      = TEST_SUB_FACI,
-         false     = NA_character_
+      # tag those without service faci
+      use_record_faci = if_else(
+         condition = is.na(GF_FACI),
+         true      = 1,
+         false     = 0
       ),
-      HTS_SUB_FACI = if_else(
-         condition = !is.na(HTS_SUB_FACI) & StrLeft(HTS_SUB_FACI, 6) == TEST_FACI,
-         true      = HTS_SUB_FACI,
-         false     = NA_character_
-      ),
-      HTS_FACI     = if_else(
-         condition = !is.na(TEST_FACI),
-         true      = TEST_FACI,
+      GF_FACI         = if_else(
+         condition = use_record_faci == 1,
+         true      = GF_FACI,
          false     = FACI_ID
       ),
    ) %>%
-   left_join(
-      y  = ohasis$ref_faci %>%
-         mutate(
-            SUB_FACI_ID = if_else(
-               condition = SUB_FACI_ID != "",
-               true      = SUB_FACI_ID,
-               false     = NA_character_
-            ),
-         ) %>%
-         select(
-            HTS_FACI     = FACI_ID,
-            HTS_SUB_FACI = SUB_FACI_ID,
-            HTS_SITE     = FACI_NAME,
-            HTS_REG      = FACI_NHSSS_REG,
-            HTS_PROV     = FACI_NHSSS_PROV,
-            HTS_MUNC     = FACI_NHSSS_MUNC,
-         ),
-      by = c("HTS_FACI", "HTS_SUB_FACI")
-   ) %>%
-   select(-FACI_ID, -HTS_SUB_FACI, -HTS_FACI, -TEST_FACI)
+   select(-FACI_ID) %>%
+   mutate_at(
+      .var = vars(names(select(., -REC_ID) %>% select_if(is.character))),
+      ~remove_code(.)
+   )
+
+##  Facilities -----------------------------------------------------------------
+
+.log_info("Attaching facility names (OHASIS versions).")
+# art faci
+reach <- ohasis$get_faci(
+   reach,
+   list("GF_SITE" = c("GF_FACI", "GF_SUB_FACI")),
+   "name",
+   c("GF_REG", "GF_PROV", "GF_MUNC")
+)
+
+##  Staff / Users --------------------------------------------------------------
+
+.log_info("Attaching user names (OHASIS versions).")
+# art faci
+reach <- ohasis$get_staff(reach, c("ENCODER" = "CREATED_BY"))
+reach <- ohasis$get_staff(reach, c("PROVIDER" = "SERVICE_BY"))
 
 ##  Combine testing data and generate taggings ---------------------------------
 
 # combine all testing forms
 .log_info("Generating logsheet.")
-gf$logsheet <- reach %>%
+gf$logsheet$ohasis <- reach %>%
    rename(FINAL_RESULT = CONFIRM_RESULT) %>%
    select(-contains("CONFIRM")) %>%
    # registry data for old dx
    left_join(
-      y  = nhsss$harp_dx$official$new %>%
+      y  = gf$harp$dx %>%
          mutate(
             CENTRAL_MSM = if_else(
                condition = sex == "MALE" & sexhow %in% c("HOMOSEXUAL", "BISEXUAL"),
@@ -332,24 +328,6 @@ gf$logsheet <- reach %>%
             transmit
          ),
       by = "CENTRAL_ID"
-   ) %>%
-   # unified facility variable for matching w/ DSA signed
-   mutate(
-      GF_SUB_FACI = if_else(
-         condition = !is.na(TEST_FACI),
-         true      = TEST_SUB_FACI,
-         false     = ""
-      ),
-      GF_SUB_FACI = if_else(
-         condition = !is.na(GF_SUB_FACI),
-         true      = GF_SUB_FACI,
-         false     = ""
-      ),
-      GF_FACI     = if_else(
-         condition = !is.na(TEST_FACI),
-         true      = TEST_FACI,
-         false     = FACI_ID
-      ),
    ) %>%
    inner_join(
       y  = gf$sites %>%
@@ -527,13 +505,18 @@ gf$logsheet <- reach %>%
       by = 'CENTRAL_ID'
    ) %>%
    left_join(
-      y  = nhsss$harp_tx$official$new_reg %>%
+      y  = gf$harp$tx_reg %>%
          select(CENTRAL_ID, ARTSTART_DATE = artstart_date),
       by = 'CENTRAL_ID'
    ) %>%
    left_join(
       y  = latest_art %>%
          select(CENTRAL_ID, TX_FACI, TX_REGION),
+      by = 'CENTRAL_ID'
+   ) %>%
+   left_join(
+      y  = earliest_art %>%
+         select(CENTRAL_ID, ARTSTART_PROXY = VISIT_DATE),
       by = 'CENTRAL_ID'
    ) %>%
    mutate(
@@ -555,31 +538,12 @@ gf$logsheet <- reach %>%
          StrLeft(SELF_IDENT, 1) == "1" ~ "MAN",
          StrLeft(SELF_IDENT, 1) == "2" ~ "WOMAN",
          StrLeft(SELF_IDENT, 1) == "3" ~ "OTHER",
-      )
-   ) %>%
-   left_join(
-      y  = ohasis$ref_faci %>%
-         select(
-            GF_FACI     = FACI_ID,
-            GF_SUB_FACI = SUB_FACI_ID,
-            GF_SITE     = FACI_NAME,
-            GF_REG      = FACI_NAME_REG,
-            GF_PROV     = FACI_NAME_PROV,
-            GF_MUNC     = FACI_NAME_MUNC,
-         ),
-      by = c("GF_FACI", "GF_SUB_FACI")
-   ) %>%
-   distinct_all() %>%
-   left_join(
-      y  = ohasis$ref_staff %>%
-         select(SERVICE_BY = STAFF_ID, PROVIDER = STAFF_NAME),
-      by = "SERVICE_BY"
-   ) %>%
-   distinct_all() %>%
-   left_join(
-      y  = ohasis$ref_staff %>%
-         select(CREATED_BY = STAFF_ID, ENCODER = STAFF_NAME),
-      by = "CREATED_BY"
+      ),
+      ARTSTART_DATE  = if_else(
+         condition = !is.na(ARTSTART_DATE),
+         true      = ARTSTART_DATE,
+         false     = ARTSTART_PROXY
+      ),
    ) %>%
    distinct_all() %>%
    # format dates
@@ -592,6 +556,7 @@ gf$logsheet <- reach %>%
    arrange(GF_SITE, RECORD_DATE) %>%
    select(
       ohasis_id            = CENTRAL_ID,
+      ohasis_record        = REC_ID,
       site_region          = GF_REG,
       site_province        = GF_PROV,
       site_muncity         = GF_MUNC,
@@ -627,30 +592,5 @@ gf$logsheet <- reach %>%
       tx_region            = TX_REGION
    )
 
-gf$dir  <- glue(r"(H:/Data Sharing/PSFI/{ohasis$ym})")
-gf$file <- glue(r"({gf$dir}/{format(Sys.time(), "%Y%m%d")}_gf-logsheet_{ohasis$yr}-{ohasis$mo}.dta)")
-check_dir(gf$dir)
-
-write_dta(
-   gf$logsheet,
-   gf$file
-)
-
-stata(
-   glue(r"(
-u "{gf$file}", clear
-
-ds, has(type string)
-foreach var in `r(varlist)' {{
-   loc type : type `var'
-   loc len = substr("`type'", 4, 1000)
-
-   cap form `var' %-`len's
-}}
-
-form *date* *DATE* %tdCCYY-NN-DD
-compress
-sa "{gf$file}", replace
-
-   )")
-)
+.log_success("Done!")
+rm(list = setdiff(ls(), currEnv))
