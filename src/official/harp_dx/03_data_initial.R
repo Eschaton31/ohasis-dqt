@@ -120,6 +120,7 @@ nhsss$harp_dx$initial$data %<>%
          )
       ),
       name                  = str_squish(name),
+      STANDARD_FIRST        = stri_trans_general(FIRST, "latin-ascii"),
 
       # Permanent
       use_curr              = if_else(
@@ -434,6 +435,29 @@ if (update == "1") {
       select(
          any_of(view_vars),
          SOURCE_FACI
+      )
+
+   .log_info("Checking for possible wrong sex.")
+   genders <- gender(unique(nhsss$harp_dx$initial$data$STANDARD_FIRST), method = "ssa")
+
+   nhsss$harp_dx$initial$check[["wrong_sex"]] <- nhsss$harp_dx$initial$data %>%
+      left_join(
+         y  = genders %>%
+            mutate(
+               PROBABLE_SEX = case_when(
+                  gender == "male" ~ "1_Male",
+                  gender == "female" ~ "2_Female",
+                  TRUE ~ gender
+               )
+            ) %>%
+            select(STANDARD_FIRST = name, PROBABLE_SEX),
+         by = "STANDARD_FIRST"
+      ) %>%
+      filter(SEX != PROBABLE_SEX) %>%
+      select(
+         any_of(view_vars),
+         SEX,
+         PROBABLE_SEX
       )
 
    .log_info("Checking for non-FBT confirmed.")
