@@ -20,10 +20,7 @@ check <- input(
 )
 if (check == "1") {
    .log_info("Downloading corrections list.")
-   local(envir = nhsss$prep, {
-      .log_info("Getting corrections.")
-      corr <- gdrive_correct(gdrive$path, ohasis$ym)
-   })
+   nhsss <- gdrive_correct2(nhsss, ohasis$ym, "prep")
 }
 
 # run through all tables
@@ -44,40 +41,40 @@ if (check == "1") {
    }))
 }
 
-##  Get the previous report's HARP Registry ------------------------------------
+##  Get the previous report's PrEP Registry ------------------------------------
 
-# check <- input(
-#    prompt  = "Reload previous dataset?",
-#    options = c("1" = "yes", "2" = "no"),
-#    default = "2"
-# )
-# if (check == "1") {
-#    .log_info("Getting previous datasets.")
-#    local(envir = nhsss$prep, {
-#       official         <- list()
-#       official$old_reg <- ohasis$load_old_dta(
-#          path            = ohasis$get_data("prep-reg", ohasis$prev_yr, ohasis$prev_mo),
-#          corr            = corr$old_reg,
-#          warehouse_table = "prep_old",
-#          id_col          = c("art_id" = "integer"),
-#          dta_pid         = "PATIENT_ID",
-#          remove_cols     = "CENTRAL_ID",
-#          remove_rows     = corr$anti_join
-#       )
-#
-#       official$old_outcome <- ohasis$get_data("prep-outcome", ohasis$prev_yr, ohasis$prev_mo) %>%
-#          read_dta() %>%
-#          # convert Stata string missing data to NAs
-#          mutate_if(
-#             .predicate = is.character,
-#             ~if_else(. == '', NA_character_, .)
-#          )
-#
-#       # clean if any for cleaning found
-#       if (!is.null(corr$old_outcome)) {
-#          .log_info("Performing cleaning on the outcome dataset.")
-#          official$old_outcome <- .cleaning_list(official$old_outcome, corr$old_outcome, "ART_ID", "integer")
-#       }
-#    })
-# }
-# rm(check)
+check <- input(
+   prompt  = "Reload previous dataset?",
+   options = c("1" = "yes", "2" = "no"),
+   default = "2"
+)
+if (check == "1") {
+   .log_info("Getting previous datasets.")
+   local(envir = nhsss$prep, {
+      official         <- list()
+      official$old_reg <- ohasis$load_old_dta(
+         path            = ohasis$get_data("prep-reg", ohasis$prev_yr, ohasis$prev_mo),
+         corr            = corr$old_reg,
+         warehouse_table = "prep_old",
+         id_col          = c("prep_id" = "integer"),
+         dta_pid         = "PATIENT_ID",
+         remove_cols     = "CENTRAL_ID",
+         remove_rows     = corr$anti_join
+      )
+
+      # official$old_outcome <- ohasis$get_data("prep-outcome", ohasis$prev_yr, ohasis$prev_mo) %>%
+      #    read_dta() %>%
+      #    # convert Stata string missing data to NAs
+      #    mutate_if(
+      #       .predicate = is.character,
+      #       ~if_else(. == '', NA_character_, .)
+      #    )
+      #
+      # # clean if any for cleaning found
+      # if (!is.null(corr$old_outcome)) {
+      #    .log_info("Performing cleaning on the outcome dataset.")
+      #    official$old_outcome <- .cleaning_list(official$old_outcome, corr$old_outcome, "ART_ID", "integer")
+      # }
+   })
+}
+rm(check)

@@ -92,7 +92,7 @@ WHERE VISIT_NUM = 1;
    .log_info("Clearing old data.")
    table_space <- Id(schema = "ohasis_warehouse", table = "prep_first")
    if (dbExistsTable(lw_conn, table_space))
-      dbxDelete(lw_conn, table_space, batch_size = 1000)
+      dbRemoveTable(lw_conn, table_space)
 
    .log_info("Payload = {red(formatC(nrow(data), big.mark = ','))} rows.")
    ohasis$upsert(lw_conn, "warehouse", "prep_first", data, c("CENTRAL_ID", "REC_ID"))

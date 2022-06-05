@@ -1,67 +1,39 @@
-##  Filter Initial Data & Remove Already Reported ------------------------------
+##  Append to the previous art registry ----------------------------------------
 
 # list of current vars for code cleanup
 currEnv <- ls()[ls() != "currEnv"]
 
 # open connections
-.log_info("Generating `prep`.`reg-initial`.")
+.log_info("Generating `prep`.`outcome.initial`.")
 .log_info("Opening connections.")
 lw_conn <- ohasis$conn("lw")
 
-# Form PrEP not yet reported
-.log_info("Dropping already-reported records.")
-data <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "prep_first")) %>%
-   select(CENTRAL_ID, REC_ID) %>%
-   anti_join(
-      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "prep_old")),
-      by = "CENTRAL_ID"
-   ) %>%
+# get latest visits
+.log_info("Getting latest visits from OHASIS.")
+nhsss$prep$outcome.initial$data <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "art_last")) %>%
+   select(CENTRAL_ID, REC_ID, LATEST_VISIT = VISIT_DATE) %>%
    left_join(
-      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_prep")),
+      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_art_bc")),
       by = "REC_ID"
    ) %>%
-   collect()
-dbDisconnect(lw_conn)
+   collect() %>%
+   filter(LATEST_VISIT == VISIT_DATE)
 
 .log_info("Performing initial cleaning.")
-data %<>%
-   mutate_at(
-      .vars = vars(FIRST, MIDDLE, LAST, SUFFIX),
-      ~toupper(.)
+nhsss$prep$outcome.initial$data %<>%
+   right_join(
+      y  = nhsss$prep$official$new_reg %>%
+         select(-REC_ID, -PATIENT_ID),
+      by = "CENTRAL_ID"
    ) %>%
    mutate(
       # date variables
       encoded_date    = as.Date(CREATED_AT),
 
-      # name
-      name            = paste0(
-         if_else(
-            condition = is.na(LAST),
-            true      = "",
-            false     = LAST
-         ), ", ",
-         if_else(
-            condition = is.na(FIRST),
-            true      = "",
-            false     = FIRST
-         ), " ",
-         if_else(
-            condition = is.na(MIDDLE),
-            true      = "",
-            false     = MIDDLE
-         ), " ",
-         if_else(
-            condition = is.na(SUFFIX),
-            true      = "",
-            false     = SUFFIX
-         )
-      ),
-      name            = str_squish(name),
-
       # Age
       AGE_DTA         = if_else(
-         condition = !is.na(BIRTHDATE),
-         true      = floor((VISIT_DATE - BIRTHDATE) / 365.25) %>% as.numeric(),
+         condition = !is.na(birthdate),
+         true      = floor((VISIT_DATE - birthdate) / 365.25) %>% as.numeric(),
          false     = as.numeric(NA)
       ),
 
@@ -81,32 +53,38 @@ data %<>%
 ##  Sort by earliest visit of client for the report ----------------------------
 
 .log_info("Prioritizing reports.")
-data %<>%
-   arrange(VISIT_DATE, desc(LATEST_NEXT_DATE), CENTRAL_ID) %>%
-   distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+nhsss$prep$outcome.initial$data %<>%
+   # arrange(desc(VISIT_DATE), desc(LATEST_NEXT_DATE), CENTRAL_ID) %>%
+   # distinct(CENTRAL_ID, .keep_all = TRUE) %>%
    rename(
       PREP_FACI     = SERVICE_FACI,
       PREP_SUB_FACI = SERVICE_SUB_FACI,
    )
 
+.log_info("Closing connections.")
+dbDisconnect(lw_conn)
+
 ##  Facilities -----------------------------------------------------------------
 
 .log_info("Attaching facility names (OHASIS versions).")
-# record faci
-data <- ohasis$get_faci(
-   data,
-   list("FACI_CODE" = c("FACI_ID", "SUB_FACI_ID")),
-   "code"
-)
-# art faci
-data <- ohasis$get_faci(
-   data,
-   list("PREP_FACI_CODE" = c("PREP_FACI", "PREP_SUB_FACI")),
-   "code"
-)
+local(envir = nhsss$prep, {
+   # record faci
+   outcome.initial$data <- ohasis$get_faci(
+      outcome.initial$data,
+      list("FACI_CODE" = c("FACI_ID", "SUB_FACI_ID")),
+      "code"
+   )
+   # art faci
+   outcome.initial$data <- ohasis$get_faci(
+      outcome.initial$data,
+      list("PREP_FACI_CODE" = c("PREP_FACI", "PREP_SUB_FACI")),
+      "code",
+      c("prep_reg", "prep_prov", "prep_munc")
+   )
+})
 
 # arrange via faci
-data %<>%
+nhsss$prep$outcome.initial$data %<>%
    mutate(
       PREP_BRANCH = if_else(
          condition = nchar(PREP_FACI_CODE) > 3,
@@ -145,13 +123,13 @@ data %<>%
 ##  Flag data for validation ---------------------------------------------------
 
 update <- input(
-   prompt  = "Run `reg-initial` validations?",
+   prompt  = "Run `outcome.initial` validations?",
    options = c("1" = "yes", "2" = "no"),
    default = "1"
 )
 update <- substr(toupper(update), 1, 1)
 
-nhsss$prep$reg.initial$check <- list()
+nhsss$prep$outcome.initial$check <- list()
 if (update == "1") {
    # initialize checking layer
 
@@ -159,18 +137,24 @@ if (update == "1") {
       "REC_ID",
       "PATIENT_ID",
       "FORM_VERSION",
-      "UIC",
-      "PATIENT_CODE",
-      "PHILHEALTH_NO",
-      "PHILSYS_ID",
-      "FIRST",
-      "MIDDLE",
-      "LAST",
-      "SUFFIX",
-      "BIRTHDATE",
-      "SEX",
+      "art_id",
+      "confirmatory_code",
+      "uic",
+      "px_code",
+      "philhealth_no",
+      "philsys_id",
+      "first",
+      "middle",
+      "last",
+      "suffix",
+      "birthdate",
+      "sex",
       "PREP_FACI_CODE",
       "PREP_BRANCH",
+      "SATELLITE_FACI_CODE",
+      "TRANSIENT_FACI_CODE",
+      "ACTUAL_FACI_CODE",
+      "ACTUAL_BRANCH",
       "VISIT_DATE",
       "CLINIC_NOTES",
       "COUNSEL_NOTES"
@@ -181,17 +165,16 @@ if (update == "1") {
       "encoded_date",
       "VISIT_DATE",
       "DISP_DATE",
-      "BIRTHDATE",
       "LATEST_NEXT_DATE"
    )
    .log_info("Checking dates.")
    for (var in vars) {
-      var                                 <- as.symbol(var)
-      nhsss$prep$reg.initial$check[[var]] <- data %>%
+      var                                        <- as.symbol(var)
+      nhsss$prep$outcome.initial$check[[var]] <- nhsss$prep$outcome.initial$data %>%
          filter(
             is.na(!!var) |
                !!var >= ohasis$next_date |
-               !!var <= as.Date("1900-01-01")
+               !!var < as.Date("2002-01-01")
          ) %>%
          select(
             any_of(view_vars),
@@ -199,7 +182,7 @@ if (update == "1") {
          )
 
       if (as.character(var) %in% c("LATEST_NEXT_DATE", "encoded_date"))
-         nhsss$prep$reg.initial$check[[var]] <- nhsss$prep$reg.initial$check[[var]] %>%
+         nhsss$prep$outcome.initial$check[[var]] <- nhsss$prep$outcome.initial$check[[var]] %>%
             filter(
                is.na(!!var) |
                   !!var <= as.Date("1900-01-01")
@@ -208,21 +191,13 @@ if (update == "1") {
 
    # non-negotiable variables
    vars <- c(
-      "FORM_VERSION",
       "PREP_FACI_CODE",
-      "FIRST",
-      "LAST",
-      "CENTRAL_ID",
-      "AGE",
-      "SEX",
-      "CONFIRMATORY_CODE",
-      "UIC",
       "MEDICINE_SUMMARY"
    )
    .log_info("Checking if non-negotiable variables are missing.")
    for (var in vars) {
-      var                                 <- as.symbol(var)
-      nhsss$prep$reg.initial$check[[var]] <- data %>%
+      var                                        <- as.symbol(var)
+      nhsss$prep$outcome.initial$check[[var]] <- nhsss$prep$outcome.initial$data %>%
          filter(
             is.na(!!var)
          ) %>%
@@ -230,56 +205,50 @@ if (update == "1") {
             any_of(view_vars),
             !!var
          )
+
+      if (as.character(var) == "FORM_VERSION")
+         nhsss$prep$outcome.initial$check[[var]] <- nhsss$prep$outcome.initial$check[[var]] %>%
+            filter(year(VISIT_DATE) >= 2021)
    }
 
-   # special checks
-   .log_info("Checking for mismatch dispensed and visit dates.")
-   nhsss$prep$reg.initial$check[["mismatch_disp"]] <- data %>%
+   .log_info("Checking for dispensing later than next pick-up.")
+   nhsss$prep$outcome.initial$check[["disp_>_next"]] <- nhsss$prep$outcome.initial$data %>%
       filter(
-         as.Date(DISP_DATE) != RECORD_DATE
+         VISIT_DATE > LATEST_NEXT_DATE
       ) %>%
       select(
          any_of(view_vars),
-         RECORD_DATE,
-         DISP_DATE
-      )
-
-   .log_info("Checking for short names.")
-   nhsss$prep$reg.initial$check[["short_name"]] <- data %>%
-      mutate(
-         n_first  = nchar(FIRST),
-         n_middle = nchar(MIDDLE),
-         n_last   = nchar(LAST),
-         n_name   = n_first + n_middle + n_last,
-      ) %>%
-      filter(
-         n_name <= 10 | n_first <= 3 | n_last <= 3
-      ) %>%
-      select(
-         any_of(view_vars),
-      )
-
-   .log_info("Checking for new clients that are not enrollees.")
-   nhsss$prep$reg.initial$check[["non_enrollee"]] <- data %>%
-      filter(
-         VISIT_DATE < ohasis$date
-      ) %>%
-      select(
-         any_of(view_vars),
+         LATEST_NEXT_DATE
       )
 
    .log_info("Checking for mismatch record vs art faci.")
-   nhsss$prep$reg.initial$check[["mismatch_faci"]] <- data %>%
+   nhsss$prep$outcome.initial$check[["mismatch_faci"]] <- nhsss$prep$outcome.initial$data %>%
       filter(
          FACI_CODE != PREP_FACI_CODE
       ) %>%
       select(
          any_of(view_vars),
+      )
+
+   .log_info("Checking for mismatch visit vs disp date.")
+   nhsss$prep$outcome.initial$check[["mismatch_disp"]] <- nhsss$prep$outcome.initial$data %>%
+      mutate(
+         diff = abs(as.numeric(difftime(RECORD_DATE, as.Date(DISP_DATE), units = "days")))
+      ) %>%
+      filter(
+         diff > 21
+      ) %>%
+      select(
+         any_of(view_vars),
          FACI_CODE,
+         PREP_FACI_CODE,
+         RECORD_DATE,
+         DISP_DATE,
+         diff
       )
 
    .log_info("Checking for possible PMTCT-N clients.")
-   nhsss$prep$reg.initial$check[["possible_pmtct"]] <- data %>%
+   nhsss$prep$outcome.initial$check[["possible_pmtct"]] <- nhsss$prep$outcome.initial$data %>%
       filter(
          (NUM_OF_DRUGS == 1 & stri_detect_fixed(MEDICINE_SUMMARY, "syr")) |
             AGE <= 5 |
@@ -290,18 +259,40 @@ if (update == "1") {
          MEDICINE_SUMMARY,
       )
 
-   .log_info("Checking for young clients.")
-   nhsss$prep$reg.initial$check[["young_prep"]] <- data %>%
+   .log_info("Checking for possible PrEP clients.")
+   nhsss$prep$outcome.initial$check[["possible_prep"]] <- nhsss$prep$outcome.initial$data %>%
       filter(
-         AGE < 15
+         stri_detect_fixed(MEDICINE_SUMMARY, "FTC")
       ) %>%
       select(
          any_of(view_vars),
          MEDICINE_SUMMARY,
       )
 
+   .log_info("Checking for males tagged as pregnant.")
+   nhsss$prep$outcome.initial$check[["pregnant_m"]] <- nhsss$prep$outcome.initial$data %>%
+      filter(
+         StrLeft(IS_PREGNANT, 1) == '1',
+         StrLeft(sex, 1) == 'M'
+      ) %>%
+      select(
+         any_of(view_vars),
+         IS_PREGNANT,
+      )
+
+   .log_info("Checking for pregnant females.")
+   nhsss$prep$outcome.initial$check[["pregnant_f"]] <- nhsss$prep$outcome.initial$data %>%
+      filter(
+         StrLeft(IS_PREGNANT, 1) == '1',
+         StrLeft(sex, 1) == 'F'
+      ) %>%
+      select(
+         any_of(view_vars),
+         IS_PREGNANT,
+      )
+
    .log_info("Checking calculated age vs computed age.")
-   nhsss$prep$reg.initial$check[["mismatch_age"]] <- data %>%
+   nhsss$prep$outcome.initial$check[["mismatch_age"]] <- nhsss$prep$outcome.initial$data %>%
       filter(
          AGE != AGE_DTA
       ) %>%
@@ -311,8 +302,8 @@ if (update == "1") {
          AGE_DTA
       )
 
-   .log_info("Checking PrEP reports tagged as DOH-EB.")
-   nhsss$prep$reg.initial$check[["prep_eb"]] <- data %>%
+   .log_info("Checking ART reports tagged as DOH-EB.")
+   nhsss$prep$outcome.initial$check[["art_eb"]] <- nhsss$prep$outcome.initial$data %>%
       filter(
          PREP_FACI_CODE == "DOH"
       ) %>%
@@ -331,12 +322,12 @@ if (update == "1") {
       "AGE_MO"
    )
    .log_info("Checking range-median of data.")
-   nhsss$prep$reg.initial$check$tabstat <- data.frame()
+   nhsss$prep$outcome.initial$check$tabstat <- data.frame()
    for (var in vars) {
       var <- as.symbol(var)
-      df  <- data
+      df  <- nhsss$prep$outcome.initial$data
 
-      nhsss$prep$reg.initial$check$tabstat <- df %>%
+      nhsss$prep$outcome.initial$check$tabstat <- df %>%
          summarise(
             VARIABLE = as.character(var),
             MIN      = suppress_warnings(min(!!var, na.rm = TRUE), "returning [\\-]*Inf"),
@@ -345,39 +336,14 @@ if (update == "1") {
             NAs      = sum(if_else(is.na(!!var), 1, 0, 0))
          ) %>%
          mutate_all(~as.character(.)) %>%
-         bind_rows(nhsss$prep$reg.initial$check$tabstat)
-   }
-}
-
-##  Remove already tagged data from validation ---------------------------------
-
-exclude <- input(
-   prompt  = "Exlude clients initially tagged for dropping from validations?",
-   options = c("1" = "yes", "2" = "no"),
-   default = "1"
-)
-exclude <- substr(toupper(exclude), 1, 1)
-if (exclude == "1") {
-   .log_info("Dropping unwanted records.")
-   if (update == "1") {
-      for (drop in c("drop_notart", "drop_notyet")) {
-         if (drop %in% names(nhsss$prep$corr))
-            for (check in names(nhsss$prep$reg.initial$check)) {
-               if (check != "tabstat")
-                  nhsss$prep$reg.initial$check[[check]] %<>%
-                     anti_join(
-                        y  = nhsss$prep$corr[[drop]],
-                        by = "REC_ID"
-                     )
-            }
-      }
+         bind_rows(nhsss$prep$outcome.initial$check$tabstat)
    }
 }
 
 ##  Consolidate issues ---------------------------------------------------------
 
 # write into NHSSS GSheet
-data_name <- "reg.initial"
+data_name <- "outcome.initial"
 if (!is.empty(nhsss$prep[[data_name]]$check))
    .validation_gsheets(
       data_name   = data_name,
@@ -386,7 +352,6 @@ if (!is.empty(nhsss$prep[[data_name]]$check))
       surv_name   = "HARP Tx"
    )
 
-nhsss$prep$reg.initial$data <- data
 .log_success("Done!")
 
 # clean-up created objects
