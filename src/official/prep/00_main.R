@@ -26,8 +26,8 @@ dedup <- input(
    default = "2"
 )
 if (dedup == "1") {
-   source(file.path(nhsss$prep$wd, "07_dedup_new.R"))
-   source(file.path(nhsss$prep$wd, "08_dedup_old.R"))
+   source(file.path(nhsss$prep$wd, "06_dedup_new.R"))
+   source(file.path(nhsss$prep$wd, "07_dedup_old.R"))
    source(file.path(nhsss$prep$wd, "09_dedup_dx.R"))
 }
 rm(dedup)

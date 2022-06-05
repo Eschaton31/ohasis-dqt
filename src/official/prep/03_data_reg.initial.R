@@ -383,7 +383,7 @@ if (!is.empty(nhsss$prep[[data_name]]$check))
       data_name   = data_name,
       parent_list = nhsss$prep[[data_name]]$check,
       drive_path  = paste0(nhsss$prep$gdrive$path$report, "Validation/"),
-      surv_name   = "HARP Tx"
+      surv_name   = "PrEP"
    )
 
 nhsss$prep$reg.initial$data <- data
