@@ -93,6 +93,16 @@ Project <- setRefClass(
                pattern <- paste0('*vl_ml_', refYr, '-', refMo, '.*\\.', file_type)
             }
 
+            if (tolower(surveillance) == "prep-reg") {
+               path    <- Sys.getenv("PREP")
+               pattern <- paste0('*reg-prep_', refYr, '-', refMo, '.*\\.', file_type)
+            }
+
+            if (tolower(surveillance) == "prep-outcome") {
+               path    <- Sys.getenv("PREP")
+               pattern <- paste0('*_onprep[-vl]*_', refYr, '-', refMo, '.*\\.', file_type)
+            }
+
             return(c(path, pattern))
          }
 
