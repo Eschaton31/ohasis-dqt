@@ -1,28 +1,19 @@
 ##  HARP Registry Linkage Controller -------------------------------------------
 
-# update warehouse - Form A
-ohasis$data_factory("warehouse", "form_a", "upsert", TRUE)
-
-# update warehouse - HTS Form
-ohasis$data_factory("warehouse", "form_hts", "upsert", TRUE)
-
-# update warehouse - OHASIS IDs
-ohasis$data_factory("warehouse", "id_registry", "upsert", TRUE)
-
 # define datasets
 if (!exists("nhsss"))
    nhsss <- list()
 
-##  Generate pre-requisites and endpoints --------------------------------------
+if (!("harp_dx" %in% names(nhsss)))
+   nhsss$harp_dx <- new.env()
 
-nhsss$harp_dx$gdrive$path <- gdrive_endpoint("HARP Dx", ohasis$ym)
-nhsss$harp_dx$corr        <- gdrive_correct(nhsss$harp_dx$gdrive$path, ohasis$ym)
+nhsss$harp_dx$wd <- file.path(getwd(), "src", "official", "harp_dx")
 
-##  Begin linkage of datasets --------------------------------------------------
+##  Begin linkage of dx registry -----------------------------------------------
 
-source("src/official/harp_dx/02_load_harp.R")
-source("src/official/harp_dx/03_data_initial.R")
-source("src/official/harp_dx/04_data_convert.R")
+source(file.path(nhsss$harp_dx$wd, "01_load_reqs.R"))
+source(file.path(nhsss$harp_dx$wd, "03_data_initial.R"))
+source(file.path(nhsss$harp_dx$wd, "04_data_convert.R"))
 
 ##  PII Deduplication ----------------------------------------------------------
 
@@ -33,8 +24,8 @@ dedup <- input(
    default = "2"
 )
 if (dedup == "1") {
-   source("src/official/harp_dx/05_dedup_new.R")
-   source("src/official/harp_dx/06_dedup_old.R")
+   source(file.path(nhsss$harp_dx$wd, "05_dedup_new.R"))
+   source(file.path(nhsss$harp_dx$wd, "06_dedup_old.R"))
 }
 rm(dedup)
 
@@ -47,18 +38,18 @@ complete <- input(
    default = "2"
 )
 if (complete == "1") {
-   source("src/official/harp_dx/07_data_final.R")
-   source("src/official/harp_dx/08_output.R")
+   source(file.path(nhsss$harp_dx$wd, "07_data_final.R"))
+   source(file.path(nhsss$harp_dx$wd, "08_output.R"))
 
    # TODO: Place these after pdf & ml conso
-   source("src/official/harp_dx/09_archive.R")
-   source("src/official/harp_dx/10_upload.R")
+   source(file.path(nhsss$harp_dx$wd, "09_archive.R"))
+   source(file.path(nhsss$harp_dx$wd, "10_upload.R"))
 }
 rm(complete)
 
 ##   Consolidate Confirmatories ------------------------------------------------
 
-source("src/official/harp_dx/12_pdf_saccl.R")
+   source(file.path(nhsss$harp_dx$wd, "12_pdf_saccl.R"))
 
 # TODO: Add import of SACCL Confirmatory data based on `pdf_results`
 # TODO: Add processing of crcl pdf
