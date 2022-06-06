@@ -188,31 +188,6 @@ if (update == "1") {
       ) %>%
       arrange(prep_first_faci)
 
-   .log_info("Checking for TAT (confirmatory to enrollment).")
-   nhsss$prep$reg.final$check[["tat_confirm_enroll"]] <- nhsss$prep$official$new_reg %>%
-      left_join(
-         y  = nhsss$harp_dx$official$new %>%
-            select(
-               CENTRAL_ID,
-               confirm_date
-            ),
-         by = "CENTRAL_ID"
-      ) %>%
-      mutate(
-         tat = abs(as.numeric(difftime(confirm_date, prep_first_screen, units = "days")) / 365.25),
-         tat = floor(tat)
-      ) %>%
-      filter(
-         year >= as.numeric(ohasis$yr) - 1,
-         tat >= 2
-      ) %>%
-      select(
-         any_of(view_vars),
-         confirm_date,
-         tat
-      ) %>%
-      arrange(prep_first_faci)
-
    # range-median
    vars <- c(
       "age",

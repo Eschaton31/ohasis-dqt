@@ -10,16 +10,71 @@ lw_conn <- ohasis$conn("lw")
 
 # get latest visits
 .log_info("Getting latest visits from OHASIS.")
-nhsss$prep$outcome.initial$data <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "art_last")) %>%
-   select(CENTRAL_ID, REC_ID, LATEST_VISIT = VISIT_DATE) %>%
-   left_join(
-      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_art_bc")),
-      by = "REC_ID"
+query_form  <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_prep"))
+query_id    <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "id_registry"))
+prep_screen <- query_form %>%
+   filter(
+      PREP_VISIT == "1_Screening",
+      VISIT_DATE <= ohasis$next_date
    ) %>%
-   collect() %>%
-   filter(LATEST_VISIT == VISIT_DATE)
+   left_join(
+      y  = query_id %>% select(PATIENT_ID, CENTRAL_ID),
+      by = "PATIENT_ID"
+   ) %>%
+   mutate(
+      CENTRAL_ID = if_else(
+         condition = is.na(CENTRAL_ID),
+         true      = PATIENT_ID,
+         false     = CENTRAL_ID
+      )
+   ) %>%
+   collect()
+
+prep_ffup <- query_form %>%
+   filter(
+      PREP_VISIT == "2_Follow-up",
+      VISIT_DATE <= ohasis$next_date
+   ) %>%
+   left_join(
+      y  = query_id %>% select(PATIENT_ID, CENTRAL_ID),
+      by = "PATIENT_ID"
+   ) %>%
+   mutate(
+      CENTRAL_ID = if_else(
+         condition = is.na(CENTRAL_ID),
+         true      = PATIENT_ID,
+         false     = CENTRAL_ID
+      )
+   ) %>%
+   collect()
 
 .log_info("Performing initial cleaning.")
+data <- nhsss$prep$official$new_reg %>%
+   select(
+      prep_id,
+      CENTRAL_ID
+   ) %>%
+   left_join(
+      y  = prep_screen %>%
+         group_by(CENTRAL_ID) %>%
+         summarise(
+            form_scrn_num    = n(),
+            form_scrn_latest = suppress_warnings(max(VISIT_DATE, na.rm = TRUE), "returning [\\-]*Inf")
+         ) %>%
+         ungroup(),
+      by = "CENTRAL_ID"
+   ) %>%
+   left_join(
+      y  = prep_ffup %>%
+         group_by(CENTRAL_ID) %>%
+         summarise(
+            form_ffup_num    = n(),
+            form_ffup_latest = suppress_warnings(max(VISIT_DATE, na.rm = TRUE), "returning [\\-]*Inf")
+         ) %>%
+         ungroup(),
+      by = "CENTRAL_ID"
+   )
+
 nhsss$prep$outcome.initial$data %<>%
    right_join(
       y  = nhsss$prep$official$new_reg %>%
@@ -169,7 +224,7 @@ if (update == "1") {
    )
    .log_info("Checking dates.")
    for (var in vars) {
-      var                                        <- as.symbol(var)
+      var                                     <- as.symbol(var)
       nhsss$prep$outcome.initial$check[[var]] <- nhsss$prep$outcome.initial$data %>%
          filter(
             is.na(!!var) |
@@ -196,7 +251,7 @@ if (update == "1") {
    )
    .log_info("Checking if non-negotiable variables are missing.")
    for (var in vars) {
-      var                                        <- as.symbol(var)
+      var                                     <- as.symbol(var)
       nhsss$prep$outcome.initial$check[[var]] <- nhsss$prep$outcome.initial$data %>%
          filter(
             is.na(!!var)
