@@ -581,5 +581,11 @@ if ((object %>% count() %>% collect())$n > 0) {
       mutate(
          NUM_OF_DRUGS = stri_count_fixed(MEDICINE_SUMMARY, '+') + 1,
          NUM_OF_DRUGS = if_else(is.na(NUM_OF_DRUGS), as.integer(0), as.integer(NUM_OF_DRUGS)),
+         PREP_RECORD  = case_when(
+            StrLeft(PREP_STATUS) == 1 ~ "PrEP",
+            StrLeft(PREP_CONTINUED) == 1 ~ "PrEP",
+            !is.na(MEDICINE_SUMMARY) ~ "PrEP",
+            TRUE ~ "Visit"
+         )
       )
 }
