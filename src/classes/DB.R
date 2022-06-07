@@ -225,6 +225,8 @@ DB <- setRefClass(
                   Var1 == "LONG" ~ "DECIMAL(10,7) NULL COLLATE 'utf8_general_ci'",
                   Var1 == "LAT" ~ "DECIMAL(9,7) NULL COLLATE 'utf8_general_ci'",
                   Var1 == "REC_ID" ~ "CHAR(25) NULL COLLATE 'utf8_general_ci'",
+                  Var1 == "SOURCE_REC" ~ "CHAR(25) NULL COLLATE 'utf8_general_ci'",
+                  Var1 == "DESTINATION_REC" ~ "CHAR(25) NULL COLLATE 'utf8_general_ci'",
                   Var1 == "REC_ID_GRP" ~ "VARCHAR(100) NULL COLLATE 'utf8_general_ci'",
                   Var1 == "CENTRAL_ID" ~ "CHAR(18) NULL COLLATE 'utf8_general_ci'",
                   Var1 == "PATIENT_ID" ~ "CHAR(18) NULL COLLATE 'utf8_general_ci'",
