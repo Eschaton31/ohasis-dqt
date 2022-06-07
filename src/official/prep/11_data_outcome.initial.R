@@ -8,97 +8,141 @@ currEnv <- ls()[ls() != "currEnv"]
 .log_info("Opening connections.")
 lw_conn <- ohasis$conn("lw")
 
-# get latest visits
-.log_info("Getting latest visits from OHASIS.")
-query_form  <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_prep"))
-query_id    <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "id_registry"))
-prep_screen <- query_form %>%
-   filter(
-      PREP_VISIT == "1_Screening",
-      VISIT_DATE <= ohasis$next_date
-   ) %>%
-   left_join(
-      y  = query_id %>% select(PATIENT_ID, CENTRAL_ID),
-      by = "PATIENT_ID"
-   ) %>%
+.log_info("Getting current start dates from OHASIS.")
+query_form <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_prep"))
+query_id   <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "id_registry"))
+
+prep_disp <- list()
+invisible(lapply(1:13, function(mo) {
+   min <- ohasis$next_date %m-% months(mo)
+   max <- ceiling_date(min, "months") %m-% days(1)
+
+   month <- as.numeric(mo)
+   data  <- query_form %>%
+      filter(
+         VISIT_DATE >= min,
+         VISIT_DATE <= max,
+         PREP_RECORD == "PrEP"
+      ) %>%
+      left_join(
+         y  = query_id %>% select(PATIENT_ID, CENTRAL_ID),
+         by = "PATIENT_ID"
+      ) %>%
+      mutate(
+         CENTRAL_ID = if_else(
+            condition = is.na(CENTRAL_ID),
+            true      = PATIENT_ID,
+            false     = CENTRAL_ID
+         ),
+         PM         = month
+      ) %>%
+      select(
+         CENTRAL_ID,
+         PM,
+         VISIT_DATE,
+         LATEST_NEXT_DATE,
+         MEDICINE_SUMMARY,
+      ) %>%
+      collect() %>%
+      arrange(VISIT_DATE, desc(LATEST_NEXT_DATE)) %>%
+      distinct(CENTRAL_ID, .keep_all = TRUE)
+
+   .GlobalEnv$prep_disp[[mo]] <- data
+}))
+
+disp_p12m <- bind_rows(prep_disp) %>%
+   arrange(CENTRAL_ID, VISIT_DATE, desc(LATEST_NEXT_DATE)) %>%
+   group_by(CENTRAL_ID) %>%
    mutate(
-      CENTRAL_ID = if_else(
-         condition = is.na(CENTRAL_ID),
-         true      = PATIENT_ID,
-         false     = CENTRAL_ID
+      DATE_BEFORE = lag(VISIT_DATE, order_by = VISIT_DATE),
+      DATE_AFTER  = lead(VISIT_DATE, order_by = VISIT_DATE),
+   ) %>%
+   ungroup() %>%
+   mutate(
+      DIFF_BEFORE = interval(DATE_BEFORE, VISIT_DATE) %/% months(1),
+      DIFF_AFTER  = interval(VISIT_DATE, DATE_AFTER) %/% months(1),
+   )
+
+df_latest_start <- disp_p12m %>%
+   filter(DIFF_BEFORE >= 4 | is.na(DIFF_BEFORE)) %>%
+   arrange(CENTRAL_ID, desc(VISIT_DATE)) %>%
+   distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+   mutate(
+      INITIATION_DATE = if_else(
+         condition = is.na(DIFF_BEFORE),
+         true      = VISIT_DATE,
+         false     = DATE_BEFORE
       )
+   ) %>%
+   select(
+      CENTRAL_ID,
+      INITIATION_DATE
+   )
+
+dbDisconnect(lw_conn)
+
+.log_info("Getting relevant dates from OHASIS.")
+lw_conn          <- ohasis$conn("lw")
+query_disp_first <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "prepdisp_first"))
+query_last       <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "prep_last"))
+query_form       <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_prep"))
+prep_start       <- query_disp_first %>%
+   select(
+      CENTRAL_ID,
+      PREP_START_DATE = VISIT_DATE
    ) %>%
    collect()
 
-prep_ffup <- query_form %>%
-   filter(
-      PREP_VISIT == "2_Follow-up",
-      VISIT_DATE <= ohasis$next_date
-   ) %>%
+curr_forms <- query_last %>%
+   select(CENTRAL_ID, REC_ID, LATEST_VISIT = VISIT_DATE) %>%
    left_join(
-      y  = query_id %>% select(PATIENT_ID, CENTRAL_ID),
-      by = "PATIENT_ID"
+      y  = query_form,
+      by = "REC_ID"
    ) %>%
-   mutate(
-      CENTRAL_ID = if_else(
-         condition = is.na(CENTRAL_ID),
-         true      = PATIENT_ID,
-         false     = CENTRAL_ID
-      )
-   ) %>%
-   collect()
+   collect() %>%
+   filter(LATEST_VISIT == VISIT_DATE)
 
 .log_info("Performing initial cleaning.")
+
+
 data <- nhsss$prep$official$new_reg %>%
    select(
       prep_id,
+      birthdate,
       CENTRAL_ID
    ) %>%
    left_join(
-      y  = prep_screen %>%
-         group_by(CENTRAL_ID) %>%
-         summarise(
-            form_scrn_num    = n(),
-            form_scrn_latest = suppress_warnings(max(VISIT_DATE, na.rm = TRUE), "returning [\\-]*Inf")
-         ) %>%
-         ungroup(),
+      y  = prep_start,
       by = "CENTRAL_ID"
    ) %>%
    left_join(
-      y  = prep_ffup %>%
-         group_by(CENTRAL_ID) %>%
-         summarise(
-            form_ffup_num    = n(),
-            form_ffup_latest = suppress_warnings(max(VISIT_DATE, na.rm = TRUE), "returning [\\-]*Inf")
-         ) %>%
-         ungroup(),
+      y  = df_latest_start,
+      by = "CENTRAL_ID"
+   ) %>%
+   left_join(
+      y  = curr_forms,
       by = "CENTRAL_ID"
    )
 
-nhsss$prep$outcome.initial$data %<>%
-   right_join(
-      y  = nhsss$prep$official$new_reg %>%
-         select(-REC_ID, -PATIENT_ID),
-      by = "CENTRAL_ID"
-   ) %>%
+nhsss$prep$outcome.initial$data <- data %>%
    mutate(
       # date variables
-      encoded_date    = as.Date(CREATED_AT),
+      encoded_date      = as.Date(CREATED_AT),
 
       # Age
-      AGE_DTA         = if_else(
+      AGE_DTA           = if_else(
          condition = !is.na(birthdate),
          true      = floor((VISIT_DATE - birthdate) / 365.25) %>% as.numeric(),
          false     = as.numeric(NA)
       ),
 
       # tag those without PREP_FACI
-      use_record_faci = if_else(
+      use_record_faci   = if_else(
          condition = is.na(SERVICE_FACI),
          true      = 1,
          false     = 0
       ),
-      SERVICE_FACI    = if_else(
+      SERVICE_FACI      = if_else(
          condition = use_record_faci == 1,
          true      = FACI_ID,
          false     = SERVICE_FACI
