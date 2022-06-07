@@ -48,6 +48,68 @@ get_ei <- function(reporting = NULL) {
    return(df)
 }
 
+# get list of encoded forms
+get_encoded <- function(reporting = NULL, module = NULL) {
+   main_path  <- "~/DQT/Documentation/Encoding/"
+   main_drive <- drive_ls(main_path)
+
+   df_list <- list()
+   # download everything if no reporting period specified
+   if (is.null(reporting)) {
+      for (reporting in main_drive$name) {
+         if (StrIsNumeric(reporting)) {
+            list_ei <- drive_ls(paste0(main_path, reporting, "/", module, "/"))
+
+            for (ei in seq_len(nrow(list_ei))) {
+               sheets <- sheet_names(list_ei[ei, "id"] %>% as.character())
+               sheets <- sheets[!stri_detect_fixed(sheets, "LEGENDS")]
+
+               for (sheet in sheets) {
+                  ei_df <- read_sheet(list_ei[ei, "id"] %>% as.character(), sheet = sheet) %>%
+                     mutate_all(
+                        ~as.character(.)
+                     ) %>%
+                     mutate(
+                        encoder = list_ei[ei, "name"] %>% as.character()
+                     )
+
+                  if (is.null(df_list[[sheet]]))
+                     df_list[[sheet]] <- ei_df
+                  else
+                     df_list[[sheet]] <- bind_rows(df_list[[sheet]], ei_df)
+               }
+            }
+         }
+      }
+   } else {
+      if (StrIsNumeric(reporting)) {
+         list_ei <- drive_ls(paste0(main_path, reporting, "/", module, "/"))
+
+         for (ei in seq_len(nrow(list_ei))) {
+            sheets <- sheet_names(list_ei[ei, "id"] %>% as.character())
+            sheets <- sheets[!stri_detect_fixed(sheets, "LEGENDS")]
+
+            for (sheet in sheets) {
+               ei_df <- read_sheet(list_ei[ei, "id"] %>% as.character(), sheet = sheet) %>%
+                  mutate_all(
+                     ~as.character(.)
+                  ) %>%
+                  mutate(
+                     encoder = list_ei[ei, "name"] %>% as.character()
+                  )
+
+               if (is.null(df_list[[sheet]]))
+                  df_list[[sheet]] <- ei_df
+               else
+                  df_list[[sheet]] <- bind_rows(df_list[[sheet]], ei_df)
+            }
+         }
+      }
+   }
+
+   return(df_list)
+}
+
 # get drive endpoint
 gdrive_endpoint <- function(surv_name = NULL, report_period = NULL) {
    path         <- list()
