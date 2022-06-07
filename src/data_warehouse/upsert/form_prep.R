@@ -36,10 +36,10 @@ for_delete_2 <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
    filter(
       !is.na(DELETED_BY)
    ) %>%
-   inner_join(
-      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_prep")),
-      by = "REC_ID"
-   ) %>%
+   # inner_join(
+   #    y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_prep")),
+   #    by = "REC_ID"
+   # ) %>%
    select(REC_ID) %>%
    collect()
 
@@ -582,8 +582,8 @@ if ((object %>% count() %>% collect())$n > 0) {
          NUM_OF_DRUGS = stri_count_fixed(MEDICINE_SUMMARY, '+') + 1,
          NUM_OF_DRUGS = if_else(is.na(NUM_OF_DRUGS), as.integer(0), as.integer(NUM_OF_DRUGS)),
          PREP_RECORD  = case_when(
-            StrLeft(PREP_STATUS) == 1 ~ "PrEP",
-            StrLeft(PREP_CONTINUED) == 1 ~ "PrEP",
+            StrLeft(PREP_STATUS, 1) == 1 ~ "PrEP",
+            StrLeft(PREP_CONTINUED, 1) == 1 ~ "PrEP",
             !is.na(MEDICINE_SUMMARY) ~ "PrEP",
             TRUE ~ "Visit"
          )
