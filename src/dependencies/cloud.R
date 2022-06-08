@@ -10,7 +10,7 @@ get_ei <- function(reporting = NULL) {
    if (is.null(reporting)) {
       for (reporting in main_drive$name) {
          if (StrIsNumeric(reporting)) {
-            list_ei <- drive_ls(paste0(main_path, reporting, "/"))
+            list_ei <- drive_ls(paste0(main_path, reporting, "/EI/"))
             list_ei %<>% filter(name != "FOR ENCODING")
 
             for (ei in seq_len(nrow(list_ei))) {
@@ -28,7 +28,7 @@ get_ei <- function(reporting = NULL) {
       }
    } else {
       if (StrIsNumeric(reporting)) {
-         list_ei <- drive_ls(paste0(main_path, reporting, "/"))
+         list_ei <- drive_ls(paste0(main_path, reporting, "/EI/"))
          list_ei %<>% filter(name != "FOR ENCODING")
 
          for (ei in seq_len(nrow(list_ei))) {

@@ -4,12 +4,14 @@ db_conn    <- ohasis$conn("db")
 px_confirm <- dbReadTable(db_conn, Id(schema = "ohasis_interim", table = "px_confirm"))
 dbDisconnect(db_conn)
 
-ei      <- get_ei("2022.04")
+ei      <- get_ei("2022.05")
 encoded <- ei %>%
-   filter(Form %in% c("Form A", "HTS Form"),
-          !is.na(`Record ID`)) %>%
+   filter(
+      # Form %in% c("Form A", "HTS Form") | (is.na(Form) & nchar(`Page ID`) == 12),
+      !is.na(`Record ID`)
+   ) %>%
    mutate(,
-      `Encoder` = stri_replace_first_fixed(encoder, "2022.03_", "")
+      `Encoder` = stri_replace_first_fixed(encoder, "2022.04_", "")
    ) %>%
    select(
       `Facility ID`,
@@ -115,7 +117,7 @@ write_clip(
 
 ##  Generate import dataframes -------------------------------------------------
 
-TIMESTAMP <- "2022-05-19 15:17:00"
+TIMESTAMP <- "2022-06-08 21:28:00"
 # import    <- nhsss$harp_dx$pdf_saccl$data %>%
 import    <- nhsss$harp_dx$pdf_saccl$data %>%
    mutate_all(~as.character(.)) %>%

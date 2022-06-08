@@ -32,23 +32,30 @@ nhsss$prep$official$new_outcome <- nhsss$prep$outcome.converted$data %>%
       #    true      = curr_regimen,
       #    false     = prev_regimen,
       # ),
-      # curr_outcome      = case_when(
-      #    prev_outcome == "dead" ~ "dead",
-      #    TRUE ~ curr_outcome
-      # ),
-      newonprep = if_else(
+      curr_outcome     = case_when(
+         prev_outcome == "2_ltfu" & curr_outcome == "5_not on prep" ~ "2_ltfu",
+         TRUE ~ curr_outcome
+      ),
+      newonprep        = if_else(
          condition = year(prepstart_date) == as.numeric(ohasis$yr) &
             month(prepstart_date) == as.numeric(ohasis$mo),
          true      = 1,
          false     = 0,
          missing   = 0
       ),
-      onprep    = if_else(
+      onprep           = if_else(
          condition = curr_outcome == "1_on prep",
          true      = 1,
          false     = 0,
          missing   = 0
       ),
+
+      reinit_diff      = interval(prev_reinit, prep_reinit_date) %/% months(1),
+      prep_reinit_date = case_when(
+         prep_reinit_date > prev_reinit & (reinit_diff > 0 & reinit_diff <= 3) ~ prev_reinit,
+         prep_reinit_date < prev_reinit & (reinit_diff > 3) ~ prep_reinit_date,
+         TRUE ~ prep_reinit_date
+      )
    ) %>%
    select(
       -any_of(
@@ -157,6 +164,7 @@ nhsss$prep$official$new_outcome <- nhsss$prep$outcome.converted$data %>%
    ) %>%
    distinct_all() %>%
    arrange(prep_id) %>%
+   rename(curr_age = age) %>%
    mutate(central_id = CENTRAL_ID)
 
 .log_info("Performing late validation cleanings.")

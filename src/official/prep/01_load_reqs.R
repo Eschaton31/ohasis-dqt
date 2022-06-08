@@ -34,7 +34,7 @@ if (check == "1") {
    local(envir = nhsss$prep, invisible({
       tables           <- list()
       tables$lake      <- c("lab_wide", "disp_meds")
-      tables$warehouse <- c("form_prep", "id_registry")
+      tables$warehouse <- c("form_prep", "id_registry", "rec_link")
 
       lapply(tables$lake, function(table) ohasis$data_factory("lake", table, "upsert", TRUE))
       lapply(tables$warehouse, function(table) ohasis$data_factory("warehouse", table, "upsert", TRUE))
@@ -62,19 +62,19 @@ if (check == "1") {
          remove_rows     = corr$anti_join
       )
 
-      # official$old_outcome <- ohasis$get_data("prep-outcome", ohasis$prev_yr, ohasis$prev_mo) %>%
-      #    read_dta() %>%
-      #    # convert Stata string missing data to NAs
-      #    mutate_if(
-      #       .predicate = is.character,
-      #       ~if_else(. == '', NA_character_, .)
-      #    )
-      #
-      # # clean if any for cleaning found
-      # if (!is.null(corr$old_outcome)) {
-      #    .log_info("Performing cleaning on the outcome dataset.")
-      #    official$old_outcome <- .cleaning_list(official$old_outcome, corr$old_outcome, "ART_ID", "integer")
-      # }
+      official$old_outcome <- ohasis$get_data("prep-outcome", ohasis$prev_yr, ohasis$prev_mo) %>%
+         read_dta() %>%
+         # convert Stata string missing data to NAs
+         mutate_if(
+            .predicate = is.character,
+            ~if_else(. == '', NA_character_, .)
+         )
+
+      # clean if any for cleaning found
+      if (!is.null(corr$old_outcome)) {
+         .log_info("Performing cleaning on the outcome dataset.")
+         official$old_outcome <- .cleaning_list(official$old_outcome, corr$old_outcome, "ART_ID", "integer")
+      }
    })
 }
 rm(check)
