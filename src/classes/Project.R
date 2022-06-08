@@ -131,7 +131,7 @@ Project <- setRefClass(
             file <- get_latest(info[1], info[2])
          }
 
-         .log_info(r"(GET: {red('basename(file[1])')})")
+         .log_info(r"(GET: {red(basename(file[1]))})")
          return(file[1])
       }
    )
