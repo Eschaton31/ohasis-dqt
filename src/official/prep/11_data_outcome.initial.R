@@ -108,6 +108,9 @@ curr_forms <- query_last %>%
 data <- nhsss$prep$official$new_reg %>%
    select(
       prep_id,
+      sex,
+      year,
+      month,
       birthdate,
       CENTRAL_ID
    ) %>%
@@ -127,22 +130,22 @@ data <- nhsss$prep$official$new_reg %>%
 nhsss$prep$outcome.initial$data <- data %>%
    mutate(
       # date variables
-      encoded_date      = as.Date(CREATED_AT),
+      encoded_date    = as.Date(CREATED_AT),
 
       # Age
-      AGE_DTA           = if_else(
+      AGE_DTA         = if_else(
          condition = !is.na(birthdate),
          true      = floor((VISIT_DATE - birthdate) / 365.25) %>% as.numeric(),
          false     = as.numeric(NA)
       ),
 
       # tag those without PREP_FACI
-      use_record_faci   = if_else(
+      use_record_faci = if_else(
          condition = is.na(SERVICE_FACI),
          true      = 1,
          false     = 0
       ),
-      SERVICE_FACI      = if_else(
+      SERVICE_FACI    = if_else(
          condition = use_record_faci == 1,
          true      = FACI_ID,
          false     = SERVICE_FACI
