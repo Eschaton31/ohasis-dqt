@@ -14,18 +14,14 @@ dedup_prep <- function(
    philsys = NULL
 ) {
    dedup_new <- data %>%
-      mutate_at(
-         .vasr = vars({{name_l}}, {{name_m}}, {{name_l}}, {{name_s}}, {{uic}}, {{code_confirm}}, {{code_px}}),
-         stri_trans_general(., "latin-ascii")
-      ) %>%
       mutate(
-         LAST              = stri_trans_toupper({{name_l}}),
-         MIDDLE            = stri_trans_toupper({{name_m}}),
-         FIRST             = stri_trans_toupper({{name_f}}),
-         SUFFIX            = stri_trans_toupper({{name_s}}),
-         UIC               = stri_trans_toupper({{uic}}),
-         CONFIRMATORY_CODE = stri_trans_toupper({{code_confirm}}),
-         PATIENT_CODE      = stri_trans_toupper({{code_px}}),
+         LAST              = stri_trans_general(stri_trans_toupper({{name_l}}), "latin-ascii"),
+         MIDDLE            = stri_trans_general(stri_trans_toupper({{name_m}}), "latin-ascii"),
+         FIRST             = stri_trans_general(stri_trans_toupper({{name_f}}), "latin-ascii"),
+         SUFFIX            = stri_trans_general(stri_trans_toupper({{name_s}}), "latin-ascii"),
+         UIC               = stri_trans_general(stri_trans_toupper({{uic}}), "latin-ascii"),
+         CONFIRMATORY_CODE = stri_trans_general(stri_trans_toupper({{code_confirm}}), "latin-ascii"),
+         PATIENT_CODE      = stri_trans_general(stri_trans_toupper({{code_px}}), "latin-ascii"),
 
          # get components of birthdate
          BIRTH_YR          = year({{birthdate}}),
