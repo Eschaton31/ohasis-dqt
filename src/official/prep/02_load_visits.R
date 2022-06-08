@@ -9,6 +9,17 @@ lw_conn <- ohasis$conn("lw")
 db_conn <- ohasis$conn("db")
 db_name <- "ohasis_warehouse"
 
+.log_info("Updating records to be ignored")
+if (!is.null(nhsss$prep$corr$rec_ignore)) {
+   table_space <- Id(schema = "ohasis_warehouse", table = "prep_ignore")
+   if (dbExistsTable(lw_conn, table_space))
+      dbRemoveTable(lw_conn, table_space)
+
+   .log_info("Payload = {red(formatC(nrow(nhsss$prep$corr$rec_ignore), big.mark = ','))} rows.")
+   ohasis$upsert(lw_conn, "warehouse", "prep_ignore", nhsss$prep$corr$rec_ignore %>% select(REC_ID) %>% mutate(IGNORE = 1), "REC_ID")
+   .log_success("Done!")
+}
+
 # check if prep starts to be re-processed
 update <- input(
    prompt  = "Do you want to re-process the PrEP Dispensed Start Dates?",
@@ -34,7 +45,8 @@ FROM (SELECT data.CENTRAL_ID,
                       rec.*
                FROM ohasis_warehouse.form_prep rec
                         LEFT JOIN ohasis_warehouse.id_registry reg ON rec.PATIENT_ID = reg.PATIENT_ID
-               WHERE PREP_RECORD = 'PrEP' AND VISIT_DATE < '{ohasis$next_date}'
+                        LEFT JOIN ohasis_warehouse.prep_ignore ign ON rec.REC_ID = ign.REC_ID
+               WHERE PREP_RECORD = 'PrEP' AND VISIT_DATE < '{ohasis$next_date}' AND ign.IGNORE IS NULL
            ) AS data) AS prepstart
 WHERE VISIT_NUM = 1;
    )")
@@ -79,7 +91,8 @@ FROM (SELECT data.CENTRAL_ID,
                       rec.*
                FROM ohasis_warehouse.form_prep rec
                         LEFT JOIN ohasis_warehouse.id_registry reg ON rec.PATIENT_ID = reg.PATIENT_ID
-               WHERE VISIT_DATE < '{ohasis$next_date}'
+                        LEFT JOIN ohasis_warehouse.prep_ignore ign ON rec.REC_ID = ign.REC_ID
+               WHERE VISIT_DATE < '{ohasis$next_date}' AND ign.IGNORE IS NULL
            ) AS data) AS prepstart
 WHERE VISIT_NUM = 1;
    )")
@@ -126,7 +139,8 @@ FROM (SELECT data.CENTRAL_ID,
                       rec.*
                FROM ohasis_warehouse.form_prep rec
                         LEFT JOIN ohasis_warehouse.id_registry reg ON rec.PATIENT_ID = reg.PATIENT_ID
-               WHERE PREP_RECORD = 'PrEP' AND VISIT_DATE < '{ohasis$next_date}'
+                        LEFT JOIN ohasis_warehouse.prep_ignore ign ON rec.REC_ID = ign.REC_ID
+               WHERE PREP_RECORD = 'PrEP' AND VISIT_DATE < '{ohasis$next_date}' AND ign.IGNORE IS NULL
            ) AS data) AS prepstart
 WHERE VISIT_NUM = 1;
    )")
@@ -171,7 +185,8 @@ FROM (SELECT data.CENTRAL_ID,
                       rec.*
                FROM ohasis_warehouse.form_prep rec
                         LEFT JOIN ohasis_warehouse.id_registry reg ON rec.PATIENT_ID = reg.PATIENT_ID
-               WHERE VISIT_DATE < '{ohasis$next_date}'
+                        LEFT JOIN ohasis_warehouse.prep_ignore ign ON rec.REC_ID = ign.REC_ID
+               WHERE VISIT_DATE < '{ohasis$next_date}' AND ign.IGNORE IS NULL
            ) AS data) AS prepstart
 WHERE VISIT_NUM = 1;
    )")
