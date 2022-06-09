@@ -124,7 +124,8 @@ gf$logsheet$psfi <- bind_rows(psfi) %>%
    mutate_if(
       .predicate = is.character,
       ~str_squish(toupper(.))
-   )
+   ) %>%
+   distinct_all()
 
 min_date <- min(gf$logsheet$psfi$reach_date, na.rm = TRUE)
 max_date <- max(gf$logsheet$psfi$reach_date, na.rm = TRUE)

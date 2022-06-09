@@ -151,7 +151,7 @@ everprep <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_prep")) %>%
    collect() %>%
    distinct(PATIENT_ID) %>%
    left_join(
-      y  = gf$id_registry,
+      y  = id_registry,
       by = 'PATIENT_ID'
    ) %>%
    mutate(
@@ -233,7 +233,7 @@ reach <- form_a %>%
    bind_rows(form_cfbs) %>%
    # get cid for merging
    left_join(
-      y  = gf$id_registry,
+      y  = id_registry,
       by = "PATIENT_ID"
    ) %>%
    mutate(
@@ -272,7 +272,18 @@ reach <- form_a %>%
    ) %>%
    select(-FACI_ID) %>%
    mutate_at(
-      .var = vars(names(select(., -REC_ID) %>% select_if(is.character))),
+      .var = vars(
+         names(select(
+            .,
+            -REC_ID,
+            -TEST_AGREED,
+            -MODALITY,
+            -starts_with("EXPOSE"),
+            -starts_with("RISK"),
+            -contains("RESULT")
+         ) %>%
+                  select_if(is.character))
+      ),
       ~remove_code(.)
    )
 
@@ -305,14 +316,20 @@ gf$logsheet$ohasis <- reach %>%
    left_join(
       y  = gf$harp$dx %>%
          mutate(
-            CENTRAL_MSM = if_else(
+            CENTRAL_MSM  = if_else(
                condition = sex == "MALE" & sexhow %in% c("HOMOSEXUAL", "BISEXUAL"),
                true      = 1,
                false     = 0,
                missing   = 0
             ),
-            CENTRAL_TGW = if_else(
+            CENTRAL_TGW  = if_else(
                condition = sex == "MALE" & self_identity %in% c("FEMALE", "WOMAN"),
+               true      = 1,
+               false     = 0,
+               missing   = 0
+            ),
+            CENTRAL_PWID = if_else(
+               condition = transmit == "IVDU",
                true      = 1,
                false     = 0,
                missing   = 0
@@ -324,15 +341,34 @@ gf$logsheet$ohasis <- reach %>%
             CENTRAL_BIRTHDATE = bdate,
             CENTRAL_MSM,
             CENTRAL_TGW,
+            CENTRAL_PWID,
             confirm_date,
             transmit
          ),
       by = "CENTRAL_ID"
    ) %>%
+   # inner_join(
+   #    y  = gf$sites %>%
+   #       filter(WITH_DSA == 1) %>%
+   #       select(GF_FACI = FACI_ID),
+   #    by = "GF_FACI"
+   # ) %>%
    inner_join(
-      y  = gf$sites %>%
-         filter(WITH_DSA == 1) %>%
-         select(GF_FACI = FACI_ID),
+      y  = try %>%
+         filter(!is.na(FACI_ID)) %>%
+         select(GF_FACI = FACI_ID) %>%
+         distinct_all() %>%
+         add_row(GF_FACI = '130605') %>%
+         bind_rows(
+            ohasis$ref_faci %>%
+               filter(
+                  !(FACI_NHSSS_REG %in% c("CARAGA", "ARMM", "1", "2", "5", "8"))
+               ) %>%
+               select(FACI_ID) %>%
+               inner_join(service_art %>% select(FACI_ID)) %>%
+               rename(GF_FACI = FACI_ID)
+         ) %>%
+         distinct_all(),
       by = "GF_FACI"
    ) %>%
    # get everonprep
@@ -390,6 +426,8 @@ gf$logsheet$ohasis <- reach %>%
          !is.na(transmit) &
             CENTRAL_MSM == 1 &
             CENTRAL_TGW == 1 ~ "TGW",
+         !is.na(transmit) &
+            CENTRAL_PWID == 1 ~ "PWID",
          is.na(transmit) &
             TEST_MSM == 1 &
             (is.na(TEST_TGW) | TEST_TGW == 0) ~ "MSM",
@@ -412,28 +450,44 @@ gf$logsheet$ohasis <- reach %>%
          TRUE ~ "N"
       ),
       SEX_ANAL_RECEIVE = case_when(
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "1" ~ "Y",
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "2" ~ "Y",
-         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "1" ~ "Y",
-         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "2" ~ "Y",
-         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "0" ~ "N",
          RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ "Y",
          RECORD_P12M <= EXPOSE_SEX_M_AV_NOCONDOM_DATE & is.na(EXPOSE_SEX_M_AV_DATE) ~ "Y",
          RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE > EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
          RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
+         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "1" ~ "Y",
+         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "2" ~ "Y",
+         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "1" ~ "Y",
+         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "2" ~ "Y",
+         StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == "1" ~ "Y",
          TRUE ~ "N"
       ),
       SEX_ANAL_INSERT  = case_when(
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "1" ~ "Y",
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "2" ~ "Y",
-         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "1" ~ "Y",
-         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "2" ~ "Y",
-         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "0" ~ "N",
          RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ "Y",
          RECORD_P12M <= EXPOSE_SEX_M_AV_NOCONDOM_DATE & is.na(EXPOSE_SEX_M_AV_DATE) ~ "Y",
          RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE > EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
          RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
+         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "1" ~ "Y",
+         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "2" ~ "Y",
+         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "1" ~ "Y",
+         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "2" ~ "Y",
+         StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == "1" ~ "Y",
          TRUE ~ "N"
+      ),
+      analp12m         = case_when(
+         RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ "w/in",
+         RECORD_P12M <= EXPOSE_SEX_M_AV_NOCONDOM_DATE & is.na(EXPOSE_SEX_M_AV_DATE) ~ "w/in",
+         RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE > EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "w/in",
+         RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "w/in",
+         RECORD_P12M > EXPOSE_SEX_M_AV_DATE & is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ ">p12m",
+         RECORD_P12M > EXPOSE_SEX_M_AV_NOCONDOM_DATE & is.na(EXPOSE_SEX_M_AV_DATE) ~ ">p12m",
+         RECORD_P12M > EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE > EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ ">p12m",
+         RECORD_P12M > EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ ">p12m",
+         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "1" ~ "w/in",
+         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "2" ~ ">p12m",
+         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "1" ~ "w/in",
+         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "2" ~ ">p12m",
+         StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == "1" ~ "w/in",
+         TRUE ~ "(others / no data)"
       ),
       SEX_VAGINAL      = case_when(
          StrLeft(RISK_CONDOMLESS_VAGINAL, 1) == "1" ~ "Y",
@@ -589,7 +643,11 @@ gf$logsheet$ohasis <- reach %>%
       confirm_date         = DATE_CONFIRMED,
       artstart_date        = ARTSTART_DATE,
       tx_hub               = TX_FACI,
-      tx_region            = TX_REGION
+      tx_region            = TX_REGION,
+      analp12m,
+      RECORD_P12M,
+      starts_with("RISK"),
+      starts_with("EXPOSE"),
    )
 
 .log_success("Done!")
