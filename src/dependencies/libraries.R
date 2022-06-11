@@ -52,7 +52,8 @@ p_load(
    crayon,
    docxtractr,
    XLConnect,
-   gender
+   gender,
+   openxlsx
 )
 
 p_load_gh(
