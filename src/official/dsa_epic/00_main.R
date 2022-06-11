@@ -9,6 +9,7 @@ epic$wd <- file.path(getwd(), "src", "official", "dsa_epic")
 ##  Begin linkage of datasets --------------------------------------------------
 
 source(file.path(epic$wd, "01_load_reqs.R"))
+source(file.path(epic$wd, "02-00_data-tx_indicators.R"))
 source(file.path(epic$wd, "02-01_data-tx_curr.R"))
 source(file.path(epic$wd, "02-02_data-tx_new.R"))
 source(file.path(epic$wd, "02-03_data-tx_ml.R"))
