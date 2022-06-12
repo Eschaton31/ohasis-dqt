@@ -1,15 +1,54 @@
 ##  Generate pre-requisites and endpoints --------------------------------------
 
 local(envir = epic, {
-   coverage     <- list()
-   coverage$fy  <- input(prompt = "What is the fiscal coverage of the reports? (Q2 FY22)")
-   coverage$min <- input(prompt = "What is the start date for the reports? (YYYY-MM-DD)")
-   coverage$max <- input(prompt = "What is the end date for the reports? (YYYY-MM-DD)")
+   coverage      <- list()
+   coverage$type <- input(prompt = "What is the type of report for consolidation? (HFR or QR)")
+   coverage$type <- toupper(coverage$type)
+   coverage$fy   <- input(prompt = "What is the fiscal coverage of the reports? (Q2 FY22)")
 
-   if (strsplit(coverage$min, "-")[[1]][2] == strsplit(coverage$max, "-")[[1]][2])
-      coverage$report <- "HFR"
-   else
-      coverage$report <- "QR"
+   if (coverage$type == "QR") {
+      # coverage dates
+      coverage$min <- paste(
+         sep = "-",
+         case_when(
+            StrLeft(coverage$fy, 2) == "Q1" ~ paste0("20", as.numeric(StrRight(coverage$fy, 2)) - 1),
+            StrLeft(coverage$fy, 2) == "Q2" ~ paste0("20", StrRight(coverage$fy, 2)),
+            StrLeft(coverage$fy, 2) == "Q3" ~ paste0("20", StrRight(coverage$fy, 2)),
+            StrLeft(coverage$fy, 2) == "Q4" ~ paste0("20", StrRight(coverage$fy, 2)),
+         ), case_when(
+            StrLeft(coverage$fy, 2) == "Q1" ~ "10",
+            StrLeft(coverage$fy, 2) == "Q2" ~ "01",
+            StrLeft(coverage$fy, 2) == "Q3" ~ "04",
+            StrLeft(coverage$fy, 2) == "Q4" ~ "07",
+         ),
+         "01"
+      )
+      coverage$max <- as.character((as.Date(coverage$min) %m+% months(3)) - 1)
+
+      # reference months
+      coverage$prev_mo <- stri_pad_left(month(as.Date(coverage$min) %m-% months(1)), 2, "0")
+      coverage$prev_yr <- stri_pad_left(year(as.Date(coverage$min) %m-% months(1)), 2, "0")
+      coverage$curr_mo <- stri_pad_left(month(as.Date(coverage$max)), 2, "0")
+      coverage$curr_yr <- stri_pad_left(year(as.Date(coverage$max)), 2, "0")
+   }
+
+   if (coverage$type == "HFR") {
+      coverage$curr_mo <- input(prompt = "What is the reporting month for the reports?", max.char = 2)
+      coverage$curr_mo <- stri_pad_left(coverage$curr_mo, 2, "0")
+      coverage$curr_yr <- input(prompt = "What is the reporting year for the reports?", max.char = 4)
+
+      # reference dates
+      coverage$min <- paste(
+         sep = "-",
+         coverage$curr_yr,
+         coverage$curr_mo,
+         "01"
+      )
+      coverage$max <- as.character((as.Date(coverage$min) %m+% months(1)) - 1)
+
+      coverage$prev_mo <- stri_pad_left(month(as.Date(coverage$min) %m-% months(1)), 2, "0")
+      coverage$prev_yr <- stri_pad_left(year(as.Date(coverage$min) %m-% months(1)), 2, "0")
+   }
 })
 
 check <- input(
@@ -170,7 +209,7 @@ if (check == "1") {
       harp <- list()
 
       .log_info("Getting HARP Dx Dataset.")
-      harp$dx <- ohasis$get_data("harp_dx", ohasis$yr, ohasis$mo) %>%
+      harp$dx <- ohasis$get_data("harp_dx", coverage$curr_yr, coverage$curr_mo) %>%
          read_dta() %>%
          # convert Stata string missing data to NAs
          mutate_if(
@@ -191,7 +230,7 @@ if (check == "1") {
          )
 
       .log_info("Getting the previous HARP Tx Datasets.")
-      harp$tx$old_reg <- ohasis$get_data("harp_tx-reg", ohasis$prev_yr, ohasis$prev_mo) %>%
+      harp$tx$old_reg <- ohasis$get_data("harp_tx-reg", coverage$prev_yr, coverage$prev_mo) %>%
          read_dta() %>%
          # convert Stata string missing data to NAs
          mutate_if(
@@ -211,7 +250,7 @@ if (check == "1") {
             ),
          )
 
-      harp$tx$old_outcome <- ohasis$get_data("harp_tx-outcome", ohasis$prev_yr, ohasis$prev_mo) %>%
+      harp$tx$old_outcome <- ohasis$get_data("harp_tx-outcome", coverage$prev_yr, coverage$prev_mo) %>%
          read_dta() %>%
          # convert Stata string missing data to NAs
          mutate_if(
@@ -226,7 +265,7 @@ if (check == "1") {
          )
 
       .log_info("Getting the new HARP Tx Datasets.")
-      harp$tx$new_reg <- ohasis$get_data("harp_tx-reg", ohasis$yr, ohasis$mo) %>%
+      harp$tx$new_reg <- ohasis$get_data("harp_tx-reg", coverage$curr_yr, coverage$curr_mo) %>%
          read_dta() %>%
          # convert Stata string missing data to NAs
          mutate_if(
@@ -246,7 +285,7 @@ if (check == "1") {
             ),
          )
 
-      harp$tx$new_outcome <- ohasis$get_data("harp_tx-outcome", ohasis$yr, ohasis$mo) %>%
+      harp$tx$new_outcome <- ohasis$get_data("harp_tx-outcome", coverage$curr_yr, coverage$curr_mo) %>%
          read_dta() %>%
          # convert Stata string missing data to NAs
          mutate_if(
@@ -261,7 +300,7 @@ if (check == "1") {
          )
 
       .log_info("Getting HARP Dead Dataset.")
-      harp$dead_reg <- ohasis$get_data("harp_dead", ohasis$yr, ohasis$mo) %>%
+      harp$dead_reg <- ohasis$get_data("harp_dead", coverage$curr_yr, coverage$curr_mo) %>%
          read_dta() %>%
          # convert Stata string missing data to NAs
          mutate_if(
@@ -288,7 +327,7 @@ if (check == "1") {
          )
 
       .log_info("Getting the previous PrEP Datasets.")
-      harp$prep$old_reg <- ohasis$get_data("prep-reg", ohasis$prev_yr, ohasis$prev_mo) %>%
+      harp$prep$old_reg <- ohasis$get_data("prep-reg", coverage$prev_yr, coverage$prev_mo) %>%
          read_dta() %>%
          # convert Stata string missing data to NAs
          mutate_if(
@@ -308,7 +347,7 @@ if (check == "1") {
             ),
          )
 
-      harp$prep$old_outcome <- ohasis$get_data("prep-outcome", ohasis$prev_yr, ohasis$prev_mo) %>%
+      harp$prep$old_outcome <- ohasis$get_data("prep-outcome", coverage$prev_yr, coverage$prev_mo) %>%
          read_dta() %>%
          # convert Stata string missing data to NAs
          mutate_if(
@@ -323,7 +362,7 @@ if (check == "1") {
          )
 
       .log_info("Getting the new PrEP Datasets.")
-      harp$prep$new_reg <- ohasis$get_data("prep-reg", ohasis$yr, ohasis$mo) %>%
+      harp$prep$new_reg <- ohasis$get_data("prep-reg", coverage$curr_yr, coverage$curr_mo) %>%
          read_dta() %>%
          # convert Stata string missing data to NAs
          mutate_if(
@@ -343,7 +382,7 @@ if (check == "1") {
             ),
          )
 
-      harp$prep$new_outcome <- ohasis$get_data("prep-outcome", ohasis$yr, ohasis$mo) %>%
+      harp$prep$new_outcome <- ohasis$get_data("prep-outcome", coverage$curr_yr, coverage$curr_mo) %>%
          read_dta() %>%
          # convert Stata string missing data to NAs
          mutate_if(
