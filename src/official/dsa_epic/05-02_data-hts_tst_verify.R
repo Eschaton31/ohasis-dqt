@@ -148,6 +148,7 @@ epic$linelist$hts_tst_verify <- bind_rows(epic$forms$form_cfbs, epic$forms$form_
 
       # disaggregations
       `DISAG 2`       = case_when(
+         confirm_date >= as.Date(epic$coverage$min) ~ "CBS Reactive",
          ref_report < as.Date(epic$coverage$min) ~ "Known Pos",
          TRUE ~ "CBS Reactive"
       ),

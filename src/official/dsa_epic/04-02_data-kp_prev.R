@@ -17,6 +17,7 @@ epic$linelist$kp_prev <- epic$linelist$hts_tst %>%
       HTS_AGE       = curr_age,
       HTS_MSM       = msm,
       HTS_TGW       = tgw,
+      LATEST_CONFIRM_DATE
    ) %>%
    bind_rows(
       epic$forms$form_hts %>%
@@ -88,11 +89,10 @@ epic$linelist$kp_prev <- epic$linelist$hts_tst %>%
       ),
 
       # old confirmed
-      old_dx          = if_else(
-         condition = ref_report < as.Date(epic$coverage$min),
-         true      = 1,
-         false     = 0,
-         missing   = 0
+      old_dx = case_when(
+         confirm_date >= as.Date(epic$coverage$min) ~ 0,
+         ref_report < as.Date(epic$coverage$min) ~ 1,
+         TRUE ~ 0
       ),
 
       # sex

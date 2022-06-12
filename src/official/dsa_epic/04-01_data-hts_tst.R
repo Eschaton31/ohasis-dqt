@@ -223,6 +223,15 @@ epic$linelist$hts_tst <- bind_rows(epic$forms$form_hts, epic$forms$form_a) %>%
          mutate(
             ref_report = as.Date(paste(sep = "-", year, stri_pad_left(month, 2, "0"), "01"))
          ) %>%
+         left_join(
+            y  = bind_rows(epic$forms$form_a, epic$forms$form_hts) %>%
+               select(
+                  REC_ID,
+                  CENTRAL_FACI     = SERVICE_FACI,
+                  CENTRAL_SUB_FACI = SERVICE_SUB_FACI,
+               ),
+            by = "REC_ID"
+         ) %>%
          select(
             CENTRAL_ID,
             idnum,
@@ -232,7 +241,9 @@ epic$linelist$hts_tst <- bind_rows(epic$forms$form_hts, epic$forms$form_a) %>%
             sexhow,
             self_identity,
             confirm_date,
-            ref_report
+            ref_report,
+            CENTRAL_FACI,
+            CENTRAL_SUB_FACI
          ),
       by = "CENTRAL_ID"
    ) %>%
@@ -246,11 +257,10 @@ epic$linelist$hts_tst <- bind_rows(epic$forms$form_hts, epic$forms$form_a) %>%
       ),
 
       # old confirmed
-      old_dx            = if_else(
-         condition = ref_report < as.Date(epic$coverage$min),
-         true      = 1,
-         false     = 0,
-         missing   = 0
+      old_dx = case_when(
+         confirm_date >= as.Date(epic$coverage$min) ~ 0,
+         ref_report < as.Date(epic$coverage$min) ~ 1,
+         TRUE ~ 0
       ),
 
       # tag which test to be used
@@ -263,24 +273,28 @@ epic$linelist$hts_tst <- bind_rows(epic$forms$form_hts, epic$forms$form_a) %>%
       ),
 
       FINAL_TEST_DATE   = case_when(
+         old_dx == 0 & !is.na(idnum) ~ confirm_date,
          use_test == "confirm" ~ LATEST_CONFIRM_DATE,
          use_test == "test" ~ LATEST_TEST_DATE,
          use_test == "cfbs" ~ LATEST_CFBS_DATE,
          use_test == "st" ~ LATEST_ST_DATE,
       ),
       FINAL_TEST_RESULT = case_when(
+         old_dx == 0 & !is.na(idnum) ~ "Confirmed: Positive",
          use_test == "confirm" ~ paste0("Confirmed: ", LATEST_CONFIRM_RESULT),
          use_test == "test" ~ paste0("Tested: ", LATEST_TEST_RESULT),
          use_test == "cfbs" ~ paste0("CBS: ", LATEST_CFBS_RESULT),
          use_test == "st" ~ paste0("Self-Testing: ", LATEST_ST_RESULT),
       ),
       FINAL_FACI        = case_when(
+         old_dx == 0 & !is.na(CENTRAL_FACI) ~ CENTRAL_FACI,
          use_test == "confirm" ~ CONFIRM_FACI,
          use_test == "test" ~ TEST_FACI,
          use_test == "cfbs" ~ CFBS_FACI,
          use_test == "st" ~ ST_FACI,
       ),
       FINAL_SUB_FACI    = case_when(
+         old_dx == 0 & !is.na(CENTRAL_FACI) ~ CENTRAL_SUB_FACI,
          use_test == "confirm" ~ CONFIRM_SUB_FACI,
          use_test == "test" ~ TEST_SUB_FACI,
          use_test == "cfbs" ~ CFBS_SUB_FACI,

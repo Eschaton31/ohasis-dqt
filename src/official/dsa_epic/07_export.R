@@ -12,6 +12,10 @@ epic$final <- bind_rows(epic$flat) %>%
       Age_Band
    )
 
+epic$xlsx$dir      <- glue("H:/Data Sharing/FHI 360/{epic$coverage$type}/{ohasis$ym}")
+epic$xlsx$file     <- glue("EpiC {epic$coverage$type} Indicators ({epic$coverage$curr_yr}.{epic$coverage$curr_mo}).xlsx")
+check_dir(epic$xlsx$dir)
+
 epic$xlsx$wb       <- createWorkbook()
 epic$xlsx$hs       <- createStyle(
    fontName       = "Calibri",
@@ -47,14 +51,14 @@ freezePane(epic$xlsx$wb, 1, firstRow = TRUE)
 
 saveWorkbook(
    epic$xlsx$wb,
-   glue("H:/Data Sharing/FHI 360/FHI 360 ({ohasis$ym})/EpiC Indicators ({ohasis$ym}).xlsx"),
+   file.path(epic$xlsx$dir, epic$xlsx$file),
    overwrite = TRUE
 )
 
-?saveRDS
+check_dir(file.path(epic$xlsx$dir, "prev"))
 saveRDS(
    epic,
-   glue("H:/Data Sharing/FHI 360/FHI 360 ({ohasis$ym})/epic.RDS")
+   file.path(epic$xlsx$dir, "prev", "epic.RDS")
 )
 
 for (ind in names(epic$linelist)) {
@@ -65,12 +69,12 @@ for (ind in names(epic$linelist)) {
                stri_replace_all_fixed("/", "_") %>%
                stri_replace_all_fixed(".", "_")
          ),
-      glue("H:/Data Sharing/FHI 360/FHI 360 ({ohasis$ym})/linelist/{ind}.dta")
+      file.path(epic$xlsx$dir, "prev", glue("{ind}.dta"))
    )
 
    stata(glue(r"(
-u "H:/Data Sharing/FHI 360/FHI 360 ({ohasis$ym})/linelist/{ind}.dta", clear
+u "{epic$xlsx$dir}/prev/{ind}.dta", clear
 format_compress
-sa "H:/Data Sharing/FHI 360/FHI 360 ({ohasis$ym})/linelist/{ind}.dta", replace
+sa "{epic$xlsx$dir}/prev/{ind}.dta.dta", replace
    )"))
 }
