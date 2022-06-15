@@ -88,7 +88,7 @@ dedup_prep <- function(
       mutate(
          UIC_SORT = if_else(
             condition = !is.na(UIC),
-            true      = paste0(UIC_1, UIC_2, substr(uic, 5, 14)),
+            true      = paste0(UIC_1, UIC_2, substr(UIC, 5, 14)),
             false     = NA_character_
          )
       )
