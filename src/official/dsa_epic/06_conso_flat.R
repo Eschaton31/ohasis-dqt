@@ -32,7 +32,7 @@ for (ind in names(epic$linelist)) {
          `Site Region`       = if_else(
             condition = hash_ncr == 1,
             true      = "National Capital Region (NCR)",
-            false     = `Site Province`
+            false     = `Site Region`
          )
       ) %>%
       group_by(

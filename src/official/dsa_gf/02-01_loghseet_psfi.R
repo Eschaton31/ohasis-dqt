@@ -111,11 +111,11 @@ for (kp in c("MSM", "TGW", "PWID", "MSMTGW")) {
          )
       ) %>%
       mutate(
-         sheet   = kp,
+         sheet         = kp,
          ohasis_record = as.character(row_number()),
          ohasis_record = stri_pad_left(ohasis_record, max(nchar(ohasis_record)), "0"),
          ohasis_record = glue(r"({kp}-{ohasis_record})"),
-         .before = 1
+         .before       = 1
       )
 }
 
@@ -125,7 +125,25 @@ gf$logsheet$psfi <- bind_rows(psfi) %>%
       .predicate = is.character,
       ~str_squish(toupper(.))
    ) %>%
-   distinct_all()
+   distinct_all() %>%
+   filter(
+      reach_date >= as.Date(gf$coverage$min),
+      reach_date <= as.Date(gf$coverage$max)
+   ) %>%
+   left_join(
+      y  = gf$corr$logsheet_psfi$site_addr,
+      by = c("site_region", "site_province", "site_muncity")
+   )
+
+gf$logsheet$psfi <- ohasis$get_addr(
+   gf$logsheet$psfi,
+   c(
+      "SITE_REG"  = "oh_reg",
+      "SITE_PROV" = "oh_prov",
+      "SITE_MUNC" = "oh_munc"
+   ),
+   "name"
+)
 
 min_date <- min(gf$logsheet$psfi$reach_date, na.rm = TRUE)
 max_date <- max(gf$logsheet$psfi$reach_date, na.rm = TRUE)

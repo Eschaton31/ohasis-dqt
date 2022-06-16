@@ -3,22 +3,14 @@
 # list of current vars for code cleanup
 currEnv <- ls()[ls() != "currEnv"]
 
-.log_info("Setting scope of the reports")
-start <- input(prompt = "What is the start date for the reports? (YYYY-MM-DD)")
-end   <- input(prompt = "What is the end date for the reports? (YYYY-MM-DD)")
-
-# open connections
-.log_info("Opening connections.")
-lw_conn <- ohasis$conn("lw")
-
 ##  Download relevant form data ------------------------------------------------
 
 # Form A + HTS Forms
 .log_info("Getting Form A data.")
-form_a <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_a")) %>%
+form_a <- gf$forms$form_a %>%
    filter(
-      RECORD_DATE >= start,
-      RECORD_DATE <= end
+      RECORD_DATE >= as.Date(gf$coverage$min),
+      RECORD_DATE <= as.Date(gf$coverage$max)
    ) %>%
    mutate(
       FORM        = "Form A",
@@ -54,14 +46,13 @@ form_a <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_a")) %>%
       CLINIC_NOTES,
       COUNSEL_NOTES,
       CREATED_BY
-   ) %>%
-   collect()
+   )
 
 .log_info("Getting HTS Form data.")
-form_hts <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_hts")) %>%
+form_hts <- gf$forms$form_hts %>%
    filter(
-      RECORD_DATE >= start,
-      RECORD_DATE <= end
+      RECORD_DATE >= as.Date(gf$coverage$min),
+      RECORD_DATE <= as.Date(gf$coverage$max)
    ) %>%
    mutate(FORM = "HTS Form") %>%
    select(
@@ -100,14 +91,13 @@ form_hts <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_hts")) %>%
       CLINIC_NOTES,
       COUNSEL_NOTES,
       CREATED_BY
-   ) %>%
-   collect()
+   )
 
 .log_info("Getting CFBS Form data.")
-form_cfbs <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_cfbs")) %>%
+form_cfbs <- gf$forms$form_cfbs %>%
    filter(
-      RECORD_DATE >= start,
-      RECORD_DATE <= end
+      RECORD_DATE >= as.Date(gf$coverage$min),
+      RECORD_DATE <= as.Date(gf$coverage$max)
    ) %>%
    mutate(
       FORM = "CFBS Form"
@@ -142,88 +132,7 @@ form_cfbs <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_cfbs")) %>
       CLINIC_NOTES,
       COUNSEL_NOTES,
       CREATED_BY
-   ) %>%
-   collect()
-
-.log_info("Getting ever PrEP data.")
-everprep <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_prep")) %>%
-   filter(!is.na(MEDICINE_SUMMARY)) %>%
-   collect() %>%
-   distinct(PATIENT_ID) %>%
-   left_join(
-      y  = id_registry,
-      by = 'PATIENT_ID'
-   ) %>%
-   mutate(
-      CENTRAL_ID = if_else(
-         condition = is.na(CENTRAL_ID),
-         true      = PATIENT_ID,
-         false     = CENTRAL_ID
-      )
-   ) %>%
-   distinct(CENTRAL_ID) %>%
-   mutate(EVERONPREP = "Y")
-
-.log_info("Getting latest ART visit data.")
-latest_art <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "art_last")) %>%
-   select(CENTRAL_ID, REC_ID, LATEST_VISIT = VISIT_DATE) %>%
-   left_join(
-      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_art_bc")) %>%
-         select(
-            REC_ID,
-            REC_ID_GRP,
-            VISIT_DATE,
-            FACI_ID,
-            SERVICE_FACI,
-            SERVICE_SUB_FACI
-         ),
-      by = "REC_ID"
-   ) %>%
-   collect() %>%
-   filter(LATEST_VISIT == VISIT_DATE) %>%
-   mutate(
-      SERVICE_FACI = if_else(
-         condition = is.na(SERVICE_FACI),
-         true      = FACI_ID,
-         false     = SERVICE_FACI
-      ),
    )
-
-earliest_art <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "art_first")) %>%
-   collect()
-
-latest_art <- ohasis$get_faci(
-   latest_art,
-   list("TX_FACI" = c("SERVICE_FACI", "SERVICE_SUB_FACI")),
-   "name",
-   c("TX_REGION", "TX_PROVINCE", "TX_MUNCITY")
-)
-
-.log_info("Getting earliest positive result data.")
-earliest_pos <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_a")) %>%
-   union_all(tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_hts"))) %>%
-   # keep only positive results
-   filter(substr(CONFIRM_RESULT, 1, 1) == "1") %>%
-   # get latest central ids
-   left_join(
-      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "id_registry")) %>%
-         select(CENTRAL_ID, PATIENT_ID),
-      by = "PATIENT_ID"
-   ) %>%
-   mutate(
-      CENTRAL_ID = if_else(
-         condition = is.na(CENTRAL_ID),
-         true      = PATIENT_ID,
-         false     = CENTRAL_ID
-      ),
-   ) %>%
-   select(CENTRAL_ID, DATE_CONFIRM) %>%
-   collect() %>%
-   arrange(DATE_CONFIRM) %>%
-   distinct(CENTRAL_ID, .keep_all = TRUE) %>%
-   select(CENTRAL_ID, DATE_CONFIRM)
-
-dbDisconnect(lw_conn)
 
 ##  Combine testing data  ------------------------------------------------------
 
@@ -233,24 +142,28 @@ reach <- form_a %>%
    bind_rows(form_cfbs) %>%
    # get cid for merging
    left_join(
-      y  = id_registry,
+      y  = gf$forms$id_registry,
       by = "PATIENT_ID"
    ) %>%
    mutate(
-      CENTRAL_ID = if_else(
+      CENTRAL_ID      = if_else(
          condition = is.na(CENTRAL_ID),
          true      = PATIENT_ID,
          false     = CENTRAL_ID
       ),
-      MODALITY   = case_when(
-         StrLeft(MODALITY, 6) == "101101" ~ "FBT",
-         StrLeft(MODALITY, 6) == "101103" ~ "CBS",
-         StrLeft(MODALITY, 6) == "101104" ~ "Non-laboratory FBT",
-         StrLeft(MODALITY, 6) == "101105" ~ "Self-testing",
-         StrLeft(MODALITY, 6) == "101304" ~ "Reach",
-         TRUE ~ MODALITY
+
+      # tag those without form faci
+      use_record_faci = if_else(
+         condition = is.na(TEST_FACI),
+         true      = 1,
+         false     = 0
       ),
-      .before    = 1
+      TEST_FACI       = if_else(
+         condition = use_record_faci == 1,
+         true      = FACI_ID,
+         false     = TEST_FACI
+      ),
+      .before         = 1
    ) %>%
    rename(
       GF_FACI     = TEST_FACI,
@@ -281,8 +194,7 @@ reach <- form_a %>%
             -starts_with("EXPOSE"),
             -starts_with("RISK"),
             -contains("RESULT")
-         ) %>%
-                  select_if(is.character))
+         ) %>% select_if(is.character))
       ),
       ~remove_code(.)
    )
@@ -343,37 +255,46 @@ gf$logsheet$ohasis <- reach %>%
             CENTRAL_TGW,
             CENTRAL_PWID,
             confirm_date,
-            transmit
+            transmit,
+            sexhow
          ),
       by = "CENTRAL_ID"
    ) %>%
-   # inner_join(
-   #    y  = gf$sites %>%
-   #       filter(WITH_DSA == 1) %>%
-   #       select(GF_FACI = FACI_ID),
-   #    by = "GF_FACI"
-   # ) %>%
-   inner_join(
-      y  = try %>%
+   left_join(
+      y  = gf$sites %>%
          filter(!is.na(FACI_ID)) %>%
-         select(GF_FACI = FACI_ID) %>%
+         select(
+            GF_FACI = FACI_ID
+         ) %>%
          distinct_all() %>%
-         add_row(GF_FACI = '130605') %>%
+         add_row(GF_FACI = "130605") %>%
          bind_rows(
             ohasis$ref_faci %>%
                filter(
                   !(FACI_NHSSS_REG %in% c("CARAGA", "ARMM", "1", "2", "5", "8"))
                ) %>%
-               select(FACI_ID) %>%
-               inner_join(service_art %>% select(FACI_ID)) %>%
-               rename(GF_FACI = FACI_ID)
+               inner_join(
+                  y  = gf$forms$service_art %>% select(FACI_ID),
+                  by = "FACI_ID"
+               ) %>%
+               select(GF_FACI = FACI_ID)
          ) %>%
-         distinct_all(),
+         distinct_all() %>%
+         mutate(site_gf_2022 = 1),
       by = "GF_FACI"
    ) %>%
    # get everonprep
    left_join(
-      y  = everprep,
+      y  = gf$harp$prep$new_reg %>%
+         left_join(
+            y  = gf$harp$prep$new_outcome %>%
+               select(-CENTRAL_ID),
+            by = "prep_id"
+         ) %>%
+         select(
+            CENTRAL_ID,
+            prepstart_date
+         ),
       by = "CENTRAL_ID"
    ) %>%
    # generate indicators
@@ -418,6 +339,12 @@ gf$logsheet$ohasis <- reach %>%
          missing   = 0
       ),
 
+      SEX              = case_when(
+         CENTRAL_SEX == "MALE" ~ "M",
+         CENTRAL_SEX == "FEMALE" ~ "F",
+         TRUE ~ StrLeft(SEX, 1)
+      ),
+
       # final KAP
       KAP              = case_when(
          !is.na(transmit) &
@@ -432,10 +359,13 @@ gf$logsheet$ohasis <- reach %>%
             TEST_MSM == 1 &
             (is.na(TEST_TGW) | TEST_TGW == 0) ~ "MSM",
          is.na(transmit) & TEST_MSM == 1 & TEST_TGW == 1 ~ "TGW",
+         CENTRAL_SEX == "MALE" & sexhow == "HETEROSEXUAL" ~ "Hetero Male",
+         CENTRAL_SEX == "FEMALE" & sexhow == "HETEROSEXUAL" ~ "Hetero Female",
          TRUE ~ "OTHERS"
       ),
 
       # reference for p12m of sexual risk
+      RECORD_P6M       = RECORD_DATE %m-% months(6),
       RECORD_P12M      = RECORD_DATE %m-% months(12),
       DATE_LAST_M      = case_when(
          RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ EXPOSE_SEX_M_AV_DATE,
@@ -474,20 +404,26 @@ gf$logsheet$ohasis <- reach %>%
          TRUE ~ "N"
       ),
       analp12m         = case_when(
-         RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ "w/in",
-         RECORD_P12M <= EXPOSE_SEX_M_AV_NOCONDOM_DATE & is.na(EXPOSE_SEX_M_AV_DATE) ~ "w/in",
-         RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE > EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "w/in",
-         RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "w/in",
+         RECORD_P6M <= EXPOSE_SEX_M_AV_DATE & is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ "w/in 6m",
+         RECORD_P6M <= EXPOSE_SEX_M_AV_NOCONDOM_DATE & is.na(EXPOSE_SEX_M_AV_DATE) ~ "w/in 6m",
+         RECORD_P6M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE > EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "w/in 6m",
+         RECORD_P6M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "w/in 6m",
+         RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ "w/in 12m",
+         RECORD_P12M <= EXPOSE_SEX_M_AV_NOCONDOM_DATE & is.na(EXPOSE_SEX_M_AV_DATE) ~ "w/in 12m",
+         RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE > EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "w/in 12m",
+         RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "w/in 12m",
          RECORD_P12M > EXPOSE_SEX_M_AV_DATE & is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ ">p12m",
          RECORD_P12M > EXPOSE_SEX_M_AV_NOCONDOM_DATE & is.na(EXPOSE_SEX_M_AV_DATE) ~ ">p12m",
          RECORD_P12M > EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE > EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ ">p12m",
          RECORD_P12M > EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ ">p12m",
-         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "1" ~ "w/in",
+         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "1" ~ "w/in 12m",
          StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "2" ~ ">p12m",
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "1" ~ "w/in",
+         StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == "2" ~ ">p12m",
+         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "1" ~ "w/in 12m",
          StrLeft(RISK_CONDOMLESS_ANAL, 1) == "2" ~ ">p12m",
-         StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == "1" ~ "w/in",
-         TRUE ~ "(others / no data)"
+         StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == "1" ~ "w/in 12m",
+         SEX_ANAL_INSERT == "Y" | SEX_ANAL_RECEIVE == "Y" ~ ">p12m",
+         TRUE ~ "(no data)"
       ),
       SEX_VAGINAL      = case_when(
          StrLeft(RISK_CONDOMLESS_VAGINAL, 1) == "1" ~ "Y",
@@ -506,13 +442,21 @@ gf$logsheet$ohasis <- reach %>%
       CONDOM_STAGE     = "N/A",
       TESTED           = case_when(
          StrLeft(TEST_AGREED, 1) == "0" ~ "Not Tested",
-         StrLeft(TEST_AGREED, 1) == "1" & StrLeft(MODALITY, 6) == "101101" ~ "Facility/Clinic (by MedTech)",
-         StrLeft(TEST_AGREED, 1) == "1" & StrLeft(MODALITY, 6) == "101104" ~ "Outreach/Community (by MedTech)",
-         StrLeft(TEST_AGREED, 1) == "1" & StrLeft(MODALITY, 6) == "101103" ~ "CBS",
-         StrLeft(TEST_AGREED, 1) == "1" & StrLeft(MODALITY, 6) == "101105" ~ "Self-testing / Self-testing (No Result)",
+         StrLeft(MODALITY, 6) == "101101" ~ "Facility/Clinic (by MedTech)",
+         StrLeft(MODALITY, 6) == "101104" ~ "Outreach/Community (by MedTech)",
+         StrLeft(MODALITY, 6) == "101103" ~ "CBS",
+         StrLeft(MODALITY, 6) == "101105" ~ "Self-testing / Self-testing (No Result)",
+         !is.na(TEST_DATE) &
+            is.na(MODALITY) &
+            GF_FACI == "130605" ~ "CBS",
+         !is.na(TEST_DATE) &
+            is.na(MODALITY) &
+            GF_FACI != "130605" ~ "Facility/Clinic (by MedTech)",
          StrLeft(MODALITY, 6) == "101304" ~ "Not Tested",
+         is.na(TEST_DATE) ~ "Not Tested",
+         TRUE ~ MODALITY
       ),
-      EVERONPREP       = if_else(is.na(EVERONPREP), "N", "Y"),
+      EVERONPREP       = if_else(!is.na(prepstart_date), "N", "Y"),
       REACTIVE         = case_when(
          StrLeft(TEST_RESULT, 1) == "1" ~ "Y",
          StrLeft(T1_RESULT, 1) == "1" ~ "Y",
@@ -545,33 +489,119 @@ gf$logsheet$ohasis <- reach %>%
       ends_with("_NOTES", ignore.case = FALSE),
       na.rm = TRUE
    ) %>%
-   filter(KAP != "OTHERS") %>%
+   # filter(KAP != "OTHERS") %>%
+   # left_join(
+   #    y  = reach %>%
+   #       filter(!is.na(T1_RESULT)) %>%
+   #       arrange(desc(T1_DATE)) %>%
+   #       distinct(CENTRAL_ID) %>%
+   #       mutate(T1_COMPLETE = "Y"),
+   #    by = "CENTRAL_ID"
+   # ) %>%
    left_join(
-      y  = reach %>%
-         filter(!is.na(T1_RESULT)) %>%
+      y  = form_a %>%
+         bind_rows(form_hts) %>%
+         # get cid for merging
+         left_join(
+            y  = gf$forms$id_registry,
+            by = "PATIENT_ID"
+         ) %>%
+         mutate(
+            CENTRAL_ID = if_else(
+               condition = is.na(CENTRAL_ID),
+               true      = PATIENT_ID,
+               false     = CENTRAL_ID
+            ),
+
+            use_test   = case_when(
+               !is.na(TEST_RESULT) ~ "t0",
+               is.na(TEST_RESULT) & !is.na(T1_RESULT) ~ "t1",
+               is.na(TEST_RESULT) &
+                  is.na(T1_RESULT) &
+                  !is.na(CONFIRM_RESULT) ~ "confirm",
+            ),
+            T1_DATE    = case_when(
+               use_test == "t0" ~ as.Date(TEST_DATE),
+               use_test == "t1" ~ as.Date(T1_DATE),
+               use_test == "confirm" ~ as.Date(RECORD_DATE),
+               TRUE ~ RECORD_DATE
+            ),
+            T1_RESULT  = case_when(
+               use_test == "t0" ~ StrLeft(TEST_RESULT, 1),
+               use_test == "t1" ~ StrLeft(T1_RESULT, 1),
+               use_test == "confirm" ~ StrLeft(CONFIRM_RESULT, 1),
+               TRUE ~ NA_character_
+            ),
+         ) %>%
+         filter(
+            !is.na(T1_RESULT),
+            StrLeft(MODALITY, 6) == "101101"
+         ) %>%
          arrange(desc(T1_DATE)) %>%
-         distinct(CENTRAL_ID) %>%
-         mutate(T1_COMPLETE = "Y"),
-      by = 'CENTRAL_ID'
+         distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+         select(
+            CENTRAL_ID,
+            T1_GF_DATE   = T1_DATE,
+            T1_GF_RESULT = T1_RESULT
+         ),
+      by = "CENTRAL_ID"
    ) %>%
    left_join(
-      y  = earliest_pos,
-      by = 'CENTRAL_ID'
+      y  = gf$harp$tx$new_reg %>%
+         select(
+            CENTRAL_ID,
+            ARTSTART_DATE = artstart_date,
+            art_id
+         ),
+      by = "CENTRAL_ID"
    ) %>%
    left_join(
-      y  = gf$harp$tx_reg %>%
-         select(CENTRAL_ID, ARTSTART_DATE = artstart_date),
-      by = 'CENTRAL_ID'
+      y  = gf$harp$tx$new_outcome %>%
+         left_join(
+            y  = ohasis$ref_faci_code %>%
+               mutate(
+                  FACI_CODE     = case_when(
+                     stri_detect_regex(SUB_FACI_CODE, "^HASH") ~ "HASH",
+                     stri_detect_regex(SUB_FACI_CODE, "^SAIL") ~ "SAIL",
+                     stri_detect_regex(SUB_FACI_CODE, "^TLY") ~ "TLY",
+                     TRUE ~ FACI_CODE
+                  ),
+                  SUB_FACI_CODE = if_else(
+                     condition = nchar(SUB_FACI_CODE) == 3,
+                     true      = NA_character_,
+                     false     = SUB_FACI_CODE
+                  ),
+                  SUB_FACI_CODE = case_when(
+                     FACI_CODE == "HASH" & is.na(SUB_FACI_CODE) ~ "HASH-QC",
+                     FACI_CODE == "TLY" & is.na(SUB_FACI_CODE) ~ "TLY-ANGLO",
+                     FACI_CODE == "SHP" & is.na(SUB_FACI_CODE) ~ "SHIP-MAKATI",
+                     TRUE ~ SUB_FACI_CODE
+                  ),
+               ) %>%
+               select(
+                  FACI_ID,
+                  realhub        = FACI_CODE,
+                  realhub_branch = SUB_FACI_CODE,
+                  TX_FACI        = FACI_NAME,
+                  TX_REGION      = FACI_NAME_REG,
+               ) %>%
+               distinct_all(),
+            by = c("realhub", "realhub_branch")
+         ) %>%
+         select(
+            TX_FACI,
+            TX_REGION,
+            art_id
+         ),
+      by = "art_id"
    ) %>%
-   left_join(
-      y  = latest_art %>%
-         select(CENTRAL_ID, TX_FACI, TX_REGION),
-      by = 'CENTRAL_ID'
-   ) %>%
-   left_join(
-      y  = earliest_art %>%
-         select(CENTRAL_ID, ARTSTART_PROXY = VISIT_DATE),
-      by = 'CENTRAL_ID'
+   mutate(
+      T1_COMPLETE = if_else(
+         condition = RECORD_DATE <= T1_GF_DATE,
+         true      = "Y",
+         false     = "N",
+         missing   = "N"
+      )
    ) %>%
    mutate(
       T1_COMPLETE    = if_else(
@@ -581,22 +611,14 @@ gf$logsheet$ohasis <- reach %>%
       ),
       POSITIVE       = case_when(
          !is.na(transmit) ~ "Y",
-         !is.na(DATE_CONFIRM) ~ "Y",
+         # !is.na(DATE_CONFIRM) ~ "Y",
          TRUE ~ "N"
       ),
-      DATE_CONFIRMED = case_when(
-         !is.na(transmit) ~ confirm_date,
-         !is.na(DATE_CONFIRM) ~ as.Date(DATE_CONFIRM)
-      ),
+      DATE_CONFIRMED = confirm_date,
       SELF_IDENT     = case_when(
          StrLeft(SELF_IDENT, 1) == "1" ~ "MAN",
          StrLeft(SELF_IDENT, 1) == "2" ~ "WOMAN",
          StrLeft(SELF_IDENT, 1) == "3" ~ "OTHER",
-      ),
-      ARTSTART_DATE  = if_else(
-         condition = !is.na(ARTSTART_DATE),
-         true      = ARTSTART_DATE,
-         false     = ARTSTART_PROXY
       ),
    ) %>%
    distinct_all() %>%
@@ -648,6 +670,8 @@ gf$logsheet$ohasis <- reach %>%
       RECORD_P12M,
       starts_with("RISK"),
       starts_with("EXPOSE"),
+      sex                  = SEX,
+      site_gf_2022
    )
 
 .log_success("Done!")

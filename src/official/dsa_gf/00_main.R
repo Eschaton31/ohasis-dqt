@@ -9,77 +9,14 @@ gf$wd <- file.path(getwd(), "src", "official", "dsa_gf")
 ##  Begin linkage of datasets --------------------------------------------------
 
 # update latest art visits references
-source("src/official/loghsset/03_load_visits.R")
-
 source(file.path(gf$wd, "01_load_reqs.R"))
-source(file.path(gf$wd, "02_loghseet_psfi.R"))
-source(file.path(gf$wd, "03_loghseet_ohasis.R"))
-
-# gf sheet match w/ OHASIS UICs
-db_conn     <- ohasis$conn("db")
-service_art <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "facility_service")) %>%
-   filter(SERVICE == "101201") %>%
-   collect()
-dbDisconnect(db_conn)
-lw_conn     <- ohasis$conn("lw")
-id_registry <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "id_registry")) %>%
-   select(CENTRAL_ID, PATIENT_ID) %>%
-   collect()
-
-forms_art <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_art_bc")) %>%
-   filter(!is.na(UIC)) %>%
-   select(
-      PATIENT_ID,
-      UIC,
-      FACI_ID,
-      SERVICE_FACI,
-      SERVICE_SUB_FACI
-   ) %>%
-   distinct_all() %>%
-   collect()
-
-forms_prep <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_prep")) %>%
-   filter(!is.na(UIC)) %>%
-   select(
-      PATIENT_ID,
-      UIC,
-      FACI_ID,
-      SERVICE_FACI,
-      SERVICE_SUB_FACI
-   ) %>%
-   distinct_all() %>%
-   collect()
-
-forms_hts <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_a")) %>%
-   union(tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_hts"))) %>%
-   union(tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_cfbs"))) %>%
-   filter(!is.na(UIC)) %>%
-   select(
-      PATIENT_ID,
-      UIC,
-      FACI_ID,
-      SERVICE_FACI,
-      SERVICE_SUB_FACI
-   ) %>%
-   distinct_all() %>%
-   collect()
-
-ohasis_uic <- bind_rows(forms_art, forms_prep, forms_hts) %>%
-   mutate(
-      # tag those without form faci
-      use_record_faci = if_else(
-         condition = is.na(SERVICE_FACI),
-         true      = 1,
-         false     = 0
-      ),
-      SERVICE_FACI    = if_else(
-         condition = use_record_faci == 1,
-         true      = FACI_ID,
-         false     = SERVICE_FACI
-      ),
-   ) %>%
-   select(-FACI_ID) %>%
-   distinct_all()
+source(file.path(gf$wd, "02-01_loghseet_psfi.R"))
+source(file.path(gf$wd, "02-02_loghseet_ohasis.R"))
+source(file.path(gf$wd, "02-03_combine.R"))
+source(file.path(gf$wd, "03-01_hts.R"))
+source(file.path(gf$wd, "04-01_kp6a.R"))
+source(file.path(gf$wd, "06_conso_flat.R"))
+source(file.path(gf$wd, "07_export.R"))
 
 try <- gf$logsheet$psfi %>%
    filter(sheet %in% c("MSMTGW", "PWID")) %>%

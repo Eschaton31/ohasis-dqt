@@ -25,14 +25,14 @@ write_dta(
 )
 
 # write subsets if existing
-for (drop_var in c("dropped_notyet", "dropped_duplicates", "dropped_notprep"))
-   if (nrow(nhsss$prep$official[[drop_var]]) > 0) {
-      output_name.reg <- paste0(output_version, "_", drop_var, "_", ohasis$yr, '-', ohasis$mo)
-      write_dta(
-         data = nhsss$prep$official[[drop_var]],
-         path = file.path(output_dir, paste0(output_name.reg, ".dta"))
-      )
-   }
+# for (drop_var in c("dropped_notyet", "dropped_duplicates", "dropped_notprep"))
+#    if (nrow(nhsss$prep$official[[drop_var]]) > 0) {
+#       output_name.reg <- paste0(output_version, "_", drop_var, "_", ohasis$yr, '-', ohasis$mo)
+#       write_dta(
+#          data = nhsss$prep$official[[drop_var]],
+#          path = file.path(output_dir, paste0(output_name.reg, ".dta"))
+#       )
+#    }
 
 .log_info("Finalizing formats.")
 # variable->label pairs
