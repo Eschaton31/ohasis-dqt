@@ -350,65 +350,66 @@ onprep <- ohasis$get_data("prep-reg", ohasis$yr, ohasis$mo) %>%
       ~if_else(. == '', NA_character_, .)
    )
 
-match_art  <- read_xlsx("C:/Users/johnb/Downloads/LIST OF LTFU CLIENTS (PLHIV) (1).xlsx", "LTFU")
+match_art  <- read_xlsx("C:/Users/johnb/Downloads/LTFU.xlsx", "Sheet1")
 match_prep <- read_xlsx("C:/Users/johnb/Downloads/UIC LTFU Sail Cavite.xlsx", "Prep")
 
 linked_art <- match_art %>%
    rename(
-      PATIENT_CODE = `PATIENT CODE`
+      PATIENT_CODE = `CODE`,
+      PATIENT_ID   = "Central ID"
    ) %>%
    mutate(
       row_id = row_number()
    ) %>%
-   left_join(
-      y  = sail_art,
-      by = c("PATIENT_CODE", "UIC")
-   ) %>%
-   left_join(
-      y  = uic_data %>%
-         select(
-            UIC_PID = CENTRAL_ID,
-            UIC
-         ),
-      by = "UIC"
-   ) %>%
-   mutate(
-      CENTRAL_ID = case_when(
-         !is.na(UIC_PID) ~ UIC_PID,
-         PATIENT_CODE == "SC-FOL-30" ~ "202201181306055X35",
-         UIC == 'FLAR0506041999' & PATIENT_CODE == 'AFGC-22' ~ '202111091306053E58',
-         UIC == 'LUMA0308141994' & PATIENT_CODE == 'AGD-27' ~ '20210828040200U661',
-         UIC == 'EVAL0602181995' & PATIENT_CODE == 'AKFK-26' ~ '202109061300006C71',
-         UIC == 'TERA0204261993' & PATIENT_CODE == 'RRLM-28' ~ 'HARP08011816047878',
-         UIC == 'GLRE0401291983' & PATIENT_CODE == 'JGP-38' ~ '20210610130000K029',
-         UIC == 'ERGI011062003' & PATIENT_CODE == 'KG-18' ~ '20220404130000106N',
-         UIC == 'RHJE0204211995' & PATIENT_CODE == 'MIGB-25' ~ '2022011904020083T0',
-         UIC == 'LIRI0101011992' & PATIENT_CODE == 'JRLP-30' ~ '20210918130605743E',
-         # UIC == '' & PATIENT_CODE == '' ~ '',
-         # UIC == '' & PATIENT_CODE == '' ~ '',
-         # UIC == '' & PATIENT_CODE == '' ~ '',
-         # UIC == '' & PATIENT_CODE == '' ~ '',
-         # UIC == '' & PATIENT_CODE == '' ~ '',
-         UIC == 'ELIS0703021959' & PATIENT_CODE == 'SMR-63' ~ 'HARP08011816020024',
-         UIC == 'RHGA0111021994' & PATIENT_CODE == 'CJDNC-27' ~ '20220203130605P024',
-         UIC == 'RORO0407291994' & PATIENT_CODE == 'CDS-27' ~ '2022010313060575W8',
-         UIC == 'PUJO0308181991' & PATIENT_CODE == 'MJDO-30' ~ '2021111513060502U1',
-         UIC == 'ERLE0902141992' & PATIENT_CODE == 'VCN-29' ~ '2021072813060534D5',
-         UIC == 'AMNE0408281985' & PATIENT_CODE == 'RLM-36' ~ '20211022130605568H',
-         UIC == 'ELTE0104151983' & PATIENT_CODE == 'GBN-38' ~ '2021052413060589Q0',
-         UIC == 'LIJO0207192001' & PATIENT_CODE == 'MEB-20' ~ '20211110130605Q439',
-         UIC == 'ELAN0105061987' & PATIENT_CODE == 'MAPA-33' ~ '2021051813060502W1',
-         UIC == 'PRCA0508151999' & PATIENT_CODE == 'CQR-22' ~ '202109221306056I15',
-         UIC == 'CAMA0211091999' & PATIENT_CODE == 'JATM-25' ~ '2021102313060521G5',
-         UIC == 'ELLA0312141992' & PATIENT_CODE == 'RP-29' ~ '202202221306059S08',
-         UIC == 'ROWI0808131995' & PATIENT_CODE == 'RBG-26' ~ '2021120513060540P0',
-         UIC == 'JANI0407042003' & PATIENT_CODE == 'GGB-18' ~ '20220422130605S522',
-         UIC == 'TEBO0411271996' & PATIENT_CODE == 'JKBG-25' ~ '20220502130605730D',
-         UIC == 'COME0901221991' & PATIENT_CODE == 'JMA-31' ~ '20220216130605O454',
-         TRUE ~ CENTRAL_ID
-      )
-   ) %>%
-   rename(PATIENT_ID = CENTRAL_ID) %>%
+   # left_join(
+   #    y  = sail_art,
+   #    by = c("PATIENT_CODE", "UIC")
+   # ) %>%
+   # left_join(
+   #    y  = uic_data %>%
+   #       select(
+   #          UIC_PID = CENTRAL_ID,
+   #          UIC
+   #       ),
+   #    by = "UIC"
+   # ) %>%
+   # mutate(
+   #    CENTRAL_ID = case_when(
+   #       !is.na(UIC_PID) ~ UIC_PID,
+   #       PATIENT_CODE == "SC-FOL-30" ~ "202201181306055X35",
+   #       UIC == 'FLAR0506041999' & PATIENT_CODE == 'AFGC-22' ~ '202111091306053E58',
+   #       UIC == 'LUMA0308141994' & PATIENT_CODE == 'AGD-27' ~ '20210828040200U661',
+   #       UIC == 'EVAL0602181995' & PATIENT_CODE == 'AKFK-26' ~ '202109061300006C71',
+   #       UIC == 'TERA0204261993' & PATIENT_CODE == 'RRLM-28' ~ 'HARP08011816047878',
+   #       UIC == 'GLRE0401291983' & PATIENT_CODE == 'JGP-38' ~ '20210610130000K029',
+   #       UIC == 'ERGI011062003' & PATIENT_CODE == 'KG-18' ~ '20220404130000106N',
+   #       UIC == 'RHJE0204211995' & PATIENT_CODE == 'MIGB-25' ~ '2022011904020083T0',
+   #       UIC == 'LIRI0101011992' & PATIENT_CODE == 'JRLP-30' ~ '20210918130605743E',
+   #       # UIC == '' & PATIENT_CODE == '' ~ '',
+   #       # UIC == '' & PATIENT_CODE == '' ~ '',
+   #       # UIC == '' & PATIENT_CODE == '' ~ '',
+   #       # UIC == '' & PATIENT_CODE == '' ~ '',
+   #       # UIC == '' & PATIENT_CODE == '' ~ '',
+   #       UIC == 'ELIS0703021959' & PATIENT_CODE == 'SMR-63' ~ 'HARP08011816020024',
+   #       UIC == 'RHGA0111021994' & PATIENT_CODE == 'CJDNC-27' ~ '20220203130605P024',
+   #       UIC == 'RORO0407291994' & PATIENT_CODE == 'CDS-27' ~ '2022010313060575W8',
+   #       UIC == 'PUJO0308181991' & PATIENT_CODE == 'MJDO-30' ~ '2021111513060502U1',
+   #       UIC == 'ERLE0902141992' & PATIENT_CODE == 'VCN-29' ~ '2021072813060534D5',
+   #       UIC == 'AMNE0408281985' & PATIENT_CODE == 'RLM-36' ~ '20211022130605568H',
+   #       UIC == 'ELTE0104151983' & PATIENT_CODE == 'GBN-38' ~ '2021052413060589Q0',
+   #       UIC == 'LIJO0207192001' & PATIENT_CODE == 'MEB-20' ~ '20211110130605Q439',
+   #       UIC == 'ELAN0105061987' & PATIENT_CODE == 'MAPA-33' ~ '2021051813060502W1',
+   #       UIC == 'PRCA0508151999' & PATIENT_CODE == 'CQR-22' ~ '202109221306056I15',
+   #       UIC == 'CAMA0211091999' & PATIENT_CODE == 'JATM-25' ~ '2021102313060521G5',
+   #       UIC == 'ELLA0312141992' & PATIENT_CODE == 'RP-29' ~ '202202221306059S08',
+   #       UIC == 'ROWI0808131995' & PATIENT_CODE == 'RBG-26' ~ '2021120513060540P0',
+   #       UIC == 'JANI0407042003' & PATIENT_CODE == 'GGB-18' ~ '20220422130605S522',
+   #       UIC == 'TEBO0411271996' & PATIENT_CODE == 'JKBG-25' ~ '20220502130605730D',
+   #       UIC == 'COME0901221991' & PATIENT_CODE == 'JMA-31' ~ '20220216130605O454',
+   #       TRUE ~ CENTRAL_ID
+   #    )
+   # ) %>%
+   # rename(PATIENT_ID = CENTRAL_ID) %>%
    left_join(
       y  = df_reg,
       by = "PATIENT_ID"
@@ -451,26 +452,29 @@ linked_prep <- match_prep %>%
 
 status_art <- linked_art %>%
    left_join(
-      y  = onart,
+      y  = onart %>%
+         select(
+            CENTRAL_ID,
+            faci   = realhub,
+            branch = realhub_branch,
+            latest_ffupdate,
+            latest_nextpickup,
+            outcome
+         ),
       by = "CENTRAL_ID"
    ) %>%
-   select(
-      row_id,
-      `NO.`,
-      `PATIENT CODE` = PATIENT_CODE,
-      UIC,
-      `REASON FOR NOT COMING BACK`,
-      `REMARKS`,
-      `CONTACT NO.`,
-      `UPDATE`,
-      UIC,
-      CENTRAL_ID,
-      faci           = realhub,
-      branch         = realhub_branch,
-      latest_ffupdate,
-      latest_nextpickup,
-      outcome
-   ) %>%
+   # select(
+   #    row_id,
+   #    `NO.`,
+   #    `PATIENT CODE` = PATIENT_CODE,
+   #    UIC,
+   #    `REASON FOR NOT COMING BACK`,
+   #    `REMARKS`,
+   #    `CONTACT NO.`,
+   #    `UPDATE`,
+   #    UIC,
+   #    CENTRAL_ID,
+   # ) %>%
    left_join(
       y  = ohasis$ref_faci_code %>%
          mutate(

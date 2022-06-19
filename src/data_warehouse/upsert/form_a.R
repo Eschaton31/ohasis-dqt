@@ -659,30 +659,48 @@ if ((object %>% count() %>% collect())$n > 0) {
       ) %>%
       # ohasis KP tagging
       mutate(
-         FORMA_MSM    = case_when(
-            StrLeft(SEX, 1) == 1 & StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == 1 ~ 1,
-            StrLeft(SEX, 1) == 1 & StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == 2 ~ 1,
-            StrLeft(SEX, 1) == 1 &
-               !is.na(NUM_M_PARTNER) &
-               NUM_M_PARTNER > 0 ~ 1,
-            StrLeft(SEX, 1) == 1 & !is.na(YR_LAST_M) ~ 1,
-            TRUE ~ 0
-         ),
+         FORMA_MSM    = if ("EXPOSE_SEX_M_NOCONDOM" %in% colnames(.)) {
+            case_when(
+               StrLeft(SEX, 1) == 1 & StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == 1 ~ 1,
+               StrLeft(SEX, 1) == 1 & StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == 2 ~ 1,
+               StrLeft(SEX, 1) == 1 &
+                  !is.na(NUM_M_PARTNER) &
+                  NUM_M_PARTNER > 0 ~ 1,
+               StrLeft(SEX, 1) == 1 & !is.na(YR_LAST_M) ~ 1,
+               TRUE ~ 0
+            )
+         } else {
+            case_when(
+               StrLeft(SEX, 1) == 1 &
+                  !is.na(NUM_M_PARTNER) &
+                  NUM_M_PARTNER > 0 ~ 1,
+               StrLeft(SEX, 1) == 1 & !is.na(YR_LAST_M) ~ 1,
+               TRUE ~ 0
+            )
+         },
          FORMA_TGW    = case_when(
             StrLeft(SEX, 1) == 1 & StrLeft(SELF_IDENT, 1) == 2 ~ 1,
             StrLeft(SEX, 1) == 1 & StrLeft(SELF_IDENT, 1) == 3 ~ 1,
             TRUE ~ 0
          ),
-         FORMA_PWID   = case_when(
-            StrLeft(EXPOSE_DRUG_INJECT, 1) == 1 ~ 1,
-            StrLeft(EXPOSE_DRUG_INJECT, 1) == 2 ~ 1,
-            TRUE ~ 0
-         ),
-         FORMA_FSW    = case_when(
-            StrLeft(SEX, 1) == 2 & StrLeft(EXPOSE_SEX_PAYMENT, 1) == 1 ~ 1,
-            StrLeft(SEX, 1) == 2 & StrLeft(EXPOSE_SEX_PAYMENT, 1) == 2 ~ 1,
-            TRUE ~ 0
-         ),
+         FORMA_PWID   = if ("EXPOSE_DRUG_INJECT" %in% colnames(.)) {
+            case_when(
+               StrLeft(EXPOSE_DRUG_INJECT, 1) == 1 ~ 1,
+               StrLeft(EXPOSE_DRUG_INJECT, 1) == 2 ~ 1,
+               TRUE ~ 0
+            )
+         } else {
+            0
+         },
+         FORMA_FSW    = if ("EXPOSE_SEX_PAYMENT" %in% colnames(.)) {
+            case_when(
+               StrLeft(SEX, 1) == 2 & StrLeft(EXPOSE_SEX_PAYMENT, 1) == 1 ~ 1,
+               StrLeft(SEX, 1) == 2 & StrLeft(EXPOSE_SEX_PAYMENT, 1) == 2 ~ 1,
+               TRUE ~ 0
+            )
+         } else {
+            0
+         },
          FORMA_GENPOP = FORMA_MSM + FORMA_TGW + FORMA_PWID + FORMA_FSW,
          FORMA_GENPOP = if_else(FORMA_GENPOP > 0, 0, 1)
       )
