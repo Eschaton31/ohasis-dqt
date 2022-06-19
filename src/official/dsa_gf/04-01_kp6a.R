@@ -141,10 +141,11 @@ gf$linelist$kp6a <- gf$harp$prep$new_reg %>%
       y  = gf$sites %>%
          filter(!is.na(FACI_ID)) %>%
          select(
-            GF_FACI = FACI_ID
+            GF_FACI    = FACI_ID,
+            LS_SUBTYPE = `Clinic Type`
          ) %>%
          distinct_all() %>%
-         add_row(GF_FACI = "130605") %>%
+         add_row(GF_FACI = "130605", LS_SUBTYPE = "CBO") %>%
          bind_rows(
             ohasis$ref_faci %>%
                filter(
@@ -157,7 +158,18 @@ gf$linelist$kp6a <- gf$harp$prep$new_reg %>%
                select(GF_FACI = FACI_ID)
          ) %>%
          distinct_all() %>%
-         mutate(site_gf_2022 = 1) %>%
+         mutate(
+            site_gf_2022 = 1,
+            LS_SUBTYPE   = if_else(
+               condition = is.na(LS_SUBTYPE),
+               true      = "Treatment Hub",
+               false     = LS_SUBTYPE,
+               missing   = LS_SUBTYPE
+            )
+         ) %>%
          rename(FACI_ID = GF_FACI),
       by = "FACI_ID"
+   ) %>%
+   rename(
+      `Logsheet Subtype` = LS_SUBTYPE,
    )

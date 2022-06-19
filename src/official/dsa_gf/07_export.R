@@ -1,7 +1,13 @@
 gf$final <- bind_rows(gf$flat) %>%
+   mutate(
+      `Logsheet Subtype` = toupper(`Logsheet Subtype`)
+   ) %>%
    arrange(
-      `Data Source`,
       Indicator,
+      `Data Source`,
+      `Logsheet Subtype`,
+      Date_Start,
+      Date_End,
       `Site Region`,
       `Site Province`,
       `Site City`,

@@ -143,7 +143,8 @@ gf$linelist$psfi_matched %<>%
          is.na(site_name) &
             ls_kind == "OTHER CBOS" ~ "Other CBOs",
          is.na(site_name) &
-            provider_name == "JUNARDNAMOC" & tested == "CBS" ~ "Global Fund PN (LGU)",
+            provider_name == "JUNARDNAMOC" &
+            tested == "CBS" ~ "Global Fund PN (LGU)",
          TRUE ~ site_name
       )
    )
@@ -204,16 +205,47 @@ gf$logsheet$combined <- bind_rows(
       )
 ) %>%
    arrange(reach_date) %>%
+   # add service address
+   left_join(
+      y  = ohasis$get_addr(
+         bind_rows(gf$forms$form_cfbs, gf$forms$form_hts),
+         c(
+            "CBS_REG"  = "HIV_SERVICE_PSGC_REG",
+            "CBS_PROV" = "HIV_SERVICE_PSGC_PROV",
+            "CBS_MUNC" = "HIV_SERVICE_PSGC_MUNC"
+         ),
+         "name"
+      ) %>%
+         select(
+            ohasis_record = REC_ID,
+            CBS_MUNC,
+            CBS_PROV,
+            CBS_REG
+         ),
+      by = "ohasis_record"
+   ) %>%
    mutate(
       site_region   = case_when(
+         data_src == "OHASIS" &
+            tested == "CBS" &
+            CBS_MUNC != "Unknown" &
+            !is.na(CBS_MUNC) ~ CBS_REG,
          !is.na(SITE_REG) ~ SITE_REG,
          TRUE ~ site_region
       ),
       site_province = case_when(
+         data_src == "OHASIS" &
+            tested == "CBS" &
+            CBS_MUNC != "Unknown" &
+            !is.na(CBS_MUNC) ~ CBS_PROV,
          !is.na(SITE_PROV) ~ SITE_PROV,
          TRUE ~ site_province
       ),
       site_muncity  = case_when(
+         data_src == "OHASIS" &
+            tested == "CBS" &
+            CBS_MUNC != "Unknown" &
+            !is.na(CBS_MUNC) ~ CBS_MUNC,
          !is.na(SITE_MUNC) ~ SITE_MUNC,
          TRUE ~ site_muncity
       ),

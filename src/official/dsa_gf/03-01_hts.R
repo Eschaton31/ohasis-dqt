@@ -23,8 +23,8 @@ gf$linelist$hts <- gf$logsheet$combined %>%
       #
       Date_Start       = paste(
          sep = "-",
-         year(test_date),
-         stri_pad_left(month(test_date), 2, "0"),
+         year(reach_date),
+         stri_pad_left(month(reach_date), 2, "0"),
          "01"
       ),
       Date_End         = as.character((as.Date(Date_Start) %m+% months(1)) - 1),
@@ -52,7 +52,6 @@ gf$linelist$hts <- gf$logsheet$combined %>%
 
       # kp
       `Key Population` = kap_type,
-
 
       RECORD_P6M       = reach_date %m-% months(6),
       RECORD_P12M      = reach_date %m-% months(12),
@@ -111,7 +110,8 @@ gf$linelist$hts <- gf$logsheet$combined %>%
       `Site Region`       = site_region,
       `Site Province`     = site_province,
       `Site City`         = site_muncity,
-      `Data Source`       = data_src
+      `Data Source`       = data_src,
+      `Logsheet Subtype`  = ls_subtype,
    ) %>%
    mutate(
       drop = case_when(

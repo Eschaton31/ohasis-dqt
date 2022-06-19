@@ -1,35 +1,10 @@
 gf$flat$hts <- gf$linelist$hts %>%
    mutate(
-      hash_ncr            = case_when(
-         `Site/Organization` == "HASH TL - Genesis" ~ 1,
-         `Site/Organization` == "HASH TL - Marlon" ~ 1,
-         `Site/Organization` == "HASH TL - Ronel" ~ 1,
-         `Site/Organization` == "HIV & AIDS Support House (HASH)" ~ 1,
-         `Site/Organization` == "HIV & AIDS Support House (HASH) (Calamba)" ~ 1,
-         `Site/Organization` == "HIV & AIDS Support House (HASH) (Caloocan)" ~ 1,
-         `Site/Organization` == "HIV & AIDS Support House (HASH) (Makati)" ~ 1,
-         `Site/Organization` == "HIV & AIDS Support House (HASH) (Quezon City)" ~ 1,
-         TRUE ~ 0
-      ),
       `Site/Organization` = case_when(
-         hash_ncr == 1 ~ "HIV & AIDS Support House (HASH) (NCR)",
-         `Site/Organization` == "GILEAD" ~ "HIV & AIDS Support House (HASH) (GILEAD)",
+         stri_detect_fixed(`Site/Organization`, "HASH") ~ "HIV & AIDS Support House (HASH)",
+         `Site/Organization` == "GILEAD" ~ "HIV & AIDS Support House (HASH) - GILEAD",
+         `Site/Organization` == "TLF Share" ~ "HIV & AIDS Support House (HASH) - TLF Share",
          TRUE ~ `Site/Organization`
-      ),
-      `Site City`         = if_else(
-         condition = hash_ncr == 1,
-         true      = "Quezon City",
-         false     = `Site City`
-      ),
-      `Site Province`     = if_else(
-         condition = hash_ncr == 1,
-         true      = "NCR, Second District (Not a Province)",
-         false     = `Site Province`
-      ),
-      `Site Region`       = if_else(
-         condition = hash_ncr == 1,
-         true      = "National Capital Region (NCR)",
-         false     = `Site Region`
       ),
       `Level of support`  = case_when(
          `Site City` == "City of Baguio" ~ "City-wide",
@@ -55,6 +30,7 @@ gf$flat$hts <- gf$linelist$hts %>%
       Date_Start,
       Date_End,
       `Data Source`,
+      `Logsheet Subtype`,
       `Level of support`,
       `Site Region`,
       `Site Province`,
@@ -83,6 +59,7 @@ gf$flat$hts <- gf$linelist$hts %>%
       Date_Start,
       Date_End,
       `Data Source`,
+      `Logsheet Subtype`,
       `Site Region`,
       `Site Province`,
       `Site City`,
@@ -117,6 +94,8 @@ gf$flat$kp6a <- gf$linelist$kp6a %>%
       `Site/Organization` = case_when(
          hash_ncr == 1 ~ "HIV & AIDS Support House (HASH) (NCR)",
          `Site/Organization` == "GILEAD" ~ "HIV & AIDS Support House (HASH) (GILEAD)",
+         `Site/Organization` == "GILEAD" ~ "HIV & AIDS Support House (HASH) - GILEAD",
+         `Site/Organization` == "TLF Share" ~ "HIV & AIDS Support House (HASH) - TLF Share",
          TRUE ~ `Site/Organization`
       ),
       `Site City`         = if_else(
@@ -151,6 +130,7 @@ gf$flat$kp6a <- gf$linelist$kp6a %>%
    filter(site_gf_2022 == 1) %>%
    group_by(
       `Data Source`,
+      `Logsheet Subtype`,
       `Level of support`,
       `Site Region`,
       `Site Province`,
@@ -180,6 +160,7 @@ gf$flat$kp6a <- gf$linelist$kp6a %>%
       Date_Start,
       Date_End,
       `Data Source`,
+      `Logsheet Subtype`,
       `Site Region`,
       `Site Province`,
       `Site City`,

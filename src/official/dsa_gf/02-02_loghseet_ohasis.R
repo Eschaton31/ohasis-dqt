@@ -264,10 +264,11 @@ gf$logsheet$ohasis <- reach %>%
       y  = gf$sites %>%
          filter(!is.na(FACI_ID)) %>%
          select(
-            GF_FACI = FACI_ID
+            GF_FACI    = FACI_ID,
+            LS_SUBTYPE = `Clinic Type`
          ) %>%
          distinct_all() %>%
-         add_row(GF_FACI = "130605") %>%
+         add_row(GF_FACI = "130605", LS_SUBTYPE = "CBO") %>%
          bind_rows(
             ohasis$ref_faci %>%
                filter(
@@ -280,7 +281,15 @@ gf$logsheet$ohasis <- reach %>%
                select(GF_FACI = FACI_ID)
          ) %>%
          distinct_all() %>%
-         mutate(site_gf_2022 = 1),
+         mutate(
+            site_gf_2022 = 1,
+            LS_SUBTYPE   = if_else(
+               condition = is.na(LS_SUBTYPE),
+               true      = "Treatment Hub",
+               false     = LS_SUBTYPE,
+               missing   = LS_SUBTYPE
+            )
+         ),
       by = "GF_FACI"
    ) %>%
    # get everonprep
@@ -630,16 +639,24 @@ gf$logsheet$ohasis <- reach %>%
    arrange(RECORD_DATE, DATE_CONFIRMED) %>%
    distinct(CENTRAL_ID, GF_SITE, RECORD_DATE, MODALITY, .keep_all = TRUE) %>%
    arrange(GF_SITE, RECORD_DATE) %>%
+   mutate(
+      reach_date = case_when(
+         TEST_DATE >= 2020 ~ TEST_DATE,
+         TRUE ~ RECORD_DATE
+      )
+   ) %>%
+   filter(reach_date >= as.Date(gf$coverage$min)) %>%
    select(
       ohasis_id            = CENTRAL_ID,
       ohasis_record        = REC_ID,
+      ls_subtype           = LS_SUBTYPE,
       site_region          = GF_REG,
       site_province        = GF_PROV,
       site_muncity         = GF_MUNC,
       site_name            = GF_SITE,
       provider_name        = PROVIDER,
       encoder_name         = ENCODER,
-      reach_date           = RECORD_DATE,
+      reach_date,
       venue_type           = VENUE_TYPE,
       venue                = HIV_SERVICE_ADDR,
       uic                  = UIC,
