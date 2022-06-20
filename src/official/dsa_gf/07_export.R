@@ -60,7 +60,7 @@ gf$xlsx$cs       <- createStyle(
 addWorksheet(gf$xlsx$wb, "FLAT_PROTECTS")
 writeData(gf$xlsx$wb, sheet = 1, x = gf$final)
 addStyle(gf$xlsx$wb, sheet = 1, gf$xlsx$hs, rows = 1, cols = seq_len(ncol(gf$final)), gridExpand = TRUE)
-addStyle(gf$xlsx$wb, sheet = 1, gf$xlsx$hs_disag, rows = 1, cols = 14:19, gridExpand = TRUE)
+addStyle(gf$xlsx$wb, sheet = 1, gf$xlsx$hs_disag, rows = 1, cols = 15:20, gridExpand = TRUE)
 addStyle(gf$xlsx$wb, sheet = 1, gf$xlsx$cs, rows = 2:(nrow(gf$final) + 1), cols = seq_len(ncol(gf$final)), gridExpand = TRUE)
 setColWidths(gf$xlsx$wb, 1, cols = seq_len(ncol(gf$final)), widths = 'auto')
 setRowHeights(gf$xlsx$wb, 1, rows = seq_len(nrow(gf$final) + 1), heights = 14)
