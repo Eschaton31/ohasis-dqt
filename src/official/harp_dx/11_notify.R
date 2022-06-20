@@ -16,7 +16,7 @@ users <- c(
    'mgzapanta',
    'nspalaypayon'
 )
-link  <- "https://www.dropbox.com/s/jmdzjudf94wbm13/20220519_reg_2022-04.zip?dl=0"
+link  <- "https://www.dropbox.com/s/yra40q01emvx2k4/20220620_reg_2022-05.zip?dl=0"
 for (user in users) {
    id <- (slack %>% filter(name == user))$id
    slackr_msg(
