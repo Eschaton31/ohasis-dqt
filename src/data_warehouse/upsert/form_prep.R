@@ -36,10 +36,10 @@ for_delete_2 <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
    filter(
       !is.na(DELETED_BY)
    ) %>%
-   # inner_join(
-   #    y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_prep")),
-   #    by = "REC_ID"
-   # ) %>%
+   inner_join(
+      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_prep")),
+      by = "REC_ID"
+   ) %>%
    select(REC_ID) %>%
    collect()
 
