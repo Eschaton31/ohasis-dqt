@@ -53,7 +53,8 @@ p_load(
    docxtractr,
    XLConnect,
    gender,
-   openxlsx
+   openxlsx,
+   ruODK
 )
 
 p_load_gh(
