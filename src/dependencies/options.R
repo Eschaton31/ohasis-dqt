@@ -15,5 +15,9 @@ options(
    RStata.StataVersion = as.integer(Sys.getenv("STATA_VER")),
    java.parameters     = "-Xmx4g",
    scipen              = 999,
-   timeout             = 9999999
+   timeout             = 9999999,
+   repos               = c(
+      ropensci = "https://ropensci.r-universe.dev",
+      CRAN     = "https://cloud.r-project.org"
+   )
 )
