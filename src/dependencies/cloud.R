@@ -66,6 +66,10 @@ get_encoded <- function(reporting = NULL, module = NULL) {
 
                for (sheet in sheets) {
                   ei_df <- read_sheet(list_ei[ei, "id"] %>% as.character(), sheet = sheet) %>%
+                     mutate_if(
+                        .predicate = is.POSIXct,
+                        ~floor_date(.) %>% as.character()
+                     ) %>%
                      mutate_all(
                         ~as.character(.)
                      ) %>%
@@ -91,6 +95,10 @@ get_encoded <- function(reporting = NULL, module = NULL) {
 
             for (sheet in sheets) {
                ei_df <- read_sheet(list_ei[ei, "id"] %>% as.character(), sheet = sheet) %>%
+                  mutate_if(
+                     .predicate = is.POSIXct,
+                     ~floor_date(.) %>% as.character()
+                  ) %>%
                   mutate_all(
                      ~as.character(.)
                   ) %>%
