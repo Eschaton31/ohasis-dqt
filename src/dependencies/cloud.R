@@ -55,37 +55,7 @@ get_encoded <- function(reporting = NULL, module = NULL) {
 
    df_list <- list()
    # download everything if no reporting period specified
-   if (is.null(reporting)) {
-      for (reporting in main_drive$name) {
-         if (StrIsNumeric(reporting)) {
-            list_ei <- drive_ls(paste0(main_path, reporting, "/", module, "/"))
-
-            for (ei in seq_len(nrow(list_ei))) {
-               sheets <- sheet_names(list_ei[ei, "id"] %>% as.character())
-               sheets <- sheets[!stri_detect_fixed(sheets, "LEGENDS")]
-
-               for (sheet in sheets) {
-                  ei_df <- read_sheet(list_ei[ei, "id"] %>% as.character(), sheet = sheet) %>%
-                     mutate_if(
-                        .predicate = is.POSIXct,
-                        ~floor_date(.) %>% as.character()
-                     ) %>%
-                     mutate_all(
-                        ~as.character(.)
-                     ) %>%
-                     mutate(
-                        encoder = list_ei[ei, "name"] %>% as.character()
-                     )
-
-                  if (is.null(df_list[[sheet]]))
-                     df_list[[sheet]] <- ei_df
-                  else
-                     df_list[[sheet]] <- bind_rows(df_list[[sheet]], ei_df)
-               }
-            }
-         }
-      }
-   } else {
+   if (!is.null(reporting)) {
       if (StrIsNumeric(reporting)) {
          list_ei <- drive_ls(paste0(main_path, reporting, "/", module, "/"))
 
@@ -94,11 +64,7 @@ get_encoded <- function(reporting = NULL, module = NULL) {
             sheets <- sheets[!stri_detect_fixed(sheets, "LEGENDS")]
 
             for (sheet in sheets) {
-               ei_df <- read_sheet(list_ei[ei, "id"] %>% as.character(), sheet = sheet) %>%
-                  mutate_if(
-                     .predicate = is.POSIXct,
-                     ~floor_date(.) %>% as.character()
-                  ) %>%
+               ei_df <- read_sheet(list_ei[ei, "id"] %>% as.character(), sheet = sheet, col_types = "c") %>%
                   mutate_all(
                      ~as.character(.)
                   ) %>%

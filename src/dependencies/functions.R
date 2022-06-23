@@ -339,3 +339,11 @@ remove_code <- function(var) {
       false     = var
    )
 }
+
+keep_code <- function(var) {
+   if_else(
+      condition = !is.na(var) & stri_detect_fixed(var, '_'),
+      true      = substr(var, 1, stri_locate_first_fixed(var, '_') - 1),
+      false     = var
+   )
+}
