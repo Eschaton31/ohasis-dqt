@@ -56,6 +56,16 @@ encoded$data$records <- encoded$FORMS %>%
    left_join(
       y  = encoded$ref_faci %>%
          select(
+            DISPENSING_FACI = FACI_CODE,
+            DISP_FACI       = FACI_ID,
+            DISP_SUB_FACI   = SUB_FACI_ID
+         ) %>%
+         distinct_all(),
+      by = "DISPENSING_FACI"
+   ) %>%
+   left_join(
+      y  = encoded$ref_faci %>%
+         select(
             REFER_FACI  = FACI_CODE,
             REFER_BY_ID = FACI_ID
          ) %>%
@@ -86,6 +96,8 @@ encoded$data$records <- encoded$FORMS %>%
       ),
    ) %>%
    mutate(
+      UPDATED_BY         = "1300000000",
+      UPDATED_AT         = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
       REC_ID             = paste(
          sep = "_",
          gsub("[^[:digit:]]", "", CREATED_AT),
@@ -137,6 +149,22 @@ encoded$data$records <- encoded$FORMS %>%
          TB_REGIMEN == "XDR-TB" ~ "40",
          TRUE ~ TB_REGIMEN
       ),
+      DISP_FACI          = if_else(
+         condition = is.na(DISP_FACI),
+         true      = FACI_ID,
+         false     = DISP_FACI,
+         missing   = DISP_FACI
+      ),
+      VERSION            = case_when(
+         FORM == "Form ART" ~ "2021",
+         FORM == "Form BC" ~ "2017",
+         TRUE ~ NA_character_
+      ),
+      FORM               = case_when(
+         FORM == "Form ART" ~ "ART Form",
+         FORM == "Form BC" ~ "Form BC",
+         TRUE ~ FORM
+      )
    ) %>%
    mutate_if(
       .predicate = is.character,
@@ -197,7 +225,8 @@ encoded$sql$wide <- list(
    "px_tb"        = "REC_ID",
    "px_tb_ipt"    = "REC_ID",
    "px_tb_active" = "REC_ID",
-   "px_ob"        = "REC_ID"
+   "px_ob"        = "REC_ID",
+   "px_form"      = c("REC_ID", "FORM")
 )
 
 lapply(names(encoded$sql$wide), function(table) {
@@ -221,7 +250,7 @@ encoded$sql$long <- list(
    "px_key_pop"       = c("REC_ID", "KP"),
    "px_oi"            = c("REC_ID", "OI"),
    "px_labs"          = c("REC_ID", "LAB_TEST"),
-   "px_other_service" = c("REC_ID", "SERVICE"),
+   # "px_other_service" = c("REC_ID", "SERVICE"),
    "px_vaccine"       = c("REC_ID", "DISEASE_VAX", "VAX_NUM"),
    "px_remarks"       = c("REC_ID", "REMARK_TYPE"),
    "px_medicine_disc" = c("REC_ID", "MEDICINE"),
@@ -492,3 +521,203 @@ encoded$tables$px_vaccine <- encoded$data$records %>%
          stri_detect_fixed(VAX_DATE, "/") ~ as.Date(VAX_DATE, format = "%m/%d/%Y"),
       ),
    )
+
+encoded$tables$px_prophylaxis <- encoded$data$records %>%
+   select(
+      REC_ID,
+      CREATED_AT,
+      CREATED_BY,
+      starts_with("OI_MED"),
+   ) %>%
+   pivot_longer(
+      cols      = starts_with("OI_MED"),
+      names_to  = "PROPHYLAXIS",
+      values_to = "IS_PROPH"
+   ) %>%
+   mutate(
+      PROPHYLAXIS = case_when(
+         PROPHYLAXIS == "OI_MED_COTRI" ~ "2",
+         PROPHYLAXIS == "OI_MED_AZITHRO" ~ "3",
+         PROPHYLAXIS == "OI_MED_FLUCA" ~ "4",
+         TRUE ~ PROPHYLAXIS
+      )
+   )
+
+encoded$tables$px_remarks <- encoded$data$records %>%
+   select(
+      REC_ID,
+      CREATED_AT,
+      CREATED_BY,
+      ends_with("_NOTES"),
+   ) %>%
+   pivot_longer(
+      cols      = ends_with("_NOTES"),
+      names_to  = "REMARK_TYPE",
+      values_to = "REMARKS"
+   ) %>%
+   mutate(
+      REMARK_TYPE = case_when(
+         REMARK_TYPE == "CLINIC_NOTES" ~ "1",
+         REMARK_TYPE == "COUNSELING_NOTES" ~ "2",
+         REMARK_TYPE == "COUNSELNOTES" ~ "2",
+         TRUE ~ REMARK_TYPE
+      )
+   ) %>%
+   filter(!is.na(REMARKS))
+
+encoded$tables$px_medicine <- encoded$data$records %>%
+   select(
+      REC_ID,
+      CREATED_AT,
+      CREATED_BY,
+      PAGE_ID,
+      encoder,
+      RECORD_DATE,
+      FACI_ID     = DISP_FACI,
+      SUB_FACI_ID = DISP_SUB_FACI
+   ) %>%
+   inner_join(
+      y  = encoded$DISPENSE %>%
+         mutate(
+            encoder = stri_replace_all_fixed(encoder, glue("{ohasis$ym}_"), ""),
+         ),
+      by = c("encoder", "PAGE_ID")
+   ) %>%
+   left_join(
+      y  = encoded$ref_meds %>%
+         select(
+            MEDICINE = 1,
+            DRUG     = 4,
+         ) %>%
+         distinct_all(),
+      by = "DRUG"
+   ) %>%
+   mutate_at(
+      .vars = vars(RECORD_DATE, DISP_DATE, NEXT_PICKUP),
+      ~case_when(
+         stri_detect_fixed(., "-") & nchar(.) < 10 ~ as.Date(., format = "%m-%d-%y"),
+         stri_detect_fixed(., "-") & nchar(.) == 10 ~ as.Date(., format = "%Y-%m-%d"),
+         stri_detect_fixed(., "/") ~ as.Date(., format = "%m/%d/%Y"),
+      )
+   ) %>%
+   mutate_at(
+      .vars = vars(DOSE_PER_DAY, TOTAL_DISPENSED_PILLS, PILLS_LEFT),
+      ~if_else(is.na(.), "0", .) %>% as.numeric()
+   ) %>%
+   mutate(
+      UNIT_BASIS  = "2",
+      DISP_DATE   = if_else(
+         condition = is.na(DISP_DATE),
+         true      = RECORD_DATE,
+         false     = DISP_DATE,
+         missing   = DISP_DATE
+      ),
+      days        = floor((TOTAL_DISPENSED_PILLS + PILLS_LEFT) / DOSE_PER_DAY),
+      NEXT_PICKUP = if_else(
+         condition = is.na(NEXT_PICKUP),
+         true      = DISP_DATE %m+% days(days),
+         false     = NEXT_PICKUP,
+         missing   = NEXT_PICKUP
+      ),
+   ) %>%
+   select(
+      REC_ID,
+      FACI_ID,
+      SUB_FACI_ID,
+      MEDICINE,
+      DISP_NUM        = ARV_NUM,
+      BATCH_NUM,
+      UNIT_BASIS,
+      PER_DAY         = DOSE_PER_DAY,
+      DISP_TOTAL      = TOTAL_DISPENSED_PILLS,
+      MEDICINE_LEFT   = PILLS_LEFT,
+      MEDICINE_MISSED = DOSES_MISSED,
+      DISP_DATE,
+      NEXT_DATE       = NEXT_PICKUP,
+   )
+
+encoded$tables$px_medicine_disc <- encoded$data$records %>%
+   select(
+      REC_ID,
+      CREATED_AT,
+      CREATED_BY,
+      PAGE_ID,
+      encoder,
+      RECORD_DATE,
+      FACI_ID     = DISP_FACI,
+      SUB_FACI_ID = DISP_SUB_FACI
+   ) %>%
+   inner_join(
+      y  = encoded$DISCONTINUE %>%
+         mutate(
+            encoder = stri_replace_all_fixed(encoder, glue("{ohasis$ym}_"), ""),
+         ),
+      by = c("encoder", "PAGE_ID")
+   ) %>%
+   left_join(
+      y  = encoded$ref_meds %>%
+         select(
+            MEDICINE = 1,
+            DRUG     = 4,
+         ) %>%
+         distinct_all(),
+      by = "DRUG"
+   ) %>%
+   mutate_at(
+      .vars = vars(RECORD_DATE, DISC_DATE),
+      ~case_when(
+         stri_detect_fixed(., "-") & nchar(.) < 10 ~ as.Date(., format = "%m-%d-%y"),
+         stri_detect_fixed(., "-") & nchar(.) == 10 ~ as.Date(., format = "%Y-%m-%d"),
+         stri_detect_fixed(., "/") ~ as.Date(., format = "%m/%d/%Y"),
+      )
+   ) %>%
+   mutate(
+      DISC_DATE                = if_else(
+         condition = is.na(DISC_DATE),
+         true      = RECORD_DATE,
+         false     = DISC_DATE,
+         missing   = DISC_DATE
+      ),
+      REASON_FOR_DISCONTINUING = keep_code(REASON_FOR_DISCONTINUING)
+   ) %>%
+   select(
+      REC_ID,
+      FACI_ID,
+      SUB_FACI_ID,
+      MEDICINE,
+      DISC_DATE,
+      DISC_REASON       = REASON_FOR_DISCONTINUING,
+      DISC_REASON_OTHER = OTHER_REASONS,
+   )
+
+##  Upsert data ----------------------------------------------------------------
+
+invisible(lapply(names(encoded$sql$wide), function(table) {
+   id_cols <- encoded$sql$wide[[table]]
+   data    <- encoded$tables[[table]]
+
+   db_conn     <- ohasis$conn("db")
+   table_space <- Id(schema = "ohasis_interim", table = table)
+   dbxUpsert(
+      db_conn,
+      table_space,
+      data,
+      id_cols
+   )
+   dbDisconnect(db_conn)
+}))
+
+invisible(lapply(names(encoded$sql$long), function(table) {
+   id_cols <- encoded$sql$long[[table]]
+   data    <- encoded$tables[[table]]
+
+   db_conn     <- ohasis$conn("db")
+   table_space <- Id(schema = "ohasis_interim", table = table)
+   dbxUpsert(
+      db_conn,
+      table_space,
+      data,
+      id_cols
+   )
+   dbDisconnect(db_conn)
+}))
