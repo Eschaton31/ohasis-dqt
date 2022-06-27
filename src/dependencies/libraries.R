@@ -58,7 +58,8 @@ p_load(
 )
 
 p_load_gh(
-   "KWB-R/kwb.nextcloud"
+   "KWB-R/kwb.nextcloud",
+   "hrbrmstr/speedtest"
 )
 
 if (!require("remotes"))
