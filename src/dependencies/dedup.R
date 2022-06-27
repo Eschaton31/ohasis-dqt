@@ -95,3 +95,64 @@ dedup_prep <- function(
 
    return(dedup_new)
 }
+
+upload_dupes <- function(data) {
+   db_conn <- dbConnect(
+      RMariaDB::MariaDB(),
+      user     = 'ohasis',
+      password = 't1rh0uGCyN2sz6zk',
+      host     = '192.168.193.232',
+      port     = '3307',
+      timeout  = -1,
+      'ohasis_interim'
+   )
+
+   pb <- progress_bar$new(format = ":current of :total PIDs | [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = nrow(data), width = 100, clear = FALSE)
+   pb$tick(0)
+   for (i in seq_len(nrow(data))) {
+      cid <- data[i, 1] %>% as.character()
+      pid <- data[i, 2] %>% as.character()
+      ts  <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+
+      num_pid <- nrow(
+         dbGetQuery(
+            db_conn,
+            "SELECT * FROM registry WHERE PATIENT_ID = ?",
+            params = pid
+         )
+      )
+      num_cid <- nrow(
+         dbGetQuery(
+            db_conn,
+            "SELECT * FROM registry WHERE CENTRAL_ID = ?",
+            params = pid
+         )
+      )
+
+      if (num_pid == 0) {
+         dbExecute(
+            db_conn,
+            "INSERT IGNORE INTO registry (CENTRAL_ID, PATIENT_ID, CREATED_BY, CREATED_AT) VALUES (?, ?, ?, ?);",
+            params = list(cid, pid, "1300000001", ts)
+         )
+      } else {
+         dbExecute(
+            db_conn,
+            "UPDATE registry SET CENTRAL_ID = ?, UPDATED_BY = ?, UPDATED_AT = ? WHERE PATIENT_ID = ?;",
+            params = list(cid, "1300000001", ts, pid)
+         )
+      }
+
+      if (num_cid > 0) {
+         dbExecute(
+            db_conn,
+            "UPDATE registry SET CENTRAL_ID = ?, UPDATED_BY = ?, UPDATED_AT = ? WHERE CENTRAL_ID = ?;",
+            params = list(cid, "1300000001", ts, pid)
+         )
+      }
+
+      pb$tick(1)
+   }
+
+   dbDisconnect(db_conn)
+}

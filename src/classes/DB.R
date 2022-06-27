@@ -808,6 +808,13 @@ DB <- setRefClass(
                      select(CENTRAL_ID, PATIENT_ID),
                   by = "PATIENT_ID"
                ) %>%
+               mutate(
+                  CENTRAL_ID = if_else(
+                     condition = is.na(CENTRAL_ID),
+                     true      = PATIENT_ID,
+                     false     = CENTRAL_ID
+                  )
+               ) %>%
                relocate(CENTRAL_ID, .before = 1) %>%
                collect()
          }
