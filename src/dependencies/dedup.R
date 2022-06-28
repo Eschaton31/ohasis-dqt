@@ -128,6 +128,21 @@ upload_dupes <- function(data) {
             params = pid
          )
       )
+      num_pcid <- nrow(
+         dbGetQuery(
+            db_conn,
+            "SELECT * FROM registry WHERE PATIENT_ID = ?",
+            params = cid
+         )
+      )
+
+      if (num_pcid == 0) {
+         dbExecute(
+            db_conn,
+            "INSERT IGNORE INTO registry (CENTRAL_ID, PATIENT_ID, CREATED_BY, CREATED_AT) VALUES (?, ?, ?, ?);",
+            params = list(cid, cid, "1300000001", ts)
+         )
+      }
 
       if (num_pid == 0) {
          dbExecute(
