@@ -5,22 +5,18 @@ currEnv <- ls()[ls() != "currEnv"]
 
 # open connections
 .log_info("Generating `harp_tx`.`reg-initial`.")
-.log_info("Opening connections.")
-lw_conn <- ohasis$conn("lw")
 
 # Form BC not yet reported
 .log_info("Dropping already-reported records.")
-nhsss$harp_tx$reg.initial$data <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "art_first")) %>%
-   select(CENTRAL_ID, REC_ID) %>%
+nhsss$harp_tx$reg.initial$data <- nhsss$harp_tx$forms$art_first %>%
    anti_join(
-      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "harp_tx_old")),
+      y  = nhsss$harp_tx$official$old_reg %>%
+         select(CENTRAL_ID),
       by = "CENTRAL_ID"
    ) %>%
-   left_join(
-      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_art_bc")),
-      by = "REC_ID"
-   ) %>%
-   collect()
+   filter(
+      VISIT_DATE <= ohasis$next_date
+   )
 
 .log_info("Performing initial cleaning.")
 nhsss$harp_tx$reg.initial$data %<>%
@@ -160,11 +156,9 @@ nhsss$harp_tx$reg.initial$data %<>%
       ART_SUB_FACI = SERVICE_SUB_FACI,
    )
 
-
 ##  Adding CD4 results ---------------------------------------------------------
 
 .log_info("Attaching baseline CD4 data.")
-dbDisconnect(lw_conn)
 lw_conn      <- ohasis$conn("lw")
 ceiling_date <- ohasis$next_date
 nhsss$harp_tx$reg.initial$data %<>%
@@ -270,7 +264,7 @@ nhsss$harp_tx$reg.initial$data %<>%
       .after        = ACTUAL_FACI_CODE
    ) %>%
    mutate(
-      ART_BRANCH         = case_when(
+      ART_BRANCH    = case_when(
          ART_FACI_CODE == "TLY" & is.na(ART_BRANCH) ~ "TLY-ANGLO",
          TRUE ~ ART_BRANCH
       ),

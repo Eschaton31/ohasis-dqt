@@ -13,15 +13,6 @@ artcutoff_date <- as.Date(paste(sep = '-', artcutoff_yr, artcutoff_mo, '01'))
 
 ##  Get reference datasets -----------------------------------------------------
 
-# get latest visits
-.log_info("Getting earliest visits from OHASIS.")
-lw_conn      <- ohasis$conn("lw")
-oh_id_schema <- dbplyr::in_schema("ohasis_warehouse", "id_registry")
-
-first_visits <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "art_first")) %>%
-   select(CENTRAL_ID, REC_ID, EARLIEST_VISIT = VISIT_DATE) %>%
-   collect()
-
 # get mortality data
 .log_info("Getting latest mortality dataset.")
 if (!("harp_dead" %in% names(nhsss)))
@@ -34,9 +25,7 @@ if (!("harp_dead" %in% names(nhsss)))
       ) %>%
       select(-starts_with("CENTRAL_ID")) %>%
       left_join(
-         y  = tbl(lw_conn, oh_id_schema) %>%
-            select(CENTRAL_ID, PATIENT_ID) %>%
-            collect(),
+         y  = nhsss$harp_tx$forms$id_registry,
          by = "PATIENT_ID"
       ) %>%
       mutate(
@@ -52,7 +41,6 @@ if (!("harp_dead" %in% names(nhsss)))
             false     = date_of_death
          )
       )
-dbDisconnect(lw_conn)
 
 # updated outcomes
 .log_info("Performing initial conversion.")
@@ -92,7 +80,10 @@ nhsss$harp_tx$outcome.converted$data <- nhsss$harp_tx$outcome.initial$data %>%
    ) %>%
    # get ohasis earliest visits
    left_join(
-      y  = first_visits %>% select(CENTRAL_ID, EARLIEST_REC = REC_ID, EARLIEST_VISIT),
+      y  = nhsss$harp_tx$forms$art_first %>%
+         select(CENTRAL_ID, EARLIEST_REC = REC_ID, EARLIEST_VISIT = VISIT_DATE) %>%
+         arrange(EARLIEST_VISIT) %>%
+         distinct(CENTRAL_ID, .keep_all = TRUE),
       by = "CENTRAL_ID"
    ) %>%
    mutate(
@@ -159,6 +150,7 @@ nhsss$harp_tx$outcome.converted$data <- nhsss$harp_tx$outcome.initial$data %>%
          use_db == 1 & LATEST_NEXT_DATE >= artcutoff_date ~ "alive on arv",
          use_db == 1 & LATEST_NEXT_DATE < artcutoff_date ~ "lost to follow up",
          use_db == 0 & prev_ffup <= ref_death_date ~ "dead",
+         use_db == 0 & stri_detect_fixed(prev_outcome, "stopped") ~ prev_outcome,
          use_db == 0 & prev_pickup >= artcutoff_date ~ "alive on arv",
          use_db == 0 & prev_pickup < artcutoff_date ~ "lost to follow up",
          use_db == 0 ~ prev_outcome

@@ -206,7 +206,8 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
       onart
    ) %>%
    distinct_all() %>%
-   arrange(art_id) %>%
+   arrange(art_id, desc(latest_nextpickup)) %>%
+   distinct(art_id, .keep_all = TRUE) %>%
    mutate(central_id = CENTRAL_ID)
 
 .log_info("Performing late validation cleanings.")

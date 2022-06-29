@@ -14,7 +14,8 @@ nhsss$harp_tx$official$new_reg <- nhsss$harp_tx$reg.converted$data %>%
       drop_notyet     = 0,
       drop_duplicates = 0,
       drop_notart     = 0,
-   )
+   ) %>%
+   zap_labels()
 
 ##  Tag data to be reported later on and duplicates for dropping ---------------
 
@@ -62,9 +63,6 @@ nhsss$harp_tx$official$new_reg %<>%
 ##  Merge w/ Dx Registry -------------------------------------------------------
 
 .log_info("Matching w/ HARP Dx Registry dataset for `idnum`.")
-lw_conn      <- ohasis$conn("lw")
-oh_id_schema <- dbplyr::in_schema("ohasis_warehouse", "id_registry")
-
 .log_info("Getting latest dx registry dataset.")
 if (!("harp_dx" %in% names(nhsss)))
    nhsss$harp_dx$official$new <- ohasis$get_data("harp_dx", ohasis$yr, ohasis$mo) %>%
@@ -76,9 +74,7 @@ if (!("harp_dx" %in% names(nhsss)))
       ) %>%
       select(-CENTRAL_ID) %>%
       left_join(
-         y  = tbl(lw_conn, oh_id_schema) %>%
-            select(CENTRAL_ID, PATIENT_ID) %>%
-            collect(),
+         y  = nhsss$harp_tx$forms$id_registry,
          by = "PATIENT_ID"
       ) %>%
       mutate(
@@ -89,8 +85,6 @@ if (!("harp_dx" %in% names(nhsss)))
          ),
          labcode2   = if_else(is.na(labcode2), labcode, labcode2)
       )
-
-dbDisconnect(lw_conn)
 
 .log_info("Updating data using dx registry information.")
 nhsss$harp_tx$official$new_reg %<>%
@@ -216,7 +210,7 @@ nhsss$harp_tx$official$new_reg %<>%
          missing   = 0
       ),
    ) %>%
-   distinct_all()
+   distinct(CENTRAL_ID, .keep_all = TRUE)
 
 ##  Flag data for validation ---------------------------------------------------
 

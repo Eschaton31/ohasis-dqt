@@ -5,20 +5,14 @@ currEnv <- ls()[ls() != "currEnv"]
 
 # open connections
 .log_info("Generating `harp_tx`.`outcome.initial`.")
-.log_info("Opening connections.")
-lw_conn <- ohasis$conn("lw")
-db_conn <- ohasis$conn("db")
 
 # get latest visits
 .log_info("Getting latest visits from OHASIS.")
-nhsss$harp_tx$outcome.initial$data <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "art_last")) %>%
-   select(CENTRAL_ID, REC_ID, LATEST_VISIT = VISIT_DATE) %>%
-   left_join(
-      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_art_bc")),
-      by = "REC_ID"
-   ) %>%
-   collect() %>%
-   filter(LATEST_VISIT == VISIT_DATE)
+nhsss$harp_tx$outcome.initial$data <- nhsss$harp_tx$forms$art_last %>%
+   arrange(desc(LATEST_NEXT_DATE)) %>%
+   filter(VISIT_DATE <= ohasis$next_date) %>%
+   mutate(LATEST_VISIT = VISIT_DATE) %>%
+   distinct(CENTRAL_ID, .keep_all = TRUE)
 
 .log_info("Performing initial cleaning.")
 nhsss$harp_tx$outcome.initial$data %<>%
@@ -29,34 +23,34 @@ nhsss$harp_tx$outcome.initial$data %<>%
    ) %>%
    mutate(
       # date variables
-      encoded_date    = as.Date(CREATED_AT),
+      encoded_date       = as.Date(CREATED_AT),
 
       # Age
-      AGE             = if_else(
+      AGE                = if_else(
          condition = is.na(AGE) & !is.na(AGE_MO),
          true      = AGE_MO / 12,
          false     = as.double(AGE)
       ),
-      AGE_DTA         = if_else(
+      AGE_DTA            = if_else(
          condition = !is.na(birthdate),
          true      = floor((VISIT_DATE - birthdate) / 365.25) %>% as.numeric(),
          false     = as.numeric(NA)
       ),
 
       # tag those without ART_FACI
-      use_record_faci = if_else(
+      use_record_faci    = if_else(
          condition = is.na(SERVICE_FACI),
          true      = 1,
          false     = 0
       ),
-      SERVICE_FACI    = if_else(
+      SERVICE_FACI       = if_else(
          condition = use_record_faci == 1,
          true      = FACI_ID,
          false     = SERVICE_FACI
       ),
 
       # tag sail clinics as ship
-      sail_clinic     = case_when(
+      sail_clinic        = case_when(
          FACI_ID == "040200" ~ 1,
          SERVICE_FACI == "040200" ~ 1,
          FACI_ID == "040211" ~ 1,
@@ -67,7 +61,7 @@ nhsss$harp_tx$outcome.initial$data %<>%
       ),
 
       # tag tly clinic
-      tly_clinic      = case_when(
+      tly_clinic         = case_when(
          FACI_ID == "070021" ~ 1,
          FACI_ID == "040198" ~ 1,
          FACI_ID == "070021" ~ 1,
@@ -90,16 +84,16 @@ nhsss$harp_tx$outcome.initial$data %<>%
       ),
 
       # convert to HARP facility
-      ACTUAL_FACI     = SERVICE_FACI,
-      ACTUAL_SUB_FACI = SERVICE_SUB_FACI,
-      SERVICE_FACI    = case_when(
+      ACTUAL_FACI        = SERVICE_FACI,
+      ACTUAL_SUB_FACI    = SERVICE_SUB_FACI,
+      SERVICE_FACI       = case_when(
          tly_clinic == 1 ~ "130001",
          sail_clinic == 1 ~ "130025",
          TRUE ~ SERVICE_FACI
       ),
 
       # satellite
-      SATELLITE_FACI  = if_else(
+      SATELLITE_FACI     = if_else(
          condition = StrLeft(CLIENT_TYPE, 1) == "5",
          true      = FACI_DISP,
          false     = NA_character_
@@ -111,7 +105,7 @@ nhsss$harp_tx$outcome.initial$data %<>%
       ),
 
       # transient
-      TRANSIENT_FACI  = if_else(
+      TRANSIENT_FACI     = if_else(
          condition = StrLeft(CLIENT_TYPE, 1) == "6",
          true      = FACI_DISP,
          false     = NA_character_
@@ -133,10 +127,6 @@ nhsss$harp_tx$outcome.initial$data %<>%
       ART_FACI     = SERVICE_FACI,
       ART_SUB_FACI = SERVICE_SUB_FACI,
    )
-
-.log_info("Closing connections.")
-dbDisconnect(lw_conn)
-dbDisconnect(db_conn)
 
 ##  Facilities -----------------------------------------------------------------
 
@@ -195,7 +185,7 @@ nhsss$harp_tx$outcome.initial$data %<>%
       .after        = ACTUAL_FACI_CODE
    ) %>%
    mutate(
-      ART_BRANCH         = case_when(
+      ART_BRANCH    = case_when(
          ART_FACI_CODE == "TLY" & is.na(ART_BRANCH) ~ "TLY-ANGLO",
          TRUE ~ ART_BRANCH
       ),
@@ -223,7 +213,7 @@ nhsss$harp_tx$outcome.initial$data %<>%
    ) %>%
    arrange(ART_FACI_CODE, VISIT_DATE, LATEST_NEXT_DATE) %>%
    mutate(
-      ART_BRANCH         = case_when(
+      ART_BRANCH    = case_when(
          ART_FACI_CODE == "SHP" & is.na(ART_BRANCH) ~ "SHIP-MAKATI",
          ART_FACI_CODE == "TLY" & is.na(ART_BRANCH) ~ "TLY-ANGLO",
          TRUE ~ ART_BRANCH

@@ -12,7 +12,6 @@ nhsss$harp_tx$wd <- file.path(getwd(), "src", "official", "harp_tx")
 ##  Begin linkage of art registry ----------------------------------------------
 
 source(file.path(nhsss$harp_tx$wd, "02_load_reqs.R"))
-source(file.path(nhsss$harp_tx$wd, "03_load_visits.R"))
 source(file.path(nhsss$harp_tx$wd, "04_data_reg.initial.R"))
 source(file.path(nhsss$harp_tx$wd, "05_data_reg.convert.R"))
 source(file.path(nhsss$harp_tx$wd, "06_data_reg.final.R"))
@@ -54,3 +53,12 @@ if (complete == "1") {
    source(file.path(nhsss$harp_tx$wd, "16_upload.R"))
 }
 rm(complete)
+
+dedup_by(
+   "16B0tEmFxG1Y0kf1y8qhMkjTuOC6CnarkX0fAtZjivuM",
+   "reclink",
+   23,
+   26,
+   1,
+   1418
+)
