@@ -3,14 +3,8 @@ shell("cls")
 # Project name: > OHASIS Data Wrangling
 # Author(s):    > Palo, John Benedict
 # Date:         > 2022-01-27
-# Description:  > This program creates the various OHASIS extracted data sets.
-#
-# Updates:      > See Changelog
-#
-# Input:        > OHASIS SQL Tables
-#               > HARP Datasets
-#
-# Notes:        >
+# Description:  > This program serves as the primary controller for the various
+#                 data pipelines of the NHSSS Unit.
 ################################################################################
 
 rm(list = ls())
