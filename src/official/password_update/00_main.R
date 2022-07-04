@@ -24,4 +24,27 @@ pw$mail <- gm_mime() %>%
    ) %>%
    gm_attach_file("C:/Users/johnb/Documents/ShareX/Screenshots/2022.07/2022.07.04/2022.07.04.081912 (Notepad).png")
 
-gm_send_message(pw$mail)
+pw$mail <- gm_mime() %>%
+   gm_to(
+      unique(
+         c(
+            gmail$nhsss$head,
+            gmail$nhsss$ss,
+            gmail$nhsss$dqt,
+            gmail$nhsss$dat
+         )
+      )
+   ) %>%
+   gm_from(Sys.getenv("GMAIL_USER")) %>%
+   gm_subject(glue("[Data Security] Password Update - nhsss@doh.gov.ph")) %>%
+   gm_html_body(
+      glue(
+         r"(
+<p>Seemed to have forgotten to include Sir Noel & Ate Ja in the original email. Looping them in to the updated password.</p>
+<p>Best,<br>- Bene</p>
+{gmail_sig()}
+         )"
+      )
+   )
+
+gm_send_message(pw$mail, thread_id = "181c6983906306ef")
