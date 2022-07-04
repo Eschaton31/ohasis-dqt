@@ -1,15 +1,4 @@
-\documentclass{article}
 \usepackage{setspace}
-\usepackage{geometry}
-\geometry{
-    a4paper,
-    top=.6in,
-    right=.5in,
-    bottom=.5in,
-    left=.5in,
-    portrait
-}
-\usepackage[no-math]{fontspec}
 \usepackage{anyfontsize}
 \usepackage{array}
 \usepackage{tabularx}
@@ -61,8 +50,6 @@
 ]{IsidoraSans-Regular.ttf}
 \newfontfamily\semibf{IsidoraSans-Bold}
 
-
-
 \fontspec[
     Path = H:/_Resources/Fonts/Chronica Pro/TTF/,
     BoldFont = ChronicaPro-Medium.ttf,
@@ -72,36 +59,31 @@
 
 \setlength{\abovetopsep}{.4ex}
 
-$if(highlighting-macros)$
-$highlighting-macros$
-$endif$
-
-
 \newcommand\FrontHeader{%
     \begin{tikzpicture}[remember picture,overlay]
-        \node[yshift=-2.5cm] at (current page.north west)
-            {\begin{tikzpicture}[remember picture, overlay]
-                 \includegraphics[width=\paperwidth]{H:/_Resources/Images/PNG/OHASIS Header.png};
-                 \node[anchor=west,xshift=.15cm,yshift=1.28cm]
-                 {\includegraphics[width=1.95cm]{H:/_Resources/Images/Logos/Logo - DOH.png}};
-                 \node[anchor=west,xshift=2.3cm,yshift=1.80cm]
-                 {\fontsize{14}{14}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{yellow}{\textbf{Department of Health | Epidemiology Bureau}}};
-                 \node[anchor=west,xshift=2.3cm,yshift=1.15cm]
-                 {\fontsize{22}{22}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{white}{\textbf{ONE HIV/AIDS \& STI INFORMATION SYSTEM}}};
-        \end{tikzpicture}
+        \node[yshift=-2.5cm] at (current page.north west)            {
+            \begin{tikzpicture}[remember picture, overlay]
+                \includegraphics[width=\paperwidth]{H:/_Resources/Images/PNG/OHASIS Header.png};
+                \node[anchor=west,xshift=.15cm,yshift=1.28cm]
+                {\includegraphics[width=1.95cm]{H:/_Resources/Images/Logos/Logo - DOH.png}};
+                \node[anchor=west,xshift=2.3cm,yshift=1.80cm]
+                {\fontsize{14}{14}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{yellow}{\textbf{Department of Health | Epidemiology Bureau}}};
+                \node[anchor=west,xshift=2.3cm,yshift=1.15cm]
+                {\fontsize{22}{22}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{white}{\textbf{ONE HIV/AIDS \& STI INFORMATION SYSTEM}}};
+            \end{tikzpicture}
         };
     \end{tikzpicture}
 }
 \newcommand\PageHeader{%
     \begin{tikzpicture}[remember picture,overlay]
-        \node[yshift=-1.25cm] at (current page.north west)
-            {\begin{tikzpicture}[remember picture, overlay]
-                 \includegraphics[width=\paperwidth]{H:/_Resources/Images/PNG/OHASIS Small Header.png};
-                 \node[anchor=west,xshift=.15cm,yshift=.60cm]
-                 {\includegraphics[width=1.05cm]{H:/_Resources/Images/Logos/Logo - DOH.png}};
-                 \node[anchor=west,xshift=3.85cm,yshift=.60cm]
-                 {\fontsize{18}{18}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{white}{\textbf{ONE HIV/AIDS \& STI INFORMATION SYSTEM}}};
-        \end{tikzpicture}
+        \node[yshift=-1.25cm] at (current page.north west)            {
+            \begin{tikzpicture}[remember picture, overlay]
+                \includegraphics[width=\paperwidth]{H:/_Resources/Images/PNG/OHASIS Small Header.png};
+                \node[anchor=west,xshift=.15cm,yshift=.60cm]
+                {\includegraphics[width=1.05cm]{H:/_Resources/Images/Logos/Logo - DOH.png}};
+                \node[anchor=west,xshift=3.85cm,yshift=.60cm]
+                {\fontsize{18}{18}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{white}{\textbf{ONE HIV/AIDS \& STI INFORMATION SYSTEM}}};
+            \end{tikzpicture}
         };
     \end{tikzpicture}
 }
@@ -110,16 +92,16 @@ $endif$
     \pagenumbering{gobble}
     \fancyhead[C]{
         \begin{tikzpicture}[remember picture,overlay]
-            \node[yshift=-2.5cm] at (current page.north west)
-                {\begin{tikzpicture}[remember picture, overlay]
-                     \includegraphics[width=\paperwidth]{H:/_Resources/Images/PNG/OHASIS Header.png};
-                     \node[anchor=west,xshift=.15cm,yshift=1.28cm]
-                     {\includegraphics[width=1.95cm]{H:/_Resources/Images/Logos/Logo - DOH.png}};
-                     \node[anchor=west,xshift=2.3cm,yshift=1.80cm]
-                     {\fontsize{14}{14}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{yellow}{\textbf{Department of Health | Epidemiology Bureau}}};
-                     \node[anchor=west,xshift=2.3cm,yshift=1.15cm]
-                     {\fontsize{22}{22}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{white}{\textbf{ONE HIV/AIDS \& STI INFORMATION SYSTEM}}};
-            \end{tikzpicture}
+            \node[yshift=-2.5cm] at (current page.north west){
+                \begin{tikzpicture}[remember picture, overlay]
+                    \includegraphics[width=\paperwidth]{H:/_Resources/Images/PNG/OHASIS Header.png};
+                    \node[anchor=west,xshift=.15cm,yshift=1.28cm]
+                    {\includegraphics[width=1.95cm]{H:/_Resources/Images/Logos/Logo - DOH.png}};
+                    \node[anchor=west,xshift=2.3cm,yshift=1.80cm]
+                    {\fontsize{14}{14}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{yellow}{\textbf{Department of Health | Epidemiology Bureau}}};
+                    \node[anchor=west,xshift=2.3cm,yshift=1.15cm]
+                    {\fontsize{22}{22}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{white}{\textbf{ONE HIV/AIDS \& STI INFORMATION SYSTEM}}};
+                \end{tikzpicture}
             };
         \end{tikzpicture}
     }
@@ -129,14 +111,14 @@ $endif$
     \pagenumbering{gobble}
     \fancyhead[C]{
         \begin{tikzpicture}[remember picture,overlay]
-            \node[yshift=-1.25cm] at (current page.north west)
-                {\begin{tikzpicture}[remember picture, overlay]
-                     \includegraphics[width=\paperwidth]{H:/_Resources/Images/PNG/OHASIS Small Header.png};
-                     \node[anchor=west,xshift=.15cm,yshift=.60cm]
-                     {\includegraphics[width=1.05cm]{H:/_Resources/Images/Logos/Logo - DOH.png}};
-                     \node[anchor=west,xshift=3.85cm,yshift=.60cm]
-                     {\fontsize{18}{18}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{white}{\textbf{ONE HIV/AIDS \& STI INFORMATION SYSTEM}}};
-            \end{tikzpicture}
+            \node[yshift=-1.25cm] at (current page.north west)                {
+                \begin{tikzpicture}[remember picture, overlay]
+                    \includegraphics[width=\paperwidth]{H:/_Resources/Images/PNG/OHASIS Small Header.png};
+                    \node[anchor=west,xshift=.15cm,yshift=.60cm]
+                    {\includegraphics[width=1.05cm]{H:/_Resources/Images/Logos/Logo - DOH.png}};
+                    \node[anchor=west,xshift=3.85cm,yshift=.60cm]
+                    {\fontsize{18}{18}\selectfont \fontspec{IsidoraSans-Regular} \textcolor{white}{\textbf{ONE HIV/AIDS \& STI INFORMATION SYSTEM}}};
+                \end{tikzpicture}
             };
         \end{tikzpicture}
     }
@@ -146,12 +128,3 @@ $endif$
 \renewcommand{\footrulewidth}{0pt}
 
 \pagestyle{generalpagestyle}
-
-\begin{document}
-    \thispagestyle{my1stpagestyle}
-    \phantom{invi}
-    \bigskip
-    \bigskip
-
-    $body$
-\end{document}

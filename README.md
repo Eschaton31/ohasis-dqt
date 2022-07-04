@@ -27,6 +27,13 @@ Installation Instructions
 
 [To be added.]
 
+PDF Rendering Tool/s
+--------------------
+
+1. Download `Quatro CLI` from this link: https://quarto.org/docs/get-started/
+2. Install `tinytex` via CLI:
+   - `quarto tools install tinytex`
+
 ---
 
 Directory Structure

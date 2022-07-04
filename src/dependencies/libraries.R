@@ -54,7 +54,8 @@ p_load(
    XLConnect,
    gender,
    openxlsx,
-   ruODK
+   ruODK,
+   quarto
 )
 
 p_load_gh(
