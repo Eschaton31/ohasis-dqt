@@ -40,11 +40,12 @@ pw$mail <- gm_mime() %>%
    gm_html_body(
       glue(
          r"(
-<p>Seemed to have forgotten to include Sir Noel & Ate Ja in the original email. Looping them in to the updated password.</p>
+<p>Hi Sir, re-attaching the new password for the aforementioned account.</p>
 <p>Best,<br>- Bene</p>
 {gmail_sig()}
          )"
       )
-   )
+   ) %>%
+   gm_attach_file("C:/Users/johnb/Documents/ShareX/Screenshots/2022.07/2022.07.04/2022.07.04.081912 (Notepad).png")
 
 gm_send_message(pw$mail, thread_id = "181c6983906306ef")
