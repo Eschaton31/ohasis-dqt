@@ -1,5 +1,5 @@
 dr         <- list()
-dr$harp_dx <- read_dta("H:/_R/library/hiv_dx/data/20220519_reg_2022-04.dta")
+dr$harp_dx <- read_dta(ohasis$get_data("harp_dx", "2022", "05"))
 dr$harp_dx %<>%
    filter(year >= 2016)
 
@@ -337,7 +337,7 @@ write_dta(data[[5]] %>%
              rename_all(~stri_replace_all_fixed(., " ", "") %>%
                 stri_replace_all_fixed(., "/", "")), "H:/Data Requests/20220525-doc_maffy/faci_cfbs.dta")
 
-for (file in list.files("H:/Data Requests/20220525-doc_maffy", "*.dta", full.names = TRUE)) {
+for (file in list.files("H:/Data Requests/20220704-doc_maffy", "*.dta", full.names = TRUE)) {
    # initialize empty stata commands
    stataCMD <- ""
 
@@ -378,5 +378,6 @@ for (i in 1:5) {
          Latitude  = as.numeric(Latitude),
       )
 }
-saveWorkbook(dr$wb, "H:/Data Requests/20220525-doc_maffy/health_units.xlsx", overwrite = TRUE)
-saveRDS(data, "H:/Data Requests/20220525-doc_maffy/health_units.RDS")
+saveWorkbook(dr$wb, "H:/Data Requests/20220704-doc_maffy/health_units.xlsx", overwrite = TRUE)
+saveRDS(data, "H:/Data Requests/20220704-doc_maffy/health_units.RDS")
+saveWorkbook(dr$wb, "H:/20220704_health_units.xlsx", overwrite = TRUE)
