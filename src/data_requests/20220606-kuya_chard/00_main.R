@@ -261,3 +261,16 @@ write_xlsx(
    ),
    glue(r"(H:/20220606-kuya_chard.xlsx)")
 )
+
+write_dta(
+   dr$`20220606-kuya_chard`$data$`1`$a,
+   "H:/hash-hts.dta"
+)
+write_dta(
+   dr$`20220606-kuya_chard`$data$`2`$a,
+   "H:/hash-prep.dta"
+)
+write_dta(
+   dr$`20220606-kuya_chard`$data$`3`$a,
+   "H:/hash-art.dta"
+)
