@@ -265,7 +265,8 @@ gf$logsheet$ohasis <- reach %>%
          filter(!is.na(FACI_ID)) %>%
          select(
             GF_FACI    = FACI_ID,
-            LS_SUBTYPE = `Clinic Type`
+            LS_SUBTYPE = `Clinic Type`,
+            with_dsa = starts_with("DSA")
          ) %>%
          distinct_all() %>%
          add_row(GF_FACI = "130605", LS_SUBTYPE = "CBO") %>%
@@ -282,6 +283,11 @@ gf$logsheet$ohasis <- reach %>%
          ) %>%
          distinct_all() %>%
          mutate(
+            with_dsa = case_when(
+               with_dsa == TRUE ~ 1,
+               with_dsa == FALSE ~ 0,
+               TRUE ~ 0
+            ),
             site_gf_2022 = 1,
             LS_SUBTYPE   = if_else(
                condition = is.na(LS_SUBTYPE),
@@ -684,6 +690,7 @@ gf$logsheet$ohasis <- reach %>%
       tx_hub               = TX_FACI,
       tx_region            = TX_REGION,
       analp12m,
+      with_dsa,
       RECORD_P12M,
       starts_with("RISK"),
       starts_with("EXPOSE"),
