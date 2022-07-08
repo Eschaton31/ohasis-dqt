@@ -9,6 +9,8 @@ local(envir = dr$`20220606-kuya_chard`, {
             select(
                CENTRAL_ID,
                FORM_REC = REC_ID,
+               idnum,
+               confirmlab,
                dxlab_standard
             ) %>%
             mutate(
