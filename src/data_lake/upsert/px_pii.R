@@ -196,7 +196,7 @@ if ((object %>% count() %>% collect())$n > 0) {
                )
             ) %>%
             pivot_wider(
-               id_cols     = c(REC_ID, ADDR_TYPE),
+               id_cols     = REC_ID,
                names_from  = ADDR_TYPE,
                values_from = c(PSGC_REG, PSGC_PROV, PSGC_MUNC, ADDR),
                names_glue  = "{ADDR_TYPE}_{.value}"
