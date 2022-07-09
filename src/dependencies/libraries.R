@@ -2,10 +2,16 @@
 
 # easy loader for libraries
 if (!require(pacman))
-   install.packages('pacman')
+   install.packages("pacman")
 
 # load libraries
 library(pacman)
+
+p_install(
+   force = FALSE,
+   remotes
+)
+
 p_load(
    magrittr,
    ggplot2,
@@ -36,7 +42,6 @@ p_load(
    writexl,
    clipr,
    dbx,
-   # logger,
    fs,
    progress,
    gmailr,
@@ -59,15 +64,12 @@ p_load(
 )
 
 p_load_gh(
+   update = TRUE,
    "KWB-R/kwb.nextcloud",
-   "hrbrmstr/speedtest"
+   "hrbrmstr/speedtest",
+   "ropensci/tabulizerjars",
+   "ropensci/tabulizer",
+   "lmullen/genderdata",
+   "SymbolixAU/googlePolylines",
+   "SymbolixAU/googleway"
 )
-
-if (!require("remotes"))
-   install.packages("remotes")
-
-remotes::install_github(c("ropensci/tabulizerjars", "ropensci/tabulizer"), INSTALL_opts = "--no-multiarch")
-remotes::install_github("lmullen/genderdata")
-
-# devtools::install_github("SymbolixAU/googlePolylines")
-# devtools::install_github("SymbolixAU/googleway")
