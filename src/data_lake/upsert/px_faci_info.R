@@ -32,7 +32,7 @@ if ((object %>% count() %>% collect())$n > 0) {
       left_join(
          y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_remarks")) %>%
             pivot_wider(
-               id_cols      = c("REC_ID", "REMARK_TYPE"),
+               id_cols      = REC_ID,
                names_from   = REMARK_TYPE,
                values_from  = "REMARKS",
                names_prefix = "REMARKS_"
