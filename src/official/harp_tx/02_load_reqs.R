@@ -183,7 +183,8 @@ if (check == "1") {
          id_col          = c("art_id" = "integer"),
          dta_pid         = "PATIENT_ID",
          remove_cols     = "CENTRAL_ID",
-         remove_rows     = corr$anti_join
+         remove_rows     = corr$anti_join,
+         id_registry     = forms$id_registry
       )
 
       official$old_outcome <- ohasis$get_data("harp_tx-outcome", ohasis$prev_yr, ohasis$prev_mo) %>%
