@@ -1,0 +1,23 @@
+---
+title: "My document"
+format:
+  pdf:
+    documentclass: article
+    geometry:
+      - a4paper,
+      - top=.6in,
+      - right=.5in,
+      - bottom=.5in,
+      - left=.5in,
+      - portrait
+    pdf-engine: "xelatex"
+    colorlinks: true
+    include-in-header:
+      - "H:/Software/OHASIS/DQT/src/templates/ohasis_default.tex"
+    include-before-body:
+      text: |
+        \thispagestyle{my1stpagestyle}
+        \phantom{invi}
+        \bigskip
+        \bigskip
+---
