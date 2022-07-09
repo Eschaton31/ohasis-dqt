@@ -722,7 +722,8 @@ DB <- setRefClass(
          id_col = NULL,
          dta_pid = NULL,
          remove_cols = NULL,
-         remove_rows = NULL
+         remove_rows = NULL,
+         id_registry = NULL
       ) {
          # open connections
          .log_info("Opening connections.")
@@ -742,6 +743,12 @@ DB <- setRefClass(
             default = "1"
          )
 
+         if (!is.null(id_registry))
+            tbl_ids <- id_registry
+         else
+            tbl_ids <- tbl(db_conn, oh_id_schema) %>%
+               select(CENTRAL_ID, PATIENT_ID) %>%
+               collect()
 
          # if Yes, re-process registry
          if (reload == "1") {
@@ -762,9 +769,7 @@ DB <- setRefClass(
                   )
                ) %>%
                left_join(
-                  y  = tbl(db_conn, oh_id_schema) %>%
-                     select(CENTRAL_ID, PATIENT_ID) %>%
-                     collect(),
+                  y  = tbl_ids,
                   by = "PATIENT_ID"
                ) %>%
                mutate(
