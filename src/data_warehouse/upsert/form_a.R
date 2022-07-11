@@ -292,7 +292,7 @@ if ((object %>% count() %>% collect())$n > 0) {
                )
             ) %>%
             pivot_wider(
-               id_cols     = c(REC_ID, EXPOSURE),
+               id_cols     = REC_ID,
                names_from  = EXPOSURE,
                values_from = IS_EXPOSED,
                names_glue  = 'EXPOSE_{EXPOSURE}_{.value}'
@@ -363,7 +363,7 @@ if ((object %>% count() %>% collect())$n > 0) {
                )
             ) %>%
             pivot_wider(
-               id_cols     = c(REC_ID, PROFILE),
+               id_cols     = REC_ID,
                names_from  = PROFILE,
                values_from = IS_PROFILE,
                names_glue  = 'MED_{PROFILE}_{.value}'
@@ -414,7 +414,7 @@ if ((object %>% count() %>% collect())$n > 0) {
                TEXT = REASON_OTHER
             ) %>%
             pivot_wider(
-               id_cols     = c(REC_ID, REASON),
+               id_cols     = REC_ID,
                names_from  = REASON,
                values_from = c(IS_REASON, TEXT),
                names_glue  = 'TEST_REASON_{REASON}_{.value}'
@@ -613,7 +613,7 @@ if ((object %>% count() %>% collect())$n > 0) {
                )
             ) %>%
             pivot_wider(
-               id_cols     = c(REC_ID, TEST_TYPE),
+               id_cols     = REC_ID,
                names_from  = TEST_TYPE,
                values_from = c(DATE, RESULT, KIT),
                names_glue  = "{TEST_TYPE}_{.value}"
