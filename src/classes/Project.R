@@ -83,6 +83,11 @@ Project <- setRefClass(
                pattern <- paste0('*reg-art_', refYr, '-', refMo, '.*\\.', file_type)
             }
 
+            if (tolower(surveillance) == "harp_full") {
+               path    <- Sys.getenv("HARP_FULL")
+               pattern <- paste0('*harp_', refYr, '-', refMo, '.*\\.', file_type)
+            }
+
             if (tolower(surveillance) == "harp_tx-outcome") {
                path    <- Sys.getenv("HARP_TX")
                pattern <- paste0('*_onart[-vl]*_', refYr, '-', refMo, '.*\\.', file_type)
