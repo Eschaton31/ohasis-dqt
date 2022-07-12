@@ -9,6 +9,7 @@ Team Members:
 - [Palo, John Benedict](https://www.facebook.com/Bene.Palo/) _(Database Specialist)_
 - [Asilo, Kathrina Michaela](https://www.facebook.com/kathrinamichaela/) _(Surveillance Officer)_
 - [Rendon, Maeghan](https://www.facebook.com/megannnss/) _(Surveillance Officer)_
+- [Martines, Johndel](https://web.facebook.com/jdmartinez17/) _(Health Program Officer II)_
 
 Data:
 
