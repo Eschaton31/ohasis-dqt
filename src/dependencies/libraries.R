@@ -23,8 +23,8 @@ p_load(
    bazar,
    haven,
    dplyr,
-   stringr,
    stringi,
+   stringr,
    tidyverse,
    readxl,
    janitor,
@@ -64,7 +64,6 @@ p_load(
 )
 
 p_load_gh(
-   update = TRUE,
    "KWB-R/kwb.nextcloud",
    "hrbrmstr/speedtest",
    "ropensci/tabulizerjars",
