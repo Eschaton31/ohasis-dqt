@@ -28,6 +28,11 @@ Installation Instructions
 
 [To be added.]
 
+Misc.
+-----
+
+1. Install the PyCharm Plugin `R Language for IntelliJ`
+
 PDF Rendering Tool/s
 --------------------
 
