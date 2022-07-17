@@ -154,7 +154,11 @@ DB <- setRefClass(
 
       # upsert data
       upsert            = function(db_conn = NULL, db_type = NULL, table_name = NULL, data = NULL, id_col = NULL) {
-         db_name     <- paste0("ohasis_", db_type)
+         if (db_type %in% c("warehouse", "lake"))
+            db_name <- paste0("ohasis_", db_type)
+         else
+            db_name <- db_type
+
          table_space <- Id(schema = db_name, table = table_name)
          table_sql   <- DBI::SQL(paste0('`', db_name, '`.`', table_name, '`'))
 
