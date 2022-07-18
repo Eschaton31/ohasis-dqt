@@ -1,0 +1,51 @@
+# ! official datasets
+HARP_DX="H:/_R/library/hiv_dx/data"
+HARP_TX="H:/_R/library/hiv_tx/data"
+HARP_VL="H:/_R/library/hiv_vl/data"
+HARP_DEAD="H:/_R/library/hiv_dead/data"
+PREP="H:/_R/library/prep/data"
+
+# ! database
+DB_NAME="ohasis_interim"
+DB_USER="ohasis"
+DB_PASS="t1rh0uGCyN2sz6zk"
+#DB_HOST="202.90.151.142"
+#DB_HOST="122.53.181.142"
+DB_HOST="192.168.193.232"
+DB_PORT="3307"
+
+# ! data lake / warehouse
+LW_NAME="ohasis_lake"
+LW_USER="lw.account"
+LW_PASS="lw.password"
+LW_HOST="130.105.75.3"
+#LW_HOST="192.168.193.228"
+LW_PORT="3307"
+
+# ! slack
+SLACK_USERNAME="Data Pipeline Updates"
+SLACK_ICON_EMOJI=":ohasis_android:"
+SLACK_CHANNEL="dqt"
+SLACK_WEBHOOK="https://hooks.slack.com/services/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"
+SLACK_TOKEN="xoxb-3097756185520-3134175646036-S1KM6QPCcjYLP7ZccK1XA1WU"
+
+# ! nextcloud
+NEXTCLOUD_URL="http://192.168.193.80/nhsss_files"
+NEXTCLOUD_USER="nextcloud.account"
+NEXTCLOUD_PASSWORD="nextcloud.password"
+
+# browser
+BROWSER="browser.exe.path"
+
+# ! stata
+STATA_PATH="\"C:\Program Files\Stata16\StataMP-64\""
+STATA_VER=14
+
+# ! gmail
+GMAIL_USER="gmail.account"
+GMAIL_NAME="signature.fullname"
+GMAIL_DESIG="signature.designation"
+GMAIL_MOBILE="signature.mobile"
+GMAIL_ALT="signature.altemail"
+GMAIL_KEY="oauth.api.key.google"
+GMAIL_SECRET="oauth.api.secret.google"
