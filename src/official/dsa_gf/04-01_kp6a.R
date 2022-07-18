@@ -30,6 +30,16 @@ gf$linelist$kp6a <- gf$harp$prep$new_reg %>%
          TRUE ~ Sex
       ),
 
+      #
+      Date_Start       = paste(
+         sep = "-",
+         year(prepstart_date),
+         stri_pad_left(month(prepstart_date), 2, "0"),
+         "01"
+      ),
+      Date_End         = as.character((as.Date(Date_Start) %m+% months(1)) - 1),
+
+
       # Age Band
       curr_age         = floor(curr_age),
       `Age Group`      = case_when(

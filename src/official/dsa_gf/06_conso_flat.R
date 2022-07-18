@@ -129,6 +129,8 @@ gf$flat$kp6a <- gf$linelist$kp6a %>%
    ) %>%
    filter(site_gf_2022 == 1) %>%
    group_by(
+      Date_Start,
+      Date_End,
       `Data Source`,
       `Logsheet Subtype`,
       `Level of support`,
@@ -150,10 +152,10 @@ gf$flat$kp6a <- gf$linelist$kp6a %>%
    ) %>%
    ungroup() %>%
    mutate(
-      Semester   = gf$coverage$fy,
-      Date_Start = gf$coverage$min,
-      Date_End   = gf$coverage$max,
-      Indicator  = "KP-6a"
+      Semester  = gf$coverage$fy,
+      # Date_Start = gf$coverage$min,
+      # Date_End   = gf$coverage$max,
+      Indicator = "KP-6a"
    ) %>%
    select(
       Semester,
