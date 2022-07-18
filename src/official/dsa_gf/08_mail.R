@@ -78,6 +78,7 @@ gf$mail$for_release <- gm_mime() %>%
    gm_cc(
       unique(
          c(
+            gmail$nhsss$head,
             gmail$nhsss$ss,
             gmail$nhsss$dqt,
             gmail$nhsss$dat
@@ -92,7 +93,7 @@ gf$mail$for_release <- gm_mime() %>%
 <p>Hi GF-PROTECTS M&E Team,</p>
 <p>Attached here are the monthly PSFI-PROTECTS Project Indicators for GF-Supported Sites as of <b>{month.name[as.numeric(gf$coverage$curr_mo)]} {gf$coverage$curr_yr}</b>. OHASIS data was extracted as of <b>{format(gf$as_of, "%a %b %d, %Y %X")}</b>.</p>
 <p>Aggregates were geenerated using the combined data of the Raw M&E Logsheet and the OHASIS Extract. Clients were linked via UIC & Facility to find the overlaps, with subsequent deduplication and linkage for the Diagnosis, Treatment, and PrEP Data.</p>
-<p>Should you have any questions or clarifications, please don\'t hesitate to let me know.</p>
+<p>Should you have any questions or clarifications, please don't hesitate to let me know.</p>
 {gmail_sig()}
          )"
       )
@@ -198,6 +199,6 @@ gf$mail$for_release <- gm_mime() %>%
 {gmail_sig()}
          )"
       )
-   )%>%
+   ) %>%
    gm_attach_file("H:/Data Sharing/PSFI/2022.06/ohasis_logsheet_2022-06.xlsx") %>%
    gm_attach_file("H:/Data Sharing/PSFI/2022.06/ohasis_logsheet_2022-06.dta")
