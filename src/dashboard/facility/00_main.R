@@ -204,6 +204,12 @@ full_faci <- bind_rows(as.list(dqai$faci)) %>%
       artstart_hub,
       artstart_date,
       sex,
+      uic,
+      first,
+      middle,
+      last,
+      suffix,
+      px_code,
       age
    ) %>%
    left_join(
@@ -213,13 +219,42 @@ full_faci <- bind_rows(as.list(dqai$faci)) %>%
             idnum,
             curr_age,
             hub,
-            
+            branch,
             latest_ffupdate,
             latest_nextpickup,
             art_reg,
             outcome
          ),
       by = "art_id"
+   ) %>%
+   left_join(
+      y  = ohasis$ref_faci_code %>%
+         mutate(
+            FACI_CODE     = case_when(
+               stri_detect_regex(SUB_FACI_CODE, "^HASH") ~ "HASH",
+               stri_detect_regex(SUB_FACI_CODE, "^SAIL") ~ "SAIL",
+               stri_detect_regex(SUB_FACI_CODE, "^TLY") ~ "TLY",
+               TRUE ~ FACI_CODE
+            ),
+            SUB_FACI_CODE = if_else(
+               condition = nchar(SUB_FACI_CODE) == 3,
+               true      = NA_character_,
+               false     = SUB_FACI_CODE
+            ),
+            SUB_FACI_CODE = case_when(
+               FACI_CODE == "HASH" & is.na(SUB_FACI_CODE) ~ "HASH-QC",
+               FACI_CODE == "TLY" & is.na(SUB_FACI_CODE) ~ "TLY-ANGLO",
+               FACI_CODE == "SHP" & is.na(SUB_FACI_CODE) ~ "SHIP-MAKATI",
+               TRUE ~ SUB_FACI_CODE
+            ),
+         ) %>%
+         select(
+            hub       = FACI_CODE,
+            branch    = SUB_FACI_CODE,
+            curr_faci = FACI_NAME,
+         ) %>%
+         distinct_all(),
+      by = c("hub", "branch")
    ) %>%
    left_join(
       y  = dqai$harp$dx %>%
@@ -229,6 +264,15 @@ full_faci <- bind_rows(as.list(dqai$faci)) %>%
             province,
             muncity,
             confirm_date
+         ) %>%
+         mutate(
+            # weird muncity
+            muncity = if_else(
+               condition = province == "BULACAN" & muncity == "SAN JUAN",
+               true      = "MALOLOS",
+               false     = muncity,
+               missing   = muncity
+            )
          ),
       by = "idnum"
    ) %>%
@@ -257,13 +301,13 @@ full_faci <- bind_rows(as.list(dqai$faci)) %>%
          ) %>%
          filter(drop == 0) %>%
          select(
-            region    = NHSSS_REG,
-            province  = NHSSS_PROV,
-            muncity   = NHSSS_MUNC,
-            perm_reg  = NAME_REG,
-            perm_prov = NAME_PROV,
-            perm_munc = NAME_MUNC,
-            PSGC_MUNC
+            region         = NHSSS_REG,
+            province       = NHSSS_PROV,
+            muncity        = NHSSS_MUNC,
+            perm_reg       = NAME_REG,
+            perm_prov      = NAME_PROV,
+            perm_munc      = NAME_MUNC,
+            perm_prov_psgc = PSGC_PROV
          ),
       by = c("region", "province", "muncity")
    ) %>%
@@ -301,14 +345,6 @@ full_faci <- bind_rows(as.list(dqai$faci)) %>%
          outcome == "stopped - negative" ~ "Stopped",
          TRUE ~ "(no data)"
       ),
-
-      # weird muncity
-      muncity            = if_else(
-         condition = province == "BULACAN" & muncity == "SAN JUAN",
-         true      = "MALOLOS",
-         false     = muncity,
-         missing   = muncity
-      )
    ) %>%
    # left_join(
    #    y  = json_dta %>%
@@ -394,7 +430,7 @@ for (i in seq_len(length(json$features))) {
          ELEM_NUM  = i,
          PSGC_MUNC = substr(json$features[[i]]$properties$ADM3_PCODE, 3, 1000),
          PSGC_NAME = json$features[[i]]$properties$ADM3_EN,
-         GEOJSON   =  paste(collapse = ", ", unlist(json$features[[i]]$geometry$coordinates))
+         GEOJSON   = paste(collapse = ", ", unlist(json$features[[i]]$geometry$coordinates))
       )
    } else {
       df <- tibble(
