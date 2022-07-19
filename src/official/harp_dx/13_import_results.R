@@ -4,21 +4,37 @@ db_conn    <- ohasis$conn("db")
 px_confirm <- dbReadTable(db_conn, Id(schema = "ohasis_interim", table = "px_confirm"))
 dbDisconnect(db_conn)
 
+# special
+ei <- encoded$data$records %>%
+   mutate(
+      CONFIRM_CODE = CONFIRMATORY_CODE
+   ) %>%
+   select(
+      `Facility ID`   = TEST_FACI,
+      `Facility Name` = FACI_ID,
+      `Page ID`       = CONFIRMATORY_CODE,
+      `Record ID`     = REC_ID,
+      `Identifier`    = CONFIRM_CODE,
+      `Issues`        = CLINIC_NOTES,
+      `Validation`    = COUNSEL_NOTES,
+      `Encoder`       = encoder
+   )
+
 ei      <- get_ei("2022.05")
 encoded <- ei %>%
    filter(
       # Form %in% c("Form A", "HTS Form") | (is.na(Form) & nchar(`Page ID`) == 12),
       !is.na(`Record ID`)
    ) %>%
-   mutate(,
-      `Encoder` = stri_replace_first_fixed(encoder, "2022.04_", "")
-   ) %>%
+   # mutate(,
+   #    `Encoder` = stri_replace_first_fixed(encoder, "2022.04_", "")
+   # ) %>%
    select(
       `Facility ID`,
       `Facility Name`,
       `Page ID`,
       `Record ID`,
-      `ID Type`,
+      # `ID Type`,
       `Identifier`,
       `Issues`,
       `Validation`,
@@ -78,7 +94,7 @@ match <- results %>%
       y      = encoded %>% mutate(only = 1),
       # by     = c("FULLNAME_PDF" = "Identifier"),
       by     = c("LABCODE" = "Page ID"),
-      method = "osa"
+      # method = "osa"
    ) %>%
    mutate(
       LABCODE = if_else(is.na(LABCODE), `Record ID`, LABCODE)
@@ -117,7 +133,7 @@ write_clip(
 
 ##  Generate import dataframes -------------------------------------------------
 
-TIMESTAMP <- "2022-06-08 21:28:00"
+TIMESTAMP <- "2022-07-19 15:36:00"
 # import    <- nhsss$harp_dx$pdf_saccl$data %>%
 import    <- nhsss$harp_dx$pdf_saccl$data %>%
    mutate_all(~as.character(.)) %>%
