@@ -85,7 +85,7 @@ gf$linelist$hts <- gf$logsheet$combined %>%
       `DISAG 3.1`      = case_when(
          data_src == "OHASIS" & `DISAG 2` == "Facility/Clinic (by MedTech)" ~ "T1 Complete",
          data_src == "Both" & t1_complete == "Y" ~ "T1 Complete",
-         data_src == "PSGI" & t1_complete == "Y" ~ "T1 Complete",
+         data_src == "PSFI" & t1_complete == "Y" ~ "T1 Complete",
          TRUE ~ "(no data on T1)"
       ),
 
