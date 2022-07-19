@@ -347,3 +347,10 @@ keep_code <- function(var) {
       false     = var
    )
 }
+
+get_names <- function(parent, pattern = NULL) {
+   if (!is.null(pattern))
+      names(parent)[grepl(pattern, names(parent))]
+   else
+      names(parent)
+}
