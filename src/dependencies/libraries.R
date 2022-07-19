@@ -7,12 +7,18 @@ if (!require(pacman))
 # load libraries
 library(pacman)
 
-p_install(
-   force = FALSE,
-   remotes
-)
+load_packages <- function(...) {
+   packages <- as.character(match.call(expand.dots = FALSE)$`...`)
+   for (pkg in packages)
+      suppressMessages(p_install(pkg, force = FALSE, character.only = TRUE, lib = Sys.getenv("R_LIBS")))
 
-p_load(
+   # p_update(lib.loc = Sys.getenv("R_LIBS"))
+   p_load(char = packages, lib.loc = Sys.getenv("R_LIBS"))
+   # do.call("p_load", as.list(substitute(list(...)))[-1L], lib.loc = Sys.getenv("R_LIBS"))
+}
+
+load_packages(
+   remotes,
    magrittr,
    ggplot2,
    RColorBrewer,

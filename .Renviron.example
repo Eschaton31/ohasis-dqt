@@ -1,3 +1,7 @@
+# ! primary requirements
+R_LIBS="H:/_R/library/rlib"
+R_LIBS_USER="H:/_R/library/rlib"
+
 # ! official datasets
 HARP_DX="H:/_R/library/hiv_dx/data"
 HARP_TX="H:/_R/library/hiv_tx/data"
@@ -7,8 +11,8 @@ PREP="H:/_R/library/prep/data"
 
 # ! database
 DB_NAME="ohasis_interim"
-DB_USER="ohasis"
-DB_PASS="t1rh0uGCyN2sz6zk"
+DB_USER="db.account"
+DB_PASS="db.password"
 #DB_HOST="202.90.151.142"
 #DB_HOST="122.53.181.142"
 DB_HOST="192.168.193.232"
