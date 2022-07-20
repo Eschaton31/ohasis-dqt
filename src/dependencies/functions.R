@@ -354,3 +354,50 @@ get_names <- function(parent, pattern = NULL) {
    else
       names(parent)
 }
+
+
+dbTable <- function(conn, dbname, table, cols = NULL, where = NULL) {
+   # if cols defined, limit to columns
+   if (!is.null(cols))
+      cols <- paste(collapse = ", ", cols)
+   else
+      cols <- "*"
+
+   # if to limit number of rows based on conditions
+   rows <- ""
+   if (!is.null(where)) {
+      where_txt <- ""
+      for (i in seq_len(length(where)))
+         where_txt <- paste(sep = " = ", names(where_txt)[i], where_txt[i])
+
+      rows <- paste0("WHERE ", paste(collapse = " AND ", where_txt))
+   }
+
+   # get number of affected rows
+   data       <- tibble()
+   n_rows     <- dbGetQuery(conn, glue(r"(SELECT COUNT(*) FROM {dbname}.{table} {rows};)"))
+   n_rows     <- as.numeric(n_rows[1,])
+
+   # build query using previous params
+   query <- glue(r"(SELECT {cols} FROM {dbname}.{table} {rows};)")
+   rs    <- dbSendQuery(conn, query)
+
+   chunk_size <- 1000
+   if (n_rows >= chunk_size) {
+      # upload in chunks to monitor progress
+      n_chunks <- max(rep(1:ceiling(n_rows / chunk_size), each = chunk_size)[1:n_rows])
+
+      # get progress
+      pb <- progress_bar$new(format = ":current of :total chunks | :rate [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = n_chunks, width = 100, clear = FALSE)
+      pb$tick(0)
+
+      # fetch in chunks
+      while (!dbHasCompleted(rs)) {
+         chunk <- dbFetch(rs, chunk_size)
+         data <- bind_rows(data, chunk)
+         pb$tick(1)
+      }
+   }
+   dbClearResult(rs)
+   return(data)
+}
