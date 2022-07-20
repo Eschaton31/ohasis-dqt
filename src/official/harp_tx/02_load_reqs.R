@@ -129,36 +129,43 @@ if (update == "1") {
       max <- as.character(max)
 
       .log_info("Downloading {green('Central IDs')}.")
-      forms$id_registry <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "id_registry")) %>%
-         select(PATIENT_ID, CENTRAL_ID) %>%
-         collect()
+      forms$id_registry <- dbTable(
+         lw_conn,
+         "ohasis_warehouse",
+         "id_registry",
+         cols = c("CENTRAL_ID", "PATIENT_ID")
+      )
 
       .log_info("Downloading {green('Earliest ART Visits')}.")
-      forms$art_first <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "art_first")) %>%
-         select(CENTRAL_ID, REC_ID) %>%
-         left_join(
-            y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_art_bc")),
-            by = "REC_ID"
-         ) %>%
-         collect()
+      forms$art_first <- dbTable(
+         lw_conn,
+         "ohasis_warehouse",
+         "art_first",
+         cols = c("CENTRAL_ID", "REC_ID"),
+         join = list(
+            "ohasis_warehouse.form_art_bc" = list(by = c("REC_ID" = "REC_ID"), cols = "*")
+         )
+      )
 
       .log_info("Downloading {green('Latest ART Visits')}.")
-      forms$art_last <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "art_last")) %>%
-         select(CENTRAL_ID, REC_ID) %>%
-         left_join(
-            y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_art_bc")),
-            by = "REC_ID"
-         ) %>%
-         collect()
+      forms$art_last <- dbTable(
+         lw_conn,
+         "ohasis_warehouse",
+         "art_last",
+         cols = c("CENTRAL_ID", "REC_ID"),
+         join = list(
+            "ohasis_warehouse.form_art_bc" = list(by = c("REC_ID" = "REC_ID"), cols = "*")
+         )
+      )
 
       .log_info("Downloading {green('ART Visits w/in the scope')}.")
-      forms$form_art_bc <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_art_bc")) %>%
-         filter(
-            (VISIT_DATE >= min & VISIT_DATE <= max) |
-               (as.Date(CREATED_AT) >= min & as.Date(CREATED_AT) <= max) |
-               (as.Date(UPDATED_AT) >= min & as.Date(UPDATED_AT) <= max)
-         ) %>%
-         collect()
+      forms$form_art_bc <- dbTable(
+         lw_conn,
+         "ohasis_warehouse",
+         "form_art_bc",
+         where     = glue("(VISIT_DATE >= '{min}' AND VISIT_DATE <= '{max}') OR (DATE(CREATED_AT) >= '{min}' AND DATE(CREATED_AT) <= '{max}') OR (DATE(UPDATED_AT) >= '{min}' AND DATE(UPDATED_AT) <= '{max}')"),
+         raw_where = TRUE
+      )
 
       dbDisconnect(lw_conn)
       rm(min, max, lw_conn)
