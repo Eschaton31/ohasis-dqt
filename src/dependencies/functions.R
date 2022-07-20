@@ -356,7 +356,7 @@ get_names <- function(parent, pattern = NULL) {
 }
 
 
-dbTable <- function(conn, dbname, table, cols = NULL, where = NULL, join = NULL) {
+dbTable <- function(conn, dbname, table, cols = NULL, where = NULL, join = NULL, raw_where = FALSE) {
    # get alias
    tbl_alias <- table
    if (stri_detect_fixed(table, " AS "))
@@ -371,11 +371,15 @@ dbTable <- function(conn, dbname, table, cols = NULL, where = NULL, join = NULL)
    # if to limit number of rows based on conditions
    rows <- ""
    if (!is.null(where)) {
-      where_txt <- ""
-      for (i in seq_len(length(where)))
-         where_txt[i] <- paste(sep = " = ", names(where)[i], where[i])
+      if (raw_where == TRUE) {
+         rows <- glue("WHERE {where}")
+      } else {
+         where_txt <- ""
+         for (i in seq_len(length(where)))
+            where_txt[i] <- paste(sep = " = ", names(where)[i], where[i])
 
-      rows <- paste0("WHERE ", paste(collapse = " AND ", where_txt))
+         rows <- paste0("WHERE ", paste(collapse = " AND ", where_txt))
+      }
    }
 
    # if to join on tables
