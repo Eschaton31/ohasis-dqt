@@ -165,26 +165,9 @@ nhsss$harp_tx$reg.initial$data %<>%
    # get cd4 data
    # TODO: attach max dates for filtering of cd4 data
    left_join(
-      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "lab_cd4")) %>%
-         filter(
-            is.na(DELETED_AT),
-            as.Date(CD4_DATE) < ceiling_date
-         ) %>%
-         left_join(
-            y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "id_registry")) %>%
-               select(CENTRAL_ID, PATIENT_ID),
-            by = 'PATIENT_ID'
-         ) %>%
-         collect() %>%
-         mutate(
-            CENTRAL_ID = if_else(
-               condition = is.na(CENTRAL_ID),
-               true      = PATIENT_ID,
-               false     = CENTRAL_ID
-            ),
-         ) %>%
+      y  = ohasis$forms$lab_cd4 %>%
          select(-PATIENT_ID, -REC_ID),
-      by = 'CENTRAL_ID'
+      by = "CENTRAL_ID"
    ) %>%
    mutate(
       # calculate distance from confirmatory date

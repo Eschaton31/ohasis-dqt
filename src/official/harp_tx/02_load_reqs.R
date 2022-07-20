@@ -167,6 +167,27 @@ if (update == "1") {
          raw_where = TRUE
       )
 
+      .log_info("Downloading {green('CD4 Data')}.")
+      forms$lab_cd4 <- dbTable(
+         lw_conn,
+         "ohasis_lake",
+         "lab_cd4",
+         where     = glue("DATE(CD4_DATE) < '{ohasis$next_date}'"),
+         raw_where = TRUE,
+         join      = list(
+            "ohasis_warehouse.id_registry" = list(by = c("PATIENT_ID" = "PATIENT_ID"), cols = "CENTRAL_ID")
+         )
+      ) %>%
+         mutate(
+            CENTRAL_ID = if_else(
+               condition = is.na(CENTRAL_ID),
+               true      = PATIENT_ID,
+               false     = CENTRAL_ID
+            )
+         ) %>%
+         relocate(CENTRAL_ID, .before = 1)
+
+      .log_success("Done.")
       dbDisconnect(lw_conn)
       rm(min, max, lw_conn)
    })
