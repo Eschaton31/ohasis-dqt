@@ -30,4 +30,4 @@ source("src/classes/DB.R")
 ##  Load primary classes -------------------------------------------------------
 
 # initiate the project & database
-ohasis <- DB()
+ohasis  <- DB()

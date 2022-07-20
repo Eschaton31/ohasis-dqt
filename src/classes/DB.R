@@ -810,13 +810,14 @@ DB <- setRefClass(
 
          if (reload == "2") {
             .log_info("Downloading the dataset from the previous reporting period.")
-            old_dataset <- tbl(db_conn, old_tblschema) %>%
-               select(-CENTRAL_ID) %>%
-               left_join(
-                  y  = tbl(db_conn, oh_id_schema) %>%
-                     select(CENTRAL_ID, PATIENT_ID),
-                  by = "PATIENT_ID"
-               ) %>%
+            old_dataset <- dbTable(
+               db_conn,
+               db_name,
+               warehouse_table,
+               join = list(
+                  "ohasis_warehouse.id_registry" = list(by = c("PATIENT_ID" = "PATIENT_ID"), cols = "CENTRAL_ID")
+               )
+            ) %>%
                mutate(
                   CENTRAL_ID = if_else(
                      condition = is.na(CENTRAL_ID),
@@ -824,8 +825,7 @@ DB <- setRefClass(
                      false     = CENTRAL_ID
                   )
                ) %>%
-               relocate(CENTRAL_ID, .before = 1) %>%
-               collect()
+               relocate(CENTRAL_ID, .before = 1)
          }
 
          .log_info("Closing connections.")

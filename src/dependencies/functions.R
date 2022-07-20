@@ -354,3 +354,86 @@ get_names <- function(parent, pattern = NULL) {
    else
       names(parent)
 }
+
+
+dbTable <- function(conn, dbname, table, cols = NULL, where = NULL, join = NULL) {
+   # get alias
+   tbl_alias <- table
+   if (stri_detect_fixed(table, " AS "))
+      tbl_alias <- substr(table, stri_locate_first_fixed(table, " AS ") + 4, nchar(table))
+
+   # if cols defined, limit to columns
+   if (!is.null(cols))
+      cols <- paste(collapse = ", ", paste0(tbl_alias, ".", cols))
+   else
+      cols <- paste0(tbl_alias, ".*")
+
+   # if to limit number of rows based on conditions
+   rows <- ""
+   if (!is.null(where)) {
+      where_txt <- ""
+      for (i in seq_len(length(where)))
+         where_txt[i] <- paste(sep = " = ", names(where)[i], where[i])
+
+      rows <- paste0("WHERE ", paste(collapse = " AND ", where_txt))
+   }
+
+   # if to join on tables
+   join_tbls <- ""
+   join_txt  <- ""
+   join_cols <- ""
+   if (!is.null(join)) {
+      for (i in seq_len(length(join))) {
+         join_alias <- strsplit(names(join)[[i]], "\\.")[[1]][2]
+         if (stri_detect_fixed(table, " AS "))
+            join_alias <- substr(table, stri_locate_first_fixed(table, " AS ") + 4, nchar(table))
+
+         # id columns to join by/on
+         join_by <- ""
+         for (j in seq_len(length(join[[i]]$cols)))
+            join_by[i] <- paste(sep = " = ", paste0(tbl_alias, ".", names(join[[i]]$by)[j]), paste0(join_alias, ".", join[[i]]$by[j]))
+
+         # columns to get from joined tables
+         join_get <- ""
+         for (j in seq_len(length(join[[i]]$cols)))
+            join_get[i] <- paste0(join_alias, ".", join[[i]]$cols[j])
+
+         join_txt[i]  <- paste0("LEFT JOIN ", names(join)[[i]], " ON ", paste(collapse = " AND ", join_by[i]))
+         join_cols[i] <- paste(collapse = ", ", join_get[i])
+      }
+
+      join_tbls <- paste(collapse = "\n", join_txt)
+   }
+   cols <- paste(collapse = ", ", c(cols, join_cols))
+   cols <- if_else(substr(cols, nchar(cols) - 1, nchar(cols)) == ", ", substr(cols, 1, nchar(cols) - 2), cols)
+
+   # get number of affected rows
+   data   <- tibble()
+   n_rows <- dbGetQuery(conn, glue(r"(SELECT COUNT(*) FROM {dbname}.{table} {rows};)"))
+   n_rows <- as.numeric(n_rows[1,])
+
+   # build query using previous params
+   query <- glue(r"(SELECT {cols} FROM {dbname}.{table} {join_tbls} {rows};)")
+   rs    <- dbSendQuery(conn, query)
+
+   chunk_size <- 1000
+   if (n_rows >= chunk_size) {
+      # upload in chunks to monitor progress
+      n_chunks <- ceiling(n_rows / chunk_size)
+
+      # get progress
+      pb <- progress_bar$new(format = ":current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = n_chunks, width = 100, clear = FALSE)
+      pb$tick(0)
+
+      # fetch in chunks
+      for (i in seq_len(n_chunks)) {
+         chunk <- dbFetch(rs, chunk_size)
+         data  <- bind_rows(data, chunk)
+         pb$tick(1)
+      }
+   } else {
+      data <- dbFetch(rs)
+   }
+   dbClearResult(rs)
+   return(data)
+}
