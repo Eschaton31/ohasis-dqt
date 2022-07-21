@@ -37,9 +37,17 @@ if ((object %>% count() %>% collect())$n > 0) {
       raw_where = TRUE,
       name      = "px_labs"
    ) %>%
-      rename(
+      select(
+         REC_ID,
+         PATIENT_ID,
          CD4_DATE   = LAB_DATE,
-         CD4_RESULT = LAB_RESULT
+         CD4_RESULT = LAB_RESULT,
+         CREATED_BY,
+         CREATED_AT,
+         UPDATED_BY,
+         UPDATED_AT,
+         DELETED_BY,
+         DELETED_AT
       ) %>%
       mutate(
          SNAPSHOT   = case_when(
