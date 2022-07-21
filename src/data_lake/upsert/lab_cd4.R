@@ -89,9 +89,9 @@ if ((object %>% count() %>% collect())$n > 0) {
             # stri_detect_charclass(CD4_RESULT, "[^[:digit:]]") &
             #    !stri_detect_fixed(CD4_RESULT, ".") &
             #    !stri_detect_fixed(CD4_RESULT, "-") ~ NA_character_,
-            TRUE ~ CD4_RESULT
+            TRUE ~ as.character(CD4_RESULT)
          ),
-         ORDER = case_when(
+         ORDER      = case_when(
             !is.na(DELETED_AT) ~ 9999,
             TRUE ~ 1
          )
