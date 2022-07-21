@@ -159,14 +159,16 @@ nhsss$harp_tx$reg.initial$data %<>%
 ##  Adding CD4 results ---------------------------------------------------------
 
 .log_info("Attaching baseline CD4 data.")
-lw_conn      <- ohasis$conn("lw")
-ceiling_date <- ohasis$next_date
 nhsss$harp_tx$reg.initial$data %<>%
    # get cd4 data
    # TODO: attach max dates for filtering of cd4 data
    left_join(
-      y  = ohasis$forms$lab_cd4 %>%
-         select(-PATIENT_ID, -REC_ID),
+      y  = nhsss$harp_tx$forms$lab_cd4 %>%
+         select(
+            CD4_DATE,
+            CD4_RESULT,
+            CENTRAL_ID
+         ),
       by = "CENTRAL_ID"
    ) %>%
    mutate(
@@ -186,9 +188,6 @@ nhsss$harp_tx$reg.initial$data %<>%
    ) %>%
    arrange(CENTRAL_ID, CD4_ENROLL) %>%
    distinct(CENTRAL_ID, .keep_all = TRUE)
-
-.log_info("Closing connections.")
-dbDisconnect(lw_conn)
 
 ##  Facilities -----------------------------------------------------------------
 
