@@ -713,9 +713,9 @@ DB <- setRefClass(
             ) %>%
             arrange(RECORD_DATE, MODULE)
 
-         return(final_d)
          dbDisconnect(lw_conn)
          dbDisconnect(db_conn)
+         return(final_d)
       },
 
       # method to load old dataset
