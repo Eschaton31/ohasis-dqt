@@ -16,25 +16,31 @@ object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
       DELETED_AT
    )
 
+obj_cols <- vars("REC_ID", "PATIENT_ID", "CREATED_AT", "UPDATED_AT", "DELETED_AT")
+obj_q    <- glue(r"(
+((rec.CREATED_AT >= '{snapshot_old}' AND rec.CREATED_AT <= '{snapshot_new}') OR
+(rec.UPDATED_AT >= '{snapshot_old}' AND rec.UPDATED_AT <= '{snapshot_new}') OR
+(rec.DELETED_AT >= '{snapshot_old}' AND rec.DELETED_AT <= '{snapshot_new}'))
+)")
+
 # get number of affected rows
 if ((object %>% count() %>% collect())$n > 0) {
    continue <- 1
-   object   <- object %>%
-      inner_join(
-         y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_labs")) %>%
-            filter(
-               LAB_TEST == 5,
-               !is.na(LAB_DATE),
-               LAB_DATE != "0000-00-00"
-            ) %>%
-            select(
-               REC_ID,
-               CD4_DATE   = LAB_DATE,
-               CD4_RESULT = LAB_RESULT
-            ),
-         by = 'REC_ID'
+   object   <- dbTable(
+      db_conn,
+      "ohasis_interim",
+      "px_record AS rec",
+      join      = list(
+         "ohasis_interim.px_labs" = list(by = c("REC_ID" = "REC_ID"), cols = c("LAB_DATE", "LAB_RESULT"), type = "inner")
+      ),
+      where     = glue(r"({obj_q} AND (px_labs.LAB_TEST = 5 AND px_labs.LAB_DATE IS NOT NULL))"),
+      raw_where = TRUE,
+      name      = "px_labs"
+   ) %>%
+      rename(
+         CD4_DATE   = LAB_DATE,
+         CD4_RESULT = LAB_RESULT
       ) %>%
-      collect() %>%
       mutate(
          SNAPSHOT   = case_when(
             !is.na(DELETED_AT) ~ DELETED_AT,
@@ -84,12 +90,12 @@ if ((object %>% count() %>% collect())$n > 0) {
             CD4_RESULT == "834 230" ~ '834',
             CD4_RESULT == "BELOW RANGE" ~ '199',
             CD4_RESULT == "L16" ~ '16',
-            stri_detect_fixed(CD4_RESULT, "LESS THAN") ~ as.character(as.numeric(str_squish(stri_replace_all_fixed(CD4_RESULT, "LESS THAN", "")))),
-            stri_detect_fixed(CD4_RESULT, "<") ~ as.character(as.numeric(str_squish(stri_replace_all_fixed(CD4_RESULT, "<", "")))),
+            stri_detect_fixed(CD4_RESULT, "LESS THAN") ~ suppress_warnings(as.character(as.numeric(str_squish(stri_replace_all_fixed(CD4_RESULT, "LESS THAN", "")))), "NAs introduced by coercion"),
+            stri_detect_fixed(CD4_RESULT, "<") ~ suppress_warnings(as.character(as.numeric(str_squish(stri_replace_all_fixed(CD4_RESULT, "<", "")))), "NAs introduced by coercion"),
             # stri_detect_charclass(CD4_RESULT, "[^[:digit:]]") &
             #    !stri_detect_fixed(CD4_RESULT, ".") &
             #    !stri_detect_fixed(CD4_RESULT, "-") ~ NA_character_,
-            TRUE ~ as.character(CD4_RESULT)
+            TRUE ~ CD4_RESULT
          ),
          ORDER      = case_when(
             !is.na(DELETED_AT) ~ 9999,
