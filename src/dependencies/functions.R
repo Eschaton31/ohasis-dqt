@@ -356,7 +356,7 @@ get_names <- function(parent, pattern = NULL) {
 }
 
 
-dbTable <- function(conn, dbname, table, cols = NULL, where = NULL, join = NULL, raw_where = FALSE) {
+dbTable <- function(conn, dbname, table, cols = NULL, where = NULL, join = NULL, raw_where = FALSE, name = NULL) {
    # get alias
    tbl_alias <- table
    if (stri_detect_fixed(table, " AS "))
@@ -389,36 +389,39 @@ dbTable <- function(conn, dbname, table, cols = NULL, where = NULL, join = NULL,
    if (!is.null(join)) {
       for (i in seq_len(length(join))) {
          join_alias <- strsplit(names(join)[[i]], "\\.")[[1]][2]
-         if (stri_detect_fixed(table, " AS "))
-            join_alias <- substr(table, stri_locate_first_fixed(table, " AS ") + 4, nchar(table))
+         if (stri_detect_fixed(names(join)[[i]], " AS "))
+            join_alias <- substr(names(join)[[i]], stri_locate_first_fixed(names(join)[[i]], " AS ") + 4, nchar(names(join)[[i]]))
 
          # id columns to join by/on
          join_by <- ""
-         for (j in seq_len(length(join[[i]]$cols)))
-            join_by[i] <- paste(sep = " = ", paste0(tbl_alias, ".", names(join[[i]]$by)[j]), paste0(join_alias, ".", join[[i]]$by[j]))
+         for (j in seq_len(length(join[[i]]$by)))
+            join_by[j] <- paste(sep = " = ", paste0(tbl_alias, ".", names(join[[i]]$by)[j]), paste0(join_alias, ".", join[[i]]$by[j]))
 
          # columns to get from joined tables
          join_get <- ""
          for (j in seq_len(length(join[[i]]$cols)))
-            join_get[i] <- paste0(join_alias, ".", join[[i]]$cols[j])
+            join_get[j] <- paste0(join_alias, ".", join[[i]]$cols[j])
 
-         join_txt[i]  <- paste0("LEFT JOIN ", names(join)[[i]], " ON ", paste(collapse = " AND ", join_by[i]))
-         join_cols[i] <- paste(collapse = ", ", join_get[i])
+         join_txt[i]  <- paste0(toupper(ifelse(!is.null(join[[i]]$type), join[[i]]$type, "left")), " JOIN ", names(join)[[i]], " ON ", paste(collapse = " AND ", join_by))
+         join_cols[i] <- paste(collapse = ", ", join_get)
       }
 
       join_tbls <- paste(collapse = "\n", join_txt)
    }
-   cols <- paste(collapse = ", ", c(cols, join_cols))
-   cols <- if_else(substr(cols, nchar(cols) - 1, nchar(cols)) == ", ", substr(cols, 1, nchar(cols) - 2), cols)
 
-   # get number of affected rows
-   data   <- tibble()
-   n_rows <- dbGetQuery(conn, glue(r"(SELECT COUNT(*) FROM {dbname}.{table} {rows};)"))
-   n_rows <- as.numeric(n_rows[1,])
+   if (join_cols != "")
+      cols <- paste(collapse = ", ", c(cols, join_cols))
 
    # build query using previous params
    query <- glue(r"(SELECT {cols} FROM {dbname}.{table} {join_tbls} {rows};)")
-   rs    <- dbSendQuery(conn, query)
+
+   # get number of affected rows
+   data   <- tibble()
+   n_rows <- dbGetQuery(conn, glue(r"(SELECT COUNT(*) FROM {dbname}.{table} {join_tbls} {rows};)"))
+   n_rows <- as.numeric(n_rows[1,])
+
+   # get actual result set
+   rs <- dbSendQuery(conn, query)
 
    chunk_size <- 1000
    if (n_rows >= chunk_size) {
@@ -426,7 +429,12 @@ dbTable <- function(conn, dbname, table, cols = NULL, where = NULL, join = NULL,
       n_chunks <- ceiling(n_rows / chunk_size)
 
       # get progress
-      pb <- progress_bar$new(format = ":current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = n_chunks, width = 100, clear = FALSE)
+      if (!is.null(name))
+         pb_name <- paste0(name, ": :current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed")
+      else
+         pb_name <- ":current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed"
+
+      pb <- progress_bar$new(format = pb_name, total = n_chunks, width = 100, clear = FALSE)
       pb$tick(0)
 
       # fetch in chunks
