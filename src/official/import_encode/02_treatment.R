@@ -1,8 +1,8 @@
-encoded <- get_encoded(ohasis$ym, "Treatment")
-
+encoded       <- get_encoded("2022.06", "Treatment")
 encoded$STAFF <- read_sheet("1BRohoSaBE73zwRMXQNcWeRf5rC2OcePS64A67ODfxXI")
 
 encoded$data$enrollees <- encoded$FORMS %>%
+   distinct_all() %>%
    filter(
       !is.na(CREATED_TIME),
       nchar(PATIENT_ID) != 18 | is.na(PATIENT_ID)
@@ -19,21 +19,22 @@ db_conn                           <- ohasis$conn("db")
 for (i in seq_len(nrow(encoded$data$enrollees)))
    encoded$data$enrollees[i, "PATIENT_ID"] <- oh_px_id(db_conn, as.character(encoded$data$enrollees[i, "FACI_ID"]))
 
+dbDisconnect(db_conn)
 write_clip(
    encoded$data$enrollees %>%
       select(PAGE_ID, PATIENT_ID, encoder)
 )
 
-
 ##  Tables ---------------------------------------------------------------------
 
 encoded$data$records <- encoded$FORMS %>%
+   distinct_all() %>%
    filter(
       !is.na(CREATED_TIME),
       nchar(PATIENT_ID) == 18
    ) %>%
    mutate(
-      encoder = stri_replace_all_fixed(encoder, glue("{ohasis$ym}_"), ""),
+      encoder = substr(encoder, 9, 2000),
    ) %>%
    left_join(
       y  = ohasis$ref_staff %>%
@@ -470,7 +471,62 @@ encoded$tables$px_oi <- encoded$data$records %>%
    ) %>%
    filter(IS_OI == 1)
 
-# TODO: Add px_other_service
+
+# other_service
+# encoded$tables$px_other_service <- encoded$data$records %>%
+#    select(
+#       REC_ID,
+#       CREATED_AT,
+#       CREATED_BY,
+#       starts_with("SERVICE_")
+#    ) %>%
+#    select(-SERVICE_TYPE, -SERVICE_CONDOM, -SERVICE_LUBE) %>%
+#    pivot_longer(
+#       cols      = starts_with("SERVICE_"),
+#       names_to  = "SERVICE",
+#       values_to = "GIVEN"
+#    ) %>%
+#    mutate(
+#       SERVICE = stri_replace_all_regex(SERVICE, "^SERVICE_", ""),
+#       SERVICE = case_when(
+#          SERVICE == "HIV_101" ~ "1013",
+#          SERVICE == "IEC_MATS" ~ "1004",
+#          SERVICE == "RISK_COUNSEL" ~ "1002",
+#          SERVICE == "PREP_REFER" ~ "5001",
+#          SERVICE == "SSNT_OFFER" ~ "5002",
+#          SERVICE == "SSNT_ACCEPT" ~ "5003",
+#          SERVICE == "GIVEN_CONDOMS" ~ "2001",
+#          SERVICE == "GIVEN_LUBES" ~ "2002",
+#          TRUE ~ SERVICE
+#       )
+#    ) %>%
+#    filter(GIVEN == 1) %>%
+#    bind_rows(
+#       encoded$data$records %>%
+#          select(
+#             REC_ID,
+#             CREATED_AT,
+#             CREATED_BY,
+#             OTHER_SERVICE = CONDOMS
+#          ) %>%
+#          filter(!is.na(OTHER_SERVICE)) %>%
+#          mutate(
+#             SERVICE = "2001",
+#             GIVEN   = "1"
+#          ),
+#       encoded$data$records %>%
+#          select(
+#             REC_ID,
+#             CREATED_AT,
+#             CREATED_BY,
+#             OTHER_SERVICE = LUBES
+#          ) %>%
+#          filter(!is.na(OTHER_SERVICE)) %>%
+#          mutate(
+#             SERVICE = "2002",
+#             GIVEN   = "1"
+#          )
+#    )
 
 encoded$tables$px_vaccine <- encoded$data$records %>%
    select(
@@ -572,17 +628,29 @@ encoded$tables$px_medicine <- encoded$data$records %>%
       CREATED_BY,
       PAGE_ID,
       encoder,
-      RECORD_DATE,
+      DISP_DATE = RECORD_DATE,
       FACI_ID     = DISP_FACI,
       SUB_FACI_ID = DISP_SUB_FACI
    ) %>%
-   inner_join(
+   full_join(
       y  = encoded$DISPENSE %>%
+         filter(!is.na(PAGE_ID), !stri_detect_fixed(DISP_DATE, "DUPLICATE")) %>%
+         distinct_all() %>%
+         group_by(
+            encoder,
+            PAGE_ID,
+            DISP_DATE
+         ) %>%
          mutate(
-            encoder = stri_replace_all_fixed(encoder, glue("{ohasis$ym}_"), ""),
+            ARV_NUM = row_number()
+         ) %>%
+         ungroup() %>%
+         mutate(
+            encoder = substr(encoder, 9, 2000),
          ),
-      by = c("encoder", "PAGE_ID")
+      by = c("encoder", "PAGE_ID", "DISP_DATE")
    ) %>%
+   filter(!is.na(REC_ID)) %>%
    left_join(
       y  = encoded$ref_meds %>%
          select(
@@ -593,7 +661,7 @@ encoded$tables$px_medicine <- encoded$data$records %>%
       by = "DRUG"
    ) %>%
    mutate_at(
-      .vars = vars(RECORD_DATE, DISP_DATE, NEXT_PICKUP),
+      .vars = vars(DISP_DATE, NEXT_PICKUP),
       ~case_when(
          stri_detect_fixed(., "-") & nchar(.) < 10 ~ as.Date(., format = "%m-%d-%y"),
          stri_detect_fixed(., "-") & nchar(.) == 10 ~ as.Date(., format = "%Y-%m-%d"),
@@ -606,12 +674,12 @@ encoded$tables$px_medicine <- encoded$data$records %>%
    ) %>%
    mutate(
       UNIT_BASIS  = "2",
-      DISP_DATE   = if_else(
-         condition = is.na(DISP_DATE),
-         true      = RECORD_DATE,
-         false     = DISP_DATE,
-         missing   = DISP_DATE
-      ),
+      # DISP_DATE   = if_else(
+      #    condition = is.na(DISP_DATE),
+      #    true      = RECORD_DATE,
+      #    false     = DISP_DATE,
+      #    missing   = DISP_DATE
+      # ),
       days        = floor((TOTAL_DISPENSED_PILLS + PILLS_LEFT) / DOSE_PER_DAY),
       NEXT_PICKUP = if_else(
          condition = is.na(NEXT_PICKUP),
