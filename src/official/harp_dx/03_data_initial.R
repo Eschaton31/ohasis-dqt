@@ -224,6 +224,7 @@ nhsss$harp_dx$initial$data %<>%
 ##  Adding CD4 results ---------------------------------------------------------
 
 .log_info("Attaching baseline CD4 data.")
+lw_conn <- ohasis$conn("lw")
 ceiling_date <- ohasis$next_date
 nhsss$harp_dx$initial$data %<>%
    # get cd4 data
@@ -247,7 +248,11 @@ nhsss$harp_dx$initial$data %<>%
                false     = CENTRAL_ID
             ),
          ) %>%
-         select(-PATIENT_ID, -REC_ID),
+         select(
+            CENTRAL_ID,
+            CD4_DATE,
+            CD4_RESULT
+         ),
       by = 'CENTRAL_ID'
    ) %>%
    mutate(
