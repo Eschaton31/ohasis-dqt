@@ -163,11 +163,12 @@ check_dir <- function(dir) {
 # upload to gdrive/gsheets validations
 .validation_gsheets <- function(data_name = NULL, parent_list = NULL, drive_path = NULL, surv_name = NULL) {
    .log_info("Uploading to GSheets..")
+   slack_by <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
    empty_sheets <- ""
    gsheet       <- paste0(data_name, "_", format(Sys.time(), "%Y.%m.%d"))
    drive_file   <- drive_get(paste0(drive_path, gsheet))
    drive_link   <- paste0("https://docs.google.com/spreadsheets/d/", drive_file$id, "/|GSheets Link: ", gsheet)
-   slack_msg    <- glue(">*{surv_name}*\n>Conso validation sheets for `{data_name}` have been updated.\n><{drive_link}>")
+   slack_msg    <- glue(">*{surv_name}*\n>Conso validation sheets for `{data_name}` have been updated by <{slack_by}>.\n><{drive_link}>")
 
    # list of validations
    issues_list <- names(parent_list)
@@ -353,99 +354,4 @@ get_names <- function(parent, pattern = NULL) {
       names(parent)[grepl(pattern, names(parent))]
    else
       names(parent)
-}
-
-
-dbTable <- function(conn, dbname, table, cols = NULL, where = NULL, join = NULL, raw_where = FALSE, name = NULL) {
-   # get alias
-   tbl_alias <- table
-   if (stri_detect_fixed(table, " AS "))
-      tbl_alias <- substr(table, stri_locate_first_fixed(table, " AS ") + 4, nchar(table))
-
-   # if cols defined, limit to columns
-   if (!is.null(cols))
-      cols <- paste(collapse = ", ", paste0(tbl_alias, ".", cols))
-   else
-      cols <- paste0(tbl_alias, ".*")
-
-   # if to limit number of rows based on conditions
-   rows <- ""
-   if (!is.null(where)) {
-      if (raw_where == TRUE) {
-         rows <- glue("WHERE {where}")
-      } else {
-         where_txt <- ""
-         for (i in seq_len(length(where)))
-            where_txt[i] <- paste(sep = " = ", names(where)[i], where[i])
-
-         rows <- paste0("WHERE ", paste(collapse = " AND ", where_txt))
-      }
-   }
-
-   # if to join on tables
-   join_tbls <- ""
-   join_txt  <- ""
-   join_cols <- ""
-   if (!is.null(join)) {
-      for (i in seq_len(length(join))) {
-         join_alias <- strsplit(names(join)[[i]], "\\.")[[1]][2]
-         if (stri_detect_fixed(names(join)[[i]], " AS "))
-            join_alias <- substr(names(join)[[i]], stri_locate_first_fixed(names(join)[[i]], " AS ") + 4, nchar(names(join)[[i]]))
-
-         # id columns to join by/on
-         join_by <- ""
-         for (j in seq_len(length(join[[i]]$by)))
-            join_by[j] <- paste(sep = " = ", paste0(tbl_alias, ".", names(join[[i]]$by)[j]), paste0(join_alias, ".", join[[i]]$by[j]))
-
-         # columns to get from joined tables
-         join_get <- ""
-         for (j in seq_len(length(join[[i]]$cols)))
-            join_get[j] <- paste0(join_alias, ".", join[[i]]$cols[j])
-
-         join_txt[i]  <- paste0(toupper(ifelse(!is.null(join[[i]]$type), join[[i]]$type, "left")), " JOIN ", names(join)[[i]], " ON ", paste(collapse = " AND ", join_by))
-         join_cols[i] <- paste(collapse = ", ", join_get)
-      }
-
-      join_tbls <- paste(collapse = "\n", join_txt)
-   }
-
-   if (join_cols != "")
-      cols <- paste(collapse = ", ", c(cols, join_cols))
-
-   # build query using previous params
-   query <- glue(r"(SELECT {cols} FROM {dbname}.{table} {join_tbls} {rows};)")
-
-   # get number of affected rows
-   data   <- tibble()
-   n_rows <- dbGetQuery(conn, glue(r"(SELECT COUNT(*) FROM {dbname}.{table} {join_tbls} {rows};)"))
-   n_rows <- as.numeric(n_rows[1,])
-
-   # get actual result set
-   rs <- dbSendQuery(conn, query)
-
-   chunk_size <- 1000
-   if (n_rows >= chunk_size) {
-      # upload in chunks to monitor progress
-      n_chunks <- ceiling(n_rows / chunk_size)
-
-      # get progress
-      if (!is.null(name))
-         pb_name <- paste0(name, ": :current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed")
-      else
-         pb_name <- ":current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed"
-
-      pb <- progress_bar$new(format = pb_name, total = n_chunks, width = 100, clear = FALSE)
-      pb$tick(0)
-
-      # fetch in chunks
-      for (i in seq_len(n_chunks)) {
-         chunk <- dbFetch(rs, chunk_size)
-         data  <- bind_rows(data, chunk)
-         pb$tick(1)
-      }
-   } else {
-      data <- dbFetch(rs)
-   }
-   dbClearResult(rs)
-   return(data)
 }
