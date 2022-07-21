@@ -89,10 +89,10 @@ DB <- setRefClass(
          .log_info("Downloading references.")
          db_conn           <- .self$conn("db")
          lw_conn           <- .self$conn("lw")
-         .self$ref_addr    <<- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "ref_addr")) %>% collect()
-         .self$ref_country <<- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_country")) %>% collect()
-         .self$ref_faci    <<- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "ref_faci")) %>% collect()
-         .self$ref_staff   <<- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "ref_staff")) %>% collect()
+         .self$ref_addr    <<- dbTable(lw_conn, "ohasis_lake", "ref_addr", name = "ref_addr")
+         .self$ref_country <<- dbTable(lw_conn, "ohasis_interim", "addr_country", name = "addr_country")
+         .self$ref_faci    <<- dbTable(lw_conn, "ohasis_lake", "ref_faci", name = "ref_faci")
+         .self$ref_staff   <<- dbTable(lw_conn, "ohasis_lake", "ref_staff", name = "ref_staff")
 
          # subset of ref_faci
          .self$ref_faci_code <<- ref_faci %>%
