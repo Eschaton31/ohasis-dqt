@@ -11,10 +11,10 @@ nhsss$harp_tx$wd <- file.path(getwd(), "src", "official", "harp_tx")
 
 ##  Begin linkage of art registry ----------------------------------------------
 
-source(file.path(nhsss$harp_tx$wd, "02_load_reqs.R"))
-source(file.path(nhsss$harp_tx$wd, "04_data_reg.initial.R"))
-source(file.path(nhsss$harp_tx$wd, "05_data_reg.convert.R"))
-source(file.path(nhsss$harp_tx$wd, "06_data_reg.final.R"))
+source(file.path(nhsss$harp_tx$wd, "01_load_reqs.R"))
+source(file.path(nhsss$harp_tx$wd, "02_data_reg.initial.R"))
+source(file.path(nhsss$harp_tx$wd, "03_data_reg.convert.R"))
+source(file.path(nhsss$harp_tx$wd, "04_data_reg.final.R"))
 
 ##  PII Deduplication ----------------------------------------------------------
 
@@ -25,17 +25,17 @@ dedup <- input(
    default = "2"
 )
 if (dedup == "1") {
-   source(file.path(nhsss$harp_tx$wd, "07_dedup_new.R"))
-   source(file.path(nhsss$harp_tx$wd, "08_dedup_old.R"))
-   source(file.path(nhsss$harp_tx$wd, "09_dedup_dx.R"))
+   source(file.path(nhsss$harp_tx$wd, "x1_dedup_new.R"))
+   source(file.path(nhsss$harp_tx$wd, "x2_dedup_old.R"))
+   source(file.path(nhsss$harp_tx$wd, "x3_dedup_dx.R"))
 }
 rm(dedup)
 
 ##  Begin linkage of outcomes dataset ------------------------------------------
 
-source(file.path(nhsss$harp_tx$wd, "11_data_outcome.initial.R"))
-source(file.path(nhsss$harp_tx$wd, "12_data_outcome.convert.R"))
-source(file.path(nhsss$harp_tx$wd, "13_data_outcome.final.R"))
+source(file.path(nhsss$harp_tx$wd, "05_data_outcome.initial.R"))
+source(file.path(nhsss$harp_tx$wd, "06_data_outcome.convert.R"))
+source(file.path(nhsss$harp_tx$wd, "07_data_outcome.final.R"))
 
 ##  Finalize dataset -----------------------------------------------------------
 
@@ -46,11 +46,11 @@ complete <- input(
    default = "2"
 )
 if (complete == "1") {
-   source(file.path(nhsss$harp_tx$wd, "14_output.R"))
+   source(file.path(nhsss$harp_tx$wd, "08_output.R"))
 
    # TODO: Place these after pdf & ml conso
-   source(file.path(nhsss$harp_tx$wd, "15_archive.R"))
-   source(file.path(nhsss$harp_tx$wd, "16_upload.R"))
+   source(file.path(nhsss$harp_tx$wd, "09_archive.R"))
+   source(file.path(nhsss$harp_tx$wd, "10_upload.R"))
 }
 rm(complete)
 
