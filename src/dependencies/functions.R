@@ -168,7 +168,7 @@ check_dir <- function(dir) {
    gsheet       <- paste0(data_name, "_", format(Sys.time(), "%Y.%m.%d"))
    drive_file   <- drive_get(paste0(drive_path, gsheet))
    drive_link   <- paste0("https://docs.google.com/spreadsheets/d/", drive_file$id, "/|GSheets Link: ", gsheet)
-   slack_msg    <- glue(">*{surv_name}*\n>Conso validation sheets for `{data_name}` have been updated by <{slack_by}>.\n><{drive_link}>")
+   slack_msg    <- glue(">*{surv_name}*\n>Conso validation sheets for `{data_name}` have been updated by <@{slack_by}>.\n><{drive_link}>")
 
    # list of validations
    issues_list <- names(parent_list)
