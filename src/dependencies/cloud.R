@@ -62,6 +62,8 @@ get_encoded <- function(reporting = NULL, module = NULL) {
          for (ei in seq_len(nrow(list_ei))) {
             sheets <- sheet_names(list_ei[ei, "id"] %>% as.character())
             sheets <- sheets[!stri_detect_fixed(sheets, "LEGENDS")]
+            forms  <- sheets[stri_detect_fixed(sheets, "FORM") | stri_detect_fixed(sheets, "DISPENSE") | stri_detect_fixed(sheets, "DISCONTINUE")]
+            sheets <- c(setdiff(sheets, names(df_list)), forms)
 
             for (sheet in sheets) {
                ei_df <- read_sheet(list_ei[ei, "id"] %>% as.character(), sheet = sheet, col_types = "c") %>%
