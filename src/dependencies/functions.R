@@ -5,18 +5,22 @@ input <- function(prompt = NULL, options = NULL, default = NULL, max.char = NULL
    # options must all be quoted
    # options must be of the format: integer = definition (i.e., "1" = "yes")
 
-   if (!is.null(options) && !is.null(default)) {
+   prompt      <- paste0("\n", blue(prompt))
+   default_txt <- ""
+   if (!is.null(default))
+      default_txt <- paste0("\nDefault: ", underline(magenta(default)))
+
+   if (!is.null(options)) {
       key     <- names(options)
       val     <- stri_trans_totitle(options)
-      options <- paste(collapse = "\n", paste0(key, ") ", val))
-      prompt  <- paste0(prompt, "\n", options, "\n\nDefault: ", default, "\nPress <RETURN> to continue: ")
-   } else if (!is.null(default)) {
-      prompt <- paste0(prompt, "\n\nDefault: ", default, "\nPress <RETURN> to continue: ")
+      options <- paste(collapse = "\n", paste0(underline(green(key)), " ",cyan(val)))
+      prompt  <- paste0(prompt, "\n", options)
    }
+   prompt <- paste0(prompt, "\n", default_txt, "\nPress <RETURN> to continue: ")
 
    # get user input
    # cat(prompt, "\n")
-   data <- gtools::ask(prompt %>% cyan())
+   data <- gtools::ask(prompt)
 
    # check if is integer
    if (data != "" & !is.null(options)) {
@@ -356,6 +360,7 @@ get_names <- function(parent, pattern = NULL) {
       names(parent)
 }
 
+# query builder and download tracker for db tables
 dbTable <- function(conn, dbname, table, cols = NULL, where = NULL, join = NULL, raw_where = FALSE, name = NULL) {
    # get alias
    tbl_alias <- table
