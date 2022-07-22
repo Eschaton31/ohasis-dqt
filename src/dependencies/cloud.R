@@ -161,7 +161,7 @@ gdrive_correct <- function(drive_path = NULL, report_period = NULL) {
 gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NULL) {
    # drive path
    drive_path    <- "~/DQT/Data Factory/Corrections/"
-   primary_files <- drive_ls(paste0(drive_path, ".all/"))
+   primary_files <- drive_ls(paste0(drive_path, ".all/", surv_name, "/"))
    report_files  <- drive_ls(paste0(drive_path, report_period, "/"))
 
    # list of correction files
@@ -174,14 +174,12 @@ gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NUL
          corr_name   <- primary_files[i,]$name
          corr_sheets <- sheet_names(corr_id)
 
-         if (!is.null(surv_name))
-            corr_sheets <- corr_sheets[corr_sheets == surv_name]
-
-         for (sheet in corr_sheets) {
-            if (is.null(parent[[sheet]]))
-               parent[[sheet]] <- new.env()
-
-            parent[[sheet]]$corr[[corr_name]] <- read_sheet(corr_id, sheet)
+         if (length(corr_sheets) > 1) {
+            parent[[surv_name]][[corr_name]] <- list()
+            for (sheet in corr_sheets)
+               parent[[surv_name]][[corr_name]][[sheet]] <- read_sheet(corr_id, sheet)
+         } else {
+            parent[[surv_name]][[corr_name]] <- read_sheet(corr_id)
          }
       }
    }
