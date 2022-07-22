@@ -421,7 +421,8 @@ if (update == "1") {
    .log_info("Checking for mismatch record vs art faci.")
    nhsss$harp_tx$reg.initial$check[["mismatch_faci"]] <- nhsss$harp_tx$reg.initial$data %>%
       filter(
-         FACI_CODE != ART_FACI_CODE
+         FACI_CODE != ART_FACI_CODE,
+         sail_clinic != 1
       ) %>%
       select(
          any_of(view_vars),
