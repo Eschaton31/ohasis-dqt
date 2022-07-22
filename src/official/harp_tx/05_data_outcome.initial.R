@@ -195,7 +195,7 @@ nhsss$harp_tx$outcome.initial$data %<>%
       ),
    ) %>%
    mutate_at(
-      .vars = vars(ACTUAL_FACI_CODE, ART_FACI_CODE),
+      .vars = vars(FACI_CODE, ACTUAL_FACI_CODE, ART_FACI_CODE),
       ~case_when(
          stri_detect_regex(., "^SAIL") ~ "SAIL",
          stri_detect_regex(., "^TLY") ~ "TLY",
@@ -279,7 +279,7 @@ if (update == "1") {
          filter(
             is.na(!!var) |
                !!var >= ohasis$next_date |
-               !!var < as.Date("2002-01-01")
+               !!var <= -25567
          ) %>%
          select(
             any_of(view_vars),
@@ -329,7 +329,8 @@ if (update == "1") {
    .log_info("Checking for mismatch record vs art faci.")
    nhsss$harp_tx$outcome.initial$check[["mismatch_faci"]] <- nhsss$harp_tx$outcome.initial$data %>%
       filter(
-         FACI_CODE != ART_FACI_CODE
+         FACI_CODE != ART_FACI_CODE,
+         sail_clinic != 1
       ) %>%
       select(
          any_of(view_vars),
