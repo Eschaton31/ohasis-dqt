@@ -25,31 +25,33 @@ gmail_sig <- function() {
 )")
 }
 
-# auth files
-gm_auth_configure(
-   key    = Sys.getenv("GMAIL_KEY"),
-   secret = Sys.getenv("GMAIL_SECRET"),
-)
-gm_auth(email = Sys.getenv("GMAIL_USER"))
+if (Sys.getenv("GMAIL_KEY") != "") {
+   # auth files
+   gm_auth_configure(
+      key    = Sys.getenv("GMAIL_KEY"),
+      secret = Sys.getenv("GMAIL_SECRET"),
+   )
+   gm_auth(email = Sys.getenv("GMAIL_USER"))
+}
 
 # specific to NHSSS unit details
-gmail            <- new.env()
-gmail$nhsss$head <- c(
+gmail             <- new.env()
+gmail$nhsss$head  <- c(
    "nspalaypayon@doh.gov.ph",
    "mgzapanta@doh.gov.ph"
 )
-gmail$nhsss$ss   <- c(
+gmail$nhsss$ss    <- c(
    "jsmartinez@doh.gov.ph",
    "cjtinaja@doh.gov.ph",
    "kapamittan@doh.gov.ph",
    "appadilla@doh.gov.ph"
 )
-gmail$nhsss$dqt  <- c(
+gmail$nhsss$dqt   <- c(
    "mcrendon@doh.gov.ph",
    "kmasilo@doh.gov.ph",
    "jnmartinez@doh.gov.ph"
 )
-gmail$nhsss$dat  <- c(
+gmail$nhsss$dat   <- c(
    "jsmartinez@doh.gov.ph",
    "cjtinaja@doh.gov.ph",
    "kapamittan@doh.gov.ph",
@@ -62,7 +64,7 @@ gmail$nhsss$dat  <- c(
    "macabreros.doh@gmail.com",
    "acmdelacruz@doh.gov.ph"
 )
-gmail$nhsss$ihbss   <- c(
+gmail$nhsss$ihbss <- c(
    "jsmartinez@doh.gov.ph",
    "cjtinaja@doh.gov.ph",
    "roricaflanca.doh@gmail.com"
