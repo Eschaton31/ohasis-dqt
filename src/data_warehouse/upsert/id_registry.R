@@ -13,7 +13,18 @@ object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "registry")) %>%
 # get number of affected rows
 if ((object %>% count() %>% collect())$n > 0) {
    continue <- 1
-   object   <- object %>%
+   object   <- dbTable(
+      db_conn,
+      "ohasis_interim",
+      "registry",
+      where     = glue(r"(
+((CREATED_AT >= '{snapshot_old}' AND CREATED_AT <= '{snapshot_new}') OR
+(UPDATED_AT >= '{snapshot_old}' AND UPDATED_AT <= '{snapshot_new}') OR
+(DELETED_AT >= '{snapshot_old}' AND DELETED_AT <= '{snapshot_new}'))
+)"),
+      raw_where = TRUE,
+      name      = "registry"
+   ) %>%
       # keep only form a
       mutate(
          SNAPSHOT = case_when(
@@ -23,6 +34,5 @@ if ((object %>% count() %>% collect())$n > 0) {
             !is.na(UPDATED_AT) ~ UPDATED_AT,
             TRUE ~ CREATED_AT
          )
-      ) %>%
-      collect()
+      )
 }
