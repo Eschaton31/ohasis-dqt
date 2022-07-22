@@ -256,7 +256,7 @@ nhsss$harp_tx$reg.initial$data %<>%
       ),
    ) %>%
    mutate_at(
-      .vars = vars(ACTUAL_FACI_CODE, ART_FACI_CODE),
+      .vars = vars(FACI_CODE, ACTUAL_FACI_CODE, ART_FACI_CODE),
       ~case_when(
          stri_detect_regex(., "^SAIL") ~ "SAIL",
          stri_detect_regex(., "^TLY") ~ "TLY",
