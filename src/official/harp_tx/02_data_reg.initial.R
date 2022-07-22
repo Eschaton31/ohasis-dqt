@@ -523,7 +523,7 @@ if (update == "1") {
 
    # Remove already tagged data from validation
    exclude <- input(
-      prompt  = "Exlude clients initially tagged for dropping from validations?",
+      prompt  = "Exclude clients initially tagged for dropping from validations?",
       options = c("1" = "yes", "2" = "no"),
       default = "1"
    )
