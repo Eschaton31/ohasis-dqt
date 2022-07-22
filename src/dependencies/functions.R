@@ -163,7 +163,7 @@ check_dir <- function(dir) {
 # upload to gdrive/gsheets validations
 .validation_gsheets <- function(data_name = NULL, parent_list = NULL, drive_path = NULL, surv_name = NULL) {
    .log_info("Uploading to GSheets..")
-   slack_by <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
+   slack_by     <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
    empty_sheets <- ""
    gsheet       <- paste0(data_name, "_", format(Sys.time(), "%Y.%m.%d"))
    drive_file   <- drive_get(paste0(drive_path, gsheet))
@@ -182,7 +182,7 @@ check_dir <- function(dir) {
       # acquire sheet_id
       drive_file <- drive_get(paste0(drive_path, gsheet))
       drive_link <- paste0("https://docs.google.com/spreadsheets/d/", drive_file$id, "/|GSheets Link: ", gsheet)
-      slack_msg  <- glue(">*{surv_name}*\n>Conso validation sheets for `{data_name}` have been updated.\n><{drive_link}>")
+      slack_msg  <- glue(">*{surv_name}*\n>Conso validation sheets for `{data_name}` have been updated by <@{slack_by}>.\n><{drive_link}>")
    } else {
       for (issue in issues_list) {
          # add issue
