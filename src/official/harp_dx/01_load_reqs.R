@@ -22,7 +22,7 @@ if (check == "1") {
    .log_info("Downloading corrections list.")
    local(envir = nhsss$harp_dx, {
       .log_info("Getting corrections.")
-      corr <- gdrive_correct(gdrive$path, ohasis$ym)
+      nhsss <- gdrive_correct2(nhsss, ohasis$ym, "harp_dx")
    })
 }
 
@@ -52,7 +52,7 @@ check <- input(
 if (check == "1") {
    .log_info("Getting previous datasets.")
    local(envir = nhsss$harp_dx, {
-      official         <- list()
+      official     <- list()
       official$old <- ohasis$load_old_dta(
          path            = ohasis$get_data("harp_dx", ohasis$prev_yr, ohasis$prev_mo),
          corr            = corr$old_reg,

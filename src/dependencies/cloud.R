@@ -175,11 +175,11 @@ gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NUL
          corr_sheets <- sheet_names(corr_id)
 
          if (length(corr_sheets) > 1) {
-            parent[[surv_name]][[corr_name]] <- list()
+            parent[[surv_name]]$corr[[corr_name]] <- list()
             for (sheet in corr_sheets)
-               parent[[surv_name]][[corr_name]][[sheet]] <- read_sheet(corr_id, sheet)
+               parent[[surv_name]]$corr[[corr_name]][[sheet]] <- read_sheet(corr_id, sheet)
          } else {
-            parent[[surv_name]][[corr_name]] <- read_sheet(corr_id)
+            parent[[surv_name]]$corr[[corr_name]] <- read_sheet(corr_id)
          }
       }
    }
