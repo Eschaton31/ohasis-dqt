@@ -519,30 +519,28 @@ if (update == "1") {
          mutate_all(~as.character(.)) %>%
          bind_rows(nhsss$harp_tx$reg.initial$check$tabstat)
    }
-}
 
-##  Remove already tagged data from validation ---------------------------------
-
-
-exclude <- input(
-   prompt  = "Exlude clients initially tagged for dropping from validations?",
-   options = c("1" = "yes", "2" = "no"),
-   default = "1"
-)
-exclude <- substr(toupper(exclude), 1, 1)
-if (exclude == "1") {
-   .log_info("Dropping unwanted records.")
-   if (update == "1") {
-      for (drop in c("drop_notart", "drop_notyet")) {
-         if (drop %in% names(nhsss$harp_tx$corr))
-            for (check in names(nhsss$harp_tx$reg.initial$check)) {
-               if (check != "tabstat")
-                  nhsss$harp_tx$reg.initial$check[[check]] %<>%
-                     anti_join(
-                        y  = nhsss$harp_tx$corr[[drop]],
-                        by = "REC_ID"
-                     )
-            }
+   # Remove already tagged data from validation
+   exclude <- input(
+      prompt  = "Exlude clients initially tagged for dropping from validations?",
+      options = c("1" = "yes", "2" = "no"),
+      default = "1"
+   )
+   exclude <- substr(toupper(exclude), 1, 1)
+   if (exclude == "1") {
+      .log_info("Dropping unwanted records.")
+      if (update == "1") {
+         for (drop in c("drop_notart", "drop_notyet")) {
+            if (drop %in% names(nhsss$harp_tx$corr))
+               for (check in names(nhsss$harp_tx$reg.initial$check)) {
+                  if (check != "tabstat")
+                     nhsss$harp_tx$reg.initial$check[[check]] %<>%
+                        anti_join(
+                           y  = nhsss$harp_tx$corr[[drop]],
+                           by = "REC_ID"
+                        )
+               }
+         }
       }
    }
 }
