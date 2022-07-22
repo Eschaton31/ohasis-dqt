@@ -53,7 +53,7 @@ if (check == "1") {
    .log_info("Getting previous datasets.")
    local(envir = nhsss$harp_dx, {
       official         <- list()
-      official$old_reg <- ohasis$load_old_dta(
+      official$old <- ohasis$load_old_dta(
          path            = ohasis$get_data("harp_dx", ohasis$prev_yr, ohasis$prev_mo),
          corr            = corr$old_reg,
          warehouse_table = "harp_dx_old",
