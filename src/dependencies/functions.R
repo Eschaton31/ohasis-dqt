@@ -13,7 +13,7 @@ input <- function(prompt = NULL, options = NULL, default = NULL, max.char = NULL
    if (!is.null(options)) {
       key     <- names(options)
       val     <- stri_trans_totitle(options)
-      options <- paste(collapse = "\n", paste0(underline(green(key)), " ",cyan(val)))
+      options <- paste(collapse = "\n", paste0(underline(green(key)), " ", cyan(val)))
       prompt  <- paste0(prompt, "\n", options)
    }
    prompt <- paste0(prompt, "\n", default_txt, "\nPress <RETURN> to continue: ")
@@ -24,8 +24,8 @@ input <- function(prompt = NULL, options = NULL, default = NULL, max.char = NULL
 
    # check if is integer
    if (data != "" & !is.null(options)) {
-      while (!StrIsNumeric(data))
-         data <- gtools::ask("Please enter a valid selection: ")
+      # while (!StrIsNumeric(data))
+      #    data <- gtools::ask("Please enter a valid selection: ")
 
       while (!(data %in% key))
          data <- gtools::ask("Please choose a value from selection: ")
@@ -165,7 +165,7 @@ check_dir <- function(dir) {
 }
 
 # upload to gdrive/gsheets validations
-.validation_gsheets <- function(data_name = NULL, parent_list = NULL, drive_path = NULL, surv_name = NULL) {
+.validation_gsheets <- function(data_name = NULL, parent_list = NULL, drive_path = NULL, surv_name = NULL, channels = NULL) {
    .log_info("Uploading to GSheets..")
    slack_by     <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
    empty_sheets <- ""
@@ -208,7 +208,12 @@ check_dir <- function(dir) {
       sheet_delete(drive_file$id, empty_sheets[-1])
 
    # log in slack
-   slackr_msg(slack_msg, mrkdwn = "true")
+   if (is.null(channels)) {
+      slackr_msg(slack_msg, mrkdwn = "true")
+   } else {
+      for (channel in channels)
+         slackr_msg(slack_msg, mrkdwn = "true", channel = channel)
+   }
 }
 
 # download entire dropbox folder
