@@ -328,7 +328,7 @@ if (update == "1") {
          filter(
             is.na(!!var) |
                !!var >= ohasis$next_date |
-               !!var <= as.Date("1900-01-01")
+               !!var <= -25567
          ) %>%
          select(
             any_of(view_vars),
@@ -339,7 +339,7 @@ if (update == "1") {
          nhsss$harp_tx$reg.initial$check[[var]] <- nhsss$harp_tx$reg.initial$check[[var]] %>%
             filter(
                is.na(!!var) |
-                  !!var <= as.Date("1900-01-01")
+                  !!var <= -25567
             )
    }
 
@@ -355,7 +355,6 @@ if (update == "1") {
       "CENTRAL_ID",
       "AGE",
       "SEX",
-      "CONFIRMATORY_CODE",
       "UIC",
       "MEDICINE_SUMMARY"
    )

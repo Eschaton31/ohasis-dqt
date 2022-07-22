@@ -287,7 +287,7 @@ if (update == "1") {
          nhsss$prep$outcome.initial$check[[var]] <- nhsss$prep$outcome.initial$check[[var]] %>%
             filter(
                is.na(!!var) |
-                  !!var <= as.Date("1900-01-01")
+                  !!var <= -25567
             )
    }
 

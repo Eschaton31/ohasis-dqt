@@ -117,7 +117,7 @@ if (update == "1") {
          filter(
             is.na(!!var) |
                !!var >= ohasis$next_date |
-               !!var <= as.Date("1900-01-01")
+               !!var <= -25567
          ) %>%
          select(
             any_of(view_vars),

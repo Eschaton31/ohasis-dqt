@@ -290,7 +290,7 @@ if (update == "1") {
          nhsss$harp_tx$outcome.initial$check[[var]] <- nhsss$harp_tx$outcome.initial$check[[var]] %>%
             filter(
                is.na(!!var) |
-                  !!var <= as.Date("1900-01-01")
+                  !!var <= -25567
             )
    }
 
