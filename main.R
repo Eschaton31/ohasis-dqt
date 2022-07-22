@@ -15,6 +15,7 @@ rm(list = ls())
 source("src/dependencies/options.R")
 source("src/dependencies/libraries.R")
 source("src/dependencies/functions.R")
+source("src/dependencies/pipeline.R")
 source("src/dependencies/full_tables.R")
 source("src/dependencies/cloud.R")
 source("src/dependencies/dedup.R")
@@ -30,4 +31,4 @@ source("src/classes/DB.R")
 ##  Load primary classes -------------------------------------------------------
 
 # initiate the project & database
-ohasis  <- DB()
+ohasis <- DB()
