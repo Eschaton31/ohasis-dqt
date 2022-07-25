@@ -17,28 +17,42 @@ Data:
 
 ---
 
+Project Dependencies
+-------------------------
+
+### Required
+
+- R
+- [git](https://git-scm.com/download/win)
+- [PyCharm Community](https://www.jetbrains.com/pycharm/download/#section=windows)
+- PyCharm plugins:
+    - `R Language for IntelliJ`
+
+### Optional
+
 Installation Instructions
 -------------------------
 
 1. Install PyCharm
 2. Add VCS
 3. Manage Remotes (origin = http://130.105.75.3:3000/nhsss_admin/ohasis-dqt.git)
-4. Make your own branch (initials, lastname, .doh) jrpalo.doh
-5. Pull
+4. 
+5. Make your own branch (initials, lastname, .doh) jrpalo.doh
+6. Pull
 
 [To be added.]
 
 Misc.
 -----
 
-1. Install the PyCharm Plugin `R Language for IntelliJ`
+1. Install the PyCharm Plugin
 
 PDF Rendering Tool/s
 --------------------
 
 1. Download `Quatro CLI` from this link: https://quarto.org/docs/get-started/
 2. Install `tinytex` via CLI:
-   - `quarto tools install tinytex`
+    - `quarto tools install tinytex`
 
 ---
 
