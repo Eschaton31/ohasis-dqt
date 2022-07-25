@@ -1044,7 +1044,8 @@ nhsss$harp_dx$converted$data %<>%
          false     = as.numeric(NA)
       ),
       pubpriv      = if_else(pubpriv == "0", NA_character_, as.character(pubpriv))
-   )
+   ) %>%
+   distinct_all()
 
 ##  Flag data for validation ---------------------------------------------------
 
