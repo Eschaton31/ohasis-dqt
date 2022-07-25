@@ -112,8 +112,8 @@ df <- eharp$exports$px_rhivda %>%
    ) %>%
    mutate(
       OH_ID = case_when(
-         !is.na(OH_ID) ~ OH_ID,
          !is.na(REG_PID) ~ REG_PID,
+         !is.na(OH_ID) ~ OH_ID,
          TRUE ~ OH_ID
       )
    ) %>%
@@ -252,15 +252,21 @@ eharp$data$records <- bind_rows(df1, df2) %>%
       by = "noted_by"
    ) %>%
    arrange(rhivda_code, VISIT_DATE) %>%
-   select(-OH_ID) %>%
+   # select(-OH_ID) %>%
    distinct(rhivda_code, .keep_all = TRUE) %>%
    left_join(
       y  = eharp$corr$PATIENT_ID %>%
          select(
             PATIENT_ID = EH_ID,
-            OH_ID
+            OH_ID_2    = OH_ID
          ),
       by = "PATIENT_ID"
+   ) %>%
+   mutate(
+      OH_ID = case_when(
+         !is.na(OH_ID) ~ OH_ID,
+         !is.na(OH_ID_2) ~ OH_ID_2,
+      )
    ) %>%
    left_join(
       y  = eharp$corr$REC_ID %>%
@@ -438,7 +444,7 @@ eharp$data$records <- bind_rows(df1, df2) %>%
          !is.na(WORK) ~ WORK,
          !is.na(PREV_WORK) ~ PREV_WORK,
       ),
-      FINAL_RESULT = if_else(
+      FINAL_RESULT        = if_else(
          condition = FINAL_RESULT == "Nonreactive",
          true      = "Negative",
          false     = FINAL_RESULT,
