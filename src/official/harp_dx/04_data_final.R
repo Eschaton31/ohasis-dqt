@@ -21,8 +21,8 @@ for (drop_var in c("drop_notyet", "drop_duplicates"))
 	  nhsss$harp_dx$official$new %<>%
 		 left_join(
 			y = nhsss$harp_dx$corr[[drop_var]] %>%
-			   select(REC_ID) %>%,
-			mutate(drop = 1)
+			   select(REC_ID) %>%
+			mutate(drop = 1),
 			by = "REC_ID"
 		 ) %>%
 		 mutate(
