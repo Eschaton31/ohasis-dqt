@@ -90,13 +90,11 @@ check_dir <- function(dir) {
 }
 
 # stata univar tab
-.tab <- function(dataframe, column, nrows = 100L) {
+.tab <- function(dataframe, ...) {
    # column <- enquo(column)
 
    tab_df <- dataframe %>%
-      dplyr::group_by(
-         across({{column}})
-      ) %>%
+      dplyr::group_by(...) %>%
       dplyr::summarise(
          `Freq.` = n()
       ) %>%
