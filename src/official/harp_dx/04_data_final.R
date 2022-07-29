@@ -29,8 +29,8 @@ for (drop_var in c("drop_notyet", "drop_duplicates"))
 			drop_var := if_else(
 			   condition = drop == 1,
 			   true      = 1,
-			   false     = !!drop_var,
-			   missing   = !!drop_var
+			   false     = !!as.symbol(drop_var),
+			   missing   = !!as.symbol(drop_var)
 			)
 		 ) %>%
 		 select(-drop)
