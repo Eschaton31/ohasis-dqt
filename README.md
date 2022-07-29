@@ -32,13 +32,14 @@ Misc.
 -----
 
 1. Install the PyCharm Plugin `R Language for IntelliJ`
+2. Install Java Runtime Environment (JRE) - [Download for Windows](https://www.java.com/en/download/)
 
 PDF Rendering Tool/s
 --------------------
 
 1. Download `Quatro CLI` from this link: https://quarto.org/docs/get-started/
 2. Install `tinytex` via CLI:
-   - `quarto tools install tinytex`
+    - `quarto tools install tinytex`
 
 ---
 
