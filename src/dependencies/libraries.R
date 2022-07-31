@@ -10,7 +10,7 @@ library(pacman)
 load_packages <- function(...) {
    packages <- as.character(match.call(expand.dots = FALSE)$`...`)
    for (pkg in packages)
-      suppressMessages(p_install(pkg, force = FALSE, character.only = TRUE, lib = Sys.getenv("R_LIBS")))
+	  suppressMessages(p_install(pkg, force = FALSE, character.only = TRUE, lib = Sys.getenv("R_LIBS")))
 
    # p_update(lib.loc = Sys.getenv("R_LIBS"))
    p_load(char = packages, lib.loc = Sys.getenv("R_LIBS"))
@@ -62,6 +62,7 @@ load_packages(
    googleway,
    crayon,
    docxtractr,
+   rJava,
    XLConnect,
    gender,
    openxlsx,
