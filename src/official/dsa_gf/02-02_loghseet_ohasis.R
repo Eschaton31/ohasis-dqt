@@ -265,8 +265,7 @@ gf$logsheet$ohasis <- reach %>%
 		 filter(!is.na(FACI_ID)) %>%
 		 select(
 			GF_FACI    = FACI_ID,
-			LS_SUBTYPE = `Clinic Type`,
-			with_dsa   = starts_with("DSA")
+			LS_SUBTYPE = `Clinic Type`
 		 ) %>%
 		 distinct_all() %>%
 		 add_row(GF_FACI = "130605", LS_SUBTYPE = "CBO") %>%
@@ -277,6 +276,12 @@ gf$logsheet$ohasis <- reach %>%
 			   ) %>%
 			   inner_join(
 				  y  = gf$forms$service_art %>% select(FACI_ID),
+				  by = "FACI_ID"
+			   ) %>%
+			   anti_join(
+				  y  = gf$sites %>%
+					 filter(!is.na(FACI_ID)) %>%
+					 select(FACI_ID),
 				  by = "FACI_ID"
 			   ) %>%
 			   select(GF_FACI = FACI_ID)
@@ -298,7 +303,7 @@ gf$logsheet$ohasis <- reach %>%
 		 ) %>%
 		 mutate(
 			LS_SUBTYPE = if_else(
-			   condition =  GF_FACI %in% c("130001", "070021"),
+			   condition = GF_FACI %in% c("130001", "070021"),
 			   true      = "TLY",
 			   false     = LS_SUBTYPE,
 			   missing   = LS_SUBTYPE
