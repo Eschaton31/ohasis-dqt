@@ -14,7 +14,7 @@ local(envir = gf, {
 		 "01",
 		 "01"
 	  )
-   }else if (StrLeft(coverage$fy, 2) == "S2") {
+   } else if (StrLeft(coverage$fy, 2) == "S2") {
 	  coverage$min <- paste(
 		 sep = "-",
 		 paste0("20", StrRight(coverage$fy, 2)),
@@ -113,7 +113,7 @@ if (check == "1") {
 		 collect()
 
 	  .log_info("Downloading {green('Record Links')}.")
-	  forms$id_registry <- dbTable(
+	  forms$rec_link <- dbTable(
 		 db_conn,
 		 "ohasis_interim",
 		 "rec_link"
