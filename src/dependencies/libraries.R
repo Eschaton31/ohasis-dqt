@@ -28,6 +28,7 @@ load_packages(
    aod,
    bazar,
    haven,
+   readstata13,
    dplyr,
    stringi,
    stringr,
