@@ -112,6 +112,13 @@ if (check == "1") {
 		 filter(SERVICE == "101201") %>%
 		 collect()
 
+	  .log_info("Downloading {green('Record Links')}.")
+	  forms$id_registry <- dbTable(
+		 db_conn,
+		 "ohasis_interim",
+		 "rec_link"
+	  )
+
 	  .log_info("Downloading {green('Central IDs')}.")
 	  forms$id_registry <- dbTable(
 		 lw_conn,

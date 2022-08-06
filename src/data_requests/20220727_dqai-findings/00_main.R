@@ -1,7 +1,8 @@
 dqai <- list()
 
 dqai$reg_art  <- read_dta("H:/_R/library/hiv_tx/data/20220628_reg-art_2022-05.dta")
-dqai$dir      <- "C:/Users/Administrator/Documents/DQAI 2022/CVMC"
+dqai$reg_art  <- ohasis$get_data("harp_tx-reg", "2022", "06") %>% read_dta()
+dqai$dir      <- "C:/Users/Administrator/Documents/DQAI 2022/ZCMC"
 dqai$dta_list <- list()
 for (file in list.files(dqai$dir, "*.csv", full.names = TRUE)) {
    fname                  <- tools::file_path_sans_ext(basename(file))
@@ -20,14 +21,14 @@ for (file in list.files(dqai$dir, "*.csv", full.names = TRUE)) {
 	  relocate(`OHASIS ID`, .before = 1) %>%
 	  relocate(`Confirmatory Code`, .before = `ART ID #`) %>%
 	  mutate(
-		 # `CVMC Patient Code`           = NA_character_,
-		 # `CVMC Outcome`                = NA_character_,
-		 # `CVMC Facility (referred to)` = NA_character_,
-		 # `CVMC Regimen`                = NA_character_,
-		 # `CVMC Latest Visit`           = NA_character_,
-		 # `CVMC Latest Next Pick-up`    = NA_character_,
-		 # `CVMC No. of Pills Dispensed` = NA_character_,
-		 outcome = fname
+		 `ZCMC Patient Code`           = NA_character_,
+		 `ZCMC Outcome`                = NA_character_,
+		 `ZCMC Facility (referred to)` = NA_character_,
+		 `ZCMC Regimen`                = NA_character_,
+		 `ZCMC Latest Visit`           = NA_character_,
+		 `ZCMC Latest Next Pick-up`    = NA_character_,
+		 `ZCMC No. of Pills Dispensed` = NA_character_,
+		 outcome                       = fname
 	  )
 }
 
@@ -42,12 +43,12 @@ for (file in sheet_names(dqai$gsheet)) {
 }
 rm(fname, file)
 
-# write_xlsx(dqai$dta_list, "C:/Users/Administrator/Documents/DQAI 2022/CVMC/cvm_masterlist_2022-005.xlsx")
+# write_xlsx(dqai$dta_list, "C:/Users/Administrator/Documents/DQAI 2022/ZCMC/zcm_masterlist_2022-05.xlsx")
 
 dqai$eb <- bind_rows(dqai$dta_list)
 
 dqai$faci <- bind_rows(dqai$sheet_list) %>%
-   rename_all(~stri_replace_all_fixed(., "CVMC", "HUB")) %>%
+   rename_all(~stri_replace_all_fixed(., "ZCMC", "HUB")) %>%
    filter(
 	  nchar(`OHASIS ID`) <= 18,
 	  !stri_detect_fixed(`OHASIS ID`, "Remarks")
@@ -89,7 +90,7 @@ dqai$new_ml <- dqai$faci %>%
 		 !is.na(`HUB Patient Code`) ~ `Patient Code`,
 		 TRUE ~ `Patient Code`
 	  ),
-	  `CVMC Patient Code` = NA_character_
+	  `ZCMC Patient Code` = NA_character_
    ) %>%
    left_join(
 	  y  = dqai$reg_art %>%
@@ -109,7 +110,7 @@ dqai$new_ml <- dqai$faci %>%
 	  `OHASIS ID`,
 	  `ART ID #`,
 	  `Patient Code`,
-	  `CVMC Patient Code`,
+	  `ZCMC Patient Code`,
 	  `UIC`,
 	  `Birth Date`          = birthdate,
 	  Initials              = initials,

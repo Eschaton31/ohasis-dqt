@@ -262,6 +262,8 @@ if ((object %>% count() %>% collect())$n > 0) {
             mutate(
                IS_EXPOSED = case_when(
                   TYPE_LAST_EXPOSE == "4" & IS_EXPOSED == "1" ~ "1",
+                  TYPE_LAST_EXPOSE == "3" & IS_EXPOSED == "1" ~ "3",
+                  TYPE_LAST_EXPOSE == "1" & IS_EXPOSED == "1" ~ "4",
                   TYPE_LAST_EXPOSE == "0" & IS_EXPOSED == "1" ~ "2",
                   is.na(TYPE_LAST_EXPOSE) & IS_EXPOSED == "1" ~ "2",
                   IS_EXPOSED == "0" ~ "0",

@@ -119,7 +119,8 @@ gf$linelist$kp6a <- gf$harp$prep$new_reg %>%
 		 ffup_to_pickup %in% seq(91, 10000) ~ "3+ months of PrEP",
 	  ),
 	  `DISAG 3`        = case_when(
-		 # StrLeft(RISK_CONDOMLESS_ANAL, 1) == "w/in 6m" ~ "1) Sexual Risk (anal sex) past 6 months",
+		 StrLeft(RISK_CONDOMLESS_ANAL, 1) == "4" ~ "0) Sexual Risk (anal sex) past 30 days",
+		 StrLeft(RISK_CONDOMLESS_ANAL, 1) == "3" ~ "1) Sexual Risk (anal sex) past 6 months",
 		 StrLeft(RISK_CONDOMLESS_ANAL, 1) == "1" ~ "2) Sexual Risk (anal sex) past 12 months",
 		 StrLeft(RISK_CONDOMLESS_ANAL, 1) == "2" ~ "3) Sexual Risk (anal sex) >12 months",
 		 # date_last_sex_msm >= RECORD_P6M ~ "1) Sexual Risk (anal sex) past 6 months",
@@ -180,6 +181,12 @@ gf$linelist$kp6a <- gf$harp$prep$new_reg %>%
 			   ) %>%
 			   inner_join(
 				  y  = gf$forms$service_art %>% select(FACI_ID),
+				  by = "FACI_ID"
+			   ) %>%
+			   anti_join(
+				  y = gf$sites %>%
+					 filter(!is.na(FACI_ID)) %>%
+					 select(FACI_ID),
 				  by = "FACI_ID"
 			   ) %>%
 			   select(GF_FACI = FACI_ID)
