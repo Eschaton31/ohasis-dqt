@@ -457,3 +457,113 @@ dbTable <- function(conn, dbname, table, cols = NULL, where = NULL, join = NULL,
    dbClearResult(rs)
    return(data)
 }
+
+# get inventory data
+get_inv <- function(iid) {
+   inv        <- list()
+   db_conn    <- ohasis$conn("db")
+   inv$status <- dbGetQuery(db_conn, r"(
+SELECT inv.INVENTORY_ID,
+       prod.NAME          AS ITEM,
+       inv.BATCH_NUM,
+       inv.BATCH_QUANTITY AS BATCH_INITIAL,
+       inv.BATCH_CURR,
+       batch.DEFINITION   AS BATCH_UNIT,
+       inv.ITEM_PER_BATCH,
+       inv.ITEM_QUANTITY  AS ITEM_INITIAL,
+       inv.ITEM_CURR,
+       item.DEFINITION    AS ITEM_UNIT,
+       inv.RECORD_DATE    AS DATE_RECEIVE,
+       inv.EXPIRE_DATE    AS DATE_EXPIRE,
+       inv.FACI_ID,
+       ''                 AS SUB_FACI_ID
+FROM ohasis_interim.inventory AS inv
+         LEFT JOIN ohasis_interim.inventory_product AS prod ON inv.ITEM_ID = prod.ITEM
+         LEFT JOIN ohasis_interim.ref_text AS batch ON inv.BATCH_UNIT = batch.VALUE AND batch.NAME = 'STOCK_UNIT'
+         LEFT JOIN ohasis_interim.ref_text AS item ON inv.ITEM_UNIT = item.VALUE AND item.NAME = 'ITEM_UNIT'
+WHERE inv.INVENTORY_ID = ?
+)", params = iid)
+
+
+   trxn      <- list()
+   trxn$data <- dbGetQuery(db_conn, r"(
+SELECT trans.*,
+       IF(ISNULL(rec.DELETED_AT), 0, 1) AS INVALID
+FROM ohasis_interim.inventory_transact AS trans
+         LEFT JOIN ohasis_interim.px_record AS rec ON trans.TRANSACT_ID = rec.REC_ID
+WHERE trans.INVENTORY_ID = ?
+)", params = iid)
+   trxn$add  <- trxn$data %>%
+      filter(
+         TRANSACT_TYPE == 1,
+         INVALID == 0
+      ) %>%
+      group_by(UNIT_BASIS) %>%
+      summarise(
+         TOTAL = sum(TRANSACT_QUANTITY)
+      ) %>%
+      ungroup() %>%
+      mutate(
+         TOTAL = if_else(
+            condition = UNIT_BASIS == 1,
+            true      = TOTAL * inv$status$ITEM_PER_BATCH,
+            false     = TOTAL,
+            missing   = TOTAL
+         )
+      ) %>%
+      summarise(
+         TOTAL = sum(TOTAL)
+      )
+
+   trxn$subtract <- trxn$data %>%
+      filter(
+         TRANSACT_TYPE == 2,
+         INVALID == 0
+      ) %>%
+      group_by(UNIT_BASIS) %>%
+      summarise(
+         TOTAL = sum(TRANSACT_QUANTITY)
+      ) %>%
+      ungroup() %>%
+      mutate(
+         TOTAL = if_else(
+            condition = UNIT_BASIS == 1,
+            true      = TOTAL * inv$status$ITEM_PER_BATCH,
+            false     = TOTAL,
+            missing   = TOTAL
+         )
+      ) %>%
+      summarise(
+         TOTAL = sum(TOTAL)
+      )
+
+   inv$status <- ohasis$get_faci(
+      inv$status,
+      list("FACI" = c("FACI_ID", "SUB_FACI_ID")),
+      "name"
+   )
+
+   dbDisconnect(db_conn)
+   inv$trxn <- trxn
+   return(inv)
+}
+
+update_inv <- function(iid) {
+   inv <- get_inv(iid)
+
+   remain_item  <- inv$trxn$add$TOTAL - inv$trxn$subtract$TOTAL
+   remain_batch <- (remain_item / inv$status$ITEM_PER_BATCH)
+
+   db_conn <- ohasis$conn("db")
+   dbExecute(
+      db_conn,
+      r"(
+UPDATE ohasis_interim.inventory
+SET ITEM_CURR  = ?,
+    BATCH_CURR = ?
+WHERE INVENTORY_ID = ?
+)",
+      params = list(remain_item, remain_batch, iid)
+   )
+   dbDisconnect(db_conn)
+}
