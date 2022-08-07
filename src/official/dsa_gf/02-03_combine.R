@@ -120,7 +120,13 @@ gf$linelist$psfi_matched %<>%
             ls_kind == "GLOBAL FUND PEER NAVIGATOR" &
             ls_subtype == "LGU" ~ "Global Fund PN (LGU)",
          is.na(site_name) &
+            ls_kind == "GLOBAL FUND PEER NAVIGATION" &
+            ls_subtype == "LGU" ~ "Global Fund PN (LGU)",
+         is.na(site_name) &
             ls_kind == "GLOBAL FUND PEER NAVIGATOR" &
+            ls_subtype == "RURAL HEALTH UNIT" ~ "Global Fund PN (RHU)",
+         is.na(site_name) &
+            ls_kind == "GLOBAL FUND PEER NAVIGATION" &
             ls_subtype == "RURAL HEALTH UNIT" ~ "Global Fund PN (RHU)",
          is.na(site_name) &
             ls_kind == "GLOBAL FUND PEER NAVIGATOR" &
@@ -254,4 +260,19 @@ gf$logsheet$combined <- bind_rows(
          TRUE ~ ohasis_id
       )
    ) %>%
+   arrange(ohasis_id, kap_type) %>%
+   group_by(ohasis_id) %>%
+   mutate(
+      count = n(),
+      pair = paste(collapse = "-", kap_type)
+   ) %>%
+   ungroup() %>%
+   mutate(
+      kap_type = case_when(
+         pair == "GAY-MSM" ~ "MSM",
+         pair == "GAY-TGW" ~ "TGW",
+         TRUE ~ kap_type
+      )
+   ) %>%
+   arrange(reach_date) %>%
    distinct(ohasis_id, .keep_all = TRUE)

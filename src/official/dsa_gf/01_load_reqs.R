@@ -35,6 +35,7 @@ local(envir = gf, {
    coverage$prev_yr <- stri_pad_left(year(as.Date(coverage$min) %m-% months(1)), 2, "0")
    coverage$curr_mo <- stri_pad_left(month(as.Date(coverage$max)), 2, "0")
    coverage$curr_yr <- stri_pad_left(year(as.Date(coverage$max)), 2, "0")
+	coverage$ym <- paste(sep = ".", coverage$curr_yr, coverage$curr_mo)
 })
 
 check <- input(
@@ -46,7 +47,7 @@ if (check == "1") {
    .log_info("Checking endpoints.")
    local(envir = gf, {
 	  gdrive      <- list()
-	  gdrive$path <- gdrive_endpoint("DSA - GF", ohasis$ym)
+	  gdrive$path <- gdrive_endpoint("DSA - GF", coverage$ym)
    })
 }
 
@@ -59,7 +60,7 @@ if (check == "1") {
    .log_info("Downloading corrections list.")
    local(envir = gf, {
 	  .log_info("Getting corrections.")
-	  corr <- gdrive_correct(gdrive$path, ohasis$ym)
+	  corr <- gdrive_correct(gdrive$path, coverage$ym)
    })
 }
 
