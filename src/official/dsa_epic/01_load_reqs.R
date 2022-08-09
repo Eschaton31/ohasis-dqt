@@ -123,74 +123,72 @@ if (check == "1") {
       forms <- list()
 
       .log_info("Downloading {green('Central IDs')}.")
-      forms$id_registry <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "id_registry")) %>%
-         select(CENTRAL_ID, PATIENT_ID) %>%
-         collect()
+      forms$id_registry <- dbTable(
+		 lw_conn,
+		 "ohasis_warehouse",
+		 "id_registry",
+		 cols = c("CENTRAL_ID", "PATIENT_ID")
+	  )
 
       .log_info("Downloading {green('Form A')}.")
-      forms$form_a <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_a")) %>%
-         filter(
-            (RECORD_DATE >= min & RECORD_DATE <= max) |
-               (as.Date(DATE_CONFIRM) >= min & as.Date(DATE_CONFIRM) <= max) |
-               (as.Date(T3_DATE) >= min & as.Date(T3_DATE) <= max) |
-               (as.Date(T2_DATE) >= min & as.Date(T2_DATE) <= max) |
-               (as.Date(T1_DATE) >= min & as.Date(T1_DATE) <= max) |
-               (T0_DATE >= min & T0_DATE <= max)
-         ) %>%
-         collect() %>%
-         left_join(
-            y  = forms$id_registry,
-            by = "PATIENT_ID"
-         ) %>%
-         mutate(
-            CENTRAL_ID = if_else(
-               condition = is.na(CENTRAL_ID),
-               true      = PATIENT_ID,
-               false     = CENTRAL_ID
-            ),
-         )
+      forms$form_a <- dbTable(
+		 lw_conn,
+		 "ohasis_warehouse",
+		 "form_a",
+		 where     = glue("((RECORD_DATE >= '{min}' AND RECORD_DATE <= '{max}') OR (DATE(DATE_CONFIRM) >= '{min}' AND DATE(DATE_CONFIRM) <= '{max}') OR (DATE(T3_DATE) >= '{min}' AND DATE(T3_DATE) <= '{max}') OR (DATE(T2_DATE) >= '{min}' AND DATE(T2_DATE) <= '{max}') OR (DATE(T1_DATE) >= '{min}' AND DATE(T1_DATE) <= '{max}') OR (DATE(T0_DATE) >= '{min}' AND DATE(T0_DATE) <= '{max}'))"),
+		 raw_where = TRUE
+	  ) %>%
+		 left_join(
+			y  = forms$id_registry,
+			by = "PATIENT_ID"
+		 ) %>%
+		 mutate(
+			CENTRAL_ID = if_else(
+			   condition = is.na(CENTRAL_ID),
+			   true      = PATIENT_ID,
+			   false     = CENTRAL_ID
+			),
+		 )
 
       .log_info("Downloading {green('HTS Form')}.")
-      forms$form_hts <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_hts")) %>%
-         filter(
-            (RECORD_DATE >= min & RECORD_DATE <= max) |
-               (as.Date(DATE_CONFIRM) >= min & as.Date(DATE_CONFIRM) <= max) |
-               (as.Date(T3_DATE) >= min & as.Date(T3_DATE) <= max) |
-               (as.Date(T2_DATE) >= min & as.Date(T2_DATE) <= max) |
-               (as.Date(T1_DATE) >= min & as.Date(T1_DATE) <= max) |
-               (T0_DATE >= min & T0_DATE <= max)
-         ) %>%
-         collect() %>%
-         left_join(
-            y  = forms$id_registry,
-            by = "PATIENT_ID"
-         ) %>%
-         mutate(
-            CENTRAL_ID = if_else(
-               condition = is.na(CENTRAL_ID),
-               true      = PATIENT_ID,
-               false     = CENTRAL_ID
-            ),
-         )
+      forms$form_hts <- dbTable(
+		 lw_conn,
+		 "ohasis_warehouse",
+		 "form_hts",
+		 where     = glue("((RECORD_DATE >= '{min}' AND RECORD_DATE <= '{max}') OR (DATE(DATE_CONFIRM) >= '{min}' AND DATE(DATE_CONFIRM) <= '{max}') OR (DATE(T3_DATE) >= '{min}' AND DATE(T3_DATE) <= '{max}') OR (DATE(T2_DATE) >= '{min}' AND DATE(T2_DATE) <= '{max}') OR (DATE(T1_DATE) >= '{min}' AND DATE(T1_DATE) <= '{max}') OR (DATE(T0_DATE) >= '{min}' AND DATE(T0_DATE) <= '{max}'))"),
+		 raw_where = TRUE
+	  ) %>%
+		 left_join(
+			y  = forms$id_registry,
+			by = "PATIENT_ID"
+		 ) %>%
+		 mutate(
+			CENTRAL_ID = if_else(
+			   condition = is.na(CENTRAL_ID),
+			   true      = PATIENT_ID,
+			   false     = CENTRAL_ID
+			),
+		 )
 
       .log_info("Downloading {green('CFBS Form')}.")
-      forms$form_cfbs <- tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_cfbs")) %>%
-         filter(
-            (RECORD_DATE >= min & RECORD_DATE <= max) |
-               (TEST_DATE >= min & TEST_DATE <= max)
-         ) %>%
-         collect() %>%
-         left_join(
-            y  = forms$id_registry,
-            by = "PATIENT_ID"
-         ) %>%
-         mutate(
-            CENTRAL_ID = if_else(
-               condition = is.na(CENTRAL_ID),
-               true      = PATIENT_ID,
-               false     = CENTRAL_ID
-            ),
-         )
+      forms$form_cfbs <- dbTable(
+		 lw_conn,
+		 "ohasis_warehouse",
+		 "form_cfbs",
+		 where     = glue("(RECORD_DATE >= '{min}' AND RECORD_DATE <= '{max}') OR (DATE(TEST_DATE) >= '{min}' AND DATE(TEST_DATE) <= '{max}')"),
+		 raw_where = TRUE
+	  ) %>%
+		 left_join(
+			y  = forms$id_registry,
+			by = "PATIENT_ID"
+		 ) %>%
+		 mutate(
+			CENTRAL_ID = if_else(
+			   condition = is.na(CENTRAL_ID),
+			   true      = PATIENT_ID,
+			   false     = CENTRAL_ID
+			),
+		 )
 
       dbDisconnect(lw_conn)
       rm(min, max, lw_conn)
