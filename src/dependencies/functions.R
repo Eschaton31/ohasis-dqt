@@ -313,18 +313,16 @@ oh_px_id <- function(db_conn = NULL, faci_id = NULL) {
 }
 
 # clear environment function
-clear_env <- function(exclude = NULL) {
+clear_env <- function(...) {
    env <- ls(envir = .GlobalEnv)
    if (!exists("currEnv", envir = .GlobalEnv))
       currEnv <- env[env != "currEnv"]
 
-   if (!is.null(exclude)) {
-      remove <- setdiff(env, exclude)
-      remove <- setdiff(remove, lsf.str(envir = .GlobalEnv))
-      rm(list = remove, envir = .GlobalEnv)
-   } else {
-      rm(list = setdiff(env, currEnv), envir = .GlobalEnv)
-   }
+   exclude <- as.character(match.call(expand.dots = FALSE)$`...`)
+
+   remove <- setdiff(env, exclude)
+   remove <- setdiff(remove, lsf.str(envir = .GlobalEnv))
+   rm(list = remove, envir = .GlobalEnv)
 }
 
 suppress_warnings <- function(.expr, .f, ...) {
