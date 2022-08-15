@@ -65,6 +65,8 @@ if (nrow(pdf_for_dl) > 0) {
    plan(sequential)
 }
 
+# download_folder(dir_dropbox_report, dir_output, overwrite = TRUE)
+
 ##  Read data from the pdf files and consoldiate -------------------------------
 
 # iterate over all pdf files
@@ -125,8 +127,15 @@ for (file in list.files(dir_output, full.names = TRUE)) {
       )
    } else {
       # get pii data
-      name       <- pdf_section(df[[1]], seq(77, 365), seq(110, 149))
+      name       <- pdf_section(df[[1]], seq(77, 365), seq(110, 150))
       name_addtl <- pdf_section(df[[1]], seq(77, 365), seq(150, 170))
+
+      if (stri_count_fixed(name[4, "text"], "-") == 2 & StrIsNumeric(StrLeft(name[4, "text"], 4))) {
+         name[2, "text"] <- name[3, "text"]
+         name[3, "text"] <- name[4, "text"]
+         name[4, "text"] <- name_addtl[1, "text"]
+         name_addtl      <- data.frame()
+      }
 
       # if source is multi-line, append
       if (nrow(name_addtl) > 0)

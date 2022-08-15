@@ -1,7 +1,7 @@
 ##  Download encoding documentation --------------------------------------------
 
 db_conn    <- ohasis$conn("db")
-px_confirm <- dbReadTable(db_conn, Id(schema = "ohasis_interim", table = "px_confirm"))
+px_confirm <- dbTable(db_conn, "ohasis_interim", "px_confirm")
 dbDisconnect(db_conn)
 
 # special
@@ -20,15 +20,21 @@ ei <- encoded$data$records %>%
       `Encoder`       = encoder
    )
 
-ei      <- get_ei("2022.05")
+ei      <- get_ei("2022.07")
+ei      <- bind_rows(
+   read_sheet("1h80b59dy971vDApmd8F7kN8W1d4ha7KmlD1fkECJ8e8", "documentation") %>%
+      mutate(encoder = "jsmanaois.pbsp@gmail.com"),
+   read_sheet("1kSnRgiKSGziaw_eLk3r75quBteB7MTL5AoWEMwFogl4", "documentation") %>%
+      mutate(encoder = "tayagallen14.doh@gmail.com")
+)
 encoded <- ei %>%
    filter(
       # Form %in% c("Form A", "HTS Form") | (is.na(Form) & nchar(`Page ID`) == 12),
       !is.na(`Record ID`)
    ) %>%
-   # mutate(,
-   #    `Encoder` = stri_replace_first_fixed(encoder, "2022.04_", "")
-   # ) %>%
+   mutate(,
+      `Encoder` = stri_replace_first_fixed(encoder, "2022.04_", "")
+   ) %>%
    select(
       `Facility ID`,
       `Facility Name`,
@@ -91,9 +97,9 @@ match <- results %>%
    # fuzzyjoin::stringdist_full_join(
    full_join(
       # inner_join(
-      y      = encoded %>% mutate(only = 1),
+      y  = encoded %>% mutate(only = 1),
       # by     = c("FULLNAME_PDF" = "Identifier"),
-      by     = c("LABCODE" = "Page ID"),
+      by = c("LABCODE" = "Page ID"),
       # method = "osa"
    ) %>%
    mutate(
@@ -133,7 +139,7 @@ write_clip(
 
 ##  Generate import dataframes -------------------------------------------------
 
-TIMESTAMP <- "2022-07-19 15:36:00"
+TIMESTAMP <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 # import    <- nhsss$harp_dx$pdf_saccl$data %>%
 import    <- nhsss$harp_dx$pdf_saccl$data %>%
    mutate_all(~as.character(.)) %>%
@@ -143,7 +149,8 @@ import    <- nhsss$harp_dx$pdf_saccl$data %>%
             LABCODE,
             REC_ID,
             PATIENT_ID
-         ),
+         ) %>%
+         mutate_all(~as.character(.)),
       by = "LABCODE"
    ) %>%
    inner_join(
@@ -151,7 +158,7 @@ import    <- nhsss$harp_dx$pdf_saccl$data %>%
       by = "LABCODE"
    ) %>%
    distinct(LABCODE, .keep_all = TRUE) %>%
-   filter(!is.na(REC_ID))
+   filter(!is.na(REC_ID), nchar(REC_ID) == 25)
 
 px_confirm <- import %>%
    mutate(
