@@ -190,6 +190,13 @@ epic$linelist$kp_prev <- epic$linelist$hts_tst %>%
          missing   = "(no data)"
       ),
 
+      PREV_SUB_FACI    = if_else(
+         condition = !(PREV_FACI %in% c("130001", "130605")),
+         true      = NA_character_,
+         false     = PREV_SUB_FACI,
+         missing   = PREV_SUB_FACI
+      ),
+
       `DISAG 2`       = NA_character_,
       `DISAG 3`       = case_when(
          old_dx == 1 ~ "Known Pos",
