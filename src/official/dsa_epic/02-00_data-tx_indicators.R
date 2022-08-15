@@ -54,42 +54,70 @@ epic$data$tx <- epic$harp$tx$new_reg %>%
    ) %>%
    mutate(
       # tag based on EpiC Defintion
-      days            = floor(difftime(as.Date(epic$coverage$max), latest_nextpickup, units = "days")),
-      onart28         = if_else(
+      days             = floor(difftime(as.Date(epic$coverage$max), latest_nextpickup, units = "days")),
+      onart28          = if_else(
          condition = days <= 28 & outcome != "dead",
+         true      = 1,
+         false     = 0,
+         missing   = 0
+      ),
+      vl_elig          = if_else(
+         condition = epic$coverage$type == "QR" & (interval(artstart_date, epic$coverage$max) / months(1)) >= 3,
          true      = 1,
          false     = 0,
          missing   = 0
       ),
 
       # tag specific indicators
-      tx_curr         = if_else(
+      tx_curr          = if_else(
          condition = onart28 == 1,
          true      = 1,
          false     = 0,
          missing   = 0
       ),
-      tx_new          = if_else(
+      tx_new           = if_else(
          condition = newonart == 1,
          true      = 1,
          false     = 0,
          missing   = 0
       ),
-      tx_ml           = if_else(
+      tx_ml            = if_else(
          condition = prev_onart28 == 1 & onart28 == 0,
          true      = 1,
          false     = 0,
          missing   = 0
       ),
-      tx_rtt          = if_else(
+      tx_rtt           = if_else(
          condition = prev_onart28 == 0 & onart28 == 1,
          true      = 1,
          false     = 0,
          missing   = 0
       ),
+      tx_pvls_eligible = if (epic$coverage$type == "QR") {
+         if_else(
+            condition = onart28 == 1 & vl_elig == 1,
+            true      = 1,
+            false     = 0,
+            missing   = 0
+         )
+      } else {
+         0
+      },
+      tx_pvls          = if (epic$coverage$type == "QR") {
+         if_else(
+            condition = onart28 == 1 &
+               is.na(baseline_vl) &
+               !is.na(vlp12m),
+            true      = 1,
+            false     = 0,
+            missing   = 0
+         )
+      } else {
+         0
+      },
 
       # sex variable (use registry if available)
-      Sex             = if_else(
+      Sex              = if_else(
          condition = !is.na(transmit) & !is.na(reg_sex),
          true      = StrLeft(reg_sex, 1),
          false     = StrLeft(art_sex, 1),
@@ -97,29 +125,29 @@ epic$data$tx <- epic$harp$tx$new_reg %>%
       ),
 
       # KAP
-      msm             = case_when(
+      msm              = case_when(
          reg_sex == "MALE" & sexhow %in% c("BISEXUAL", "HOMOSEXUAL") ~ 1,
          reg_sex == "MALE" & sexhow == "HETEROSEXUAL" ~ 0,
          TRUE ~ 0
       ),
-      tgw             = if_else(
+      tgw              = if_else(
          condition = reg_sex == "MALE" & self_identity %in% c("FEMALE", "OTHERS"),
          true      = 1,
          false     = 0,
          missing   = 0
       ),
-      hetero          = if_else(
+      hetero           = if_else(
          condition = sexhow == "HETEROSEXUAL",
          true      = 1,
          false     = 0,
          missing   = 0
       ),
-      unknown         = case_when(
+      unknown          = case_when(
          transmit == "UNKNOWN" ~ 1,
          is.na(transmit) ~ 1,
          TRUE ~ 0
       ),
-      `KP Population` = case_when(
+      `KP Population`  = case_when(
          msm == 1 & tgw == 0 ~ "MSM",
          msm == 1 & tgw == 1 ~ "TGW",
          Sex == "F" ~ "(not included)",
@@ -128,8 +156,8 @@ epic$data$tx <- epic$harp$tx$new_reg %>%
       ),
 
       # Age Band
-      curr_age        = floor(curr_age),
-      Age_Band        = case_when(
+      curr_age         = floor(curr_age),
+      Age_Band         = case_when(
          curr_age >= 0 & curr_age < 5 ~ "01_0-4",
          curr_age >= 5 & curr_age < 10 ~ "02_5-9",
          curr_age >= 10 & curr_age < 15 ~ "03_10-14",
@@ -146,17 +174,17 @@ epic$data$tx <- epic$harp$tx$new_reg %>%
          curr_age >= 65 & curr_age < 1000 ~ "14_65+",
          TRUE ~ "99_(no data)"
       ),
-      `DATIM Age`     = if_else(
+      `DATIM Age`      = if_else(
          condition = curr_age < 15,
          true      = "<15",
          false     = ">=15",
          missing   = "(no data)"
       ),
 
-      ffup_to_pickup  = floor(difftime(latest_nextpickup, latest_ffupdate, units = "days")),
-      tat_confirm_art = floor(difftime(artstart_date, confirm_date, units = "days")),
-      days_before_ml  = floor(difftime(latest_nextpickup, artstart_date, units = "days")),
-      days_before_rtt = floor(difftime(latest_ffupdate, ltfu_date, units = "days")),
+      ffup_to_pickup   = floor(difftime(latest_nextpickup, latest_ffupdate, units = "days")),
+      tat_confirm_art  = floor(difftime(artstart_date, confirm_date, units = "days")),
+      days_before_ml   = floor(difftime(latest_nextpickup, artstart_date, units = "days")),
+      days_before_rtt  = floor(difftime(latest_ffupdate, ltfu_date, units = "days")),
    ) %>%
    left_join(
       y  = ohasis$ref_faci_code %>%
