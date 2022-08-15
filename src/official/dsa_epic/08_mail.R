@@ -11,7 +11,7 @@ epic$as_of <- as.POSIXct(
    )
 )
 
-epic$mail$title <- glue("EpiC {epic$coverage$type} Indicators for {epic$coverage$curr_yr}-{epic$coverage$curr_mo}")
+epic$mail$title <- glue("EpiC {epic$coverage$type} Indicators for {stri_replace_all_fixed(epic$coverage$ym, '.', '-')}")
 
 epic$mail$to <- c(
    "BCastaneda@fhi360.org",
@@ -43,8 +43,7 @@ epic$mail$for_checking <- gm_mime() %>%
          )"
       )
    ) %>%
-   gm_attach_file(file.path(epic$xlsx$dir, "EpiC HFR Indicators (2022.05).xlsx")) %>%
-   gm_attach_file(file.path(epic$xlsx$dir, "EpiC HFR Indicators (2022.06).xlsx"))
+   gm_attach_file(file.path(epic$xlsx$dir, "EpiC QR Indicators (2022.Q3).xlsx"))
 
 epic$mail$for_approval <- gm_mime() %>%
    gm_to(gmail$nhsss$head) %>%
@@ -69,8 +68,7 @@ epic$mail$for_approval <- gm_mime() %>%
          )"
       )
    ) %>%
-   gm_attach_file(file.path(epic$xlsx$dir, "EpiC HFR Indicators (2022.05).xlsx")) %>%
-   gm_attach_file(file.path(epic$xlsx$dir, "EpiC HFR Indicators (2022.06).xlsx"))
+   gm_attach_file(file.path(epic$xlsx$dir, "EpiC QR Indicators (2022.Q3).xlsx"))
 
 epic$mail$for_release <- gm_mime() %>%
    gm_to(
@@ -92,11 +90,10 @@ epic$mail$for_release <- gm_mime() %>%
       glue(
          r"(
 <p>Hi Ate Betts & Kuya Chard,</p>
-<p>Attached here are the High Frequency MER Indicators for EpiC Sites as of Jun 2022. All data utilized was extracted from OHASIS as of 8AM today.</p>
+<p>Attached here are the QR MER Indicators for EpiC Sites as of Jun 2022. All data utilized was extracted from OHASIS as of 8AM today.</p>
 <p>Should you have any questions or clarifications, please don't hesitate to let me know.</p>
 {gmail_sig()}
          )"
       )
    ) %>%
-   gm_attach_file(file.path(epic$xlsx$dir, "EpiC HFR Indicators (2022.05).xlsx")) %>%
-   gm_attach_file(file.path(epic$xlsx$dir, "EpiC HFR Indicators (2022.06).xlsx"))
+   gm_attach_file(file.path(epic$xlsx$dir, "EpiC QR Indicators (2022.Q3).xlsx"))
