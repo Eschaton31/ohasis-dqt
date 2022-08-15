@@ -83,3 +83,4 @@ for (ind in names(epic$linelist)) {
          `Site Region`
       )
 }
+rm(ind, ind_name)
