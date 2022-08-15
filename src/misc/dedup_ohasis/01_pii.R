@@ -1,10 +1,11 @@
-lw_conn       <- ohasis$conn("lw")
-oh_id_schema  <- dbplyr::in_schema("ohasis_warehouse", "id_registry")
-px_pii_schema <- dbplyr::in_schema("ohasis_lake", "px_pii")
+lw_conn <- ohasis$conn("lw")
 
-dedup$id_registry <- tbl(lw_conn, oh_id_schema) %>%
-   select(CENTRAL_ID, PATIENT_ID) %>%
-   collect()
+dedup$id_registry <- dbTable(
+   lw_conn,
+   "ohasis_warehouse",
+   "id_registry",
+   cols = c("CENTRAL_ID", "PATIENT_ID")
+)
 
 reload <- input(
    prompt  = "Do you want to re-download all PIIs?",
@@ -12,23 +13,26 @@ reload <- input(
    default = "1"
 )
 if (reload == "1") {
-   dedup$pii <- tbl(lw_conn, px_pii_schema) %>%
-      select(
-         PATIENT_ID,
-         FIRST,
-         MIDDLE,
-         LAST,
-         UIC,
-         CONFIRMATORY_CODE,
-         PATIENT_CODE,
-         BIRTHDATE,
-         PHILSYS_ID,
-         PHILHEALTH_NO,
-         SEX,
-         DELETED_AT,
-         SNAPSHOT
-      ) %>%
-      collect()
+   dedup$pii <- dbTable(
+      lw_conn,
+      "ohasis_lake",
+      "px_pii",
+      cols = c(
+         "PATIENT_ID",
+         "FIRST",
+         "MIDDLE",
+         "LAST",
+         "UIC",
+         "CONFIRMATORY_CODE",
+         "PATIENT_CODE",
+         "BIRTHDATE",
+         "PHILSYS_ID",
+         "PHILHEALTH_NO",
+         "SEX",
+         "DELETED_AT",
+         "SNAPSHOT"
+      )
+   )
 }
 dbDisconnect(lw_conn)
 
@@ -76,7 +80,7 @@ for (col in cols) {
       distinct(CENTRAL_ID, .keep_all = TRUE)
 }
 
-rm(lw_conn, oh_id_schema, px_pii_schema, col_name, col, cols)
+rm(lw_conn, col_name, col, cols)
 
 dedup$linelist <- bind_rows(dedup$vars) %>%
    pivot_wider(

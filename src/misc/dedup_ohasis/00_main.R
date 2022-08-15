@@ -30,14 +30,15 @@ ohasis$data_factory("warehouse", "id_registry", "upsert", TRUE)
 source("src/misc/dedup_ohasis/01_pii.R")
 
 
-check_dupes <- ohasis_dupes(c(FIRST, MIDDLE, LAST, BIRTHDATE))
+check_dupes <- ohasis_dupes(c(FIRST, LAST, UIC))
 
 # upload
 upload_dupes(check_dupes$registry_up)
 upload_dupes(check_dupes$normal_up)
 
 check_dupes$registry
-check_dupes$normal
+check_dupes$normal_up %>%
+   get_dupes(FINAL_CID)
 # dbxUpsert(
 #    dbConnect(
 #       RMariaDB::MariaDB(),

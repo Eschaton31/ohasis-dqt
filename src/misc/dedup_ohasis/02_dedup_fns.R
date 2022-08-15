@@ -42,40 +42,19 @@ ohasis_dupes <- function(group_ids) {
       mutate(
          reg_tag = harpgrp_tag + notgrp_tag,
       ) %>%
-      arrange(group_id)
+      arrange(group_id, idnum)
 
    Dup.Duplicates.Registry <- Dup.Duplicates %>% filter(reg_tag == 1)
    Dup.Duplicates.Within   <- Dup.Duplicates %>% filter(reg_tag == 2)
    Dup.Duplicates.Normal   <- Dup.Duplicates %>% filter(reg_tag == 0)
 
    Dup.Duplicates.Registry.Final <- data.frame()
-   if (nrow(Dup.Duplicates.Registry) > 0)
+   if (nrow(Dup.Duplicates.Registry) > 0) {
       Dup.Duplicates.Registry.Final <- Dup.Duplicates.Registry %>%
          arrange(group_id, desc(harp_registry)) %>%
          group_by(group_id) %>%
          mutate(
-            FINAL_CID = first(CENTRAL_ID),
-            CID_NUM   = row_number(),
-         ) %>%
-         ungroup() %>%
-         pivot_wider(
-            id_cols     = FINAL_CID,
-            names_from  = CID_NUM,
-            names_glue  = 'CID_{CID_NUM}',
-            values_from = CENTRAL_ID
-         ) %>%
-         select(-CID_1) %>%
-         filter(
-            CID_2 != '',
-         )
-
-   Dup.Duplicates.Normal.Final <- data.frame()
-   if (nrow(Dup.Duplicates.Normal) > 0)
-      Dup.Duplicates.Normal.Final <- Dup.Duplicates.Normal %>%
-         arrange(group_id) %>%
-         group_by(group_id) %>%
-         mutate(
-            FINAL_CID = first(CENTRAL_ID),
+            FINAL_CID = first(na.omit(CENTRAL_ID)),
             CID_NUM   = row_number(),
          ) %>%
          ungroup() %>%
@@ -86,6 +65,48 @@ ohasis_dupes <- function(group_ids) {
             values_from = CENTRAL_ID
          ) %>%
          select(-CID_1)
+
+      Dup.Duplicates.Registry.Final.Conso <- list()
+      for (name in get_names(Dup.Duplicates.Registry.Final, "CID_")) {
+         Dup.Duplicates.Registry.Final.Conso[[name]] <- Dup.Duplicates.Registry.Final %>%
+            select(
+               FINAL_CID,
+               LINK_CID = !!as.symbol(name)
+            ) %>%
+            filter(!is.na(LINK_CID))
+      }
+      Dup.Duplicates.Registry.Final.Conso <- bind_rows(Dup.Duplicates.Registry.Final.Conso)
+   }
+
+   Dup.Duplicates.Normal.Final <- data.frame()
+   if (nrow(Dup.Duplicates.Normal) > 0) {
+      Dup.Duplicates.Normal.Final <- Dup.Duplicates.Normal %>%
+         arrange(group_id) %>%
+         group_by(group_id) %>%
+         mutate(
+            FINAL_CID = first(na.omit(CENTRAL_ID)),
+            CID_NUM   = row_number(),
+         ) %>%
+         ungroup() %>%
+         pivot_wider(
+            id_cols     = FINAL_CID,
+            names_from  = CID_NUM,
+            names_glue  = 'CID_{CID_NUM}',
+            values_from = CENTRAL_ID
+         ) %>%
+         select(-CID_1)
+
+      Dup.Duplicates.Normal.Final.Conso <- list()
+      for (name in get_names(Dup.Duplicates.Normal.Final, "CID_")) {
+         Dup.Duplicates.Normal.Final.Conso[[name]] <- Dup.Duplicates.Normal.Final %>%
+            select(
+               FINAL_CID,
+               LINK_CID = !!as.symbol(name)
+            ) %>%
+            filter(!is.na(LINK_CID))
+      }
+      Dup.Duplicates.Normal.Final.Conso <- bind_rows(Dup.Duplicates.Normal.Final.Conso)
+   }
 
    reg_pairs  <- n_groups(Dup.Duplicates.Registry %>% group_by(across({{group_ids}})))
    norm_pairs <- n_groups(Dup.Duplicates.Normal %>% group_by(across({{group_ids}})))
@@ -116,10 +137,12 @@ ohasis_dupes <- function(group_ids) {
    )
 
    data_list <- list(
-      "registry"    = Dup.Duplicates.Registry,
-      "registry_up" = Dup.Duplicates.Registry.Final,
-      "normal"      = Dup.Duplicates.Normal,
-      "normal_up"   = Dup.Duplicates.Normal.Final,
-      "within"      = Dup.Duplicates.Within
+      "registry"       = Dup.Duplicates.Registry,
+      "registry_pivot" = Dup.Duplicates.Registry.Final,
+      "registry_up"    = Dup.Duplicates.Registry.Final.Conso,
+      "normal"         = Dup.Duplicates.Normal,
+      "normal_pivot"   = Dup.Duplicates.Normal.Final,
+      "normal_up"      = Dup.Duplicates.Normal.Final.Conso,
+      "within"         = Dup.Duplicates.Within
    )
 }
