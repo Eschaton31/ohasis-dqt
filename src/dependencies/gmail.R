@@ -48,8 +48,7 @@ gmail$nhsss$ss    <- c(
 )
 gmail$nhsss$dqt   <- c(
    "mcrendon@doh.gov.ph",
-   "kmasilo@doh.gov.ph",
-   "jnmartinez@doh.gov.ph"
+   "kmasilo@doh.gov.ph"
 )
 gmail$nhsss$dat   <- c(
    "jsmartinez@doh.gov.ph",
