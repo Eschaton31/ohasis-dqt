@@ -30,6 +30,8 @@ local(envir = epic, {
       coverage$prev_yr <- stri_pad_left(year(as.Date(coverage$min) %m-% months(1)), 2, "0")
       coverage$curr_mo <- stri_pad_left(month(as.Date(coverage$max)), 2, "0")
       coverage$curr_yr <- stri_pad_left(year(as.Date(coverage$max)), 2, "0")
+
+      coverage$ym <- paste(sep = ".", coverage$curr_yr, StrLeft(coverage$fy, 2))
    }
 
    if (coverage$type == "HFR") {
@@ -48,6 +50,7 @@ local(envir = epic, {
 
       coverage$prev_mo <- stri_pad_left(month(as.Date(coverage$min) %m-% months(1)), 2, "0")
       coverage$prev_yr <- stri_pad_left(year(as.Date(coverage$min) %m-% months(1)), 2, "0")
+      coverage$ym      <- paste(sep = ".", coverage$curr_yr, coverage$curr_mo)
    }
 })
 
@@ -209,6 +212,7 @@ if (check == "1") {
       .log_info("Getting HARP Dx Dataset.")
       harp$dx <- ohasis$get_data("harp_dx", coverage$curr_yr, coverage$curr_mo) %>%
          read_dta() %>%
+         distinct_all() %>%
          # convert Stata string missing data to NAs
          mutate_if(
             .predicate = is.character,

@@ -12,8 +12,9 @@ epic$final <- bind_rows(epic$flat) %>%
       Age_Band
    )
 
-epic$xlsx$dir      <- glue("H:/Data Sharing/FHI 360/{epic$coverage$type}/{ohasis$ym}")
-epic$xlsx$file     <- glue("EpiC {epic$coverage$type} Indicators ({epic$coverage$curr_yr}.{epic$coverage$curr_mo}).xlsx")
+# epic$xlsx$dir      <- glue("H:/Data Sharing/FHI 360/{epic$coverage$type}/{epic$coverage$ym}")
+epic$xlsx$dir      <- "H:/Data Sharing/FHI 360/QR/2022.Q3"
+epic$xlsx$file     <- glue("EpiC {epic$coverage$type} Indicators ({epic$coverage$ym}).xlsx")
 check_dir(epic$xlsx$dir)
 
 epic$xlsx$wb       <- createWorkbook()
@@ -75,6 +76,7 @@ for (ind in names(epic$linelist)) {
    stata(glue(r"(
 u "{epic$xlsx$dir}/prev/{ind}.dta", clear
 format_compress
-sa "{epic$xlsx$dir}/prev/{ind}.dta.dta", replace
+sa "{epic$xlsx$dir}/prev/{ind}.dta", replace
    )"))
 }
+rm(ind)
