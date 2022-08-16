@@ -27,63 +27,25 @@ DB <- setRefClass(
          callSuper()$set_report()
 
          # check internet speed
-         check_speed <- input(
-            prompt  = "Run the speed test?",
-            options = c("1" = "yes", "2" = "no"),
-            default = "1"
-         )
-         check_speed <- substr(toupper(check_speed), 1, 1)
-         if (check_speed == "1") {
-            .log_info("Checking internet speed.")
-            internet <<- .self$speedtest()
-            .log_info("Current download speed: {underline(red(internet$speed_down_megabits_sec))} Mbps")
-            .log_info("Current upload speed: {underline(red(internet$speed_up_megabits_sec))} Mbps")
-         }
+         # check_speed <- input(
+         #    prompt  = "Run the speed test?",
+         #    options = c("1" = "yes", "2" = "no"),
+         #    default = "1"
+         # )
+         # check_speed <- substr(toupper(check_speed), 1, 1)
+         # if (check_speed == "1") {
+         #    .log_info("Checking internet speed.")
+         #    internet <<- .self$speedtest()
+         #    .log_info("Current download speed: {underline(red(internet$speed_down_megabits_sec))} Mbps")
+         #    .log_info("Current upload speed: {underline(red(internet$speed_up_megabits_sec))} Mbps")
+         # }
 
          # check database consistency
          .log_info("Checking database for inconsistencies.")
          db_checks <<- .self$check_consistency()
-         if (length(db_checks) > 0) {
-            .log_warn("DB inconsistencies found! See {underline(red('db_checks'))} for more info.")
-            if ("duped_rec_id" %in% names(db_checks)) {
-               .log_error("Duplicated Record IDs found.")
-            }
-            if ("flipped_cid" %in% names(db_checks))
-               .log_error("Flipped Central IDs found in OHASIS registry.")
-         } else {
-            .log_info("DB is clean.")
-         }
 
          # update data lake
-         update <- input(
-            prompt  = "Update the data lake?",
-            options = c("1" = "yes", "2" = "no", "3" = "all"),
-            default = "1"
-         )
-         update <- substr(toupper(update), 1, 1)
-         if (update %in% c("1", "3")) {
-            # get required refresh data & upsert only
-            for (update_type in (c("refresh", "upsert"))) {
-               # if all should be updated
-               if (update == "3")
-                  default_yes <- TRUE
-               else
-                  default_yes <- FALSE
-
-               lake_table <- function(table_name) {
-                  table_name <- stri_replace_last_fixed(table_name, ".R", "")
-                  .self$data_factory("lake", table_name, update_type, default_yes)
-               }
-
-               lake_dir <- file.path(getwd(), "src", "data_lake", update_type)
-               lapply(list.files(lake_dir, pattern = "ref_*"), lake_table)
-               lapply(list.files(lake_dir, pattern = "px_*"), lake_table)
-               lapply(list.files(lake_dir, pattern = "lab_*"), lake_table)
-               lapply(list.files(lake_dir, pattern = "disp_*"), lake_table)
-            }
-
-            .log_info("Data lake updated!")
-         }
+         .self$update_lake()
 
          # download latest references before final initialization
          .log_info("Downloading references.")
@@ -150,6 +112,37 @@ DB <- setRefClass(
                timeout  = -1
             )
          return(db_conn)
+      },
+
+      # update lake
+      update_lake       = function() {
+         update <- input(
+            prompt  = "Update the data lake?",
+            options = c("1" = "yes", "2" = "no", "3" = "all"),
+            default = "1"
+         )
+         if (update %in% c("1", "3")) {
+            # get required refresh data & upsert only
+            for (update_type in (c("refresh", "upsert"))) {
+               # if all should be updated
+               if (update == "3")
+                  default_yes <- TRUE
+               else
+                  default_yes <- FALSE
+
+               lake_table <- function(table_name) {
+                  table_name <- stri_replace_last_fixed(table_name, ".R", "")
+                  .self$data_factory("lake", table_name, update_type, default_yes)
+               }
+
+               lake_dir <- file.path(getwd(), "src", "data_lake", update_type)
+               lapply(list.files(lake_dir, pattern = "ref_*"), lake_table)
+               lapply(list.files(lake_dir, pattern = "px_*"), lake_table)
+               lapply(list.files(lake_dir, pattern = "lab_*"), lake_table)
+               lapply(list.files(lake_dir, pattern = "disp_*"), lake_table)
+            }
+            .log_info("Data lake updated!")
+         }
       },
 
       # upsert data
@@ -443,6 +436,17 @@ DB <- setRefClass(
             }
          }
          dbDisconnect(db_conn)
+
+         if (length(checklist) > 0) {
+            .log_warn("DB inconsistencies found! See {underline(red('db_checks'))} for more info.")
+            if ("duped_rec_id" %in% names(checklist)) {
+               .log_error("Duplicated Record IDs found.")
+            }
+            if ("flipped_cid" %in% names(checklist))
+               .log_error("Flipped Central IDs found in OHASIS registry.")
+         } else {
+            .log_info("DB is clean.")
+         }
          return(checklist)
       },
 
