@@ -49,7 +49,7 @@ if (check == "1") {
 
 # check if art starts to be re-processed
 update <- input(
-   prompt  = "Do you want to re-process the ART Start Dates?",
+   prompt  = glue("Do you want to re-process the {green('ART Start & Latest Dates')}?"),
    options = c("1" = "Yes", "2" = "No"),
    default = "1"
 )
@@ -59,57 +59,31 @@ if (update == "1") {
    db_name <- "ohasis_warehouse"
 
    # download the data
-   .log_info("Downloading dataset.")
-   data <- dbGetQuery(
-      lw_conn,
-      read_file(file.path(nhsss$harp_tx$wd, "art_first.sql")),
-      params = as.character(ohasis$next_date)
-   )
+   for (scope in c("art_first", "art_last")) {
+      name <- case_when(
+         scope == "art_first" ~ "ART Start Dates",
+         scope == "art_last" ~ "ART Latest Visits",
+      )
+      .log_info("Processing {green(name)}.")
+      data <- dbGetQuery(
+         lw_conn,
+         read_file(file.path(nhsss$harp_tx$wd, glue("{scope}.sql"))),
+         params = as.character(ohasis$next_date)
+      )
 
-   # update lake
-   .log_info("Clearing old data.")
-   table_space <- Id(schema = "ohasis_warehouse", table = "art_first")
-   if (dbExistsTable(lw_conn, table_space))
-      dbxDelete(lw_conn, table_space, batch_size = 1000)
+      # update lake
+      table_space <- Id(schema = "ohasis_warehouse", table = scope)
+      if (dbExistsTable(lw_conn, table_space))
+         dbxDelete(lw_conn, table_space, batch_size = 1000)
 
-   .log_info("Payload = {red(formatC(nrow(data), big.mark = ','))} rows.")
-   ohasis$upsert(lw_conn, "warehouse", "art_first", data, c("CENTRAL_ID", "REC_ID"))
+      .log_info("Payload = {red(formatC(nrow(data), big.mark = ','))} rows.")
+      ohasis$upsert(lw_conn, "warehouse", scope, data, c("CENTRAL_ID", "REC_ID"))
+   }
    .log_success("Done!")
    dbDisconnect(lw_conn)
-   rm(db_name, lw_conn, data, table_space)
+   rm(db_name, lw_conn, data, table_space, name, scope)
 }
 
-# check if art starts to be re-processed
-update <- input(
-   prompt  = "Do you want to re-process the ART Latest Dates?",
-   options = c("1" = "Yes", "2" = "No"),
-   default = "1"
-)
-# if Yes, re-process
-if (update == "1") {
-   lw_conn <- ohasis$conn("lw")
-   db_name <- "ohasis_warehouse"
-
-   # download the data
-   .log_info("Downloading dataset.")
-   data <- dbGetQuery(
-      lw_conn,
-      read_file(file.path(nhsss$harp_tx$wd, "art_last.sql")),
-      params = as.character(ohasis$next_date)
-   )
-
-   # update lake
-   .log_info("Clearing old data.")
-   table_space <- Id(schema = "ohasis_warehouse", table = "art_last")
-   if (dbExistsTable(lw_conn, table_space))
-      dbxDelete(lw_conn, table_space, batch_size = 1000)
-
-   .log_info("Payload = {red(formatC(nrow(data), big.mark = ','))} rows.")
-   ohasis$upsert(lw_conn, "warehouse", "art_last", data, c("CENTRAL_ID", "REC_ID"))
-   .log_success("Done!")
-   dbDisconnect(lw_conn)
-   rm(db_name, lw_conn, data, table_space)
-}
 ##  Download records -----------------------------------------------------------
 
 update <- input(
