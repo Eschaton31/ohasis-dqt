@@ -130,34 +130,68 @@ check_dir <- function(dir) {
 
 # sheets cleaning per id
 .cleaning_list <- function(data_to_clean = NULL, cleaning_list = NULL, corr_id_name = NULL, corr_id_type = NULL) {
-   data <- data_to_clean
-   for (i in seq_len(nrow(cleaning_list))) {
-
-      # load idnum and name of variable
-      df       <- cleaning_list[i,] %>% as.data.frame()
-      id       <- paste0("df[,'", corr_id_name, "'] %>% as.", corr_id_type, '()')
-      id       <- eval(parse(text = id))
-      eb_id    <- tolower(corr_id_name) %>% as.symbol()
-      variable <- df$VARIABLE %>% as.symbol()
-
-      # evaluate data type of variable
-      if (df$NEW_VALUE == "NULL")
-         value <- paste0('as.', df$FORMAT, '(NA)')
-      else
-         value <- paste0("'", df$NEW_VALUE, "'", ' %>% as.', df$FORMAT, '()')
-
-      value <- eval(parse(text = value))
-
-      # update data
-      data %<>%
+   data    <- data_to_clean
+   # for (i in seq_len(nrow(cleaning_list))) {
+   #
+   #    # load idnum and name of variable
+   #    df       <- cleaning_list[i,] %>% as.data.frame()
+   #    id       <- paste0("df[,'", corr_id_name, "'] %>% as.", corr_id_type, '()')
+   #    id       <- eval(parse(text = id))
+   #    eb_id    <- tolower(corr_id_name) %>% as.symbol()
+   #    variable <- df$VARIABLE %>% as.symbol()
+   #
+   #    # evaluate data type of variable
+   #    if (df$NEW_VALUE == "NULL")
+   #       value <- paste0('as.', df$FORMAT, '(NA)')
+   #    else
+   #       value <- paste0("'", df$NEW_VALUE, "'", ' %>% as.', df$FORMAT, '()')
+   #
+   #    value <- eval(parse(text = value))
+   #
+   #    # update data
+   #    data %<>%
+   #       mutate(
+   #          !!variable := if_else(
+   #             condition = !!eb_id == id,
+   #             true      = value,
+   #             false     = !!variable,
+   #             missing   = !!variable
+   #          )
+   #       )
+   # }
+   eb_id   <- tolower(corr_id_name)
+   id_type <- typeof(data[[eb_id]])
+   id_type <- if_else(id_type == "double", "numeric", id_type)
+   for (var in unique(cleaning_list$VARIABLE)) {
+      var_clean <- cleaning_list %>%
+         filter(VARIABLE == var) %>%
+         rowwise() %>%
          mutate(
-            !!variable := if_else(
-               condition = !!eb_id == id,
-               true      = value,
-               false     = !!variable,
-               missing   = !!variable
-            )
+            {{corr_id_name}} := eval(parse(text = glue("as.{id_type}({corr_id_name})"))),
+            NEW_VALUE        = eval(parse(text = glue("as.{FORMAT}('{NEW_VALUE}')"))),
+         ) %>%
+         ungroup() %>%
+         select(
+            {{eb_id}} := {{corr_id_name}},
+            NEW_VALUE
+         ) %>%
+         mutate(
+            update = 1,
          )
+      data %<>%
+         left_join(
+            y  = var_clean,
+            by = eb_id
+         ) %>%
+         mutate(
+            {{var}} := if_else(
+               condition = update == 1,
+               true      = NEW_VALUE,
+               false     = !!as.symbol(var),
+               missing   = !!as.symbol(var)
+            )
+         ) %>%
+         select(-update, -NEW_VALUE)
    }
    return(data)
 }
