@@ -65,19 +65,25 @@ if (update == "1") {
          scope == "art_last" ~ "ART Latest Visits",
       )
       .log_info("Processing {green(name)}.")
-      data <- dbGetQuery(
-         lw_conn,
-         read_file(file.path(nhsss$harp_tx$wd, glue("{scope}.sql"))),
-         params = as.character(ohasis$next_date)
-      )
-
+      # data <- dbGetQuery(
+      #    lw_conn,
+      #    read_file(file.path(nhsss$harp_tx$wd, glue("{scope}.sql"))),
+      #    params = as.character(ohasis$next_date)
+      # )
+      #
       # update lake
-      table_space <- Id(schema = "ohasis_warehouse", table = scope)
+      table_space <- Id(schema = db_name, table = scope)
       if (dbExistsTable(lw_conn, table_space))
          dbxDelete(lw_conn, table_space, batch_size = 1000)
-
-      .log_info("Payload = {red(formatC(nrow(data), big.mark = ','))} rows.")
-      ohasis$upsert(lw_conn, "warehouse", scope, data, c("CENTRAL_ID", "REC_ID"))
+      #
+      # .log_info("Payload = {red(formatC(nrow(data), big.mark = ','))} rows.")
+      # ohasis$upsert(lw_conn, "warehouse", scope, data, c("CENTRAL_ID", "REC_ID"))
+      dbExecute(
+         lw_conn,
+         glue(r"(INSERT INTO {db_name}.{scope}
+         )", read_file(file.path(nhsss$harp_tx$wd, glue("{scope}.sql")))),
+         params = as.character(ohasis$next_date)
+      )
    }
    .log_success("Done!")
    dbDisconnect(lw_conn)
