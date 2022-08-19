@@ -9,7 +9,6 @@ Team Members:
 - [Palo, John Benedict](https://www.facebook.com/Bene.Palo/) _(Database Specialist)_
 - [Asilo, Kathrina Michaela](https://www.facebook.com/kathrinamichaela/) _(Surveillance Officer)_
 - [Rendon, Maeghan](https://www.facebook.com/megannnss/) _(Surveillance Officer)_
-- [Martinez, Johndel](https://web.facebook.com/jdmartinez17/) _(Health Program Officer II)_
 
 Data:
 
@@ -23,6 +22,7 @@ Project Dependencies
 ### Required
 
 - R
+- [Raidrive](https://www.raidrive.com/download)
 - [git](https://git-scm.com/download/win)
 - [PyCharm Community](https://www.jetbrains.com/pycharm/download/#section=windows)
 - PyCharm plugins:
@@ -41,6 +41,15 @@ Installation Instructions
 6. Pull
 
 [To be added.]
+
+Mount Network Drive
+-----
+
+1. Install Raidrive
+2. In the Raidrive windows, click "Add" in the menu panel
+3. Copy the settings found in the image below
+
+![Raidrive](img/raidrive.png)
 
 Misc.
 -----
