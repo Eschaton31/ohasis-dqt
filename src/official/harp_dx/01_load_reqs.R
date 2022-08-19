@@ -20,10 +20,7 @@ check <- input(
 )
 if (check == "1") {
    .log_info("Downloading corrections list.")
-   local(envir = nhsss$harp_dx, {
-      .log_info("Getting corrections.")
-      nhsss <- gdrive_correct2(nhsss, ohasis$ym, "harp_dx")
-   })
+   nhsss <- gdrive_correct2(nhsss, ohasis$ym, "harp_dx")
 }
 
 # run through all tables
