@@ -1,4 +1,4 @@
-encoded       <- get_encoded("2022.06", "Treatment")
+encoded       <- get_encoded("2022.07", "Treatment")
 encoded$STAFF <- read_sheet("1BRohoSaBE73zwRMXQNcWeRf5rC2OcePS64A67ODfxXI")
 
 encoded$data$enrollees <- encoded$FORMS %>%
@@ -7,9 +7,19 @@ encoded$data$enrollees <- encoded$FORMS %>%
       !is.na(CREATED_TIME),
       nchar(PATIENT_ID) != 18 | is.na(PATIENT_ID)
    ) %>%
+   mutate_at(
+      .vars = vars(starts_with("TX_FACI")),
+      ~if_else(. == "FALSE", NA_character_, ., .)
+   ) %>%
+   unite(
+      starts_with("TX_FACI"),
+      sep   = "",
+      col   = "TX_FACI",
+      na.rm = TRUE
+   ) %>%
    left_join(
       y  = encoded$ref_faci %>%
-         select(-encoder) %>%
+         select(-encoder, -ss, -sheet_row) %>%
          distinct_all(),
       by = c("TX_FACI" = "FACI_CODE")
    )
@@ -20,17 +30,47 @@ for (i in seq_len(nrow(encoded$data$enrollees)))
    encoded$data$enrollees[i, "PATIENT_ID"] <- oh_px_id(db_conn, as.character(encoded$data$enrollees[i, "FACI_ID"]))
 
 dbDisconnect(db_conn)
+
 write_clip(
    encoded$data$enrollees %>%
       select(PAGE_ID, PATIENT_ID, encoder)
 )
 
+# write patient IDs
+encoded$data$enrollees %<>%
+   mutate(
+      row_id = paste0("B", sheet_row + 1)
+   )
+for (i in seq_len(nrow(encoded$data$enrollees)))
+   range_write(
+      encoded$data$enrollees[i,]$ss,
+      encoded$data$enrollees[i, "PATIENT_ID"],
+      "FORMS",
+      encoded$data$enrollees[i,]$row_id,
+      col_names = FALSE
+   )
+
+
 ##  Tables ---------------------------------------------------------------------
 
 encoded$data$records <- encoded$FORMS %>%
    distinct_all() %>%
+   mutate_at(
+      .vars = vars(starts_with("TX_FACI")),
+      ~if_else(. == "FALSE", NA_character_, ., .)
+   ) %>%
+   unite(
+      starts_with("TX_FACI"),
+      sep   = "",
+      col   = "TX_FACI",
+      na.rm = TRUE
+   ) %>%
+   mutate(
+      TX_FACI = if_else(TX_FACI == "", StrLeft(PAGE_ID, 3), TX_FACI, TX_FACI)
+   ) %>%
    filter(
       !is.na(CREATED_TIME),
+      CREATED_TIME != "DUPLICATE",
       nchar(PATIENT_ID) == 18
    ) %>%
    mutate(
@@ -38,7 +78,10 @@ encoded$data$records <- encoded$FORMS %>%
    ) %>%
    left_join(
       y  = ohasis$ref_staff %>%
-         mutate(EMAIL = str_squish(EMAIL)) %>%
+         mutate(
+            EMAIL = str_squish(EMAIL),
+            EMAIL = if_else(EMAIL == "rnrufon.pbsp@gmal.com", "rnrufon.pbsp@gmail.com", EMAIL, EMAIL)
+         ) %>%
          select(
             encoder    = EMAIL,
             CREATED_BY = STAFF_ID
@@ -230,7 +273,7 @@ encoded$sql$wide <- list(
    "px_form"      = c("REC_ID", "FORM")
 )
 
-lapply(names(encoded$sql$wide), function(table) {
+invisible(lapply(names(encoded$sql$wide), function(table) {
    db_conn <- ohasis$conn("db")
    cols    <- colnames(tbl(db_conn, dbplyr::in_schema("ohasis_interim", table)))
 
@@ -242,7 +285,7 @@ lapply(names(encoded$sql$wide), function(table) {
       )
 
    dbDisconnect(db_conn)
-})
+}))
 
 ##  Long tables ----------------------------------------------------------------
 
@@ -628,7 +671,7 @@ encoded$tables$px_medicine <- encoded$data$records %>%
       CREATED_BY,
       PAGE_ID,
       encoder,
-      DISP_DATE = RECORD_DATE,
+      DISP_DATE   = RECORD_DATE,
       FACI_ID     = DISP_FACI,
       SUB_FACI_ID = DISP_SUB_FACI
    ) %>%
