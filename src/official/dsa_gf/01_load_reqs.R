@@ -70,7 +70,7 @@ check <- input(
    default = "2"
 )
 if (check == "1") {
-   .log_info("Downloading EpiC List of sites.")
+   .log_info("Downloading GF-PSFI List of sites.")
    gf$sites <- read_sheet("1y0i8l-HNieOIQ1QGIezVLltwut3y1FxHryvhno9GNb4") %>%
 	  distinct(FACI_ID, .keep_all = TRUE)
 }
@@ -100,7 +100,6 @@ check <- input(
    default = "2"
 )
 if (check == "1") {
-   .log_info("Updating data lake and data warehouse.")
    local(envir = gf, invisible({
 	  lw_conn <- ohasis$conn("lw")
 	  db_conn <- ohasis$conn("db")
