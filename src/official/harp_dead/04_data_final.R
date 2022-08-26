@@ -28,6 +28,7 @@ nhsss$harp_dead$official$new <- nhsss$harp_dead$converted$data %>%
 nhsss$harp_dx$official$new <- ohasis$get_data("harp_dx", ohasis$yr, ohasis$mo) %>%
    read_dta(
       col_select = c(
+         REC_ID,
          PATIENT_ID,
          labcode,
          labcode2,
