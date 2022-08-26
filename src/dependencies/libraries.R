@@ -10,7 +10,7 @@ library(pacman)
 load_packages <- function(...) {
    packages <- as.character(match.call(expand.dots = FALSE)$`...`)
    for (pkg in packages)
-	  suppressMessages(p_install(pkg, force = FALSE, character.only = TRUE, lib = Sys.getenv("R_LIBS")))
+      suppressMessages(p_install(pkg, force = FALSE, character.only = TRUE, lib = Sys.getenv("R_LIBS")))
 
    # p_update(lib.loc = Sys.getenv("R_LIBS"))
    p_load(char = packages, lib.loc = Sys.getenv("R_LIBS"))
@@ -68,11 +68,11 @@ load_packages(
    gender,
    openxlsx,
    ruODK,
-   quarto
+   quarto,
+   kwb.nextcloud
 )
 
 p_load_gh(
-   "KWB-R/kwb.nextcloud",
    "hrbrmstr/speedtest",
    "ropensci/tabulizerjars",
    "ropensci/tabulizer",
@@ -80,3 +80,6 @@ p_load_gh(
    "SymbolixAU/googlePolylines",
    "SymbolixAU/googleway"
 )
+
+if (!require(nhsss))
+   remotes::install_git("http://130.105.75.3:3000/jrpalo.doh/nhsss.git", upgrade = "never")

@@ -89,45 +89,6 @@ check_dir <- function(dir) {
    cat(log, msg, "\n")
 }
 
-# stata univar tab
-.tab <- function(dataframe, ...) {
-   # column <- enquo(column)
-
-   tab_df <- dataframe %>%
-      dplyr::group_by(...) %>%
-      dplyr::summarise(
-         `Freq.` = n()
-      ) %>%
-      ungroup() %>%
-      dplyr::mutate(
-         `Cum. Freq.`   = num(cumsum(`Freq.`), notation = "dec"),
-         Percent        = num(round((`Freq.` / sum(`Freq.`)), 10), notation = "dec", label = "%", digits = 2, scale = 100),
-         `Cum. Percent` = num(round(cumsum(freq = `Freq.` / sum(`Freq.`)), 10), label = "%", digits = 2, scale = 100),
-         `Freq.`        = num(`Freq.`, notation = "dec"),
-      ) %>%
-      dplyr::bind_rows(
-         dataframe %>%
-            dplyr::summarise(
-               `Freq.` = n()
-            ) %>%
-            dplyr::mutate(
-               `Cum. Freq.`   = num(cumsum(`Freq.`), notation = "dec"),
-               Percent        = num(round((`Freq.` / sum(`Freq.`)), 10), notation = "dec", label = "%", digits = 2, scale = 100),
-               `Cum. Percent` = num(round(cumsum(freq = `Freq.` / sum(`Freq.`)), 10), label = "%", digits = 2, scale = 100),
-               `Freq.`        = num(`Freq.`, notation = "dec"),
-            )
-      )
-
-   tab_df %<>%
-      mutate(
-         !!names(.)[1] := as.character(.[[1]])
-      )
-   tab_df[nrow(tab_df), 1] <- "TOTAL"
-
-   tab_df %>%
-      print(n = Inf)
-}
-
 # sheets cleaning per id
 .cleaning_list <- function(data_to_clean = NULL, cleaning_list = NULL, corr_id_name = NULL, corr_id_type = NULL) {
    data    <- data_to_clean

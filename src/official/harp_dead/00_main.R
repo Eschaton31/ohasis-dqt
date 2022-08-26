@@ -1,51 +1,19 @@
-##  HARP Mortality Linkage Controller ------------------------------------------
-
-# update warehouse - Form D / Form BC
-ohasis$data_factory("warehouse", "form_d", "upsert", TRUE)
-
-# update warehouse - OHASIS IDs
-ohasis$data_factory("warehouse", "id_registry", "upsert", TRUE)
+##  HARP Tx Linkage Controller -------------------------------------------------
 
 # define datasets
 if (!exists("nhsss"))
    nhsss <- list()
 
-##  Google Drive Endpoint ------------------------------------------------------
+if (!("harp_dead" %in% names(nhsss)))
+   nhsss$harp_dead <- new.env()
 
-path         <- list()
-path$primary <- "~/DQT/Data Factory/HARP Dead/"
-path$report  <- paste0(path$primary, ohasis$ym, "/")
-
-# create folders if not exists
-drive_folders <- list(
-   c(path$primary, ohasis$ym),
-   c(path$report, "Cleaning"),
-   c(path$report, "Validation")
-)
-invisible(
-   lapply(drive_folders, function(folder) {
-      parent <- folder[1] # parent dir
-      path   <- folder[2] # name of dir to be checked
-
-      # get sub-folders
-      dribble <- drive_ls(parent)
-
-      # create folder if not exists
-      if (nrow(dribble %>% filter(name == path)) == 0)
-         drive_mkdir(paste0(parent, path))
-   })
-)
-
-# get list of files in dir
-nhsss$harp_dead$gdrive$path <- path
-rm(path, drive_folders)
+nhsss$harp_dead$wd <- file.path(getwd(), "src", "official", "harp_dead")
 
 ##  Begin linkage of datasets --------------------------------------------------
 
-source("src/official/harp_dead/01_load_corrections.R")
-source("src/official/harp_dead/02_load_harp.R")
-source("src/official/harp_dead/03_data_initial.R")
-source("src/official/harp_dead/04_data_convert.R")
+source(file.path(nhsss$harp_dead$wd, "01_load_reqs.R"))
+source(file.path(nhsss$harp_dead$wd, "02_data_initial.R"))
+source(file.path(nhsss$harp_dead$wd, "03_data_convert.R"))
 
 ##  PII Deduplication ----------------------------------------------------------
 
@@ -56,12 +24,12 @@ dedup <- input(
    default = "2"
 )
 if (dedup == "1") {
-   source("src/official/harp_dead/05_dedup_new.R")
-   source("src/official/harp_dead/06_dedup_old.R")
+   source(file.path(nhsss$harp_dead$wd, "x1_dedup_new.R"))
+   source(file.path(nhsss$harp_dead$wd, "x2_dedup_old.R"))
 
    # special daduplication
    # NOTE: run data_final first
-   source("src/official/harp_dead/07_dedup_dx.R")
+   source(file.path(nhsss$harp_dead$wd, "x3_dedup_dx.R"))
 }
 rm(dedup)
 
@@ -74,11 +42,11 @@ complete <- input(
    default = "2"
 )
 if (complete == "1") {
-   source("src/official/harp_dead/08_data_final.R")
-   source("src/official/harp_dead/09_output.R")
+   source(file.path(nhsss$harp_dead$wd, "04_data_final.R"))
+   source(file.path(nhsss$harp_dead$wd, "05_output.R"))
 
    # TODO: Place these after pdf & ml conso
-   source("src/official/harp_dead/10_archive.R")
-   source("src/official/harp_dead/11_upload.R")
+   source(file.path(nhsss$harp_dead$wd, "06_archive.R"))
+   source(file.path(nhsss$harp_dead$wd, "07_upload.R"))
 }
 rm(complete)
