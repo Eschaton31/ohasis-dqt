@@ -15,32 +15,38 @@ artcutoff_date <- as.Date(paste(sep = '-', artcutoff_yr, artcutoff_mo, '01'))
 
 # get mortality data
 .log_info("Getting latest mortality dataset.")
-if (!("harp_dead" %in% names(nhsss)))
-   nhsss$harp_dead$official$new <- ohasis$get_data("harp_dead", ohasis$yr, ohasis$mo) %>%
-      read_dta() %>%
-      # convert Stata string missing data to NAs
-      mutate_if(
-         .predicate = is.character,
-         ~if_else(. == '', NA_character_, .)
-      ) %>%
-      select(-starts_with("CENTRAL_ID")) %>%
-      left_join(
-         y  = nhsss$harp_tx$forms$id_registry,
-         by = "PATIENT_ID"
-      ) %>%
-      mutate(
-         CENTRAL_ID       = if_else(
-            condition = is.na(CENTRAL_ID),
-            true      = PATIENT_ID,
-            false     = CENTRAL_ID
-         ),
-         proxy_death_date = as.Date(ceiling_date(as.Date(paste(sep = '-', year, month, '01')), unit = 'month')) - 1,
-         ref_death_date   = if_else(
-            condition = is.na(date_of_death),
-            true      = proxy_death_date,
-            false     = date_of_death
-         )
+nhsss$harp_dead$official$new <- ohasis$get_data("harp_dead", ohasis$yr, ohasis$mo) %>%
+   read_dta(
+      col_select = c(
+         PATIENT_ID,
+         mort_id,
+         date_of_death,
+         year,
+         month
       )
+   ) %>%
+   # convert Stata string missing data to NAs
+   mutate_if(
+      .predicate = is.character,
+      ~if_else(. == '', NA_character_, .)
+   ) %>%
+   left_join(
+      y  = nhsss$harp_tx$forms$id_registry,
+      by = "PATIENT_ID"
+   ) %>%
+   mutate(
+      CENTRAL_ID       = if_else(
+         condition = is.na(CENTRAL_ID),
+         true      = PATIENT_ID,
+         false     = CENTRAL_ID
+      ),
+      proxy_death_date = as.Date(ceiling_date(as.Date(paste(sep = '-', year, month, '01')), unit = 'month')) - 1,
+      ref_death_date   = if_else(
+         condition = is.na(date_of_death),
+         true      = proxy_death_date,
+         false     = date_of_death
+      )
+   )
 
 # updated outcomes
 .log_info("Performing initial conversion.")

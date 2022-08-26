@@ -64,27 +64,41 @@ nhsss$harp_tx$official$new_reg %<>%
 
 .log_info("Matching w/ HARP Dx Registry dataset for `idnum`.")
 .log_info("Getting latest dx registry dataset.")
-if (!("harp_dx" %in% names(nhsss)))
-   nhsss$harp_dx$official$new <- ohasis$get_data("harp_dx", ohasis$yr, ohasis$mo) %>%
-      read_dta() %>%
-      # convert Stata string missing data to NAs
-      mutate_if(
-         .predicate = is.character,
-         ~if_else(. == '', NA_character_, .)
-      ) %>%
-      select(-CENTRAL_ID) %>%
-      left_join(
-         y  = nhsss$harp_tx$forms$id_registry,
-         by = "PATIENT_ID"
-      ) %>%
-      mutate(
-         CENTRAL_ID = if_else(
-            condition = is.na(CENTRAL_ID),
-            true      = PATIENT_ID,
-            false     = CENTRAL_ID
-         ),
-         labcode2   = if_else(is.na(labcode2), labcode, labcode2)
+nhsss$harp_dx$official$new <- ohasis$get_data("harp_dx", ohasis$yr, ohasis$mo) %>%
+   read_dta(
+      col_select = c(
+         PATIENT_ID,
+         labcode,
+         labcode2,
+         idnum,
+         uic,
+         firstname,
+         middle,
+         last,
+         name_suffix,
+         bdate,
+         sex,
+         pxcode,
+         philhealth
       )
+   ) %>%
+   # convert Stata string missing data to NAs
+   mutate_if(
+      .predicate = is.character,
+      ~if_else(. == '', NA_character_, .)
+   ) %>%
+   left_join(
+      y  = nhsss$harp_tx$forms$id_registry,
+      by = "PATIENT_ID"
+   ) %>%
+   mutate(
+      CENTRAL_ID = if_else(
+         condition = is.na(CENTRAL_ID),
+         true      = PATIENT_ID,
+         false     = CENTRAL_ID
+      ),
+      labcode2   = if_else(is.na(labcode2), labcode, labcode2)
+   )
 
 .log_info("Updating data using dx registry information.")
 nhsss$harp_tx$official$new_reg %<>%
