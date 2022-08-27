@@ -218,6 +218,7 @@ if ((object %>% count() %>% collect())$n > 0) {
                LOCATION = VAX_REMARKS,
                DATE     = VAX_DATE,
             ) %>%
+            collect() %>%
             pivot_wider(
                id_cols     = c(REC_ID, DISEASE_VAX),
                names_from  = VAX_NUM,
@@ -265,8 +266,7 @@ if ((object %>% count() %>% collect())$n > 0) {
                      "VAX_HEPB_3RD_LOCATION"
                   )
                )
-            ) %>%
-            collect(),
+            ),
          by = "REC_ID"
       ) %>%
       # tb screening
@@ -553,8 +553,6 @@ if ((object %>% count() %>% collect())$n > 0) {
                by = "REC_ID"
             ) %>%
             collect() %>%
-            arrange(REC_ID, DISP_NUM) %>%
-            group_by(REC_ID, REC_ID_GRP) %>%
             left_join(
                y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "inventory_product")) %>%
                   select(
@@ -564,13 +562,16 @@ if ((object %>% count() %>% collect())$n > 0) {
                   collect(),
                by = "MEDICINE"
             ) %>%
+            arrange(REC_ID, DISP_NUM) %>%
+            group_by(REC_ID, REC_ID_GRP) %>%
             summarise(
-               FACI_DISP        = first(FACI_ID, na.rm = TRUE),
-               SUB_FACI_DISP    = first(SUB_FACI_ID, na.rm = TRUE),
+               FACI_DISP        = first(na.omit(FACI_ID)),
+               SUB_FACI_DISP    = first(na.omit(SUB_FACI_ID)),
                MEDICINE_SUMMARY = paste0(unique(SHORT), collapse = "+"),
-               DISP_DATE        = max(DISP_DATE, na.rm = TRUE),
-               LATEST_NEXT_DATE = max(NEXT_DATE, na.rm = TRUE),
-            ),
+               DISP_DATE        = suppress_warnings(max(DISP_DATE, na.rm = TRUE), "returning [\\-]*Inf"),
+               LATEST_NEXT_DATE = suppress_warnings(max(NEXT_DATE, na.rm = TRUE), "returning [\\-]*Inf"),
+            ) %>%
+            ungroup(),
          by = "REC_ID"
       ) %>%
       # arv disp data
@@ -585,7 +586,8 @@ if ((object %>% count() %>% collect())$n > 0) {
             group_by(REC_ID) %>%
             summarise(
                NUM_OF_DISC = n()
-            ),
+            ) %>%
+            ungroup(),
          by = "REC_ID"
       ) %>%
       mutate(

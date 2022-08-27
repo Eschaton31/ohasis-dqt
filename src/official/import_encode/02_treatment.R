@@ -71,7 +71,7 @@ encoded$data$records <- encoded$FORMS %>%
    filter(
       !is.na(CREATED_TIME),
       CREATED_TIME != "DUPLICATE",
-      nchar(PATIENT_ID) == 18
+      nchar(PATIENT_ID) == 18,
    ) %>%
    mutate(
       encoder = substr(encoder, 9, 2000),
@@ -138,6 +138,9 @@ encoded$data$records <- encoded$FORMS %>%
          CREATED_DATE,
          CREATED_TIME
       ),
+   ) %>%
+   filter(
+      CREATED_DATE > as.Date('2022-08-19')
    ) %>%
    mutate(
       UPDATED_BY         = "1300000000",
