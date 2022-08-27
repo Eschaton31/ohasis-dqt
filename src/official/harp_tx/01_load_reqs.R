@@ -65,19 +65,12 @@ if (update == "1") {
          scope == "art_last" ~ "ART Latest Visits",
       )
       .log_info("Processing {green(name)}.")
-      # data <- dbGetQuery(
-      #    lw_conn,
-      #    read_file(file.path(nhsss$harp_tx$wd, glue("{scope}.sql"))),
-      #    params = as.character(ohasis$next_date)
-      # )
-      #
+
       # update lake
       table_space <- Id(schema = db_name, table = scope)
       if (dbExistsTable(lw_conn, table_space))
          dbxDelete(lw_conn, table_space, batch_size = 1000)
-      #
-      # .log_info("Payload = {red(formatC(nrow(data), big.mark = ','))} rows.")
-      # ohasis$upsert(lw_conn, "warehouse", scope, data, c("CENTRAL_ID", "REC_ID"))
+
       dbExecute(
          lw_conn,
          glue(r"(INSERT INTO {db_name}.{scope}
@@ -87,7 +80,7 @@ if (update == "1") {
    }
    .log_success("Done!")
    dbDisconnect(lw_conn)
-   rm(db_name, lw_conn, data, table_space, name, scope)
+   rm(db_name, lw_conn, table_space, name, scope)
 }
 
 ##  Download records -----------------------------------------------------------
@@ -123,7 +116,51 @@ if (update == "1") {
          "art_first",
          cols = c("CENTRAL_ID", "REC_ID"),
          join = list(
-            "ohasis_warehouse.form_art_bc" = list(by = c("REC_ID" = "REC_ID"), cols = "*")
+            "ohasis_warehouse.form_art_bc" = list(
+               by   = c("REC_ID" = "REC_ID"),
+               cols = c(
+                  "REC_ID",
+                  "CREATED_AT",
+                  "PATIENT_ID",
+                  "FORM_VERSION",
+                  "CONFIRMATORY_CODE",
+                  "UIC",
+                  "PATIENT_CODE",
+                  "PHILHEALTH_NO",
+                  "PHILSYS_ID",
+                  "FIRST",
+                  "MIDDLE",
+                  "LAST",
+                  "SUFFIX",
+                  "BIRTHDATE",
+                  "AGE",
+                  "AGE_MO",
+                  "SEX",
+                  "SELF_IDENT",
+                  "SELF_IDENT_OTHER",
+                  "CURR_PSGC_REG",
+                  "CURR_PSGC_PROV",
+                  "CURR_PSGC_MUNC",
+                  "CURR_ADDR",
+                  "FACI_ID",
+                  "SUB_FACI_ID",
+                  "SERVICE_FACI",
+                  "SERVICE_SUB_FACI",
+                  "FACI_DISP",
+                  "SUB_FACI_DISP",
+                  "CLIENT_TYPE",
+                  "TX_STATUS",
+                  "WHO_CLASS",
+                  "VISIT_TYPE",
+                  "VISIT_DATE",
+                  "DISP_DATE",
+                  "LATEST_NEXT_DATE",
+                  "MEDICINE_SUMMARY",
+                  "IS_PREGNANT",
+                  "CLINIC_NOTES",
+                  "COUNSEL_NOTES"
+               )
+            )
          )
       )
 
@@ -134,7 +171,51 @@ if (update == "1") {
          "art_last",
          cols = c("CENTRAL_ID", "REC_ID"),
          join = list(
-            "ohasis_warehouse.form_art_bc" = list(by = c("REC_ID" = "REC_ID"), cols = "*")
+            "ohasis_warehouse.form_art_bc" = list(
+               by   = c("REC_ID" = "REC_ID"),
+               cols = c(
+                  "REC_ID",
+                  "CREATED_AT",
+                  "PATIENT_ID",
+                  "FORM_VERSION",
+                  "CONFIRMATORY_CODE",
+                  "UIC",
+                  "PATIENT_CODE",
+                  "PHILHEALTH_NO",
+                  "PHILSYS_ID",
+                  "FIRST",
+                  "MIDDLE",
+                  "LAST",
+                  "SUFFIX",
+                  "BIRTHDATE",
+                  "AGE",
+                  "AGE_MO",
+                  "SEX",
+                  "SELF_IDENT",
+                  "SELF_IDENT_OTHER",
+                  "CURR_PSGC_REG",
+                  "CURR_PSGC_PROV",
+                  "CURR_PSGC_MUNC",
+                  "CURR_ADDR",
+                  "FACI_ID",
+                  "SUB_FACI_ID",
+                  "SERVICE_FACI",
+                  "SERVICE_SUB_FACI",
+                  "FACI_DISP",
+                  "SUB_FACI_DISP",
+                  "CLIENT_TYPE",
+                  "TX_STATUS",
+                  "WHO_CLASS",
+                  "VISIT_TYPE",
+                  "VISIT_DATE",
+                  "DISP_DATE",
+                  "LATEST_NEXT_DATE",
+                  "MEDICINE_SUMMARY",
+                  "IS_PREGNANT",
+                  "CLINIC_NOTES",
+                  "COUNSEL_NOTES"
+               )
+            )
          )
       )
 
@@ -143,6 +224,48 @@ if (update == "1") {
          lw_conn,
          "ohasis_warehouse",
          "form_art_bc",
+         cols      = c(
+            "REC_ID",
+            "CREATED_AT",
+            "PATIENT_ID",
+            "FORM_VERSION",
+            "CONFIRMATORY_CODE",
+            "UIC",
+            "PATIENT_CODE",
+            "PHILHEALTH_NO",
+            "PHILSYS_ID",
+            "FIRST",
+            "MIDDLE",
+            "LAST",
+            "SUFFIX",
+            "BIRTHDATE",
+            "AGE",
+            "AGE_MO",
+            "SEX",
+            "SELF_IDENT",
+            "SELF_IDENT_OTHER",
+            "CURR_PSGC_REG",
+            "CURR_PSGC_PROV",
+            "CURR_PSGC_MUNC",
+            "CURR_ADDR",
+            "FACI_ID",
+            "SUB_FACI_ID",
+            "SERVICE_FACI",
+            "SERVICE_SUB_FACI",
+            "FACI_DISP",
+            "SUB_FACI_DISP",
+            "CLIENT_TYPE",
+            "TX_STATUS",
+            "WHO_CLASS",
+            "VISIT_TYPE",
+            "VISIT_DATE",
+            "DISP_DATE",
+            "LATEST_NEXT_DATE",
+            "MEDICINE_SUMMARY",
+            "IS_PREGNANT",
+            "CLINIC_NOTES",
+            "COUNSEL_NOTES"
+         ),
          where     = glue("(VISIT_DATE >= '{min}' AND VISIT_DATE <= '{max}') OR (DATE(CREATED_AT) >= '{min}' AND DATE(CREATED_AT) <= '{max}') OR (DATE(UPDATED_AT) >= '{min}' AND DATE(UPDATED_AT) <= '{max}')"),
          raw_where = TRUE
       )
@@ -161,6 +284,11 @@ if (update == "1") {
          lw_conn,
          "ohasis_lake",
          "lab_cd4",
+         cols      = c(
+            "CD4_DATE",
+            "CD4_RESULT",
+            "PATIENT_ID"
+         ),
          where     = glue("DATE(CD4_DATE) < '{ohasis$next_date}'"),
          raw_where = TRUE,
          join      = list(
