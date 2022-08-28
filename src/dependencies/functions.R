@@ -317,6 +317,7 @@ clear_env <- function(...) {
 
    remove <- setdiff(env, exclude)
    remove <- setdiff(remove, lsf.str(envir = .GlobalEnv))
+   remove <- setdiff(remove, .protected)
    rm(list = remove, envir = .GlobalEnv)
 }
 
