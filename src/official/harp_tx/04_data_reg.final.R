@@ -223,6 +223,17 @@ nhsss$harp_tx$official$new_reg %<>%
          false     = 0,
          missing   = 0
       ),
+      baseline_cd4      = labelled(
+         baseline_cd4,
+         c(
+            "8888_Other"         = 8888,
+            "1_500+ cells/μL"    = 1,
+            "2_350-499 cells/μL" = 2,
+            "3_200-349 cells/μL" = 3,
+            "4_50-199 cells/μL"  = 4,
+            "5_below 50"         = 5
+         )
+      ),
    ) %>%
    distinct(CENTRAL_ID, .keep_all = TRUE)
 
