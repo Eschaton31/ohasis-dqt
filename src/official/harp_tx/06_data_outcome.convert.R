@@ -157,6 +157,7 @@ nhsss$harp_tx$outcome.converted$data <- nhsss$harp_tx$outcome.initial$data %>%
          use_db == 1 & LATEST_NEXT_DATE < artcutoff_date ~ "lost to follow up",
          use_db == 0 & prev_ffup <= ref_death_date ~ "dead",
          use_db == 0 & stri_detect_fixed(prev_outcome, "stopped") ~ prev_outcome,
+         use_db == 0 & stri_detect_fixed(prev_outcome, "overseas") ~ prev_outcome,
          use_db == 0 & prev_pickup >= artcutoff_date ~ "alive on arv",
          use_db == 0 & prev_pickup < artcutoff_date ~ "lost to follow up",
          use_db == 0 ~ prev_outcome
