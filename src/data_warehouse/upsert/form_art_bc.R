@@ -565,8 +565,8 @@ if ((object %>% count() %>% collect())$n > 0) {
             arrange(REC_ID, DISP_NUM) %>%
             group_by(REC_ID, REC_ID_GRP) %>%
             summarise(
-               FACI_DISP        = first(na.omit(FACI_ID)),
-               SUB_FACI_DISP    = first(na.omit(SUB_FACI_ID)),
+               FACI_DISP        = first(FACI_ID),
+               SUB_FACI_DISP    = first(SUB_FACI_ID),
                MEDICINE_SUMMARY = paste0(unique(SHORT), collapse = "+"),
                DISP_DATE        = suppress_warnings(max(DISP_DATE, na.rm = TRUE), "returning [\\-]*Inf"),
                LATEST_NEXT_DATE = suppress_warnings(max(NEXT_DATE, na.rm = TRUE), "returning [\\-]*Inf"),
