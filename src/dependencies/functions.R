@@ -321,19 +321,6 @@ clear_env <- function(...) {
    rm(list = remove, envir = .GlobalEnv)
 }
 
-suppress_warnings <- function(.expr, .f, ...) {
-   eval.parent(substitute(
-      withCallingHandlers(.expr, warning = function(w) {
-         cm   <- conditionMessage(w)
-         cond <-
-            if (is.character(.f)) grepl(.f, cm) else rlang::as_function(.f)(cm, ...)
-         if (cond) {
-            invokeRestart("muffleWarning")
-         }
-      })
-   ))
-}
-
 remove_code <- function(var) {
    if_else(
       condition = !is.na(var) & stri_detect_fixed(var, '_'),

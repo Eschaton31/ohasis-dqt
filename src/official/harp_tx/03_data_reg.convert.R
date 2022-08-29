@@ -310,27 +310,12 @@ if (update == "1") {
    }
 
    # range-median
-   vars <- c(
-      "age_pregnant",
-      "age"
-   )
    .log_info("Checking range-median of data.")
-   nhsss$harp_tx$reg.converted$check$tabstat <- data.frame()
-   for (var in vars) {
-      var <- as.symbol(var)
-      df  <- nhsss$harp_tx$reg.converted$data
-
-      nhsss$harp_tx$reg.converted$check$tabstat <- df %>%
-         summarise(
-            VARIABLE = as.character(var),
-            MIN      = suppress_warnings(min(!!var, na.rm = TRUE), "returning [\\-]*Inf"),
-            MEDIAN   = suppress_warnings(median(!!var, na.rm = TRUE), "returning [\\-]*Inf"),
-            MAX      = suppress_warnings(max(!!var, na.rm = TRUE), "returning [\\-]*Inf"),
-            NAs      = sum(if_else(is.na(!!var), 1, 0, 0))
-         ) %>%
-         mutate_all(~as.character(.)) %>%
-         bind_rows(nhsss$harp_tx$reg.converted$check$tabstat)
-   }
+   nhsss$harp_tx$reg.converted$check$tabstat <- nhsss$harp_tx$reg.converted$data %>%
+      tabstat(
+         age,
+         age_pregnant
+      )
 }
 
 ##  Consolidate issues ---------------------------------------------------------

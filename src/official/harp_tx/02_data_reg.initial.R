@@ -494,32 +494,17 @@ if (update == "1") {
       )
 
    # range-median
-   vars <- c(
-      "encoded_date",
-      "VISIT_DATE",
-      "DISP_DATE",
-      "LATEST_NEXT_DATE",
-      "BIRTHDATE",
-      "AGE",
-      "AGE_MO"
-   )
    .log_info("Checking range-median of data.")
-   nhsss$harp_tx$reg.initial$check$tabstat <- data.frame()
-   for (var in vars) {
-      var <- as.symbol(var)
-      df  <- nhsss$harp_tx$reg.initial$data
-
-      nhsss$harp_tx$reg.initial$check$tabstat <- df %>%
-         summarise(
-            VARIABLE = as.character(var),
-            MIN      = suppress_warnings(min(!!var, na.rm = TRUE), "returning [\\-]*Inf"),
-            MEDIAN   = suppress_warnings(median(!!var, na.rm = TRUE), "returning [\\-]*Inf"),
-            MAX      = suppress_warnings(max(!!var, na.rm = TRUE), "returning [\\-]*Inf"),
-            NAs      = sum(if_else(is.na(!!var), 1, 0, 0))
-         ) %>%
-         mutate_all(~as.character(.)) %>%
-         bind_rows(nhsss$harp_tx$reg.initial$check$tabstat)
-   }
+   nhsss$harp_tx$reg.initial$check$tabstat <- nhsss$harp_tx$reg.initial$data %>%
+      tabstat(
+         encoded_date,
+         VISIT_DATE,
+         DISP_DATE,
+         LATEST_NEXT_DATE,
+         BIRTHDATE,
+         AGE,
+         AGE_MO
+      )
 
    # Remove already tagged data from validation
    exclude <- input(
