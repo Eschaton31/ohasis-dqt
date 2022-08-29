@@ -24,6 +24,16 @@ write_dta(
    path = nhsss$harp_tx$official$file_outcome
 )
 
+.log_info("Uploading datasets to the NHSSS Cloud.")
+kwb.nextcloud::upload_file(
+   nhsss$harp_tx$official$file_reg,
+   "/DQT/library/harp_tx"
+)
+kwb.nextcloud::upload_file(
+   nhsss$harp_tx$official$file_outcome,
+   "/DQT/library/harp_tx"
+)
+
 # write subsets if existing
 for (drop_var in c("dropped_notyet", "dropped_duplicates", "dropped_notart"))
    if (nrow(nhsss$harp_tx$official[[drop_var]]) > 0) {
