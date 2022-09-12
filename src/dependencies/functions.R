@@ -169,7 +169,9 @@ check_dir <- function(dir) {
    issues_list <- names(parent_list)
 
    # create as new if not existing
+   corr_status <- "old"
    if (nrow(drive_file) == 0) {
+      corr_status <- "new"
       drive_rm(paste0("~/", gsheet))
       gs4_create(gsheet, sheets = parent_list)
       drive_mv(drive_get(paste0("~/", gsheet))$id %>% as_id(), drive_path, overwrite = TRUE)
@@ -182,8 +184,10 @@ check_dir <- function(dir) {
    for (issue in issues_list) {
       # add issue
       if (nrow(parent_list[[issue]]) > 0) {
-         sheet_write(parent_list[[issue]], drive_file$id, issue)
-         # range_autofit(drive_file$id, issue)
+         if (corr_status == "old")
+            sheet_write(parent_list[[issue]], drive_file$id, issue)
+         else
+            range_autofit(drive_file$id, issue)
       }
    }
 
