@@ -69,7 +69,8 @@ load_packages(
    openxlsx,
    ruODK,
    quarto,
-   kwb.nextcloud
+   kwb.nextcloud,
+   plumber
 )
 
 p_load_gh(
