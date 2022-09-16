@@ -20,14 +20,14 @@ local(envir = nhsss$harp_linked, {
 
 local(envir = nhsss$harp_linked, {
    data            <- list()
-   data$tx$reg     <- ohasis$get_data("harp_tx-reg", yr, mo) %>%
+   data$tx$reg     <- hs_data("harp_tx", "reg", as.numeric(yr), mo) %>%
       read_dta(col_select = c(art_id, uic, confirmatory_code, px_code)) %>%
       rename(
          uic_art   = uic,
          sacclcode = confirmatory_code
       ) %>%
       zap_missing()
-   data$tx$outcome <- ohasis$get_data("harp_tx-outcome", yr, mo) %>%
+   data$tx$outcome <- hs_data("harp_tx", "outcome", as.numeric(yr), mo) %>%
       read_dta(
          col_select = c(
             art_id,
@@ -58,11 +58,11 @@ local(envir = nhsss$harp_linked, {
          everonart      = 1
       ) %>%
       zap_missing()
-   data$dx         <- ohasis$get_data("harp_dx", yr, mo) %>%
+   data$dx         <- hs_data("harp_dx", "reg", as.numeric(yr), mo) %>%
       read_dta() %>%
       distinct_all() %>%
       zap_missing()
-   data$dead       <- ohasis$get_data("harp_dead", yr, mo) %>%
+   data$dead       <- hs_data("harp_dead", "reg", as.numeric(yr), mo) %>%
       read_dta(
          col_select = c(
             mort_id,
