@@ -79,7 +79,8 @@ nhsss$harp_dx$official$new <- ohasis$get_data("harp_dx", ohasis$yr, ohasis$mo) %
          bdate,
          sex,
          pxcode,
-         philhealth
+         philhealth,
+         confirm_date
       )
    ) %>%
    # convert Stata string missing data to NAs
