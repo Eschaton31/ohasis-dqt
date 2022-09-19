@@ -22,9 +22,9 @@ ei <- encoded$data$records %>%
 
 ei      <- get_ei("2022.07")
 ei      <- bind_rows(
-   read_sheet("1h80b59dy971vDApmd8F7kN8W1d4ha7KmlD1fkECJ8e8", "documentation") %>%
+   read_sheet("1oyje9a2JrW_bVF0HrdYgy3QmhMqY358NxDn17yz8O_8", "documentation") %>%
       mutate(encoder = "jsmanaois.pbsp@gmail.com"),
-   read_sheet("1kSnRgiKSGziaw_eLk3r75quBteB7MTL5AoWEMwFogl4", "documentation") %>%
+   read_sheet("1HMspM0t5woHL8EJ7Bv5M-nflTMWo7P9-ivX90sxXsrU", "documentation") %>%
       mutate(encoder = "tayagallen14.doh@gmail.com")
 )
 encoded <- ei %>%
@@ -151,11 +151,13 @@ import    <- nhsss$harp_dx$pdf_saccl$data %>%
             PATIENT_ID
          ) %>%
          mutate_all(~as.character(.)),
-      by = "LABCODE"
+      by = "LABCODE",
+      na_matches = "never"
    ) %>%
    inner_join(
       y  = match %>% select(LABCODE),
-      by = "LABCODE"
+      by = "LABCODE",
+      na_matches = "never"
    ) %>%
    distinct(LABCODE, .keep_all = TRUE) %>%
    filter(!is.na(REC_ID), nchar(REC_ID) == 25)

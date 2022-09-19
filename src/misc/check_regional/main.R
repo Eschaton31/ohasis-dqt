@@ -1,7 +1,7 @@
 ##  Primary References ---------------------------------------------------------
 
 by_reg           <- list()
-by_reg$mo        <- "05"
+by_reg$mo        <- "07"
 by_reg$yr        <- "2022"
 by_reg$faci_addr <- ohasis$ref_faci_code %>%
    select(
@@ -11,7 +11,7 @@ by_reg$faci_addr <- ohasis$ref_faci_code %>%
       tx_muncity  = FACI_NHSSS_MUNC
    ) %>%
    distinct(hub, .keep_all = TRUE)
-by_reg$all_dx    <- read_dta("H:/_R/library/hiv_full/data/20220707_harp_2022-05_ram_noVL.dta") %>%
+by_reg$all_dx    <- read_dta("H:/_R/library/hiv_full/data/20220913_harp_2022-07_ram_noVL.dta") %>%
    mutate(,
       age           = floor(age),
       cur_age       = floor(cur_age),
@@ -141,7 +141,7 @@ by_reg$all_xx <- read_dta(ohasis$get_data("harp_dead", by_reg$yr, by_reg$mo)) %>
       ),
    )
 
-by_reg$reg_dx <- read_dta("H:/System/HARP/PAHI/Data Sets/2022.05/regional_2022-05.dta") %>%
+by_reg$reg_dx <- read_dta("H:/System/HARP/PAHI/Data Sets/2022.07/regional_2022-07.dta") %>%
    mutate(
       agegrp  = case_when(
          agegrp == 1 ~ '<15',
@@ -160,7 +160,7 @@ by_reg$reg_dx <- read_dta("H:/System/HARP/PAHI/Data Sets/2022.05/regional_2022-0
          TRUE ~ '(no data)'
       ),
    )
-by_reg$reg_tx <- read_dta("H:/System/HARP/PAHI/Data Sets/2022.05/on_art_reg_2022-05.dta") %>%
+by_reg$reg_tx <- read_dta("H:/System/HARP/PAHI/Data Sets/2022.07/on_art_reg_2022-07.dta") %>%
    # left_join(
    #    y  = by_reg$faci_addr %>%
    #       select(hub, oh_txreg = tx_region, oh_txprov = tx_province, oh_txmunc = tx_muncity),
@@ -181,7 +181,7 @@ by_reg$reg_tx <- read_dta("H:/System/HARP/PAHI/Data Sets/2022.05/on_art_reg_2022
       tx_province = tx_prov,
       tx_muncity  = tx_munc,
    )
-by_reg$reg_xx <- read_dta("H:/System/HARP/PAHI/Data Sets/2022.05/mort_reg_2022-05.dta")
+by_reg$reg_xx <- read_dta("H:/System/HARP/PAHI/Data Sets/2022.07/mort_reg_2022-07.dta")
 
 by_reg$data    <- c("dx", "tx", "xx")
 by_reg$regions <- sort(unique(by_reg$all_dx$region))

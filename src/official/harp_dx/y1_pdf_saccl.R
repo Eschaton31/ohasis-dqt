@@ -460,7 +460,7 @@ if ("pdf_results" %in% names(nhsss$harp_dx$corr))
 if (nrow(pdf_for_ul)) {
    plan(multisession)
    invisible(
-      future_map_chr(seq_len(nrow(confirm_df)), function(i) {
+      lapply(seq_len(nrow(confirm_df)), function(i) {
          file_old <- confirm_df[i, "FILENAME"] %>% as.character()
          file_new <- confirm_df[i, "LABCODE"] %>% as.character()
 
