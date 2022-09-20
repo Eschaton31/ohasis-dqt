@@ -18,11 +18,20 @@ Project <- setRefClass(
    ),
    methods = list(
       # set the current reporting period
-      set_report   = function() {
+      set_report   = function(ref_yr = NULL, ref_mo = NULL, title = NULL) {
          # reporting date
-         mo   <<- input(prompt = "What is the reporting month?", max.char = 2)
-         mo   <<- mo %>% stri_pad_left(width = 2, pad = "0")
-         yr   <<- input(prompt = "What is the reporting year?", max.char = 4)
+         if (is.null(ref_mo)) {
+            mo <<- input(prompt = "What is the reporting month?", max.char = 2)
+         } else {
+            mo <<- ref_mo
+         }
+         mo <<- mo %>% stri_pad_left(width = 2, pad = "0")
+
+         if (is.null(ref_yr)) {
+            yr <<- input(prompt = "What is the reporting year?", max.char = 4)
+         } else {
+            yr <<- ref_yr
+         }
          yr   <<- yr %>% stri_pad_left(width = 4, pad = "0")
          ym   <<- paste0(yr, ".", mo)
          date <<- as.Date(paste(sep = "-", yr, mo, "01"))
@@ -40,8 +49,11 @@ Project <- setRefClass(
          next_date <<- as.Date(paste(sep = "-", next_yr, next_mo, "01"))
 
          # label the current run
-         run_title <<- input(prompt = "Label the current run (brief, concise)")
-
+         if (is.null(title)) {
+            run_title <<- input(prompt = "Label the current run (brief, concise)")
+         } else {
+            run_title <<- title
+         }
          .log_success("Project parameters defined!")
       },
 
