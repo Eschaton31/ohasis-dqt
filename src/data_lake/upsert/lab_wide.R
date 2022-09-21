@@ -16,7 +16,8 @@ object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_record")) %>%
       DELETED_AT
    ) %>%
    inner_join(
-      y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_labs")) %>% select(REC_ID),
+      y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_labs")) %>%
+         distinct(REC_ID),
       by = "REC_ID"
    )
 
