@@ -147,7 +147,7 @@ DB <- setRefClass(
 
       # upsert data
       upsert            = function(db_conn = NULL, db_type = NULL, table_name = NULL, data = NULL, id_col = NULL) {
-         if (db_type %in% c("warehouse", "lake"))
+         if (db_type %in% c("warehouse", "lake", "api"))
             db_name <- paste0("ohasis_", db_type)
          else
             db_name <- db_type
