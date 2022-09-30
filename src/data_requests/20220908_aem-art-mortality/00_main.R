@@ -25,6 +25,11 @@ local(envir = dr$aem20220908, {
                c(
                   'idnum',
                   'outcome',
+                  'confirmatory_code',
+                  'sacclccode',
+                  'sacclcode',
+                  'saccl_code',
+                  'saccl',
                   'artstart_date',
                   'latest_ffupdate',
                   'latest_nextpickup',
@@ -174,5 +179,15 @@ local(envir = dr$aem20220908, {
          `2019` = sum(if_else(ltfu_new == 1 & year == 2019, 1, 0, 0)),
          `2020` = sum(if_else(ltfu_new == 1 & year == 2020, 1, 0, 0)),
          `2021` = sum(if_else(ltfu_new == 1 & year == 2021, 1, 0, 0)),
+      )
+
+   tab(harp$tx$`2015`, outcome)
+   flat$ltfu2015dead2022 <- harp$tx$`2021` %>%
+      filter(outcome == "dead") %>%
+      inner_join(
+         y  = harp$tx$`2015` %>%
+            filter(stri_detect_fixed(outcome, "lost to ")) %>%
+            select(sacclcode = saccl_code),
+         by = 'sacclcode'
       )
 })
