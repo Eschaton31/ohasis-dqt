@@ -237,7 +237,7 @@ dedup_dx <- nhsss$harp_dx$official$new %>%
       # standardize PII
       LAST              = stri_trans_toupper(last),
       MIDDLE            = stri_trans_toupper(middle),
-      FIRST             = stri_trans_toupper(first),
+      FIRST             = stri_trans_toupper(firstname),
       SUFFIX            = stri_trans_toupper(name_suffix),
       UIC               = stri_trans_toupper(uic),
       CONFIRMATORY_CODE = stri_trans_toupper(labcode),

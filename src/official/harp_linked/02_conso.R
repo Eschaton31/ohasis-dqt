@@ -68,7 +68,7 @@ local(envir = nhsss$harp_linked, {
    }
 })
 
-write_dta(nhsss$harp_linked$data$final, nhsss$harp_linked$file)
+write_dta(format_stata(nhsss$harp_linked$data$final), nhsss$harp_linked$file)
 
 date_vars <- names(nhsss$harp_linked$data$final %>% select_if(.predicate = is.Date))
 date_vars <- paste(collapse = " ", date_vars)

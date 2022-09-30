@@ -16,7 +16,7 @@ DB <- setRefClass(
       ref_staff     = "data.frame"
    ),
    methods  = list(
-      initialize        = function(mo = NULL, yr = NULL, title = NULL) {
+      initialize        = function(ref_yr = NULL, ref_mo = NULL, title = NULL) {
          "This method is called when you create an instance of this class."
 
          # get current time
@@ -24,7 +24,7 @@ DB <- setRefClass(
          output_title <<- paste0(timestamp, "-", Sys.getenv("LW_USER"))
 
          # set the report
-         callSuper()$set_report()
+         callSuper()$set_report(ref_yr, ref_mo, title)
 
          # check internet speed
          # check_speed <- input(
@@ -147,7 +147,7 @@ DB <- setRefClass(
 
       # upsert data
       upsert            = function(db_conn = NULL, db_type = NULL, table_name = NULL, data = NULL, id_col = NULL) {
-         if (db_type %in% c("warehouse", "lake"))
+         if (db_type %in% c("warehouse", "lake", "api"))
             db_name <- paste0("ohasis_", db_type)
          else
             db_name <- db_type

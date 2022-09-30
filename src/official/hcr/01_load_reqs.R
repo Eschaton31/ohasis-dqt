@@ -53,5 +53,9 @@ check <- input(
    default = "2"
 )
 if (check == "1") {
-   nhsss$hcr$pdf <-list_files("/Form%20A", pattern = "*.pdf", recursive = TRUE, full_info = TRUE)
+   .log_info("Getting list of files (limited).")
+   nhsss$hcr$pdf_ls <- dir_ls("N:/Form A/", recurse = TRUE)
+   .log_info("Getting list of files (full).")
+   nhsss$hcr$pdf_info <- dir_info("N:/Form A/", recurse = TRUE)
+   .log_success("Done!")
 }

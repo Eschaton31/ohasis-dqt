@@ -25,16 +25,21 @@ for_delete_1 <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
    select(REC_ID) %>%
    collect()
 
-for_delete_2 <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
-   inner_join(
-      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_a")) %>%
-         select(REC_ID),
-      by = "REC_ID"
-   ) %>%
-   filter(FORM_VERSION != "Form A (v2017)") %>%
-   select(REC_ID) %>%
-   collect()
+for_delete_2 <- data.frame()
+if (dbExistsTable(lw_conn, Id(schema = "ohasis_warehouse", table = "form_a"))) {
+   for_delete_2 <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
+      inner_join(
+         y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_a")) %>%
+            select(REC_ID),
+         by = "REC_ID"
+      ) %>%
+      filter(FORM_VERSION != "Form A (v2017)") %>%
+      select(REC_ID) %>%
+      collect()
+}
 
+for_delete_3<- data.frame()
+if (dbExistsTable(lw_conn, Id(schema = "ohasis_warehouse", table = "form_a"))) {
 for_delete_3 <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
    filter(
       !is.na(DELETED_BY)
@@ -46,6 +51,7 @@ for_delete_3 <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
    ) %>%
    select(REC_ID) %>%
    collect()
+}
 
 for_delete <- bind_rows(for_delete_1, for_delete_2, for_delete_3)
 

@@ -164,29 +164,30 @@ check_dir <- function(dir) {
    empty_sheets <- ""
    gsheet       <- paste0(data_name, "_", format(Sys.time(), "%Y.%m.%d"))
    drive_file   <- drive_get(paste0(drive_path, gsheet))
-   drive_link   <- paste0("https://docs.google.com/spreadsheets/d/", drive_file$id, "/|GSheets Link: ", gsheet)
-   slack_msg    <- glue(">*{surv_name}*\n>Conso validation sheets for `{data_name}` have been updated by <@{slack_by}>.\n><{drive_link}>")
 
    # list of validations
    issues_list <- names(parent_list)
 
    # create as new if not existing
+   corr_status <- "old"
    if (nrow(drive_file) == 0) {
+      corr_status <- "new"
       drive_rm(paste0("~/", gsheet))
       gs4_create(gsheet, sheets = parent_list)
       drive_mv(drive_get(paste0("~/", gsheet))$id %>% as_id(), drive_path, overwrite = TRUE)
+   }
 
-      # acquire sheet_id
-      drive_file <- drive_get(paste0(drive_path, gsheet))
-      drive_link <- paste0("https://docs.google.com/spreadsheets/d/", drive_file$id, "/|GSheets Link: ", gsheet)
-      slack_msg  <- glue(">*{surv_name}*\n>Conso validation sheets for `{data_name}` have been updated by <@{slack_by}>.\n><{drive_link}>")
-   } else {
-      for (issue in issues_list) {
-         # add issue
-         if (nrow(parent_list[[issue]]) > 0) {
+   # acquire sheet_id
+   drive_file <- drive_get(paste0(drive_path, gsheet))
+   drive_link <- paste0("https://docs.google.com/spreadsheets/d/", drive_file$id, "/|GSheets Link: ", gsheet)
+   slack_msg  <- glue(">*{surv_name}*\n>Conso validation sheets for `{data_name}` have been updated by <@{slack_by}>.\n><{drive_link}>")
+   for (issue in issues_list) {
+      # add issue
+      if (nrow(parent_list[[issue]]) > 0) {
+         if (corr_status == "old")
             sheet_write(parent_list[[issue]], drive_file$id, issue)
+         else
             range_autofit(drive_file$id, issue)
-         }
       }
    }
 
@@ -194,6 +195,9 @@ check_dir <- function(dir) {
    .log_info("Deleting empty sheets.")
    for (issue in issues_list)
       if (nrow(parent_list[[issue]]) == 0 & issue %in% sheet_names(drive_file$id))
+         empty_sheets <- append(empty_sheets, issue)
+   for (issue in sheet_names(drive_file$id))
+      if (!(issue %in% issues_list))
          empty_sheets <- append(empty_sheets, issue)
 
    # delete if existing sheet no longer has values in new run

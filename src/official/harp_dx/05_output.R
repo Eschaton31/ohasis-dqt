@@ -14,7 +14,7 @@ check_dir(output_dir)
 # write main file
 .log_info("Saving in Stata data format.")
 write_dta(
-   data = nhsss$harp_dx$official$new,
+   data = nhsss$harp_dx$official$new %>% select(-contains(".")),
    path = nhsss$harp_dx$official$new_file
 )
 

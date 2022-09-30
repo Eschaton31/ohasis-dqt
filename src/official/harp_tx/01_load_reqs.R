@@ -153,10 +153,12 @@ if (update == "1") {
                   "WHO_CLASS",
                   "VISIT_TYPE",
                   "VISIT_DATE",
+                  "RECORD_DATE",
                   "DISP_DATE",
                   "LATEST_NEXT_DATE",
                   "MEDICINE_SUMMARY",
                   "IS_PREGNANT",
+                  "NUM_OF_DRUGS",
                   "CLINIC_NOTES",
                   "COUNSEL_NOTES"
                )
@@ -208,10 +210,12 @@ if (update == "1") {
                   "WHO_CLASS",
                   "VISIT_TYPE",
                   "VISIT_DATE",
+                  "RECORD_DATE",
                   "DISP_DATE",
                   "LATEST_NEXT_DATE",
                   "MEDICINE_SUMMARY",
                   "IS_PREGNANT",
+                  "NUM_OF_DRUGS",
                   "CLINIC_NOTES",
                   "COUNSEL_NOTES"
                )
@@ -259,10 +263,12 @@ if (update == "1") {
             "WHO_CLASS",
             "VISIT_TYPE",
             "VISIT_DATE",
+            "RECORD_DATE",
             "DISP_DATE",
             "LATEST_NEXT_DATE",
             "MEDICINE_SUMMARY",
             "IS_PREGNANT",
+            "NUM_OF_DRUGS",
             "CLINIC_NOTES",
             "COUNSEL_NOTES"
          ),

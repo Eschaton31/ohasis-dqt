@@ -53,7 +53,7 @@ local(envir = dr$icap, {
             0,
             0
          ),
-         ltfu          = if_else(is.na(onart) & outcome != "dead", 1, 0, 0),
+         ltfu          = if_else((is.na(onart) | onart == 0) & outcome != "dead", 1, 0, 0),
          vl_elig       = if_else(
             condition = (interval(artstart_date, as.Date("2022-06-30")) / months(1)) >= 6,
             true      = 1,
@@ -104,7 +104,7 @@ local(envir = dr$icap, {
             0,
             0
          ),
-         ltfu          = if_else(is.na(onart) & outcome != "dead", 1, 0, 0),
+         ltfu          = if_else((is.na(onart) | onart == 0) & outcome != "dead", 1, 0, 0),
          vl_elig       = if_else(
             condition = (interval(artstart_date, as.Date("2021-12-31")) / months(1)) >= 6,
             true      = 1,
@@ -155,7 +155,7 @@ local(envir = dr$icap, {
             0,
             0
          ),
-         ltfu          = if_else(is.na(onart) & outcome != "dead", 1, 0, 0),
+         ltfu          = if_else((is.na(onart) | onart == 0) & outcome != "dead", 1, 0, 0),
          vl_elig       = if_else(
             condition = (interval(artstart_date, as.Date("2020-12-31")) / months(1)) >= 6,
             true      = 1,
@@ -206,7 +206,7 @@ local(envir = dr$icap, {
             0,
             0
          ),
-         ltfu          = if_else(is.na(onart) & outcome != "dead", 1, 0, 0),
+         ltfu          = if_else((is.na(onart) | onart == 0) & outcome != "dead", 1, 0, 0),
          vl_elig       = if_else(
             condition = (interval(artstart_date, as.Date("2019-12-31")) / months(1)) >= 6,
             true      = 1,
@@ -228,7 +228,7 @@ local(envir = dr$icap, {
       )
 })
 
-dr$icap$ss <- "1hmsZyY5gg5ORzjcXD6uhbNvsCbg7_UyxSWGf6K2w3xE"
+dr$icap$ss    <- "1hmsZyY5gg5ORzjcXD6uhbNvsCbg7_UyxSWGf6K2w3xE"
 dr$icap$r6$dx <- dr$icap$harp$dx %>%
    filter(dx_region == "6", year >= 2019) %>%
    mutate(dx = 1) %>%
@@ -288,79 +288,127 @@ dr$icap$r7$dx <- dr$icap$harp$dx %>%
          )
    )
 
+dr$icap$r6$crcl <- dr$icap$harp$dx %>%
+   filter(dx_region == "6", year >= 2019) %>%
+   mutate(dx = 1) %>%
+   group_by(dx_province, year, confirmlab) %>%
+   summarise(
+      Total = sum(dx),
+   )
+
+dr$icap$r7$crcl <- dr$icap$harp$dx %>%
+   filter(dx_region == "7", year >= 2019) %>%
+   mutate(dx = 1) %>%
+   group_by(dx_province, year, confirmlab, MOT) %>%
+   summarise(
+      Total = sum(dx),
+   )
+
 
 dr$icap$r6$dx_enroll <- dr$icap$harp$dx %>%
    filter(dx_region == "6", year >= 2019, everonart == 1) %>%
    mutate(
-      dx  = 1,
-      tat = interval(confirm_date, artstart_date) / days(1)
+      dx          = 1,
+      tat_test    = case_when(
+         !is.na(specimen_receipt_date) ~ interval(specimen_receipt_date, artstart_date) / days(1),
+         is.na(specimen_receipt_date) ~ interval(visit_date, artstart_date) / days(1),
+      ),
+      tat_confirm = interval(confirm_date, artstart_date) / days(1)
    ) %>%
    group_by(dx_province, year) %>%
    summarise(
       `Started on ART` = sum(dx),
-      min              = min(tat),
-      max              = max(tat),
-      p50              = median(tat),
+      test_min         = min(tat_test),
+      test_max         = max(tat_test),
+      test_p50         = median(tat_test),
+      confirm_min      = min(tat_confirm),
+      confirm_max      = max(tat_confirm),
+      confirm_p50      = median(tat_confirm),
    ) %>%
    ungroup() %>%
    mutate(
-      `Confirmatory to Enrollment in days = min to max (median)` = glue("{min} to {max} ({p50})")
+      `HIV Testing to Enrollment in days = min to max (median)`  = glue("{test_min} to {test_max} ({test_p50})"),
+      `Confirmatory to Enrollment in days = min to max (median)` = glue("{confirm_min} to {confirm_max} ({confirm_p50})"),
    ) %>%
    bind_rows(
       dr$icap$harp$dx %>%
          filter(dx_region == "6", year >= 2019, everonart == 1) %>%
          mutate(
-            dx  = 1,
-            tat = interval(confirm_date, artstart_date) / days(1)
+            dx          = 1,
+            tat_test    = case_when(
+               !is.na(specimen_receipt_date) ~ interval(specimen_receipt_date, artstart_date) / days(1),
+               is.na(specimen_receipt_date) ~ interval(visit_date, artstart_date) / days(1),
+            ),
+            tat_confirm = interval(confirm_date, artstart_date) / days(1)
          ) %>%
          group_by(year) %>%
          summarise(
             `Started on ART` = sum(dx),
-            min              = min(tat),
-            max              = max(tat),
-            p50              = median(tat),
+            test_min         = min(tat_test),
+            test_max         = max(tat_test),
+            test_p50         = median(tat_test),
+            confirm_min      = min(tat_confirm),
+            confirm_max      = max(tat_confirm),
+            confirm_p50      = median(tat_confirm),
          ) %>%
          ungroup() %>%
          mutate(
             dx_province                                                = "Region 6",
-            `Confirmatory to Enrollment in days = min to max (median)` = glue("{min} to {max} ({p50})")
+            `HIV Testing to Enrollment in days = min to max (median)`  = glue("{test_min} to {test_max} ({test_p50})"),
+            `Confirmatory to Enrollment in days = min to max (median)` = glue("{confirm_min} to {confirm_max} ({confirm_p50})"),
          )
    )
 dr$icap$r7$dx_enroll <- dr$icap$harp$dx %>%
    filter(dx_region == "7", year >= 2019, everonart == 1) %>%
    mutate(
-      dx  = 1,
-      tat = interval(confirm_date, artstart_date) / days(1)
+      dx          = 1,
+      tat_test    = case_when(
+         !is.na(specimen_receipt_date) ~ interval(specimen_receipt_date, artstart_date) / days(1),
+         is.na(specimen_receipt_date) ~ interval(visit_date, artstart_date) / days(1),
+      ),
+      tat_confirm = interval(confirm_date, artstart_date) / days(1)
    ) %>%
    group_by(dx_province, year, MOT) %>%
    summarise(
       `Started on ART` = sum(dx),
-      min              = min(tat),
-      max              = max(tat),
-      p50              = median(tat),
+      test_min         = min(tat_test),
+      test_max         = max(tat_test),
+      test_p50         = median(tat_test),
+      confirm_min      = min(tat_confirm),
+      confirm_max      = max(tat_confirm),
+      confirm_p50      = median(tat_confirm),
    ) %>%
    ungroup() %>%
    mutate(
-      `Confirmatory to Enrollment in days = min to max (median)` = glue("{min} to {max} ({p50})")
+      `HIV Testing to Enrollment in days = min to max (median)`  = glue("{test_min} to {test_max} ({test_p50})"),
+      `Confirmatory to Enrollment in days = min to max (median)` = glue("{confirm_min} to {confirm_max} ({confirm_p50})"),
    ) %>%
    bind_rows(
       dr$icap$harp$dx %>%
          filter(dx_region == "7", year >= 2019, everonart == 1) %>%
          mutate(
-            dx  = 1,
-            tat = interval(confirm_date, artstart_date) / days(1)
+            dx          = 1,
+            tat_test    = case_when(
+               !is.na(specimen_receipt_date) ~ interval(specimen_receipt_date, artstart_date) / days(1),
+               is.na(specimen_receipt_date) ~ interval(visit_date, artstart_date) / days(1),
+            ),
+            tat_confirm = interval(confirm_date, artstart_date) / days(1)
          ) %>%
          group_by(year, MOT) %>%
          summarise(
             `Started on ART` = sum(dx),
-            min              = min(tat),
-            max              = max(tat),
-            p50              = median(tat),
+            test_min         = min(tat_test),
+            test_max         = max(tat_test),
+            test_p50         = median(tat_test),
+            confirm_min      = min(tat_confirm),
+            confirm_max      = max(tat_confirm),
+            confirm_p50      = median(tat_confirm),
          ) %>%
          ungroup() %>%
          mutate(
-            dx_province                                                = "Region 7",
-            `Confirmatory to Enrollment in days = min to max (median)` = glue("{min} to {max} ({p50})")
+            dx_province                                                = "Region 6",
+            `HIV Testing to Enrollment in days = min to max (median)`  = glue("{test_min} to {test_max} ({test_p50})"),
+            `Confirmatory to Enrollment in days = min to max (median)` = glue("{confirm_min} to {confirm_max} ({confirm_p50})"),
          )
    )
 
@@ -412,7 +460,7 @@ dr$icap$r6$tx <- bind_rows(
       ) %>%
       mutate(harpyr = 2021),
    dr$icap$harp$tx2022 %>%
-      filter(tx_reg == "6") %>%
+      filter(real_reg == "6") %>%
       select(
          tx_faci,
          tx_reg  = real_reg,
@@ -432,7 +480,7 @@ dr$icap$r6$tx <- bind_rows(
       `Total`         = n(),
       `Alive on ART`  = sum(if_else(onart == 1, 1, 0, 0)),
       `On TLD`        = sum(if_else(onart == 1 & tld == 1, 1, 0, 0)),
-      `LTFU`          = sum(if_else(onart == 1 & ltfu == 1, 1, 0, 0)),
+      `LTFU`          = sum(if_else(ltfu == 1, 1, 0, 0)),
       `VL Eligible`   = sum(if_else(onart == 1 & vl_elig == 1, 1, 0, 0)),
       `VL Tested`     = sum(if_else(onart == 1 & vl_elig == 1 & vl_tested == 1, 1, 0, 0)),
       `VL Suppressed` = sum(if_else(onart == 1 &
@@ -493,7 +541,7 @@ dr$icap$r7$tx <- bind_rows(
       ) %>%
       mutate(harpyr = 2021),
    dr$icap$harp$tx2022 %>%
-      filter(tx_reg == "7") %>%
+      filter(real_reg == "7") %>%
       select(
          tx_faci,
          tx_reg  = real_reg,
@@ -513,7 +561,7 @@ dr$icap$r7$tx <- bind_rows(
       `Total`         = n(),
       `Alive on ART`  = sum(if_else(onart == 1, 1, 0, 0)),
       `On TLD`        = sum(if_else(onart == 1 & tld == 1, 1, 0, 0)),
-      `LTFU`          = sum(if_else(onart == 1 & ltfu == 1, 1, 0, 0)),
+      `LTFU`          = sum(if_else(ltfu == 1, 1, 0, 0)),
       `VL Eligible`   = sum(if_else(onart == 1 & vl_elig == 1, 1, 0, 0)),
       `VL Tested`     = sum(if_else(onart == 1 & vl_elig == 1 & vl_tested == 1, 1, 0, 0)),
       `VL Suppressed` = sum(if_else(onart == 1 &
@@ -530,5 +578,7 @@ write_sheet(dr$icap$r6$dx, dr$icap$ss, "Diagnosis (R6)")
 write_sheet(dr$icap$r7$dx, dr$icap$ss, "Diagnosis (R7)")
 write_sheet(dr$icap$r6$dx_enroll, dr$icap$ss, "TAT (R6)")
 write_sheet(dr$icap$r7$dx_enroll, dr$icap$ss, "TAT (R7)")
+write_sheet(dr$icap$r6$crcl, dr$icap$ss, "CrCL (R6)")
+write_sheet(dr$icap$r7$crcl, dr$icap$ss, "CrCL (R7)")
 write_sheet(dr$icap$r6$tx, dr$icap$ss, "Treatment (R6)")
 write_sheet(dr$icap$r7$tx, dr$icap$ss, "Treatment (R7)")

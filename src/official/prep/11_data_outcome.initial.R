@@ -294,6 +294,8 @@ if (update == "1") {
    # non-negotiable variables
    vars <- c(
       "PREP_FACI_CODE",
+      "PREP_TYPE",
+      "PREP_PLAN",
       "MEDICINE_SUMMARY"
    )
    .log_info("Checking if non-negotiable variables are missing.")
@@ -371,27 +373,27 @@ if (update == "1") {
          MEDICINE_SUMMARY,
       )
 
-   .log_info("Checking for males tagged as pregnant.")
-   nhsss$prep$outcome.initial$check[["pregnant_m"]] <- nhsss$prep$outcome.initial$data %>%
-      filter(
-         StrLeft(IS_PREGNANT, 1) == '1',
-         StrLeft(sex, 1) == 'M'
-      ) %>%
-      select(
-         any_of(view_vars),
-         IS_PREGNANT,
-      )
+   # .log_info("Checking for males tagged as pregnant.")
+   # nhsss$prep$outcome.initial$check[["pregnant_m"]] <- nhsss$prep$outcome.initial$data %>%
+   #    filter(
+   #       StrLeft(IS_PREGNANT, 1) == '1',
+   #       StrLeft(sex, 1) == 'M'
+   #    ) %>%
+   #    select(
+   #       any_of(view_vars),
+   #       IS_PREGNANT,
+   #    )
 
    .log_info("Checking for pregnant females.")
-   nhsss$prep$outcome.initial$check[["pregnant_f"]] <- nhsss$prep$outcome.initial$data %>%
-      filter(
-         StrLeft(IS_PREGNANT, 1) == '1',
-         StrLeft(sex, 1) == 'F'
-      ) %>%
-      select(
-         any_of(view_vars),
-         IS_PREGNANT,
-      )
+   # nhsss$prep$outcome.initial$check[["pregnant_f"]] <- nhsss$prep$outcome.initial$data %>%
+   #    filter(
+   #       StrLeft(IS_PREGNANT, 1) == '1',
+   #       StrLeft(sex, 1) == 'F'
+   #    ) %>%
+   #    select(
+   #       any_of(view_vars),
+   #       IS_PREGNANT,
+   #    )
 
    .log_info("Checking calculated age vs computed age.")
    nhsss$prep$outcome.initial$check[["mismatch_age"]] <- nhsss$prep$outcome.initial$data %>%
