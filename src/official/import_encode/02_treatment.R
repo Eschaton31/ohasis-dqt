@@ -1,4 +1,4 @@
-encoded       <- get_encoded("2022.07", "Treatment")
+encoded       <- get_encoded("2022.08", "Treatment")
 encoded$STAFF <- read_sheet("1BRohoSaBE73zwRMXQNcWeRf5rC2OcePS64A67ODfxXI")
 
 encoded$data$enrollees <- encoded$FORMS %>%
@@ -41,6 +41,37 @@ encoded$data$enrollees %<>%
    mutate(
       row_id = paste0("B", sheet_row + 1)
    )
+encoded$data$enrollees %<>%
+   inner_join(
+      y  = tx %>%
+         select(UIC = uic, CENTRAL_ID),
+      by = "UIC"
+   ) %>%
+   mutate(
+      row_id = paste0("B", sheet_row + 1)
+   )
+
+encoded$data$enrollees %<>%
+   mutate(
+      PATIENT_ID = case_when(
+         PAGE_ID == "BIC_25" ~ "20220824050001716L",
+         PAGE_ID == "BIC_26" ~ "HARP08011816084145",
+         PAGE_ID == "BIC_37" ~ "HARP08011816004343",
+         PAGE_ID == "BAT_530" ~ "2022062813000467O7",
+         PAGE_ID == "BAT_531" ~ "20211011030006542I",
+         PAGE_ID == "BAT_532" ~ "20220210130000386W",
+         PAGE_ID == "BAT_534" ~ "20220808130004864D",
+         PAGE_ID == "SLM_228" ~ "2022080813000065D4",
+         PAGE_ID == "MMC_95" ~ "HARP08011816059142",
+         PAGE_ID == "MMC_132" ~ "HARP08011816024880",
+         PAGE_ID == "CBS_40" ~ "HARP08011816029384",
+         PAGE_ID == "CBS_58" ~ "HARP08011816062537",
+      ),
+      row_id     = paste0("B", sheet_row + 1)
+   ) %>%
+   filter(!is.na(PATIENT_ID))
+
+
 for (i in seq_len(nrow(encoded$data$enrollees)))
    range_write(
       encoded$data$enrollees[i,]$ss,
@@ -71,7 +102,7 @@ encoded$data$records <- encoded$FORMS %>%
    filter(
       !is.na(CREATED_TIME),
       CREATED_TIME != "DUPLICATE",
-      nchar(PATIENT_ID) == 18,
+      # nchar(PATIENT_ID) == 18,
    ) %>%
    mutate(
       encoder = substr(encoder, 9, 2000),
