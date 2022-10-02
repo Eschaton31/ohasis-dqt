@@ -212,3 +212,40 @@ gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NUL
 
    return(parent)
 }
+
+drive_upload_folder <- function(folder, drive_path) {
+   # Only call fs::dir_info once in order to avoid weirdness if the contents of the folder is changing
+   contents       <- fs::dir_info(folder, type = c("file", "dir"))
+   dirs_to_upload <- contents %>%
+      dplyr::filter(type == "directory") %>%
+      pull(path)
+
+   # Directly upload the files
+   uploaded_files <- contents %>%
+      dplyr::filter(type == "file") %>%
+      pull(path) %>%
+      purrr::map_dfr(googledrive::drive_upload, path = drive_path, overwrite = FALSE)
+
+   # Create the next level down of directories
+   tryCatch({
+      dirs_to_upload %>%
+         fs::path_rel(folder) %>%
+         purrr::map(., googledrive::drive_mkdir, path = drive_path, overwrite = FALSE) %>%
+         # Recursively call this function
+         purrr::map2_dfr(dirs_to_upload, ., drive_upload_folder) %>%
+         # return a dribble of what's been uploaded
+         dplyr::bind_rows(uploaded_files) %>%
+         invisible()
+   },
+      error = function(e) {
+         dirs_to_upload %>%
+            fs::path_rel(folder) %>%
+            # purrr::map(., googledrive::drive_update, file = drive_path) %>%
+            # Recursively call this function
+            purrr::map2_dfr(dirs_to_upload, ., drive_upload_folder) %>%
+            # return a dribble of what's been uploaded
+            dplyr::bind_rows(uploaded_files) %>%
+            invisible()
+      }
+   )
+}
