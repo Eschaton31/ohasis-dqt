@@ -24,14 +24,72 @@ for (i in seq_len(nrow(ihbss$`2022`$odk$config))) {
 # check directories
 subs <- bind_rows(ihbss$`2022`$odk$submissions)
 data <- bind_rows(ihbss$`2022`$odk$data) %>%
+   rename_all(
+      ~stri_replace_first_regex(., "_([0-9])", "$1")
+   ) %>%
+   relocate(City, Language, sq1_rid, .before = 1) %>%
+   rowwise() %>%
+   mutate(
+      .after = sq1_rid,
+      cn     = strsplit(sq1_rid, "\\-")[[1]][3],
+   ) %>%
+   ungroup() %>%
+   mutate(
+      .after          = cn,
+      c1              = paste0(cn, "1"),
+      c2              = paste0(cn, "2"),
+      c3              = paste0(cn, "3"),
+      recruiter       = StrLeft(sq1_rid, nchar(sq1_rid) - 1),
+      sq2_current_age = floor(sq2_current_age),
+      Age_Band        = case_when(
+         sq2_current_age < 15 ~ "<15>",
+         sq2_current_age %in% seq(15, 17) ~ "15-17",
+         sq2_current_age %in% seq(18, 24) ~ "18-24",
+         sq2_current_age %in% seq(25, 35) ~ "25-35",
+         sq2_current_age > 35 ~ "35+",
+         TRUE ~ "(no data)"
+      )
+   ) %>%
    mutate(
       path_dta = file.path(Sys.getenv("IHBSS_2022_LOCAL"), City, "data"),
       path_sig = file.path(Sys.getenv("IHBSS_2022_LOCAL"), City, "signature"),
       path_cst = file.path(Sys.getenv("IHBSS_2022_LOCAL"), City, "cassette"),
    ) %>%
-   rename_all(
-      ~stri_replace_first_regex(., "_([0-9])", "$1")
+   # time start
+   mutate(
+      .after     = start,
+      start_date = format(start, "%Y-%m-%d"),
+      start_time = format(start, "%H:%M:%S"),
+   ) %>%
+   # time end
+   mutate(
+      .after   = end,
+      end_date = format(end, "%Y-%m-%d"),
+      end_time = format(end, "%H:%M:%S"),
    )
+
+data %<>%
+   left_join(
+      y  = data %>%
+         mutate(
+            recruiter_exist = "Y"
+         ) %>%
+         select(
+            recruiter = sq1_rid,
+            recruiter_exist
+         ),
+      by = "recruiter"
+   ) %>%
+   mutate(
+      recruiter_exist = if_else(
+         recruiter_exist == "Y",
+         "Y",
+         "N",
+         "N"
+      )
+   ) %>%
+   relocate(recruiter_exist, .after = recruiter) %>%
+   distinct(id, .keep_all = TRUE)
 
 invisible(lapply(unique(data$path_dta), check_dir))
 invisible(lapply(unique(data$path_sig), check_dir))
@@ -92,6 +150,5 @@ invisible(lapply(unique(data$City), function(city) {
    }
 }))
 
-ihbss$`2022`$conso$initial$data <- data %>%
-   relocate(City, Language, sq1_rid, .before = 1)
+ihbss$`2022`$conso$initial$data <- data
 rm(config, data, form, i, subs)

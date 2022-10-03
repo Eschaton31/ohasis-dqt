@@ -1,4 +1,4 @@
-# archive current version of issues
+# archive current version of monitoring
 file <- paste0("C:/data/ihbss2022/Conso/", format(Sys.time(), "%Y.%m.%d"), "_data.xlsx")
 write_xlsx(
    ihbss$`2022`$conso$initial$data,
