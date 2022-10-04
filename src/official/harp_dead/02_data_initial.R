@@ -367,14 +367,7 @@ if (update == "1") {
 ##  Consolidate issues ---------------------------------------------------------
 
 # write into NHSSS GSheet
-data_name <- "initial"
-if (!is.empty(nhsss$harp_dead[[data_name]]$check))
-   .validation_gsheets(
-      data_name   = data_name,
-      parent_list = nhsss$harp_dead[[data_name]]$check,
-      drive_path  = paste0(nhsss$harp_dead$gdrive$path$report, "Validation/"),
-      surv_name   = "HARP Dead"
-   )
+gdrive_validation(nhsss$harp_dead, "initial", ohasis$ym)
 
 .log_success("Done!")
 

@@ -897,14 +897,7 @@ if (update == "1") {
 ##  Consolidate issues ---------------------------------------------------------
 
 # write into NHSSS GSheet
-data_name <- "outcome.converted"
-if (!is.empty(nhsss$prep[[data_name]]$check))
-   .validation_gsheets(
-      data_name   = data_name,
-      parent_list = nhsss$prep[[data_name]]$check,
-      drive_path  = paste0(nhsss$prep$gdrive$path$report, "Validation/"),
-      surv_name   = "PrEP"
-   )
+gdrive_validation(nhsss$prep, "outcome.converted", ohasis$ym)
 
 .log_success("Done!")
 

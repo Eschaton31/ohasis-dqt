@@ -377,14 +377,7 @@ if (exclude == "1") {
 ##  Consolidate issues ---------------------------------------------------------
 
 # write into NHSSS GSheet
-data_name <- "reg.initial"
-if (!is.empty(nhsss$prep[[data_name]]$check))
-   .validation_gsheets(
-      data_name   = data_name,
-      parent_list = nhsss$prep[[data_name]]$check,
-      drive_path  = paste0(nhsss$prep$gdrive$path$report, "Validation/"),
-      surv_name   = "PrEP"
-   )
+gdrive_validation(nhsss$prep, "reg.initial", ohasis$ym)
 
 nhsss$prep$reg.initial$data <- data
 .log_success("Done!")

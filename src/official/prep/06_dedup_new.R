@@ -65,14 +65,7 @@ invisible(
 ##  Consolidate issues ---------------------------------------------------------
 
 # write into NHSSS GSheet
-data_name <- "dedup_new"
-if (length(nhsss$prep[[data_name]]) > 0)
-   .validation_gsheets(
-      data_name   = data_name,
-      parent_list = nhsss$prep[[data_name]],
-      drive_path  = paste0(nhsss$prep$gdrive$path$report, "Validation/"),
-      surv_name   = "PrEP"
-   )
+gdrive_validation(nhsss$prep, "dedup_new", ohasis$ym)
 
 .log_success("Done!")
 

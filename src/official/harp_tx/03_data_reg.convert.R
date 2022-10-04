@@ -321,14 +321,7 @@ if (update == "1") {
 ##  Consolidate issues ---------------------------------------------------------
 
 # write into NHSSS GSheet
-data_name <- "reg.converted"
-if (!is.empty(nhsss$harp_tx[[data_name]]$check))
-   .validation_gsheets(
-      data_name   = data_name,
-      parent_list = nhsss$harp_tx[[data_name]]$check,
-      drive_path  = paste0(nhsss$harp_tx$gdrive$path$report, "Validation/"),
-      surv_name   = "HARP Tx"
-   )
+gdrive_validation(nhsss$harp_tx, "reg.converted", ohasis$ym)
 
 .log_success("Done!")
 

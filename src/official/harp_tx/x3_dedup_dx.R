@@ -310,14 +310,7 @@ nhsss$harp_tx$dedup_dx$merge <- dedup_new %>%
 ##  Consolidate issues ---------------------------------------------------------
 
 # write into NHSSS GSheet
-data_name <- "dedup_dx"
-if (length(nhsss$harp_tx[[data_name]]) > 0)
-   .validation_gsheets(
-      data_name   = data_name,
-      parent_list = nhsss$harp_tx[[data_name]],
-      drive_path  = paste0(nhsss$harp_tx$gdrive$path$report, "Validation/"),
-      surv_name   = "HARP Dx"
-   )
+gdrive_validation(nhsss$harp_tx, "dedup_dx", ohasis$ym)
 
 .log_success("Done!")
 

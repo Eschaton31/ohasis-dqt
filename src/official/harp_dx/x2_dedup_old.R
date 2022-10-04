@@ -184,14 +184,7 @@ if (length(reclink_df$matches$inds.a) > 0) {
 ##  Consolidate issues ---------------------------------------------------------
 
 # write into NHSSS GSheet
-data_name <- "dedup_old"
-if (length(nhsss$harp_dx[[data_name]]) > 0)
-   .validation_gsheets(
-      data_name   = data_name,
-      parent_list = nhsss$harp_dx[[data_name]],
-      drive_path  = paste0(nhsss$harp_dx$gdrive$path$report, "Validation/"),
-      surv_name = "HARP Dx"
-   )
+gdrive_validation(nhsss$harp_dx, "dedup_old", ohasis$ym)
 
 .log_success("Done!")
 
