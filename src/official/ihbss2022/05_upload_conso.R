@@ -1,5 +1,5 @@
 # archive current version of monitoring
-file <- paste0("C:/data/ihbss2022/Conso/", format(Sys.time(), "%Y.%m.%d"), "_data.xlsx")
+file <- paste0(Sys.getenv("IHBSS_2022_LOCAL"), "/Conso/", format(Sys.time(), "%Y.%m.%d"), "_data.xlsx")
 write_xlsx(
    ihbss$`2022`$conso$initial$data,
    file
