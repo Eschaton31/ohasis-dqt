@@ -24,6 +24,8 @@ data_new <- nhsss$harp_tx$reg.converted$data %>%
    )
 
 data_old <- nhsss$harp_tx$official$old_reg %>%
+   zap_labels() %>%
+   zap_formats() %>%
    mutate(
       byr = if_else(
          condition = !is.na(birthdate),
@@ -309,6 +311,7 @@ invisible(
          filter(dupe_count > 0) %>%
          group_by(across(all_of(dedup_id))) %>%
          mutate(
+            baseline_cd4 = as.numeric(baseline_cd4),
             # generate a group id to identify groups of duplicates
             group_id = cur_group_id(),
          ) %>%

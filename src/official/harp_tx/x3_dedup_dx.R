@@ -22,7 +22,8 @@ data_new <- nhsss$harp_tx$official$new_reg %>%
          false     = NA_integer_
       ) %>% as.numeric(),
    ) %>%
-   filter(is.na(idnum))
+   filter(is.na(idnum)) %>% 
+   rename(firstname = first)
 
 data_old <- nhsss$harp_dx$official$new %>%
    mutate(
@@ -51,7 +52,7 @@ reclink_df              <- fastLink(
    dfA              = data_new,
    dfB              = data_old,
    varnames         = c(
-      "first",
+      "firstname",
       "middle",
       "last",
       "byr",
@@ -59,12 +60,12 @@ reclink_df              <- fastLink(
       "bdy"
    ),
    stringdist.match = c(
-      "first",
+      "firstname",
       "middle",
       "last"
    ),
    partial.match    = c(
-      "first",
+      "firstname",
       "middle",
       "last"
    ),
@@ -97,7 +98,7 @@ if (length(reclink_df$matches$inds.a) > 0) {
          MASTER_RID          = REC_ID,
          MASTER_PID          = PATIENT_ID,
          MASTER_CID          = CENTRAL_ID,
-         MASTER_FIRST        = first,
+         MASTER_FIRST        = firstname,
          MASTER_MIDDLE       = middle,
          MASTER_LAST         = last,
          MASTER_SUFFIX       = suffix,
@@ -114,7 +115,7 @@ if (length(reclink_df$matches$inds.a) > 0) {
             ) %>%
             select(
                MATCH_ID,
-               USING_RID          = REC_ID,
+               # USING_RID          = REC_ID,
                USING_PID          = PATIENT_ID,
                USING_CID          = CENTRAL_ID,
                USING_IDNUM       = idnum,
@@ -208,7 +209,7 @@ dedup_new <- nhsss$harp_tx$official$new_reg %>%
       UIC_MOM           = if_else(!is.na(UIC), substr(UIC, 1, 2), NA_character_),
       UIC_DAD           = if_else(!is.na(UIC), substr(UIC, 3, 4), NA_character_),
 
-      # variables for first 3 letters of names
+      # variables for firstname 3 letters of names
       FIRST_A           = if_else(!is.na(FIRST), substr(FIRST, 1, 3), NA_character_),
       MIDDLE_A          = if_else(!is.na(MIDDLE), substr(MIDDLE, 1, 3), NA_character_),
       LAST_A            = if_else(!is.na(LAST), substr(LAST, 1, 3), NA_character_),
@@ -234,7 +235,7 @@ dedup_dx <- nhsss$harp_dx$official$new %>%
       # standardize PII
       LAST              = stri_trans_toupper(last),
       MIDDLE            = stri_trans_toupper(middle),
-      FIRST             = stri_trans_toupper(first),
+      FIRST             = stri_trans_toupper(firstname),
       SUFFIX            = stri_trans_toupper(name_suffix),
       UIC               = stri_trans_toupper(uic),
       CONFIRMATORY_CODE = stri_trans_toupper(labcode),
@@ -248,7 +249,7 @@ dedup_dx <- nhsss$harp_dx$official$new %>%
       UIC_MOM           = if_else(!is.na(UIC), substr(UIC, 1, 2), NA_character_),
       UIC_DAD           = if_else(!is.na(UIC), substr(UIC, 3, 4), NA_character_),
 
-      # variables for first 3 letters of names
+      # variables for firstname 3 letters of names
       FIRST_A           = if_else(!is.na(FIRST), substr(FIRST, 1, 3), NA_character_),
       MIDDLE_A          = if_else(!is.na(MIDDLE), substr(MIDDLE, 1, 3), NA_character_),
       LAST_A            = if_else(!is.na(LAST), substr(LAST, 1, 3), NA_character_),
@@ -287,7 +288,7 @@ nhsss$harp_tx$dedup_dx$merge <- dedup_new %>%
    inner_join(
       y  = dedup_dx %>%
          select(
-            USING_RID          = REC_ID,
+            # USING_RID          = REC_ID,
             USING_PID          = PATIENT_ID,
             USING_CID          = CENTRAL_ID,
             USING_IDNUM        = idnum,
