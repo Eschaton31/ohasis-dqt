@@ -217,6 +217,86 @@ gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NUL
    return(parent)
 }
 
+# validatioins
+gdrive_validation <- function(data_env = NULL,
+                              process_step = NULL,
+                              report_period = NULL,
+                              channels = NULL) {
+   # re-intiialize
+   data_validation <- as_id("1JOCJPjIsdrys_uaFPI3AIElfkMHzrayh")
+   surv_name       <- strsplit(deparse(substitute(data_env)), "\\$")[[1]]
+   surv_name       <- surv_name[length(surv_name)]
+   empty_sheets    <- ""
+   corr_status     <- "old"
+   corr_list       <- data_env[[process_step]]$check
+
+   # get period data
+   periods   <- drive_ls(data_validation)
+   valid_now <- as_id(periods[periods$name == report_period,]$id)
+   if (length(valid_now) == 0) {
+      valid_now <- as_id(drive_mkdir(report_period, data_validation)$id)
+   }
+
+   # get surveillance endpoints
+   surveillances <- drive_ls(valid_now)
+   gd_surv       <- as_id(surveillances[surveillances$name == surv_name,]$id)
+   if (length(gd_surv) == 0) {
+      gd_surv <- as_id(drive_mkdir(surv_name, valid_now)$id)
+   }
+
+   # get steps & write data
+   steps   <- drive_ls(gd_surv)
+   gd_step <- as_id(steps[steps$name == process_step,]$id)
+   if (length(gd_surv) == 0) {
+      # create as new if not existing
+      corr_status <- "new"
+      drive_rm(paste0("~/", gsheet))
+      gd_step <- as_id(gs4_create(process_step, data_env[[process_step]]$check))
+      drive_mv(gd_step, gd_surv, overwrite = TRUE)
+   }
+
+
+   .log_info("Uploading to GSheets..")
+
+   # list of validations
+   issues_list <- names(corr_list)
+
+   # acquire sheet_id
+   slack_by   <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
+   drive_link <- paste0("https://docs.google.com/spreadsheets/d/", gd_step, "/|GSheets Link: ", process_step)
+   slack_msg  <- glue(">*{surv_name}*\n>Conso validation sheets for `{data_name}` have been updated by <@{slack_by}>.\n><{drive_link}>")
+   for (issue in issues_list) {
+      # add issue
+      if (nrow(corr_list[[issue]]) > 0) {
+         if (corr_status == "old")
+            sheet_write(corr_list[[issue]], gd_surv, issue)
+         else
+            range_autofit(gd_surv, issue)
+      }
+   }
+
+   # delete list of empty dataframes from sheet
+   .log_info("Deleting empty sheets.")
+   for (issue in issues_list)
+      if (nrow(corr_list[[issue]]) == 0 & issue %in% sheet_names(gd_surv))
+         empty_sheets <- append(empty_sheets, issue)
+   for (issue in sheet_names(gd_surv))
+      if (!(issue %in% issues_list))
+         empty_sheets <- append(empty_sheets, issue)
+
+   # delete if existing sheet no longer has values in new run
+   if (length(empty_sheets[-1]) > 0)
+      sheet_delete(gd_surv, empty_sheets[-1])
+
+   # log in slack
+   if (is.null(channels)) {
+      slackr_msg(slack_msg, mrkdwn = "true")
+   } else {
+      for (channel in channels)
+         slackr_msg(slack_msg, mrkdwn = "true", channel = channel)
+   }
+}
+
 drive_upload_folder <- function(folder, drive_path) {
    # Only call fs::dir_info once in order to avoid weirdness if the contents of the folder is changing
    contents       <- fs::dir_info(folder, type = c("file", "dir"))
