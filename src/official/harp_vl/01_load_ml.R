@@ -1224,7 +1224,7 @@ if (update == "1") {
 
    # check for new columns in .xlsx data
    .log_info("Checking for un-accounted variables in .xlsx files.")
-   xlsxnames <- c('hub', 'cd4_date', 'uic', 'confirmatory_code', 'px_code', 'vl_date', 'vl_result', 'remarks', 'vl_result_alt', 'vl_date_alt', 'artstart_date', 'age', 'birthdate', 'sex', 'curr_addr', 'contact', 'latest_regimen', 'artstart_ddate', 'philhealth_no', 'latest_ffupdate', 'latest_nextpickup', 'cd4_result', 'vl_suppressed', 'actions_taken', 'name', 'px_code_alt', 'date_request', 'vl_code', 'date_receive', 'id', 'baseline_vl_result', 'outcome', 'vl_cat', 'source', 'drop', 'vl_date_2', 'row_id', 'status', 'PATIENT_ID', 'src_file', 'src_sheet', 'status', 'baseline_cd4_result')
+   xlsxnames <- c('hub', 'cd4_date', 'uic', 'confirmatory_code', 'px_code', 'vl_date', 'vl_result', 'remarks', 'vl_result_alt', 'vl_date_alt', 'artstart_date', 'age', 'birthdate', 'sex', 'curr_addr', 'contact', 'latest_regimen', 'artstart_ddate', 'philhealth_no', 'latest_ffupdate', 'latest_nextpickup', 'cd4_result', 'vl_suppressed', 'actions_taken', 'name', 'px_code_alt', 'date_request', 'vl_code', 'date_receive', 'id', 'baseline_vl_result', 'outcome', 'vl_cat', 'source', 'drop', 'vl_date_2', 'row_id', 'status', 'PATIENT_ID', 'src_file', 'src_sheet', 'status', 'baseline_cd4_result', "hiv_test_result", "year")
    newnames  <- setdiff(names(xlsx_df), xlsxnames)
    if (length(newnames) > 0) {
 	  nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$check[["xlsx_newvars"]] <- xlsx_df %>%
