@@ -1,19 +1,6 @@
 ##  Generate pre-requisites and endpoints --------------------------------------
 
 check <- input(
-   prompt  = glue("Check the {green('GDrive Endpoints')}?"),
-   options = c("1" = "yes", "2" = "no"),
-   default = "2"
-)
-if (check == "1") {
-   .log_info("Checking endpoints.")
-   local(envir = nhsss$prep, {
-      gdrive      <- list()
-      gdrive$path <- gdrive_endpoint("PrEP", ohasis$ym)
-   })
-}
-
-check <- input(
    prompt  = glue("Re-download the {green('data corrections')}?"),
    options = c("1" = "yes", "2" = "no"),
    default = "2"
