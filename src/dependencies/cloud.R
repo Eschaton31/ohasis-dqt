@@ -164,52 +164,56 @@ gdrive_correct <- function(drive_path = NULL, report_period = NULL) {
 
 # unified data factory
 gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NULL) {
+   # re-initialize
+   corr <- new.env()
+
    # drive path
-   drive_path    <- "~/DQT/Data Factory/Corrections/"
-   primary_files <- drive_ls(paste0(drive_path, ".all/", surv_name, "/"))
-   report_files  <- drive_ls(paste0(drive_path, report_period, "/"))
+   data_cleaning <- as_id("1rk5kVc7MxtWfE-Ju_kJSMkviSLvr0h6C")
+   period_all    <- drive_ls(as_id("109AGqRwhu_zdL2CrDTy3eCSQky2Mf8fM"))
+
+   # get period data
+   periods   <- drive_ls(data_cleaning)
+   clean_all <- as_id(period_all[period_all$name == surv_name,]$id)
+   clean_all <- (if (length(clean_all) > 0) drive_ls(clean_all) else data.frame())
+   clean_now <- as_id(periods[periods$name == report_period,]$id)
+   clean_now <- (if (length(clean_now) > 0) drive_ls(clean_now) else data.frame())
 
    # list of correction files
-   .log_info("Getting list of correction datasets.")
-
-   .log_info("Downloading sheets for all reporting periods.")
-   if (nrow(primary_files) > 0) {
-      for (i in seq_len(nrow(primary_files))) {
-         corr_id     <- primary_files[i,]$id
-         corr_name   <- primary_files[i,]$name
+   .log_info("Downloading corrections across all periods.")
+   if (nrow(clean_all) > 0) {
+      for (i in seq_len(nrow(clean_all))) {
+         corr_id     <- as_id(clean_all[i,]$id)
+         corr_name   <- clean_all[i,]$name
          corr_sheets <- sheet_names(corr_id)
+         corr_sheets <- corr_sheets[corr_sheets == surv_name]
 
          if (length(corr_sheets) > 1) {
-            parent[[surv_name]]$corr[[corr_name]] <- list()
+            corr[[corr_name]] <- list()
             for (sheet in corr_sheets)
-               parent[[surv_name]]$corr[[corr_name]][[sheet]] <- read_sheet(corr_id, sheet)
+               corr[[corr_name]][[sheet]] <-
+                  range_speedread(corr_id, sheet, show_col_types = FALSE)
          } else {
-            parent[[surv_name]]$corr[[corr_name]] <- read_sheet(corr_id)
+            corr[[corr_name]] <-
+               range_speedread(corr_id, show_col_types = FALSE)
          }
       }
    }
 
    # create monthly folder if not exists
-   .log_info("Downloading sheets for this reporting period.")
-
-   if (nrow(report_files) > 0) {
-      for (i in seq_len(nrow(report_files))) {
-         corr_id     <- report_files[i,]$id
-         corr_name   <- report_files[i,]$name
+   .log_info("Downloading corrections for this period.")
+   if (nrow(clean_now) > 0) {
+      for (i in seq_len(nrow(clean_now))) {
+         corr_id     <- as_id(clean_now[i,]$id)
+         corr_name   <- clean_now[i,]$name
          corr_sheets <- sheet_names(corr_id)
+         sheet       <- corr_sheets[corr_sheets == surv_name]
 
-         if (!is.null(surv_name))
-            corr_sheets <- corr_sheets[corr_sheets == surv_name]
-
-         for (sheet in corr_sheets) {
-            if (is.null(parent[[sheet]]))
-               parent[[sheet]] <- new.env()
-
-            parent[[sheet]]$corr[[corr_name]] <- read_sheet(corr_id, sheet)
-         }
+         if (length(sheet) != 0)
+            corr[[corr_name]] <- range_speedread(corr_id, sheet, show_col_types = FALSE)
       }
    }
 
+   parent[[surv_name]]$corr <- corr
    return(parent)
 }
 
