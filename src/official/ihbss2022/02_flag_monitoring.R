@@ -72,6 +72,10 @@ for (var in tabvars) {
             City    = NA_character_,
             .before = 1
          ) %>%
+         mutate(
+            `Percent`      = format(`Percent` * 100, digits = 2),
+            `Cum. Percent` = format(`Cum. Percent` * 100, digits = 2),
+         ) %>%
          add_row(City = NA_character_)
 
       dta_list[[site]][1, 'City'] <- site
