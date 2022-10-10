@@ -24,10 +24,19 @@ for (i in seq_len(nrow(ihbss$`2022`$odk$config))) {
 # check directories
 subs <- bind_rows(ihbss$`2022`$odk$submissions)
 data <- bind_rows(ihbss$`2022`$odk$data) %>%
+   left_join(
+      y = subs %>%
+         select(
+            id               = instance_id,
+            submitter_name   = submitter_display_name,
+            submitter_device = device_id,
+            review_state
+         )
+   ) %>%
    rename_all(
       ~stri_replace_first_regex(., "_([0-9])", "$1")
    ) %>%
-   relocate(City, Language, sq1_rid, .before = 1) %>%
+   relocate(City, Language, sq1_rid, review_state, .before = 1) %>%
    rowwise() %>%
    mutate(
       .after = sq1_rid,
