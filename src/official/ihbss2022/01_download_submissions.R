@@ -48,16 +48,17 @@ data <- bind_rows(ihbss$`2022`$odk$data) %>%
    rowwise() %>%
    mutate(
       .after = sq1_rid,
-      cn     = strsplit(sq1_rid, "\\-")[[1]][3],
+      cn     = str_squish(strsplit(sq1_rid, "\\-")[[1]][3]),
    ) %>%
    ungroup() %>%
    relocate(n_casette, sq2_current_age, .after = sq1_rid) %>%
    mutate(
       .after          = cn,
+      cn              = if_else(!is.na(cn), cn, "", ""),
       c1              = paste0(cn, "1"),
       c2              = paste0(cn, "2"),
       c3              = paste0(cn, "3"),
-      recruiter       = StrLeft(sq1_rid, nchar(sq1_rid) - 1),
+      recruiter       = StrLeft(cn, nchar(cn) - 1),
       sq2_current_age = floor(sq2_current_age),
       Age_Band        = case_when(
          sq2_current_age < 15 ~ "<15>",
@@ -115,10 +116,11 @@ data %<>%
             recruiter_exist = "Y"
          ) %>%
          select(
-            recruiter = sq1_rid,
+            City,
+            recruiter = cn,
             recruiter_exist
          ),
-      by = "recruiter"
+      by = c("City", "recruiter")
    ) %>%
    mutate(
       recruiter_exist = case_when(
@@ -236,7 +238,7 @@ path_cst %<>%
 
 data %<>%
    left_join(
-      y = path_cst %>%
+      y  = path_cst %>%
          select(
             City,
             n_casette,
