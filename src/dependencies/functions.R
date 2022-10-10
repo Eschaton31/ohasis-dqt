@@ -552,3 +552,12 @@ WHERE INVENTORY_ID = ?
    )
    dbDisconnect(db_conn)
 }
+
+chunk_df <- function(data = NULL, chunk_size = NULL) {
+   # upsert data
+   n_rows     <- nrow(data)
+   n_chunks   <- rep(1:ceiling(n_rows / chunk_size), each = chunk_size)[seq_len(n_rows)]
+   chunked    <- split(data, n_chunks)
+
+   return(chunked)
+}

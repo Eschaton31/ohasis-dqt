@@ -22,8 +22,16 @@ for (i in seq_len(nrow(ihbss$`2022`$odk$config))) {
 }
 
 # check directories
-subs <- bind_rows(ihbss$`2022`$odk$submissions)
+subs <- bind_rows(ihbss$`2022`$odk$submissions) %>%
+   mutate_if(
+      .predicate = is.character,
+      ~str_squish(.)
+   )
 data <- bind_rows(ihbss$`2022`$odk$data) %>%
+   mutate_if(
+      .predicate = is.character,
+      ~str_squish(.)
+   ) %>%
    left_join(
       y = subs %>%
          select(
@@ -40,15 +48,17 @@ data <- bind_rows(ihbss$`2022`$odk$data) %>%
    rowwise() %>%
    mutate(
       .after = sq1_rid,
-      cn     = strsplit(sq1_rid, "\\-")[[1]][3],
+      cn     = str_squish(strsplit(sq1_rid, "\\-")[[1]][3]),
    ) %>%
    ungroup() %>%
+   relocate(n_casette, sq2_current_age, .after = sq1_rid) %>%
    mutate(
       .after          = cn,
+      cn              = if_else(!is.na(cn), cn, "", ""),
       c1              = paste0(cn, "1"),
       c2              = paste0(cn, "2"),
       c3              = paste0(cn, "3"),
-      recruiter       = StrLeft(sq1_rid, nchar(sq1_rid) - 1),
+      recruiter       = StrLeft(cn, nchar(cn) - 1),
       sq2_current_age = floor(sq2_current_age),
       Age_Band        = case_when(
          sq2_current_age < 15 ~ "<15>",
@@ -57,6 +67,28 @@ data <- bind_rows(ihbss$`2022`$odk$data) %>%
          sq2_current_age %in% seq(25, 35) ~ "25-35",
          sq2_current_age > 35 ~ "35+",
          TRUE ~ "(no data)"
+      ),
+   ) %>%
+   mutate(
+      .after       = int1_ihbss_site,
+      site_decoded = case_when(
+         int1_ihbss_site == "100" ~ "National Capital Region",
+         int1_ihbss_site == "101" ~ "Angeles City",
+         int1_ihbss_site == "102" ~ "Baguio City",
+         int1_ihbss_site == "104" ~ "Cagayan de Oro City",
+         int1_ihbss_site == "105" ~ "Cebu City",
+         int1_ihbss_site == "106" ~ "Davao City",
+         int1_ihbss_site == "107" ~ "General Santos City",
+         int1_ihbss_site == "108" ~ "Iloilo City",
+         int1_ihbss_site == "111" ~ "Puerto Princesa City",
+         int1_ihbss_site == "113" ~ "Tuguegarao City",
+         int1_ihbss_site == "114" ~ "Zamboanga City",
+         int1_ihbss_site == "117" ~ "Batangas City",
+         int1_ihbss_site == "122" ~ "Bacolod City",
+         int1_ihbss_site == "123" ~ "Bacoor City",
+         int1_ihbss_site == "301" ~ "Naga City",
+         int1_ihbss_site == "300" ~ "Dasmariñas City",
+         TRUE ~ as.character(int1_ihbss_site)
       )
    ) %>%
    mutate(
@@ -84,17 +116,33 @@ data %<>%
             recruiter_exist = "Y"
          ) %>%
          select(
-            recruiter = sq1_rid,
+            City,
+            recruiter = cn,
             recruiter_exist
          ),
-      by = "recruiter"
+      by = c("City", "recruiter")
    ) %>%
    mutate(
-      recruiter_exist = if_else(
-         recruiter_exist == "Y",
-         "Y",
-         "N",
-         "N"
+      recruiter_exist = case_when(
+         sq1_rid == "M-100-1" ~ "SEED",
+         sq1_rid == "M-100-2" ~ "SEED",
+         sq1_rid == "M-100-3" ~ "SEED",
+         sq1_rid == "M-100-4" ~ "SEED",
+         sq1_rid == "M-100-5" ~ "SEED",
+         sq1_rid == "M-100-6" ~ "SEED",
+         sq1_rid == "M-100-7" ~ "SEED",
+         sq1_rid == "M-100-8" ~ "SEED",
+         sq1_rid == "M-100-9" ~ "SEED",
+         sq1_rid == "M-100-14" ~ "SEED",
+         sq1_rid == "M-100-15" ~ "SEED",
+         sq1_rid == "M-100-16" ~ "SEED",
+         sq1_rid == "M-100-17" ~ "SEED",
+         sq1_rid == "M-100-18" ~ "SEED",
+         sq1_rid == "M-100-19" ~ "SEED",
+         sq1_rid == "M-100-20" ~ "SEED",
+         StrRight(recruiter, 1) == "-" ~ "SEED",
+         recruiter_exist == "Y" ~ "Y",
+         TRUE ~ "N"
       )
    ) %>%
    relocate(recruiter_exist, .after = recruiter) %>%
@@ -159,5 +207,49 @@ invisible(lapply(unique(data$City), function(city) {
    }
 }))
 
+.log_info("Getting GDrive City IDs.")
+drive_cst <- data %>%
+   distinct(City) %>%
+   mutate(
+      drive_cst = paste0("~/DQT/Data Factory/IHBSS - 2022/Submissions/", City, "/cassette/") %>% drive_get(),
+   ) %>%
+   rowwise() %>%
+   mutate(
+      drive_id = drive_cst$id
+   ) %>%
+   ungroup()
+
+.log_info("Getting GDrive City Cassettes.")
+path_cst <- data.frame()
+for (i in seq_len(nrow(drive_cst))) {
+   cst      <- drive_ls(as_id(drive_cst[i,]$drive_id)) %>%
+      mutate(City = drive_cst[i,]$City)
+   path_cst <- bind_rows(path_cst, cst)
+}
+path_cst %<>%
+   rowwise() %>%
+   mutate(
+      link_cst = drive_resource$webViewLink
+   ) %>%
+   ungroup() %>%
+   rename(
+      n_casette = name
+   )
+
+data %<>%
+   left_join(
+      y  = path_cst %>%
+         select(
+            City,
+            n_casette,
+            link_cst
+         ),
+      by = c("City", "n_casette")
+   ) %>%
+   relocate(link_cst, .after = n_casette) %>%
+   mutate(
+      link_cst = gs4_formula(glue(r"(=HYPERLINK("{link_cst}", "{n_casette}"))"))
+   )
+
 ihbss$`2022`$conso$initial$data <- data
-rm(config, data, form, i, subs)
+rm(config, data, form, i, subs, cst, drive_cst, path_cst)
