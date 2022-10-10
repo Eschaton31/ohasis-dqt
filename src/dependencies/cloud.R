@@ -230,7 +230,7 @@ gdrive_validation <- function(data_env = NULL,
    corr_status     <- "old"
    corr_list       <- data_env[[process_step]]$check
 
-   if (!is.null(corr_list)) {
+   if (length(corr_list) > 0) {
       # get period data
       periods   <- drive_ls(data_validation)
       valid_now <- as_id(periods[periods$name == report_period,]$id)
