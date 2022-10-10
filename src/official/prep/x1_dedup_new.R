@@ -65,7 +65,7 @@ invisible(
 ##  Consolidate issues ---------------------------------------------------------
 
 # write into NHSSS GSheet
-gdrive_validation(nhsss$prep, "dedup_new", ohasis$ym)
+gdrive_validation(nhsss$prep, "dedup_new", ohasis$ym, list_name = NULL)
 
 .log_success("Done!")
 

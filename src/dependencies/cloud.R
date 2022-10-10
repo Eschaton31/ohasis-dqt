@@ -221,14 +221,19 @@ gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NUL
 gdrive_validation <- function(data_env = NULL,
                               process_step = NULL,
                               report_period = NULL,
-                              channels = NULL) {
+                              channels = NULL,
+                              list_name = "check") {
    # re-intiialize
    data_validation <- as_id("1JOCJPjIsdrys_uaFPI3AIElfkMHzrayh")
    surv_name       <- strsplit(deparse(substitute(data_env)), "\\$")[[1]]
    surv_name       <- surv_name[length(surv_name)]
    empty_sheets    <- ""
    corr_status     <- "old"
-   corr_list       <- data_env[[process_step]]$check
+
+   if (is.null(list_name))
+      corr_list <- data_env[[process_step]]
+   else
+      corr_list <- data_env[[process_step]][[list_name]]
 
    if (length(corr_list) > 0) {
       # get period data
