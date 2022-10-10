@@ -311,7 +311,7 @@ nhsss$harp_tx$dedup_dx$merge <- dedup_new %>%
 ##  Consolidate issues ---------------------------------------------------------
 
 # write into NHSSS GSheet
-gdrive_validation(nhsss$harp_tx, "dedup_dx", ohasis$ym)
+gdrive_validation(nhsss$harp_tx, "dedup_dx", ohasis$ym, list_name = NULL)
 
 .log_success("Done!")
 
