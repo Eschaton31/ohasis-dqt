@@ -230,82 +230,84 @@ gdrive_validation <- function(data_env = NULL,
    corr_status     <- "old"
    corr_list       <- data_env[[process_step]]$check
 
-   # get period data
-   periods   <- drive_ls(data_validation)
-   valid_now <- as_id(periods[periods$name == report_period,]$id)
-   if (length(valid_now) == 0) {
-      valid_now <- as_id(drive_mkdir(report_period, data_validation)$id)
-   }
-
-   # get surveillance endpoints
-   surveillances <- drive_ls(valid_now)
-   gd_surv       <- as_id(surveillances[surveillances$name == surv_name,]$id)
-   if (length(gd_surv) == 0) {
-      gd_surv <- as_id(drive_mkdir(surv_name, valid_now)$id)
-   }
-
-   # get steps & write data
-   steps   <- drive_ls(gd_surv)
-   gd_step <- as_id(steps[steps$name == process_step,]$id)
-   if (length(gd_step) == 0) {
-      # create as new if not existing
-      corr_status <- "new"
-      drive_rm(paste0("~/", process_step))
-      gd_step <- as_id(gs4_create(process_step, sheets = corr_list))
-      drive_mv(gd_step, gd_surv, overwrite = TRUE)
-   }
-   gd_archive <- as_id(steps[steps$name == "Archive",]$id)
-   if (length(gd_archive) == 0) {
-      gd_archive <- as_id(drive_mkdir("Archive", gd_surv)$id)
-   }
-
-   # archive current
-   drive_cp(
-      gd_step,
-      gd_archive,
-      paste0(format(Sys.time(), "%Y.%m.%d"), "_", process_step),
-      overwrite = TRUE
-   )
-
-   .log_info("Uploading to GSheets..")
-
-   # list of validations
-   issues_list <- names(corr_list)
-   sheets_list <- sheet_names(gd_step)
-
-   # acquire sheet_id
-   slack_by   <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
-   drive_link <- paste0("https://docs.google.com/spreadsheets/d/", gd_step, "/|GSheets Link: ", process_step)
-   slack_msg  <- glue(">*{surv_name}*\n>Conso validation sheets for `{process_step}` have been updated by <@{slack_by}>.\n><{drive_link}>")
-   for (issue in issues_list) {
-      # add issue
-      if (nrow(corr_list[[issue]]) > 0) {
-         if (corr_status == "old")
-            sheet_write(corr_list[[issue]], gd_step, issue)
-         else
-            range_autofit(gd_step, issue)
+   if (!is.null(corr_list)) {
+      # get period data
+      periods   <- drive_ls(data_validation)
+      valid_now <- as_id(periods[periods$name == report_period,]$id)
+      if (length(valid_now) == 0) {
+         valid_now <- as_id(drive_mkdir(report_period, data_validation)$id)
       }
-   }
 
-   # delete list of empty dataframes from sheet
-   .log_info("Deleting empty sheets.")
-   for (issue in issues_list)
-      if (nrow(corr_list[[issue]]) == 0 & issue %in% sheets_list)
-         empty_sheets <- append(empty_sheets, issue)
-   for (issue in sheets_list)
-      if (!(issue %in% issues_list))
-         empty_sheets <- append(empty_sheets, issue)
+      # get surveillance endpoints
+      surveillances <- drive_ls(valid_now)
+      gd_surv       <- as_id(surveillances[surveillances$name == surv_name,]$id)
+      if (length(gd_surv) == 0) {
+         gd_surv <- as_id(drive_mkdir(surv_name, valid_now)$id)
+      }
 
-   # delete if existing sheet no longer has values in new run
-   if (length(empty_sheets[-1]) > 0)
-      sheet_delete(gd_step, empty_sheets[-1])
+      # get steps & write data
+      steps   <- drive_ls(gd_surv)
+      gd_step <- as_id(steps[steps$name == process_step,]$id)
+      if (length(gd_step) == 0) {
+         # create as new if not existing
+         corr_status <- "new"
+         drive_rm(paste0("~/", process_step))
+         gd_step <- as_id(gs4_create(process_step, sheets = corr_list))
+         drive_mv(gd_step, gd_surv, overwrite = TRUE)
+      }
+      gd_archive <- as_id(steps[steps$name == "Archive",]$id)
+      if (length(gd_archive) == 0) {
+         gd_archive <- as_id(drive_mkdir("Archive", gd_surv)$id)
+      }
 
-   # log in slack
-   if (is.null(channels)) {
-      slackr_msg(slack_msg, mrkdwn = "true")
-   } else {
-      for (channel in channels)
-         slackr_msg(slack_msg, mrkdwn = "true", channel = channel)
+      # archive current
+      drive_cp(
+         gd_step,
+         gd_archive,
+         paste0(format(Sys.time(), "%Y.%m.%d"), "_", process_step),
+         overwrite = TRUE
+      )
+
+      .log_info("Uploading to GSheets..")
+
+      # list of validations
+      issues_list <- names(corr_list)
+      sheets_list <- sheet_names(gd_step)
+
+      # acquire sheet_id
+      slack_by   <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
+      drive_link <- paste0("https://docs.google.com/spreadsheets/d/", gd_step, "/|GSheets Link: ", process_step)
+      slack_msg  <- glue(">*{surv_name}*\n>Conso validation sheets for `{process_step}` have been updated by <@{slack_by}>.\n><{drive_link}>")
+      for (issue in issues_list) {
+         # add issue
+         if (nrow(corr_list[[issue]]) > 0) {
+            if (corr_status == "old")
+               sheet_write(corr_list[[issue]], gd_step, issue)
+            else
+               range_autofit(gd_step, issue)
+         }
+      }
+
+      # delete list of empty dataframes from sheet
+      .log_info("Deleting empty sheets.")
+      for (issue in issues_list)
+         if (nrow(corr_list[[issue]]) == 0 & issue %in% sheets_list)
+            empty_sheets <- append(empty_sheets, issue)
+      for (issue in sheets_list)
+         if (!(issue %in% issues_list))
+            empty_sheets <- append(empty_sheets, issue)
+
+      # delete if existing sheet no longer has values in new run
+      if (length(empty_sheets[-1]) > 0)
+         sheet_delete(gd_step, empty_sheets[-1])
+
+      # log in slack
+      if (is.null(channels)) {
+         slackr_msg(slack_msg, mrkdwn = "true")
+      } else {
+         for (channel in channels)
+            slackr_msg(slack_msg, mrkdwn = "true", channel = channel)
+      }
    }
 }
 
