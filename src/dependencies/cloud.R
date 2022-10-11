@@ -165,7 +165,7 @@ gdrive_correct <- function(drive_path = NULL, report_period = NULL) {
 # unified data factory
 gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NULL) {
    # re-initialize
-   corr <- new.env()
+   corr <- list()
 
    # drive path
    data_cleaning <- as_id("1rk5kVc7MxtWfE-Ju_kJSMkviSLvr0h6C")
