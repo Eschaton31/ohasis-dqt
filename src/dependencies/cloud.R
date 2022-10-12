@@ -50,32 +50,36 @@ get_ei <- function(reporting = NULL) {
 
 # get list of encoded forms
 get_encoded <- function(reporting = NULL, module = NULL) {
-   main_path  <- "~/DQT/Documentation/Encoding/"
+   main_path  <- as_id("18hh6GZzjnNBidMg9sxOworj2IhbwTUak")
    main_drive <- drive_ls(main_path)
 
    df_list <- list()
    # download everything if no reporting period specified
    if (!is.null(reporting)) {
       if (StrIsNumeric(reporting)) {
-         list_ei <- drive_ls(paste0(main_path, reporting, "/", module, "/"))
+         surveillances <- drive_ls(as_id(main_drive[main_drive$name == reporting,]$id))
+
+         list_ei <- drive_ls(as_id(surveillances[surveillances$name == module,]$id))
 
          for (ei in seq_len(nrow(list_ei))) {
-            sheets <- sheet_names(list_ei[ei, "id"] %>% as.character())
-            sheets <- sheets[!stri_detect_fixed(sheets, "LEGENDS")]
-            forms  <- sheets[stri_detect_fixed(sheets, "FORM") |
-                                stri_detect_fixed(sheets, "DISPENSE") |
-                                stri_detect_fixed(sheets, "DISCONTINUE")]
-            sheets <- c(setdiff(sheets, names(df_list)), forms)
+            ss_id   <- as_id(list_ei[ei,]$id)
+            ss_name <- list_ei[ei,]$name
+            sheets  <- sheet_names(ss_id)
+            sheets  <- sheets[!stri_detect_fixed(sheets, "LEGENDS")]
+            forms   <- sheets[stri_detect_fixed(sheets, "FORM") |
+                                 stri_detect_fixed(sheets, "DISPENSE") |
+                                 stri_detect_fixed(sheets, "DISCONTINUE") |
+                                 stri_detect_fixed(sheets, "documentation")]
+            sheets  <- c(setdiff(sheets, names(df_list)), forms)
 
             for (sheet in sheets) {
-               ss    <- list_ei[ei, "id"] %>% as.character()
-               ei_df <- read_sheet(ss, sheet = sheet, col_types = "c") %>%
+               ei_df <- read_sheet(ss_id, sheet = sheet, col_types = "c") %>%
                   mutate_all(
                      ~as.character(.)
                   ) %>%
                   mutate(
-                     encoder   = list_ei[ei, "name"] %>% as.character(),
-                     ss        = ss,
+                     encoder   = ss_name,
+                     ss        = ss_id,
                      sheet_row = row_number()
                   )
 
@@ -163,7 +167,7 @@ gdrive_correct <- function(drive_path = NULL, report_period = NULL) {
 }
 
 # unified data factory
-gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NULL) {
+gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NULL, speed = TRUE) {
    # re-initialize
    corr <- list()
 
@@ -185,16 +189,23 @@ gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NUL
          corr_id     <- as_id(clean_all[i,]$id)
          corr_name   <- clean_all[i,]$name
          corr_sheets <- sheet_names(corr_id)
-         corr_sheets <- corr_sheets[corr_sheets == surv_name]
 
-         if (length(corr_sheets) > 1) {
-            corr[[corr_name]] <- list()
-            for (sheet in corr_sheets)
-               corr[[corr_name]][[sheet]] <-
-                  range_speedread(corr_id, sheet, show_col_types = FALSE)
+         if (speed) {
+            if (length(corr_sheets) > 1) {
+               corr[[corr_name]] <- list()
+               for (sheet in corr_sheets)
+                  corr[[corr_name]][[sheet]] <- range_speedread(corr_id, sheet, show_col_types = FALSE)
+            } else {
+               corr[[corr_name]] <- range_speedread(corr_id, show_col_types = FALSE)
+            }
          } else {
-            corr[[corr_name]] <-
-               range_speedread(corr_id, show_col_types = FALSE)
+            if (length(corr_sheets) > 1) {
+               corr[[corr_name]] <- list()
+               for (sheet in corr_sheets)
+                  corr[[corr_name]][[sheet]] <- read_sheet(corr_id, sheet)
+            } else {
+               corr[[corr_name]] <- read_sheet(corr_id)
+            }
          }
       }
    }
@@ -208,8 +219,12 @@ gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NUL
          corr_sheets <- sheet_names(corr_id)
          sheet       <- corr_sheets[corr_sheets == surv_name]
 
-         if (length(sheet) != 0)
-            corr[[corr_name]] <- range_speedread(corr_id, sheet, show_col_types = FALSE)
+         if (length(sheet) != 0) {
+            if (speed)
+               corr[[corr_name]] <- range_speedread(corr_id, sheet, show_col_types = FALSE)
+            else
+               corr[[corr_name]] <- read_sheet(corr_id, sheet)
+         }
       }
    }
 
