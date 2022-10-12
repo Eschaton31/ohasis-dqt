@@ -19,7 +19,7 @@ if (!(glue("{ohasis$ym}/") %in% list_files(dir_cloud_base)))
 .log_info("Getting list of uploaded files.")
 pdf_nextcloud <- invisible(list_files(dir_cloud_report, full_info = TRUE)) %>%
    filter(stri_detect_fixed(file, ".pdf"))
-pdf_dropbox   <- drop_dir(dir_dropbox_report) %>%
+pdf_dropbox   <- drop_dir(dir_dropbox_report, recursive = TRUE) %>%
    filter(stri_detect_fixed(name, ".pdf"))
 
 # check with corrections list which files are not yet processed
@@ -52,17 +52,29 @@ if ("pdf_results" %in% names(nhsss$harp_dx$corr))
 # parallelize downloading of pdf files from Dropbox
 if (nrow(pdf_for_dl) > 0) {
    .log_info("Downloading SACCL PDF results.")
-   plan(multisession)
+   # plan(multisession)
+   # invisible(
+   #    future_map_chr(pdf_for_dl$path_display, function(file) {
+   #       drop_download(
+   #          file,
+   #          dir_output,
+   #          overwrite = TRUE
+   #       )
+   #    })
+   # )
+   # plan(sequential)
+   pb <- progress_bar$new(format = ":current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = nrow(pdf_for_dl), width = 100, clear = FALSE)
+   pb$tick(0)
    invisible(
-      future_map_chr(pdf_for_dl$path_display, function(file) {
+      lapply(pdf_for_dl$path_display, function(file) {
          drop_download(
             file,
             dir_output,
             overwrite = TRUE
          )
+         pb$tick(1)
       })
    )
-   plan(sequential)
 }
 
 # download_folder(dir_dropbox_report, dir_output, overwrite = TRUE)
@@ -72,9 +84,11 @@ if (nrow(pdf_for_dl) > 0) {
 # iterate over all pdf files
 # TODO: Add checking for number of pages in PDF
 confirm_df    <- tibble()
-confirm_files <- list.files(dir_output, full.names = TRUE)
+confirm_files <- list.files(dir_output, "*.pdf", full.names = TRUE)
+pb            <- progress_bar$new(format = ":current of :total PDFs [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = length(confirm_files), width = 100, clear = FALSE)
+pb$tick(0)
 .log_info("Consolidating metadata into a dataframe.")
-for (file in list.files(dir_output, full.names = TRUE)) {
+for (file in confirm_files) {
    df <- pdftools::pdf_data(file)
 
    # get type; confirmatory or duplicate
@@ -229,6 +243,7 @@ for (file in list.files(dir_output, full.names = TRUE)) {
    }
 
    confirm_df <- bind_rows(confirm_df, pdf_info)
+   pb$tick(1)
 }
 
 ##  Perform cleaning on the consolidated df ------------------------------------
@@ -450,24 +465,28 @@ if ("pdf_results" %in% names(nhsss$harp_dx$corr))
          !(FILENAME %in% list.files(dir_output))
       )
 
+
+dir_nc <- "N:/HARP Cloud/HARP Forms/Confirmatory/2022.09"
 if (nrow(pdf_for_ul)) {
-   plan(multisession)
-   invisible(
-      lapply(seq_len(nrow(confirm_df)), function(i) {
-         file_old <- confirm_df[i, "FILENAME"] %>% as.character()
-         file_new <- confirm_df[i, "LABCODE"] %>% as.character()
+   pb <- progress_bar$new(format = ":current of :total PDFs [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = nrow(pdf_for_ul), width = 100, clear = FALSE)
+   pb$tick(0)
+   for (i in seq_len(nrow(confirm_df))) {
+      file_old <- confirm_df[i, "FILENAME"] %>% as.character()
+      file_new <- confirm_df[i, "LABCODE"] %>% as.character()
 
+      if (!is.na(file_new)) {
          file_old <- file.path(dir_output, file_old)
-         file_new <- file.path(dir_output, glue("{file_new}.pdf"))
+         file_new <- file.path(dir_nc, glue("{file_new}.pdf"))
 
-         file.copy(file_old, file_new, overwrite = TRUE)
+         if (file_new != file_old)
+            file_copy(file_old, file_new, overwrite = TRUE)
 
-         upload_file(file_new, dir_cloud_report)
+         # upload_file(file_new, dir_cloud_report)
 
-         unlink(file_new)
-      })
-   )
-   plan(sequential)
+         # unlink(file_new)
+      }
+      pb$tick(1)
+   }
 }
 
 # assign to global environment

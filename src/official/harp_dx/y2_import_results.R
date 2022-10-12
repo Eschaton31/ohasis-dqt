@@ -20,11 +20,11 @@ ei <- encoded$data$records %>%
       `Encoder`       = encoder
    )
 
-ei      <- get_ei("2022.07")
+# ei      <- get_ei("2022.07")
 ei      <- bind_rows(
-   read_sheet("1oyje9a2JrW_bVF0HrdYgy3QmhMqY358NxDn17yz8O_8", "documentation") %>%
+   read_sheet("1ew4ivZ2XNwWTPT7r7ql5uqblsUQv4XlnVxtrqb2bQbE", "documentation") %>%
       mutate(encoder = "jsmanaois.pbsp@gmail.com"),
-   read_sheet("1HMspM0t5woHL8EJ7Bv5M-nflTMWo7P9-ivX90sxXsrU", "documentation") %>%
+   read_sheet("1JQcWmtRUqtHtdzps9pWlGCA3TQLjcdOwLgqki831IeI", "documentation") %>%
       mutate(encoder = "tayagallen14.doh@gmail.com")
 )
 encoded <- ei %>%
@@ -33,7 +33,7 @@ encoded <- ei %>%
       !is.na(`Record ID`)
    ) %>%
    mutate(,
-      `Encoder` = stri_replace_first_fixed(encoder, "2022.04_", "")
+      `Encoder` = stri_replace_first_fixed(encoder, "2022.09_", "")
    ) %>%
    select(
       `Facility ID`,
@@ -142,7 +142,7 @@ write_clip(
 TIMESTAMP <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 # import    <- nhsss$harp_dx$pdf_saccl$data %>%
 import    <- nhsss$harp_dx$pdf_saccl$data %>%
-   mutate_all(~as.character(.)) %>%
+   mutate_all(~str_squish(as.character(.))) %>%
    inner_join(
       y  = nhsss$harp_dx$corr$pdf_results %>%
          select(
@@ -150,7 +150,7 @@ import    <- nhsss$harp_dx$pdf_saccl$data %>%
             REC_ID,
             PATIENT_ID
          ) %>%
-         mutate_all(~as.character(.)),
+         mutate_all(~str_squish(as.character(.))),
       by = "LABCODE",
       na_matches = "never"
    ) %>%
