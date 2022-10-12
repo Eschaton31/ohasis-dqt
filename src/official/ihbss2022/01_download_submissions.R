@@ -140,7 +140,7 @@ data %<>%
          sq1_rid == "M-100-18" ~ "SEED",
          sq1_rid == "M-100-19" ~ "SEED",
          sq1_rid == "M-100-20" ~ "SEED",
-         StrRight(recruiter, 1) == "-" ~ "SEED",
+         StrLeft(StrRight(sq1_rid, 2), 1) == "-" ~ "SEED",
          recruiter_exist == "Y" ~ "Y",
          TRUE ~ "N"
       )
