@@ -809,7 +809,8 @@ DB <- setRefClass(
                dbExecute(db_conn, glue(r"(DROP TABLE `ohasis_warehouse`.`{warehouse_table}`;)"))
 
             # upload info
-            ohasis$upsert(db_conn, "warehouse", warehouse_table, old_dataset, "PATIENT_ID")
+            # ohasis$upsert(db_conn, "warehouse", warehouse_table, old_dataset, "PATIENT_ID")
+            ohasis$upsert(db_conn, "warehouse", warehouse_table, old_dataset, names(id_col))
          }
 
          if (reload == "2") {
