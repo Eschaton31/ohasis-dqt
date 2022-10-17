@@ -7,7 +7,7 @@ check <- input(
 )
 if (check == "1") {
    .log_info("Downloading corrections list.")
-   nhsss <- gdrive_correct2(nhsss, ohasis$ym, "harp_dx")
+   nhsss <- gdrive_correct2(nhsss, ohasis$ym, "harp_dx", speed = FALSE)
 }
 
 # run through all tables
