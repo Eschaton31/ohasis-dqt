@@ -91,7 +91,7 @@ check_dir <- function(dir) {
 
 # sheets cleaning per id
 .cleaning_list <- function(data_to_clean = NULL, cleaning_list = NULL, corr_id_name = NULL, corr_id_type = NULL) {
-   data    <- data_to_clean
+   data    <- data_to_clean %>% filter(!is.na({{corr_id_name}}))
    # for (i in seq_len(nrow(cleaning_list))) {
    #
    #    # load idnum and name of variable
