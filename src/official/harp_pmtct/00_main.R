@@ -12,7 +12,7 @@ nhsss$harp_pmtct$wd <- file.path(getwd(), "src", "official", "harp_pmtct")
 ##  Begin linkage of art registry ----------------------------------------------
 
 source(file.path(nhsss$harp_pmtct$wd, "01_load_reqs.R"))
-source(file.path(nhsss$harp_pmtct$wd, "02_data_reg.initial.R"))
+source(file.path(nhsss$harp_pmtct$wd, "02_data_mom.initial.R"))
 source(file.path(nhsss$harp_pmtct$wd, "03_data_reg.convert.R"))
 source(file.path(nhsss$harp_pmtct$wd, "04_data_reg.final.R"))
 
