@@ -523,12 +523,20 @@ nhsss$harp_dx$converted$data %<>%
             baseline_cd4 %in% c(1, 2, 3, 4, 5) ~ 1,
          !is.na(baseline_cd4) ~ 0
       ),
+      # refined ahd
+      ahd                  = case_when(
+         who_staging %in% c(3, 4) ~ 1,
+         age >= 5 & baseline_cd4 %in% c(4, 5) ~ 1,
+         age < 5 ~ 1,
+         !is.na(baseline_cd4) ~ 0
+      ),
 
       # class
       classd               = if_else(
          condition = !is.na(who_staging),
          true      = who_staging,
-         false     = NA_integer_) %>% as.numeric(),
+         false     = NA_integer_
+      ) %>% as.numeric(),
       description_symptoms = stri_trans_toupper(SYMPTOMS),
       classd               = case_when(
          stri_detect_regex(description_symptoms, paste(collapse = "|", (nhsss$harp_dx$corr$classd %>% filter(class == 3))$symptom)) ~ 3,
