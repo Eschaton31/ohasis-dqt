@@ -1,5 +1,5 @@
-encoded       <- get_encoded("2022.08", "Treatment")
-encoded$STAFF <- read_sheet("1BRohoSaBE73zwRMXQNcWeRf5rC2OcePS64A67ODfxXI")
+encoded       <- get_encoded("2022.09", "TREATMENT")
+encoded$STAFF <- read_sheet(as_id("1BRohoSaBE73zwRMXQNcWeRf5rC2OcePS64A67ODfxXI"))
 
 encoded$data$enrollees <- encoded$FORMS %>%
    distinct_all() %>%
@@ -74,7 +74,7 @@ encoded$data$enrollees %<>%
 
 for (i in seq_len(nrow(encoded$data$enrollees)))
    range_write(
-      encoded$data$enrollees[i,]$ss,
+      as_id(encoded$data$enrollees[i,]$ss),
       encoded$data$enrollees[i, "PATIENT_ID"],
       "FORMS",
       encoded$data$enrollees[i,]$row_id,
@@ -160,7 +160,8 @@ encoded$data$records <- encoded$FORMS %>%
    mutate(
       .after       = REC_ID,
       CREATED_DATE = case_when(
-         stri_detect_fixed(CREATED_DATE, "-") ~ as.Date(CREATED_DATE, format = "%m-%d-%Y"),
+         stri_detect_fixed(CREATED_DATE, "-") & stri_detect_regex(CREATED_DATE, "^[0-9][0-9]-") ~ as.Date(CREATED_DATE, format = "%m-%d-%Y"),
+         stri_detect_fixed(CREATED_DATE, "-") & stri_detect_regex(CREATED_DATE, "^[0-9][0-9][0-9][0-9]") ~ as.Date(CREATED_DATE, format = "%Y-%m-%d"),
          stri_detect_fixed(CREATED_DATE, "/") ~ as.Date(CREATED_DATE, format = "%m/%d/%Y"),
       ),
       CREATED_TIME = format(strptime(CREATED_TIME, "%I:%M:%S %p"), "%H:%M:%S"),
