@@ -6,7 +6,9 @@ p_load(
    showtext,
    rgdal,
    sf,
-   svglite
+   svglite,
+   tmaptools,
+   ragg
 )
 
 font_add(
