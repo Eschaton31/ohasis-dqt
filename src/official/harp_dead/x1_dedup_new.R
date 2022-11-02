@@ -129,7 +129,7 @@ invisible(
 
 # write into NHSSS GSheet
 
-gdrive_validation(nhsss$harp_dead, "dedup_new", ohasis$ym)
+gdrive_validation(nhsss$harp_dead, "dedup_new", ohasis$ym, list_name = NULL)
 
 .log_success("Done!")
 
