@@ -764,6 +764,7 @@ DB <- setRefClass(
 
             old_dataset <- path %>%
                read_dta() %>%
+               zap_labels() %>%
                # convert Stata string missing data to NAs
                mutate_if(
                   .predicate = is.character,
