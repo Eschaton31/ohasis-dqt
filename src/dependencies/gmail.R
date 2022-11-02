@@ -43,8 +43,7 @@ gmail$nhsss$head  <- c(
 gmail$nhsss$ss    <- c(
    "jsmartinez@doh.gov.ph",
    "cjtinaja@doh.gov.ph",
-   "kapamittan@doh.gov.ph",
-   "appadilla@doh.gov.ph"
+   "kapamittan@doh.gov.ph"
 )
 gmail$nhsss$dqt   <- c(
    "mcrendon@doh.gov.ph",
@@ -54,7 +53,6 @@ gmail$nhsss$dat   <- c(
    "jsmartinez@doh.gov.ph",
    "cjtinaja@doh.gov.ph",
    "kapamittan@doh.gov.ph",
-   "appadilla@doh.gov.ph",
    "jfnadal@doh.gov.ph",
    "rpamor@doh.gov.ph",
    "napcortez@doh.gov.ph",
