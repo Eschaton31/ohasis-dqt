@@ -18,8 +18,8 @@ epictr$data$est <- epictr$data$est_dx %>%
             NAME_MUNC,
          ) %>%
          mutate_at(
-            .vars = vars(starts_with("PSGC")),
-            ~if_else(. != "", paste0("PH", .), "")
+            .vars = vars(contains("PSGC")),
+            ~if_else(. != "" & nchar(.) == 9, paste0("PH", .), ., "")
          )
    ) %>%
    distinct_all() %>%
@@ -33,6 +33,7 @@ table_space <- Id(schema = "harp", table = "epictr_est")
 if (dbExistsTable(lw_conn, table_space))
    dbRemoveTable(lw_conn, table_space)
 
-ohasis$upsert(lw_conn, "harp", "epictr_est", epictr$data$est, c("PSGC_REG", "PSGC_PROV", "PSGC_AEM", "report_yr"))
+dbWriteTable(lw_conn, table_space, epictr$data$est)
+# ohasis$upsert(lw_conn, "harp", "epictr_est", epictr$data$est, c("PSGC_REG", "PSGC_PROV", "PSGC_AEM", "report_yr"))
 
 dbDisconnect(lw_conn)
