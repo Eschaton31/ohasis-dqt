@@ -195,11 +195,14 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
       real_prov,
       real_munc,
       artstart_date,
-      class   = curr_class,
-      outcome = curr_outcome,
+      class               = curr_class,
+      outcome             = curr_outcome,
       latest_ffupdate,
       latest_nextpickup,
       latest_regimen,
+      previous_ffupdate   = prev_ffup,
+      previous_nextpickup = prev_pickup,
+      previous_regimen    = prev_regimen,
       art_reg,
       line,
       newonart,
@@ -208,7 +211,206 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
    distinct_all() %>%
    arrange(art_id, desc(latest_nextpickup)) %>%
    distinct(art_id, .keep_all = TRUE) %>%
-   mutate(central_id = CENTRAL_ID)
+   mutate(central_id = CENTRAL_ID) %>%
+   # retag regimen
+   select(-art_reg, -line) %>%
+   mutate(
+      arv_reg = stri_trans_tolower(MEDICINE_SUMMARY),
+      azt1    = if_else(stri_detect_fixed(arv_reg, "azt"), "azt", NA_character_),
+      tdf1    = if_else(stri_detect_fixed(arv_reg, "tdf"), "tdf", NA_character_),
+      d4t1    = if_else(stri_detect_fixed(arv_reg, "d4t"), "d4t", NA_character_),
+      xtc1    = if_else(stri_detect_fixed(arv_reg, "3tc"), "3tc", NA_character_),
+      efv1    = if_else(stri_detect_fixed(arv_reg, "efv"), "efv", NA_character_),
+      nvp1    = if_else(stri_detect_fixed(arv_reg, "nvp"), "nvp", NA_character_),
+      lpvr1   = if_else(stri_detect_fixed(arv_reg, "lpv/r"), "lpv/r", NA_character_),
+      lpvr1   = if_else(stri_detect_fixed(arv_reg, "lpvr"), "lpvr", lpvr1),
+      ind1    = if_else(stri_detect_fixed(arv_reg, "ind"), "ind", NA_character_),
+      ral1    = if_else(stri_detect_fixed(arv_reg, "ral"), "ral", NA_character_),
+      abc1    = if_else(stri_detect_fixed(arv_reg, "abc"), "abc", NA_character_),
+      ril1    = if_else(stri_detect_fixed(arv_reg, "ril"), "ril", NA_character_),
+      dtg1    = if_else(stri_detect_fixed(arv_reg, "dtg"), "dtg", NA_character_),
+   ) %>%
+   unite(
+      col   = 'art_reg',
+      sep   = ' ',
+      na.rm = T,
+      azt1,
+      tdf1,
+      d4t1,
+      xtc1,
+      efv1,
+      nvp1,
+      lpvr1,
+      ind1,
+      ral1,
+      abc1,
+      ril1,
+      dtg1
+   ) %>%
+   mutate(
+      # old line
+      line          = case_when(
+         art_reg == "tdf 3tc efv" ~ 1,
+         art_reg == "tdf 3tc nvp" ~ 1,
+         art_reg == "azt 3tc efv" ~ 1,
+         art_reg == "azt 3tc nvp" ~ 1,
+         art_reg == "d4t 3tc efv" ~ 1,
+         art_reg == "d4t 3tc nvp" ~ 1,
+         art_reg == "tdf 3tc dtg" ~ 1,
+         art_reg == "3tc nvp abc" ~ 1,
+         art_reg == "3tc efv abc" ~ 1,
+         art_reg == "3tc abc ril" ~ 1,
+         art_reg == "tdf 3tc ril" ~ 1,
+         art_reg == "azt 3tc ril" ~ 1,
+         art_reg == "azt 3tc lpv/r" ~ 2,
+         art_reg == "tdf 3tc lpv/r" ~ 2,
+         art_reg == "d4t 3tc lpv/r" ~ 2,
+         art_reg == "d4t 3tc idv" ~ 2,
+         art_reg == "azt 3tc idv" ~ 2,
+         art_reg == "tdf 3tc idv" ~ 2,
+         art_reg == "3tc lpv/r abc" ~ 2,
+         !is.na(art_reg) ~ 3
+      ),
+
+      # new line
+      line          = case_when(
+         art_reg == "azt 3tc nvp" ~ 1,
+         art_reg == "azt 3tc efv" ~ 1,
+         art_reg == "tdf 3tc efv" ~ 1,
+         art_reg == "tdf 3tc nvp" ~ 1,
+         art_reg == "abc 3tc nvp" ~ 1,
+         art_reg == "abc 3tc efv" ~ 1,
+         art_reg == "abc 3tc dtg" ~ 1,
+         art_reg == "abc 3tc rtv" ~ 1,
+         art_reg == "tdf 3tc rtv" ~ 1,
+         art_reg == "azt 3tc rtv" ~ 1,
+         art_reg == "tdf 3tc dtg" ~ 1,
+         art_reg == "azt 3tc lpv/r" ~ 2,
+         art_reg == "tdf 3tc lpv/r" ~ 2,
+         art_reg == "abc 3tc lpv/r" ~ 2,
+         art_reg == "azt 3tc dtg" ~ 2,
+         !is.na(art_reg) ~ 3
+      ),
+
+      # reg disagg
+      regimen       = toupper(str_squish(latest_regimen)),
+      r_azt_3tc     = if_else(stri_detect_fixed(regimen, "AZT/3TC"), "AZT/3TC", NA_character_),
+      r_azt         = if_else(
+         stri_detect_fixed(regimen, "AZT") &
+            !stri_detect_fixed(regimen, "AZT/3TC") &
+            !stri_detect_fixed(regimen, "AZTSYR"),
+         "AZT",
+         NA_character_
+      ),
+      r_tdf         = if_else(
+         stri_detect_fixed(regimen, "TDF") &
+            !stri_detect_fixed(regimen, "TDF/3TC") &
+            !stri_detect_fixed(regimen, "TDF100MG"),
+         "TDF",
+         NA_character_
+      ),
+      r_tdf_3tc     = if_else(
+         stri_detect_fixed(regimen, "TDF/3TC") &
+            !stri_detect_fixed(regimen, "TDF/3TC/EFV"),
+         "TDF/3TC",
+         NA_character_
+      ),
+      r_tdf_3tc_efv = if_else(stri_detect_fixed(regimen, "TDF/3TC/EFV"), "TDF/3TC/EFV", NA_character_),
+      r_abc         = if_else(
+         stri_detect_fixed(regimen, "ABC") &
+            !stri_detect_fixed(regimen, "ABCSYR"),
+         "ABC",
+         NA_character_
+      ),
+      r_abcsyr      = if_else(stri_detect_fixed(regimen, "ABCSYR"), "ABCsyr", NA_character_),
+      r_aztsyr      = if_else(stri_detect_fixed(regimen, "AZTSYR"), "AZTsyr", NA_character_),
+      r_tdf100      = if_else(stri_detect_fixed(regimen, "TDF100MG"), "TDF100mg", NA_character_),
+      r_xtc         = case_when(
+         stri_detect_fixed(regimen, "3TC") &
+            !stri_detect_fixed(regimen, "/3TC") &
+            !stri_detect_fixed(regimen, "3TCSYR") ~ "3TC",
+         stri_detect_fixed(regimen, "D4T/3TC") ~ "D4T/3TC",
+         TRUE ~ NA_character_
+      ),
+      r_xtcsyr      = if_else(stri_detect_fixed(regimen, "3TCSYR"), "3TCsyr", NA_character_),
+      r_nvp         = if_else(
+         stri_detect_fixed(regimen, "NVP") &
+            !stri_detect_fixed(regimen, "NVPSYR"),
+         "NVP",
+         NA_character_
+      ),
+      r_nvpsyr      = if_else(stri_detect_fixed(regimen, "NVPSYR"), "NVPsyr", NA_character_),
+      r_efv         = if_else(
+         stri_detect_fixed(regimen, "EFV") &
+            !stri_detect_fixed(regimen, "/EFV") &
+            !stri_detect_fixed(regimen, "EFV50MG") &
+            !stri_detect_fixed(regimen, "EFV200MG") &
+            !stri_detect_fixed(regimen, "EFVSYR"),
+         "EFV",
+         NA_character_
+      ),
+      r_efv50       = if_else(stri_detect_fixed(regimen, "EFV50MG"), "EFV50mg", NA_character_),
+      r_efv200      = if_else(stri_detect_fixed(regimen, "EFV200MG"), "EFV200mg", NA_character_),
+      r_efv200      = if_else(stri_detect_fixed(regimen, "EFVSYR"), "EFVsyr", NA_character_),
+      r_ril         = if_else(stri_detect_fixed(regimen, "RIL"), "RIL", NA_character_),
+      r_lpvr        = if_else(
+         (stri_detect_fixed(regimen, "LPV/R") |
+            stri_detect_fixed(regimen, "LPVR")) &
+            (!stri_detect_fixed(regimen, "RSYR") |
+               !stri_detect_fixed(regimen, "R PEDIA")),
+         "LPV/r",
+         NA_character_
+      ),
+      r_lpvr_pedia  = if_else(
+         stri_detect_fixed(regimen, "LPV") &
+            (stri_detect_fixed(regimen, "RSYR") |
+               stri_detect_fixed(regimen, "R PEDIA")),
+         "LPV/r",
+         NA_character_
+      ),
+      r_ral         = if_else(stri_detect_fixed(regimen, "RAL"), "RAL", NA_character_),
+      r_ftc         = if_else(stri_detect_fixed(regimen, "FTC"), "FTC", NA_character_),
+      r_idv         = if_else(stri_detect_fixed(regimen, "IDV"), "IDV", NA_character_),
+      r_dtg         = if_else(stri_detect_fixed(regimen, "DTG"), "DTG", NA_character_),
+   ) %>%
+   unite(
+      col   = 'regimen',
+      sep   = '+',
+      na.rm = T,
+      starts_with("r_", ignore.case = FALSE)
+   ) %>%
+   mutate(
+      # reg disagg
+      reg_line = case_when(
+         regimen == "AZT/3TC+NVP" ~ 1,
+         regimen == "AZT+3TC+NVP" ~ 1,
+         regimen == "AZT/3TC+EFV" ~ 1,
+         regimen == "AZT+3TC+EFV" ~ 1,
+         regimen == "TDF/3TC/EFV" ~ 1,
+         regimen == "TDF/3TC+EFV" ~ 1,
+         regimen == "TDF+3TC+EFV" ~ 1,
+         regimen == "TDF/3TC+NVP" ~ 1,
+         regimen == "TDF+3TC+NVP" ~ 1,
+         regimen == "ABC+3TC+NVP" ~ 1,
+         regimen == "ABC+3TC+EFV" ~ 1,
+         regimen == "ABC+3TC+DTG" ~ 1,
+         regimen == "ABC+3TC+RTV" ~ 1,
+         regimen == "TDF+3TC+RTV" ~ 1,
+         regimen == "TDF/3TC+RTV" ~ 1,
+         regimen == "AZT/3TC+RTV" ~ 1,
+         regimen == "AZT+3TC+RTV" ~ 1,
+         regimen == "TDF/3TC/DTG" ~ 1,
+         regimen == "TDF/3TC+DTG" ~ 1,
+         regimen == "TDF+3TC+DTG" ~ 1,
+         regimen == "AZT/3TC+LPV/r" ~ 2,
+         regimen == "AZT+3TC+LPV/r" ~ 2,
+         regimen == "TDF/3TC+LPV/r" ~ 2,
+         regimen == "TDF+3TC+LPV/r" ~ 2,
+         regimen == "ABC+3TC+LPV/r" ~ 2,
+         regimen == "AZT+3TC+DTG" ~ 2,
+         regimen == "AZT/3TC+DTG" ~ 2,
+      )
+   )
 
 .log_info("Performing late validation cleanings.")
 if ("new_outcome" %in% names(nhsss$harp_tx$corr))
