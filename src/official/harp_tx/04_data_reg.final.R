@@ -103,7 +103,7 @@ nhsss$harp_dx$official$new <- ohasis$get_data("harp_dx", ohasis$yr, ohasis$mo) %
 
 .log_info("Updating data using dx registry information.")
 nhsss$harp_tx$official$new_reg %<>%
-   select(-starts_with("labcode2")) %>%
+   select(-starts_with("labcode2"), -starts_with("dxreg")) %>%
    left_join(
       y  = nhsss$harp_dx$official$new %>%
          select(
