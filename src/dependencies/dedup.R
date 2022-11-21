@@ -31,6 +31,7 @@ dedup_prep <- function(
          # extract parent info from uic
          UIC_MOM           = if_else(!is.na(UIC), substr(UIC, 1, 2), NA_character_),
          UIC_DAD           = if_else(!is.na(UIC), substr(UIC, 3, 4), NA_character_),
+         UIC_ORDER         = if_else(!is.na(UIC), substr(UIC, 5, 6), NA_character_),
 
          # variables for first 3 letters of names
          FIRST_A           = if_else(!is.na(FIRST), substr(FIRST, 1, 3), NA_character_),
@@ -114,14 +115,14 @@ upload_dupes <- function(data) {
       pid <- data[i, 2] %>% as.character()
       ts  <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 
-      num_pid <- nrow(
+      num_pid  <- nrow(
          dbGetQuery(
             db_conn,
             "SELECT * FROM registry WHERE PATIENT_ID = ?",
             params = pid
          )
       )
-      num_cid <- nrow(
+      num_cid  <- nrow(
          dbGetQuery(
             db_conn,
             "SELECT * FROM registry WHERE CENTRAL_ID = ?",
