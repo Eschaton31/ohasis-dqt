@@ -215,7 +215,7 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
    # retag regimen
    select(-art_reg, -line) %>%
    mutate(
-      arv_reg = stri_trans_tolower(MEDICINE_SUMMARY),
+      arv_reg = stri_trans_tolower(latest_regimen),
       azt1    = if_else(stri_detect_fixed(arv_reg, "azt"), "azt", NA_character_),
       tdf1    = if_else(stri_detect_fixed(arv_reg, "tdf"), "tdf", NA_character_),
       d4t1    = if_else(stri_detect_fixed(arv_reg, "d4t"), "d4t", NA_character_),
@@ -411,6 +411,36 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
          regimen == "AZT/3TC+DTG" ~ 2,
       )
    )
+
+##  Flag data for validation ---------------------------------------------------
+
+update <- input(
+   prompt  = "Run `outcome.final` validations?",
+   options = c("1" = "yes", "2" = "no"),
+   default = "1"
+)
+update <- substr(toupper(update), 1, 1)
+
+nhsss$harp_tx$outcome.final$check <- list()
+if (update == "1") {
+   # special checks
+   .log_info("Checking for shift out of TLD.")
+   nhsss$harp_tx$outcome.final$check[["tld to lte"]] <- nhsss$harp_tx$official$new_outcome %>%
+      filter(
+         previous_regimen == "TDF/3TC/DTG" & latest_regimen == "TDF/3TC/EFV"
+      )
+
+   .log_info("Checking for mismatch birthdate.")
+   nhsss$harp_tx$outcome.final$check[["missing reg_line"]] <- nhsss$harp_tx$official$new_outcome %>%
+      filter(
+         !is.na(reg_line)
+      )
+}
+
+##  Consolidate issues ---------------------------------------------------------
+
+# write into NHSSS GSheet
+gdrive_validation(nhsss$harp_tx, "outcome.final", ohasis$ym)
 
 .log_info("Performing late validation cleanings.")
 if ("new_outcome" %in% names(nhsss$harp_tx$corr))
