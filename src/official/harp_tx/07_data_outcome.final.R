@@ -294,6 +294,13 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
 
       # reg disagg
       regimen       = toupper(str_squish(latest_regimen)),
+      r_abc         = if_else(
+         stri_detect_fixed(regimen, "ABC") &
+            !stri_detect_fixed(regimen, "ABCSYR"),
+         "ABC",
+         NA_character_
+      ),
+      r_abcsyr      = if_else(stri_detect_fixed(regimen, "ABCSYR"), "ABCsyr", NA_character_),
       r_azt_3tc     = if_else(stri_detect_fixed(regimen, "AZT/3TC"), "AZT/3TC", NA_character_),
       r_azt         = if_else(
          stri_detect_fixed(regimen, "AZT") &
@@ -302,6 +309,7 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
          "AZT",
          NA_character_
       ),
+      r_aztsyr      = if_else(stri_detect_fixed(regimen, "AZTSYR"), "AZTsyr", NA_character_),
       r_tdf         = if_else(
          stri_detect_fixed(regimen, "TDF") &
             !stri_detect_fixed(regimen, "TDF/3TC") &
@@ -311,19 +319,13 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
       ),
       r_tdf_3tc     = if_else(
          stri_detect_fixed(regimen, "TDF/3TC") &
-            !stri_detect_fixed(regimen, "TDF/3TC/EFV"),
+            !stri_detect_fixed(regimen, "TDF/3TC/EFV") &
+            !stri_detect_fixed(regimen, "TDF/3TC/DTG"),
          "TDF/3TC",
          NA_character_
       ),
       r_tdf_3tc_efv = if_else(stri_detect_fixed(regimen, "TDF/3TC/EFV"), "TDF/3TC/EFV", NA_character_),
-      r_abc         = if_else(
-         stri_detect_fixed(regimen, "ABC") &
-            !stri_detect_fixed(regimen, "ABCSYR"),
-         "ABC",
-         NA_character_
-      ),
-      r_abcsyr      = if_else(stri_detect_fixed(regimen, "ABCSYR"), "ABCsyr", NA_character_),
-      r_aztsyr      = if_else(stri_detect_fixed(regimen, "AZTSYR"), "AZTsyr", NA_character_),
+      r_tdf_3tc_dtg = if_else(stri_detect_fixed(regimen, "TDF/3TC/DTG"), "TDF/3TC/DTG", NA_character_),
       r_tdf100      = if_else(stri_detect_fixed(regimen, "TDF100MG"), "TDF100mg", NA_character_),
       r_xtc         = case_when(
          stri_detect_fixed(regimen, "3TC") &
@@ -351,12 +353,17 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
       ),
       r_efv50       = if_else(stri_detect_fixed(regimen, "EFV50MG"), "EFV50mg", NA_character_),
       r_efv200      = if_else(stri_detect_fixed(regimen, "EFV200MG"), "EFV200mg", NA_character_),
-      r_efv200      = if_else(stri_detect_fixed(regimen, "EFVSYR"), "EFVsyr", NA_character_),
-      r_ril         = if_else(stri_detect_fixed(regimen, "RIL"), "RIL", NA_character_),
+      r_efvsyr      = if_else(stri_detect_fixed(regimen, "EFVSYR"), "EFVsyr", NA_character_),
+      r_dtg         = if_else(
+         stri_detect_fixed(regimen, "DTG") &
+            !stri_detect_fixed(regimen, "/DTG"),
+         "DTG",
+         NA_character_
+      ),
       r_lpvr        = if_else(
          (stri_detect_fixed(regimen, "LPV/R") |
             stri_detect_fixed(regimen, "LPVR")) &
-            (!stri_detect_fixed(regimen, "RSYR") |
+            (!stri_detect_fixed(regimen, "RSYR") &
                !stri_detect_fixed(regimen, "R PEDIA")),
          "LPV/r",
          NA_character_
@@ -365,13 +372,13 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
          stri_detect_fixed(regimen, "LPV") &
             (stri_detect_fixed(regimen, "RSYR") |
                stri_detect_fixed(regimen, "R PEDIA")),
-         "LPV/r",
+         "LPV/rsyr",
          NA_character_
       ),
+      r_ril         = if_else(stri_detect_fixed(regimen, "RIL"), "RIL", NA_character_),
       r_ral         = if_else(stri_detect_fixed(regimen, "RAL"), "RAL", NA_character_),
       r_ftc         = if_else(stri_detect_fixed(regimen, "FTC"), "FTC", NA_character_),
-      r_idv         = if_else(stri_detect_fixed(regimen, "IDV"), "IDV", NA_character_),
-      r_dtg         = if_else(stri_detect_fixed(regimen, "DTG"), "DTG", NA_character_),
+      r_idv         = if_else(stri_detect_fixed(regimen, "IDV"), "IDV", NA_character_)
    ) %>%
    unite(
       col   = 'regimen',
@@ -409,6 +416,10 @@ nhsss$harp_tx$official$new_outcome <- nhsss$harp_tx$outcome.converted$data %>%
          regimen == "ABC+3TC+LPV/r" ~ 2,
          regimen == "AZT+3TC+DTG" ~ 2,
          regimen == "AZT/3TC+DTG" ~ 2,
+         regimen == "ABC+3TC+LPV/r" ~ 2,
+         regimen == "AZT/3TC+NVPsyr" ~ 2,
+         !stri_detect_fixed(regimen, "syr") & !stri_detect_fixed(regimen, "pedia") ~ 3,
+         stri_detect_fixed(regimen, "syr") | stri_detect_fixed(regimen, "pedia") ~ 4
       )
    )
 
@@ -430,17 +441,48 @@ if (update == "1") {
          previous_regimen == "TDF/3TC/DTG" & latest_regimen == "TDF/3TC/EFV"
       )
 
-   .log_info("Checking for mismatch birthdate.")
+   .log_info("Checking for no reg_line.")
    nhsss$harp_tx$outcome.final$check[["missing reg_line"]] <- nhsss$harp_tx$official$new_outcome %>%
       filter(
-         !is.na(reg_line)
+         is.na(reg_line)
+      )
+
+   .log_info("Checking for line 3.")
+   nhsss$harp_tx$outcome.final$check[["line 3"]] <- nhsss$harp_tx$official$new_outcome %>%
+      filter(
+         reg_line == 3,
+         onart == 1
+      )
+
+   .log_info("Checking for line 4.")
+   nhsss$harp_tx$outcome.final$check[["line 4"]] <- nhsss$harp_tx$official$new_outcome %>%
+      filter(
+         reg_line == 4,
+         onart == 1
+      )
+
+   .log_info("Checking for 2in1+1 and 1+1+1.")
+   nhsss$harp_tx$outcome.final$check[["2in1+1 and 1+1+1"]] <- nhsss$harp_tx$official$new_outcome %>%
+      filter(
+         art_reg %in% c("tdf 3tc efv", "tdf 3tc dtg") & stri_detect_fixed(regimen, "+"),
+         # regimen %in% c("TDF/3TC+DTG", "TDF/3TC+EFV", "TDF+3TC+DTG", "TDF+3TC+EFV"),
+         # stri_detect_fixed(regimen, "TDF/3TC+DTG") |
+         #    stri_detect_fixed(regimen, "TDF/3TC+EFV") |
+         #    stri_detect_fixed(regimen, "TDF+3TC+DTG") |
+         #    stri_detect_fixed(regimen, "TDF+3TC+EFV"),
+         onart == 1
       )
 }
 
 ##  Consolidate issues ---------------------------------------------------------
 
 # write into NHSSS GSheet
-gdrive_validation(nhsss$harp_tx, "outcome.final", ohasis$ym)
+ss <- gdrive_validation(nhsss$harp_tx, "outcome.final", ohasis$ym)
+for (sheet in c("2in1+1 and 1+1+1", "line 3", "line 4", "tld to lte")) {
+   range_write_color(ss, sheet, "AB", "#FFF2CC")
+   range_write_color(ss, sheet, "Y", "#d0e0e3")
+   range_write_color(ss, sheet, "AI", "#d9ead3")
+}
 
 .log_info("Performing late validation cleanings.")
 if ("new_outcome" %in% names(nhsss$harp_tx$corr))
