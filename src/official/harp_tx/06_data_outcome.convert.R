@@ -152,10 +152,13 @@ nhsss$harp_tx$outcome.converted$data <- nhsss$harp_tx$outcome.initial$data %>%
 
       # current outcome
       curr_outcome        = case_when(
-         use_db == 1 & LATEST_VISIT <= ref_death_date ~ "dead",
+         use_db == 1 & (LATEST_VISIT <= ref_death_date) ~ "dead",
          use_db == 1 & LATEST_NEXT_DATE >= artcutoff_date ~ "alive on arv",
          use_db == 1 & LATEST_NEXT_DATE < artcutoff_date ~ "lost to follow up",
          use_db == 0 & prev_ffup <= ref_death_date ~ "dead",
+         use_db == 0 &
+            stri_detect_fixed(prev_outcome, "dead") &
+            is.na(ref_death_date) ~ prev_outcome,
          use_db == 0 & stri_detect_fixed(prev_outcome, "stopped") ~ prev_outcome,
          use_db == 0 & stri_detect_fixed(prev_outcome, "overseas") ~ prev_outcome,
          use_db == 0 & prev_pickup >= artcutoff_date ~ "alive on arv",
@@ -346,11 +349,6 @@ if (update == "1") {
       "curr_hub",
       "curr_class",
       "curr_outcome",
-      "curr_regimen",
-      "curr_ffup",
-      "curr_pickup",
-      "artstart_date",
-      "oh_artstart",
       "curr_line"
    )
    .log_info("Checking if non-negotiable variables are missing.")
@@ -358,7 +356,24 @@ if (update == "1") {
       var                                          <- as.symbol(var)
       nhsss$harp_tx$outcome.converted$check[[var]] <- nhsss$harp_tx$outcome.converted$data %>%
          filter(
-            is.na(!!var)
+            is.na(!!var),
+         ) %>%
+         arrange(curr_hub)
+   }
+   vars <- c(
+      "curr_regimen",
+      "curr_ffup",
+      "curr_pickup",
+      "artstart_date",
+      "oh_artstart"
+   )
+   .log_info("Checking if non-negotiable variables are missing.")
+   for (var in vars) {
+      var                                          <- as.symbol(var)
+      nhsss$harp_tx$outcome.converted$check[[var]] <- nhsss$harp_tx$outcome.converted$data %>%
+         filter(
+            is.na(!!var),
+            !(art_id %in% c(21673, 21582, 3124, 539, 3534, 140, 654, 663, 3229, 8906, 10913, 15817, 25716, 3124, 539, 3534, 140, 654, 663, 3229, 8906, 10913, 15817, 25716))
          ) %>%
          arrange(curr_hub)
    }
@@ -374,7 +389,7 @@ if (update == "1") {
       var                                                                        <- as.symbol(var)
       nhsss$harp_tx$outcome.converted$check[[paste0("dup_", as.character(var))]] <- nhsss$harp_tx$outcome.converted$data %>%
          filter(
-            !is.na(!!var)
+            !is.na(!!var),
          ) %>%
          get_dupes(!!var) %>%
          arrange(curr_hub)
@@ -391,7 +406,8 @@ if (update == "1") {
       var                                          <- as.symbol(var)
       nhsss$harp_tx$outcome.converted$check[[var]] <- nhsss$harp_tx$outcome.converted$data %>%
          filter(
-            !!var %in% c("UNKNOWN", "OTHERS", NA_character_)
+            !!var %in% c("UNKNOWN", "OTHERS", NA_character_),
+            !(art_id %in% c(21673, 21582, 3124, 539, 3534, 140, 654, 663, 3229, 8906, 10913, 15817, 25716, 3124, 539, 3534, 140, 654, 663, 3229, 8906, 10913, 15817, 25716))
          ) %>%
          arrange(curr_hub)
    }
@@ -418,7 +434,7 @@ if (update == "1") {
    .log_info("Checking for resurrected clients.")
    nhsss$harp_tx$outcome.converted$check[["resurrect"]] <- nhsss$harp_tx$outcome.converted$data %>%
       filter(
-         prev_outcome == "dead" & (curr_outcome != "dead" | is.na(curr_outcome)) | use_db == 1 & prev_outcome == "daed"
+         (prev_outcome == "dead" & (curr_outcome != "dead" | is.na(curr_outcome))) | (use_db == 1 & prev_outcome == "dead")
       ) %>%
       arrange(curr_hub)
 
@@ -426,6 +442,10 @@ if (update == "1") {
    nhsss$harp_tx$outcome.converted$check[["oh_earlier_start"]] <- nhsss$harp_tx$outcome.converted$data %>%
       filter(
          artstart_date > oh_artstart
+      ) %>%
+      mutate(
+         start_visit_diffdy = abs(floor(interval(artstart_date, oh_artstart) / days(1))),
+         start_visit_diffmo = abs(floor(interval(artstart_date, oh_artstart) / months(1)))
       ) %>%
       arrange(curr_hub)
 
