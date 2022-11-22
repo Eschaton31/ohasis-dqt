@@ -19,6 +19,7 @@ source("src/dependencies/pipeline.R")
 source("src/dependencies/full_tables.R")
 source("src/dependencies/cloud.R")
 source("src/dependencies/dedup.R")
+source("src/dependencies/googlesheets.R")
 
 # accounts
 source("src/dependencies/auth_acct.R")
