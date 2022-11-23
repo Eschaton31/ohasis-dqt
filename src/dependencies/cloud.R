@@ -328,6 +328,7 @@ gdrive_validation <- function(data_env = NULL,
          for (channel in channels)
             slackr_msg(slack_msg, mrkdwn = "true", channel = channel)
       }
+      return(gd_step)
    }
 }
 

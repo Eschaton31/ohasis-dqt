@@ -5,7 +5,7 @@ local(envir = epictr, {
       ref_yr                <- as.character(yr)
       data$resreg[[ref_yr]] <- data$linelist[[ref_yr]] %>%
          rename_at(
-            .vars = vars(starts_with("RES_PSGC")),
+            .vars = vars(starts_with("RES_", ignore.case = FALSE)),
             ~stri_replace_first_regex(., "^RES_", "")
          )
    }

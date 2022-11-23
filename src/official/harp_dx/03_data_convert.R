@@ -10,6 +10,7 @@ currEnv <- ls()[ls() != "currEnv"]
 .log_info("Getting latest `idnum` for reference.")
 nhsss$harp_dx$params$p10y         <- (as.numeric(ohasis$yr) - 10)
 nhsss$harp_dx$params$latest_idnum <- max(as.integer(nhsss$harp_dx$initial$data$IDNUM), na.rm = TRUE)
+nhsss$harp_dx$params$latest_idnum <- max(as.integer(nhsss$harp_dx$official$old$idnum), na.rm = TRUE)
 nhsss$harp_dx$params$latest_idnum <- if_else(
    condition = is.infinite(nhsss$harp_dx$params$latest_idnum),
    true      = max(as.integer(nhsss$harp_dx$official$old$idnum), na.rm = TRUE),
@@ -526,8 +527,8 @@ nhsss$harp_dx$converted$data %<>%
       # refined ahd
       ahd                  = case_when(
          who_staging %in% c(3, 4) ~ 1,
-         age >= 5 & baseline_cd4 %in% c(4, 5) ~ 1,
-         age < 5 ~ 1,
+         AGE >= 5 & baseline_cd4 %in% c(4, 5) ~ 1,
+         AGE < 5 ~ 1,
          !is.na(baseline_cd4) ~ 0
       ),
 

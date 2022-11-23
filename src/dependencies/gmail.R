@@ -36,15 +36,11 @@ if (Sys.getenv("GMAIL_KEY") != "") {
 
 # specific to NHSSS unit details
 gmail             <- new.env()
-gmail$nhsss$head  <- c(
-   "nspalaypayon@doh.gov.ph",
-   "mgzapanta@doh.gov.ph"
-)
+gmail$nhsss$head  <- "nspalaypayon@doh.gov.ph"
 gmail$nhsss$ss    <- c(
    "jsmartinez@doh.gov.ph",
    "cjtinaja@doh.gov.ph",
-   "kapamittan@doh.gov.ph",
-   "appadilla@doh.gov.ph"
+   "kapamittan@doh.gov.ph"
 )
 gmail$nhsss$dqt   <- c(
    "mcrendon@doh.gov.ph",
@@ -54,7 +50,6 @@ gmail$nhsss$dat   <- c(
    "jsmartinez@doh.gov.ph",
    "cjtinaja@doh.gov.ph",
    "kapamittan@doh.gov.ph",
-   "appadilla@doh.gov.ph",
    "jfnadal@doh.gov.ph",
    "rpamor@doh.gov.ph",
    "napcortez@doh.gov.ph",

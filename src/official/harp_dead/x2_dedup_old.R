@@ -184,7 +184,7 @@ if (length(reclink_df$matches$inds.a) > 0) {
 ##  Consolidate issues ---------------------------------------------------------
 
 # write into NHSSS GSheet
-gdrive_validation(nhsss$harp_dead, "dedup_old", ohasis$ym)
+gdrive_validation(nhsss$harp_dead, "dedup_old", ohasis$ym, list_name = NULL)
 
 .log_success("Done!")
 

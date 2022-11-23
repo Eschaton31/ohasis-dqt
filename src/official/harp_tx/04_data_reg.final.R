@@ -103,7 +103,7 @@ nhsss$harp_dx$official$new <- ohasis$get_data("harp_dx", ohasis$yr, ohasis$mo) %
 
 .log_info("Updating data using dx registry information.")
 nhsss$harp_tx$official$new_reg %<>%
-   select(-starts_with("labcode2")) %>%
+   select(-starts_with("labcode2"), -starts_with("dxreg")) %>%
    left_join(
       y  = nhsss$harp_dx$official$new %>%
          select(
@@ -125,7 +125,8 @@ nhsss$harp_tx$official$new_reg %<>%
    mutate(
       # tag clients for updating w/ dx registry data
       use_dxreg         = if_else(
-         condition = is.na(idnum) & !is.na(dxreg_idnum),
+         condition = !is.na(dxreg_confirmatory_code),
+         # condition = is.na(idnum) & !is.na(dxreg_idnum),
          true      = 1,
          false     = 0,
          missing   = 0
@@ -133,8 +134,10 @@ nhsss$harp_tx$official$new_reg %<>%
       idnum             = if_else(
          condition = use_dxreg == 1,
          true      = dxreg_idnum %>% as.integer(),
-         false     = idnum %>% as.integer(),
-         missing   = idnum %>% as.integer()
+         # false     = idnum %>% as.integer(),
+         # missing   = idnum %>% as.integer()
+         false     = NA_integer_,
+         missing   = NA_integer_
       ),
       confirmatory_code = if_else(
          condition = !is.na(dxreg_confirmatory_code),
@@ -177,7 +180,7 @@ for (var in reg_vars) {
 }
 
 # remove dx registry variables
-nhsss$harp_tx$official$new_reg %<>%
+nhsss$harp_tx$official$new_reg %>%
    select(
       -use_dxreg,
       -starts_with("dxreg")
