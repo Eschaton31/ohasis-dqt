@@ -63,14 +63,17 @@ load_packages(
    googleway,
    crayon,
    docxtractr,
-   rJava,
-   XLConnect,
+   # rJava,
+   # XLConnect,
    gender,
    openxlsx,
    ruODK,
    quarto,
    kwb.nextcloud,
-   plumber
+   plumber,
+   arrow,
+   envnames,
+   targets
 )
 
 p_load_gh(
