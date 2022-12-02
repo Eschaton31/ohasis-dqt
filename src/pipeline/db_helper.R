@@ -1,11 +1,11 @@
-tracked_select <- function(conn, query, name) {
+tracked_select <- function(conn, query, name, params = NULL) {
    # get number of affected rows
    data   <- tibble()
-   n_rows <- dbGetQuery(conn, glue(r"(SELECT COUNT(*) FROM ({gsub(';', '', query)}) AS tbl;)"))
+   n_rows <- dbGetQuery(conn, glue(r"(SELECT COUNT(*) FROM ({gsub(';', '', query)}) AS tbl;)"), params = params)
    n_rows <- as.numeric(n_rows[1,])
 
    # get actual result set
-   rs <- dbSendQuery(conn, query)
+   rs <- dbSendQuery(conn, query, params = params)
 
    .log_info("Reading {green(name)}.")
    chunk_size <- 1000
