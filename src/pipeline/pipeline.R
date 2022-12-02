@@ -192,3 +192,10 @@ flow_validation <- function(data_env = NULL,
       }
    }
 }
+
+# register pipelines in working directory
+flow_register <- function() {
+   files <- fs::dir_info(file.path(getwd(), "src"), recurse = TRUE, regexp = "[/]+_init.") %>%
+      arrange(path)
+   invisible(lapply(files$path, source))
+}
