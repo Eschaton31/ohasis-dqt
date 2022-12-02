@@ -429,6 +429,7 @@ get_checks <- function(data) {
 }
 
 ##  Actual flow ----------------------------------------------------------------
+
 .init <- function() {
    p <- parent.env(environment())
    local(envir = p, {
@@ -437,6 +438,8 @@ get_checks <- function(data) {
          prioritize_reports() %>%
          get_cd4(wd, ohasis$next_date) %>%
          attach_faci_names()
+
+      write_rds(data, file.path(wd, "initial.RDS"))
 
       check <- get_checks(data)
    })
