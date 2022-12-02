@@ -7,3 +7,4 @@
 /kath.R
 .httr-oauth
 .secrets
+**/src/official/harp_dx/*.RDS
