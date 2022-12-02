@@ -60,6 +60,7 @@ flow <- function(flow_env, tasks, wd = getwd(), parent_env = globalenv()) {
       parent_env[[env_name]] <- new.env()
 
    assign("wd", wd, parent_env[[env_name]])
+   assign("tasks", tasks, parent_env[[env_name]])
    local(envir = parent_env[[env_name]], {
       # convert into separate environments
       for (i in seq_len(length(tasks))) {
