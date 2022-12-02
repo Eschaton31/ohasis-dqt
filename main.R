@@ -15,7 +15,6 @@ rm(list = ls())
 source("src/dependencies/options.R")
 source("src/dependencies/libraries.R")
 source("src/dependencies/functions.R")
-source("src/dependencies/pipeline.R")
 source("src/dependencies/full_tables.R")
 source("src/dependencies/cloud.R")
 source("src/dependencies/dedup.R")
@@ -29,7 +28,18 @@ source("src/dependencies/gmail.R")
 source("src/classes/Project.R")
 source("src/classes/DB.R")
 
+# register pipelines
+source("src/pipeline/pipeline.R", chdir = TRUE)
+flow_register()
+
 ##  Load primary classes -------------------------------------------------------
 
 # initiate the project & database
 ohasis <- DB()
+
+##  example flow pipeline
+flow_register()
+nhsss$harp_dx$steps$`01_load_reqs`$.init()
+nhsss$harp_dx$steps$`02_data_initial`$.init()
+nhsss$harp_dx$steps$`03_data_convert`$.init()
+nhsss$harp_dx$steps$`04_data_final`$.init()
