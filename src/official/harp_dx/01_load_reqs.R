@@ -56,8 +56,17 @@ update_dataset <- function() {
    rm(check)
 }
 
-.init <- function () {
+define_params <- function() {
+   local(envir = nhsss$harp_dx, {
+      params              <- list()
+      params$p10y         <- (as.numeric(ohasis$yr) - 10)
+      params$latest_idnum <- max(as.integer(official$old$idnum), na.rm = TRUE)
+   })
+}
+
+.init <- function() {
    download_corrections()
    update_warehouse()
    update_dataset()
+   define_params()
 }
