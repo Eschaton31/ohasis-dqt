@@ -6,7 +6,7 @@ standardize_data <- function(data) {
          # generate idnum
          idnum                     = if_else(
             condition = is.na(IDNUM),
-            true      = nhsss$harp_dx$params$latest_idnum + row_number(),
+            true      = .GlobalEn$nhsss$harp_dx$params$latest_idnum + row_number(),
             false     = as.integer(IDNUM)
          ),
 
