@@ -3,20 +3,22 @@
 prep_data <- function(tx, dx) {
    data    <- list()
    data$tx <- tx %>%
+      filter(is.na(idnum)) %>%
       mutate(
-         byr = if_else(
-            condition = !is.na(bdate),
-            true      = year(bdate),
+         firstname = first,
+         byr       = if_else(
+            condition = !is.na(birthdate),
+            true      = year(birthdate),
             false     = NA_integer_
          ) %>% as.numeric(),
-         bmo = if_else(
-            condition = !is.na(bdate),
-            true      = year(bdate),
+         bmo       = if_else(
+            condition = !is.na(birthdate),
+            true      = year(birthdate),
             false     = NA_integer_
          ) %>% as.numeric(),
-         bdy = if_else(
-            condition = !is.na(bdate),
-            true      = year(bdate),
+         bdy       = if_else(
+            condition = !is.na(birthdate),
+            true      = year(birthdate),
             false     = NA_integer_
          ) %>% as.numeric(),
       )
@@ -319,12 +321,47 @@ prep_merge <- function(tx, dx) {
 .init <- function() {
    p <- parent.env(environment())
    local(envir = p, {
-      dx <- .GlobalEnv$nhsss$harp_dx$official$old
+      dx <- ohasis$get_data("harp_dx", ohasis$yr, ohasis$mo) %>%
+         read_dta(
+            col_select = c(
+               PATIENT_ID,
+               labcode,
+               labcode2,
+               idnum,
+               uic,
+               firstname,
+               middle,
+               last,
+               name_suffix,
+               bdate,
+               sex,
+               pxcode,
+               philhealth,
+               confirm_date
+            )
+         ) %>%
+         # convert Stata string missing data to NAs
+         mutate_if(
+            .predicate = is.character,
+            ~if_else(. == '', NA_character_, .)
+         ) %>%
+         left_join(
+            y  = nhsss$harp_tx$forms$id_registry,
+            by = "PATIENT_ID"
+         ) %>%
+         mutate(
+            CENTRAL_ID = if_else(
+               condition = is.na(CENTRAL_ID),
+               true      = PATIENT_ID,
+               false     = CENTRAL_ID
+            ),
+            labcode2   = if_else(is.na(labcode2), labcode, labcode2)
+         )
       tx <- read_rds(file.path(wd, "reg.final.RDS"))
 
       reclink <- prep_data(tx, dx)
       check   <- dedup_dx(reclink)
-      append(check, prep_merge(tx, dx))
+      check   <- append(check, prep_merge(tx, dx))
       rm(dx, tx, reclink)
    })
 

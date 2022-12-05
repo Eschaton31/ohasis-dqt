@@ -51,7 +51,7 @@ dedup_group_ids <- function(data) {
       data <- dedup_prep(
          data,
          first,
-         iddle,
+         middle,
          last,
          suffix,
          uic,

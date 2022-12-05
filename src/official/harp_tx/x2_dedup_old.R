@@ -5,18 +5,18 @@ prep_data <- function(old, new) {
    data$new <- new %>%
       mutate(
          byr = if_else(
-            condition = !is.na(bdate),
-            true      = year(bdate),
+            condition = !is.na(birthdate),
+            true      = year(birthdate),
             false     = NA_integer_
          ) %>% as.numeric(),
          bmo = if_else(
-            condition = !is.na(bdate),
-            true      = year(bdate),
+            condition = !is.na(birthdate),
+            true      = year(birthdate),
             false     = NA_integer_
          ) %>% as.numeric(),
          bdy = if_else(
-            condition = !is.na(bdate),
-            true      = year(bdate),
+            condition = !is.na(birthdate),
+            true      = year(birthdate),
             false     = NA_integer_
          ) %>% as.numeric(),
       )
@@ -24,18 +24,18 @@ prep_data <- function(old, new) {
    data$old <- old %>%
       mutate(
          byr = if_else(
-            condition = !is.na(bdate),
-            true      = year(bdate),
+            condition = !is.na(birthdate),
+            true      = year(birthdate),
             false     = NA_integer_
          ) %>% as.numeric(),
          bmo = if_else(
-            condition = !is.na(bdate),
-            true      = year(bdate),
+            condition = !is.na(birthdate),
+            true      = year(birthdate),
             false     = NA_integer_
          ) %>% as.numeric(),
          bdy = if_else(
-            condition = !is.na(bdate),
-            true      = year(bdate),
+            condition = !is.na(birthdate),
+            true      = year(birthdate),
             false     = NA_integer_
          ) %>% as.numeric(),
       )
@@ -248,11 +248,11 @@ dedup_group_ids <- function(data) {
    p <- parent.env(environment())
    local(envir = p, {
       old  <- .GlobalEnv$nhsss$harp_tx$official$old_reg
-      new  <- read_rds(file.path(wd, "converted.RDS"))
+      new  <- read_rds(file.path(wd, "reg.converted.RDS"))
       data <- dedup_prep(
          new,
          first,
-         iddle,
+         middle,
          last,
          suffix,
          uic,
@@ -265,7 +265,7 @@ dedup_group_ids <- function(data) {
 
       reclink <- prep_data(old, new)
       check   <- dedup_old(reclink)
-      append(check, dedup_group_ids(data))
+      check   <- append(check, dedup_group_ids(data))
       rm(old, new, reclink)
    })
 
