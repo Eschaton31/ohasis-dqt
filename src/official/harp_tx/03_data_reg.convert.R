@@ -4,7 +4,7 @@ standardize_data <- function(initial) {
    data <- initial %>%
       mutate(
          # generate idnum
-         art_id              = nhsss$harp_tx$params$latest_art_id + row_number(),
+         art_id              = .GlobalEnv$nhsss$harp_tx$params$latest_art_id + row_number(),
 
          # report date
          year                = ohasis$yr %>% as.integer(),
