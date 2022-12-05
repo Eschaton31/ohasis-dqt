@@ -5,7 +5,8 @@ flow(
       "02" = "data_initial",
       "03" = "data_convert",
       "04" = "data_final",
-      "x1" = "dedup_new"
+      "x1" = "dedup_new",
+      "x2" = "dedup_old"
    ),
    file.path(getwd(), "src", "official", "harp_dx"),
    nhsss
