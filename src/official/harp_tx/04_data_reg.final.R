@@ -391,6 +391,8 @@ get_checks <- function(data) {
       data <- append_data(old, new)
       rm(new, old)
 
+      .GlobalEnv$nhsss$harp_tx$official$new_reg <- data
+
       tag_fordrop()
       subset_drops()
 
@@ -401,8 +403,6 @@ get_checks <- function(data) {
       write_rds(data, file.path(wd, "reg.final.RDS"))
 
       check <- get_checks(data)
-
-      .GlobalEnv$nhsss$harp_tx$official$new_reg <- data
    })
 
    local(envir = .GlobalEnv, flow_validation(nhsss$harp_tx, "reg.final", ohasis$ym))
