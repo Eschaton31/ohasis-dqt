@@ -15,31 +15,29 @@ dedup_group_ids <- function(data) {
       "YDNameClean.Fixed"   = c("FIRST_NY", "LAST_NY", "BIRTH_YR", "BIRTH_DY"),
       "MDNameClean.Partial" = c("FIRST_NY", "LAST_NY", "BIRTH_MO", "BIRTH_DY")
    )
-   invisible(
-      lapply(seq_along(group_pii), function(i) {
-         dedup_name <- names(group_pii)[[i]]
-         dedup_id   <- group_pii[[i]]
+   for (i in seq_len(length(group_pii))) {
+      dedup_name <- names(group_pii)[[i]]
+      dedup_id   <- group_pii[[i]]
 
-         # tag duplicates based on grouping
-         df <- data %>%
-            filter_at(
-               .vars           = vars(dedup_id),
-               .vars_predicate = all_vars(!is.na(.))
-            ) %>%
-            get_dupes(dedup_id) %>%
-            filter(dupe_count > 0) %>%
-            group_by(across(all_of(dedup_id))) %>%
-            mutate(
-               # generate a group id to identify groups of duplicates
-               group_id = cur_group_id(),
-            ) %>%
-            ungroup() %>%
-            mutate(DUP_IDS = paste(collapse = ', ', dedup_id))
+      # tag duplicates based on grouping
+      df <- data %>%
+         filter_at(
+            .vars           = vars(dedup_id),
+            .vars_predicate = all_vars(!is.na(.))
+         ) %>%
+         get_dupes(dedup_id) %>%
+         filter(dupe_count > 0) %>%
+         group_by(across(all_of(dedup_id))) %>%
+         mutate(
+            # generate a group id to identify groups of duplicates
+            group_id = cur_group_id(),
+         ) %>%
+         ungroup() %>%
+         mutate(DUP_IDS = paste(collapse = ', ', dedup_id))
 
-         # if any found, include in list for review
-         dedup_new[[dedup_name]] <- df
-      })
-   )
+      # if any found, include in list for review
+      dedup_new[[dedup_name]] <- df
+   }
 
    return(dedup_new)
 }
@@ -56,10 +54,10 @@ dedup_group_ids <- function(data) {
          firstname,
          middle,
          last,
-         name_uffix,
+         name_suffix,
          uic,
          bdate,
-         labcode2,
+         labcode,
          pxcode,
          philhealth,
          philsys

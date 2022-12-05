@@ -105,7 +105,11 @@ flow_validation <- function(data_env = NULL,
 
       data_env     <- data_env$steps
       process_name <- names(data_env)
-      process_name <- process_name[grepl(paste0("data_", process_step), process_name)]
+      if (!grepl("dedup", process_step))
+         process_name <- process_name[grepl(paste0("data_", process_step), process_name)]
+      else
+         process_name <- process_name[grepl(process_step, process_name)]
+
       if (is.null(list_name))
          corr_list <- data_env[[process_name]]
       else
