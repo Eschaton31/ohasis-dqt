@@ -8,3 +8,4 @@
 .httr-oauth
 .secrets
 **/src/official/harp_dx/*.RDS
+**/src/official/harp_tx/*.RDS
