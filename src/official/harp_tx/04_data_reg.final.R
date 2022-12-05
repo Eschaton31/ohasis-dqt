@@ -397,6 +397,9 @@ get_checks <- function(data) {
       data %<>%
          remove_drops() %>%
          merge_dx()
+
+      write_rds(data, file.path(wd, "reg.final.RDS"))
+
       check <- get_checks(data)
 
       .GlobalEnv$nhsss$harp_tx$official$new_reg <- data
