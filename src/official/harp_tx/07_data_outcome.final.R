@@ -497,6 +497,8 @@ get_checks <- function(data) {
          finalize_faci() %>%
          reg_disagg()
 
+      .GlobalEnv$nhsss$harp_tx$official$new_outcome <- data
+
       check <- get_checks(data)
    })
 
