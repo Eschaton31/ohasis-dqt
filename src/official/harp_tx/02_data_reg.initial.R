@@ -278,8 +278,6 @@ get_checks <- function(data) {
       options = c("1" = "yes", "2" = "no"),
       default = "1"
    )
-
-   nhsss$harp_tx$reg.initial$check <- list()
    if (update == "1") {
       # initialize checking layer
 
