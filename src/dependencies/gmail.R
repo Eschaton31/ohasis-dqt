@@ -52,11 +52,9 @@ gmail$nhsss$dat   <- c(
    "kapamittan@doh.gov.ph",
    "jfnadal@doh.gov.ph",
    "rpamor@doh.gov.ph",
-   "napcortez@doh.gov.ph",
    "roricaflanca.doh@gmail.com",
    "jmdeliso@doh.gov.ph",
-   "macabreros.doh@gmail.com",
-   "acmdelacruz@doh.gov.ph"
+   "macabreros.doh@gmail.com"
 )
 gmail$nhsss$ihbss <- c(
    "jsmartinez@doh.gov.ph",
