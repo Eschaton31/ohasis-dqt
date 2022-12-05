@@ -16,6 +16,7 @@ clean_data <- function(art_first, old_reg) {
       mutate(
          # date variables
          encoded_date       = as.Date(CREATED_AT),
+         visit_date         = VISIT_DATE,
 
          # name
          name               = paste0(
@@ -41,6 +42,7 @@ clean_data <- function(art_first, old_reg) {
             )
          ),
          name               = str_squish(name),
+         STANDARD_FIRST     = stri_trans_general(FIRST, "latin-ascii"),
 
          # Age
          AGE                = if_else(
@@ -156,7 +158,7 @@ get_cd4 <- function(data) {
       # get cd4 data
       # TODO: attach max dates for filtering of cd4 data
       left_join(
-         y  = nhsss$harp_tx$forms$lab_cd4 %>%
+         y  = .GlobalEnv$nhsss$harp_tx$forms$lab_cd4 %>%
             select(
                CD4_DATE,
                CD4_RESULT,
@@ -446,7 +448,7 @@ get_checks <- function(data) {
    local(envir = p, {
       data <- clean_data(.GlobalEnv$nhsss$harp_tx$forms$art_first, .GlobalEnv$nhsss$harp_tx$official$old_reg) %>%
          prioritize_reports() %>%
-         get_cd4(wd, ohasis$next_date) %>%
+         get_cd4() %>%
          attach_faci_names()
 
       write_rds(data, file.path(wd, "reg.initial.RDS"))
