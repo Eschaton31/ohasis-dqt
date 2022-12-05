@@ -302,7 +302,6 @@ get_checks <- function(data) {
          "SPECIMEN_REFER_TYPE",
          "CENTRAL_ID",
          "AGE",
-         "SEX",
          "SELF_IDENT",
          "NATIONALITY",
          "CONFIRM_CODE",
@@ -313,7 +312,6 @@ get_checks <- function(data) {
          "T3_DATE",
          "T3_RESULT"
       )
-
       check <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
       check <- check_preggy(data, check, view_vars)
       check <- check_age(data, check, view_vars)
