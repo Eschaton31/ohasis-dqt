@@ -39,8 +39,23 @@ ohasis <- DB("2022", "11", "flows")
 
 ##  example flow pipeline
 flow_register()
+
+# diagnosis
 nhsss$harp_dx$steps$`01_load_reqs`$.init()
 nhsss$harp_dx$steps$`02_data_initial`$.init()
 nhsss$harp_dx$steps$`03_data_convert`$.init()
 nhsss$harp_dx$steps$`04_data_final`$.init()
 nhsss$harp_dx$steps$x1_dedup_new$.init()
+nhsss$harp_dx$steps$x2_dedup_old$.init()
+
+# treatment
+nhsss$harp_tx$steps$`01_load_reqs`$.init()
+nhsss$harp_tx$steps$`02_data_reg.initial`$.init()
+nhsss$harp_tx$steps$`03_data_reg.convert`$.init()
+nhsss$harp_tx$steps$`04_data_reg.final`$.init()
+nhsss$harp_tx$steps$`05_data_outcome.initial`$.init()
+nhsss$harp_tx$steps$`06_data_outcome.convert`$.init()
+nhsss$harp_tx$steps$`07_data_outcome.final`$.init()
+nhsss$harp_tx$steps$x1_dedup_new$.init()
+nhsss$harp_tx$steps$x2_dedup_old$.init()
+nhsss$harp_tx$steps$x3_dedup_dx$.init()
