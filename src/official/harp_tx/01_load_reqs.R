@@ -353,7 +353,7 @@ update_dataset <- function() {
 }
 
 define_params <- function() {
-   local(envir = nhsss$harp_dx, {
+   local(envir = nhsss$harp_tx, {
       params               <- list()
       params$latest_art_id <- max(as.integer(official$old_reg$art_id), na.rm = TRUE)
 
@@ -370,6 +370,6 @@ define_params <- function() {
    update_warehouse()
    update_first_last_art()
    download_tables()
-   define_params()
    update_dataset()
+   define_params()
 }
