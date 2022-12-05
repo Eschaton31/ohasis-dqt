@@ -95,9 +95,10 @@ check_nonnegotiables <- function(data, checklist, view_vars = everything(), nonn
 check_preggy <- function(data, checklist, view_vars = everything()) {
    .log_info("Checking for males tagged as pregnant.")
    checklist[["pregnant_m"]] <- data %>%
-      filter(
-         StrLeft(IS_PREGNANT, 1) == '1' | StrLeft(MED_IS_PREGNANT, 1) == '1',
-         StrLeft(SEX, 1) == '1'
+      filter(StrLeft(SEX, 1) == "1") %>%
+      filter_at(
+         .vars = vars(any_of(c("MED_IS_PREGNANT", "IS_PREGNANT"))),
+         ~StrLeft(., 1) == "1"
       ) %>%
       select(
          view_vars,
@@ -106,9 +107,10 @@ check_preggy <- function(data, checklist, view_vars = everything()) {
 
    .log_info("Checking for pregnant females.")
    checklist[["pregnant_f"]] <- data %>%
-      filter(
-         StrLeft(IS_PREGNANT, 1) == '1' | StrLeft(MED_IS_PREGNANT, 1) == '1',
-         StrLeft(SEX, 1) == '2'
+      filter(StrLeft(SEX, 1) == "2") %>%
+      filter_at(
+         .vars = vars(any_of(c("MED_IS_PREGNANT", "IS_PREGNANT"))),
+         ~StrLeft(., 1) == "1"
       ) %>%
       select(
          view_vars,
