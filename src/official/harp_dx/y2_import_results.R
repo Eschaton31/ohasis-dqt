@@ -1,141 +1,151 @@
 ##  Download encoding documentation --------------------------------------------
 
-db_conn    <- ohasis$conn("db")
-px_confirm <- dbTable(db_conn, "ohasis_interim", "px_confirm")
-dbDisconnect(db_conn)
+import             <- new.env()
+import$encoding_ss <- as_id("18hh6GZzjnNBidMg9sxOworj2IhbwTUak")
 
-# special
-ei <- encoded$data$records %>%
-   mutate(
-      CONFIRM_CODE = CONFIRMATORY_CODE
-   ) %>%
-   select(
-      `Facility ID`   = TEST_FACI,
-      `Facility Name` = FACI_ID,
-      `Page ID`       = CONFIRMATORY_CODE,
-      `Record ID`     = REC_ID,
-      `Identifier`    = CONFIRM_CODE,
-      `Issues`        = CLINIC_NOTES,
-      `Validation`    = COUNSEL_NOTES,
-      `Encoder`       = encoder
-   )
+local(envir = import, {
 
-# ei      <- get_ei("2022.07")
-ei      <- bind_rows(
-   read_sheet("1ew4ivZ2XNwWTPT7r7ql5uqblsUQv4XlnVxtrqb2bQbE", "documentation") %>%
-      mutate(encoder = "jsmanaois.pbsp@gmail.com"),
-   read_sheet("1JQcWmtRUqtHtdzps9pWlGCA3TQLjcdOwLgqki831IeI", "documentation") %>%
-      mutate(encoder = "tayagallen14.doh@gmail.com")
-)
-encoded <- ei %>%
-   filter(
-      # Form %in% c("Form A", "HTS Form") | (is.na(Form) & nchar(`Page ID`) == 12),
-      !is.na(`Record ID`)
-   ) %>%
-   mutate(,
-      `Encoder` = stri_replace_first_fixed(encoder, "2022.09_", "")
-   ) %>%
-   select(
-      `Facility ID`,
-      `Facility Name`,
-      `Page ID`,
-      `Record ID`,
-      # `ID Type`,
-      `Identifier`,
-      `Issues`,
-      `Validation`,
-      `Encoder`
-   )
+   download_confirm <- function() {
+      db_conn    <- ohasis$conn("db")
+      px_confirm <- dbTable(db_conn, "ohasis_interim", "px_confirm")
+      dbDisconnect(db_conn)
 
-##  Get pdf results data frame -------------------------------------------------
+      return(px_confirm)
+   }
 
-results <- nhsss$harp_dx$pdf_saccl$data %>%
-   mutate(
-      FILENAME_FORM = NA_character_,
-      FINAL_RESULT  = case_when(
-         FORM == "*Computer" ~ "Duplicate",
-         REMARKS == "Duplicate" ~ "Duplicate",
-         TRUE ~ FINAL_RESULT
-      ),
-      FINAL_RESULT  = case_when(
-         FORM == "*Computer" ~ "Duplicate",
-         REMARKS == "Duplicate" ~ "Duplicate",
-         TRUE ~ FINAL_RESULT
-      ),
-      LABCODE       = case_when(
-         FILENAME == 'SACCLHIV - D22-03-02610.pdf' ~ 'D22-03-02610',
-         FILENAME == 'SACCLHIV - D22-03-02636D.pdf' ~ 'D22-03-02636',
-         FILENAME == 'SACCLHIV - D22-03-02652D.pdf' ~ 'D22-03-02652',
-         FILENAME == 'SACCLHIV - D22-03-03306.pdf' ~ 'D22-03-03306',
-         FILENAME == 'SACCLHIV - D22-03-03316.pdf' ~ 'D22-03-03316',
-         TRUE ~ LABCODE
-      ),
-      FULLNAME      = case_when(
-         FILENAME == 'SACCLHIV - D22-03-02610.pdf' ~ 'FERANGCO, BERNABE L.',
-         FILENAME == 'SACCLHIV - D22-03-02636D.pdf' ~ 'ESPIRITU, CEVIR N.',
-         FILENAME == 'SACCLHIV - D22-03-02652D.pdf' ~ 'SUCGANG, DANDEE R.',
-         FILENAME == 'SACCLHIV - D22-03-03306.pdf' ~ 'BUSTILLO, ALJON G.',
-         FILENAME == 'SACCLHIV - D22-03-03316.pdf' ~ 'SERAD , JOEL B.',
-         TRUE ~ FULLNAME
-      )
-   ) %>%
-   distinct(LABCODE, .keep_all = TRUE) %>%
-   select(
-      FILENAME_PDF  = FILENAME,
-      LABCODE,
-      FULLNAME_PDF  = FULLNAME,
-      BIRTHDATE_PDF = BDATE,
-      FILENAME_FORM,
-      FINAL_INTERPRETATION,
-      FINAL_RESULT
-   )
+   download_ei <- function() {
+      encode_mo     <- as_id(drive_ls(import$encoding_ss, pattern = ohasis$ym)$id)
+      encode_surv   <- as_id(drive_ls(encode_mo, pattern = "REGISTRY")$id)
+      encode_sheets <- drive_ls(encode_surv, pattern = ohasis$ym)
+      encode_data   <- lapply(seq_len(nrow(encode_sheets)), function(i) {
+         ss   <- encode_sheets[i,]$id
+         name <- encode_sheets[i,]$name
+         data <- read_sheet(ss, "documentation") %>%
+            mutate(
+               ss      = ss,
+               encoder = substr(name, 9, 1000)
+            )
+         return(data)
+      })
+      encode_data   <- bind_rows(encode_data) %>%
+         filter(
+            # Form %in% c("Form A", "HTS Form") | (is.na(Form) & nchar(`Page ID`) == 12),
+            !is.na(`Record ID`)
+         ) %>%
+         select(
+            `Facility ID`,
+            `Facility Name`,
+            `Page ID`,
+            `Record ID`,
+            # `ID Type`,
+            `Identifier`,
+            `Issues`,
+            `Validation`,
+            `Encoder`  = encoder,
+            `Sheet ID` = ss
+         )
 
-##  Match w/ encoding documentation --------------------------------------------
+      return(encode_data)
+   }
 
-# match with pdf results
-match <- results %>%
-   # fuzzyjoin::stringdist_full_join(
-   full_join(
-      # inner_join(
-      y  = encoded %>% mutate(only = 1),
-      # by     = c("FULLNAME_PDF" = "Identifier"),
-      by = c("LABCODE" = "Page ID"),
-      # method = "osa"
-   ) %>%
-   mutate(
-      LABCODE = if_else(is.na(LABCODE), `Record ID`, LABCODE)
-   ) %>%
-   distinct(LABCODE, .keep_all = TRUE) %>%
-   anti_join(
-      y  = px_confirm %>% select(LABCODE = CONFIRM_CODE),
-      by = "LABCODE"
-   )
+   get_pdf_data <- function() {
+      results <- nhsss$harp_dx$pdf_saccl$data %>%
+         mutate(
+            FILENAME_FORM = NA_character_,
+            FINAL_RESULT  = case_when(
+               FORM == "*Computer" ~ "Duplicate",
+               REMARKS == "Duplicate" ~ "Duplicate",
+               TRUE ~ FINAL_RESULT
+            ),
+            FINAL_RESULT  = case_when(
+               FORM == "*Computer" ~ "Duplicate",
+               REMARKS == "Duplicate" ~ "Duplicate",
+               TRUE ~ FINAL_RESULT
+            ),
+            LABCODE       = case_when(
+               FILENAME == 'SACCLHIV - D22-03-02610.pdf' ~ 'D22-03-02610',
+               FILENAME == 'SACCLHIV - D22-03-02636D.pdf' ~ 'D22-03-02636',
+               FILENAME == 'SACCLHIV - D22-03-02652D.pdf' ~ 'D22-03-02652',
+               FILENAME == 'SACCLHIV - D22-03-03306.pdf' ~ 'D22-03-03306',
+               FILENAME == 'SACCLHIV - D22-03-03316.pdf' ~ 'D22-03-03316',
+               TRUE ~ LABCODE
+            ),
+            FULLNAME      = case_when(
+               FILENAME == 'SACCLHIV - D22-03-02610.pdf' ~ 'FERANGCO, BERNABE L.',
+               FILENAME == 'SACCLHIV - D22-03-02636D.pdf' ~ 'ESPIRITU, CEVIR N.',
+               FILENAME == 'SACCLHIV - D22-03-02652D.pdf' ~ 'SUCGANG, DANDEE R.',
+               FILENAME == 'SACCLHIV - D22-03-03306.pdf' ~ 'BUSTILLO, ALJON G.',
+               FILENAME == 'SACCLHIV - D22-03-03316.pdf' ~ 'SERAD , JOEL B.',
+               TRUE ~ FULLNAME
+            )
+         ) %>%
+         distinct(LABCODE, .keep_all = TRUE) %>%
+         select(
+            FILENAME_PDF  = FILENAME,
+            LABCODE,
+            FULLNAME_PDF  = FULLNAME,
+            BIRTHDATE_PDF = BDATE,
+            FILENAME_FORM,
+            FINAL_INTERPRETATION,
+            FINAL_RESULT
+         )
 
-nrow(encoded)
-nrow(results)
-nrow(match)
+      return(results)
+   }
 
-# copy to clipboard for gsheets
-write_clip(
-   match %>%
-      mutate(
-         `For Import` = NA_character_,
-         `PATIENT_ID` = NA_character_,
-      ) %>%
-      select(
-         `FILENAME_PDF`,
-         `LABCODE`,
-         `FULLNAME_PDF`,
-         `BIRTHDATE_PDF`,
-         `FILENAME_FORM`,
-         `FINAL_INTERPRETATION`,
-         `FINAL_RESULT`,
-         `REC_ID` = `Record ID`,
-         `PATIENT_ID`,
-         `For Import`,
-         `Identifier`
-      )
-)
+   match_encode_pdf <- function(encoded, results) {
+      # match with pdf results
+      match <- results %>%
+         full_join(
+            y          = encoded %>% mutate(only = 1),
+            by         = c("LABCODE" = "Page ID"),
+            na_matches = "never"
+         ) %>%
+         mutate(
+            LABCODE = if_else(is.na(LABCODE), `Record ID`, LABCODE)
+         ) %>%
+         distinct(LABCODE, .keep_all = TRUE) %>%
+         anti_join(
+            y  = px_confirm %>% select(LABCODE = CONFIRM_CODE),
+            by = "LABCODE"
+         ) %>%
+         mutate(
+            `For Import` = NA_character_,
+            `PATIENT_ID` = NA_character_,
+         ) %>%
+         select(
+            `FILENAME_PDF`,
+            `LABCODE`,
+            `FULLNAME_PDF`,
+            `BIRTHDATE_PDF`,
+            `FILENAME_FORM`,
+            `FINAL_INTERPRETATION`,
+            `FINAL_RESULT`,
+            `REC_ID` = `Record ID`,
+            `PATIENT_ID`,
+            `For Import`,
+            `Identifier`
+         )
+
+      .log_info("Encoded = {green(nrow(encoded))}")
+      .log_info("PDFs = {green(nrow(results))}")
+      .log_info("Matched = {green(nrow(match))}")
+      .log_war("Matched = {green(nrow(match))}")
+
+      return(match)
+   }
+
+   .init <- function() {
+      p <- parent.env(environment())
+      local(envir = p, {
+         px_confirm <- download_confirm()
+         encoded    <- download_ei()
+         results    <- get_pdf_data()
+         match      <- match_encode_pdf(encoded, results)
+      })
+   }
+
+})
 
 ##  Generate import dataframes -------------------------------------------------
 
@@ -144,19 +154,19 @@ TIMESTAMP <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 import    <- nhsss$harp_dx$pdf_saccl$data %>%
    mutate_all(~str_squish(as.character(.))) %>%
    inner_join(
-      y  = nhsss$harp_dx$corr$pdf_results %>%
+      y          = nhsss$harp_dx$corr$pdf_results %>%
          select(
             LABCODE,
             REC_ID,
             PATIENT_ID
          ) %>%
          mutate_all(~str_squish(as.character(.))),
-      by = "LABCODE",
+      by         = "LABCODE",
       na_matches = "never"
    ) %>%
    inner_join(
-      y  = match %>% select(LABCODE),
-      by = "LABCODE",
+      y          = match %>% select(LABCODE),
+      by         = "LABCODE",
       na_matches = "never"
    ) %>%
    distinct(LABCODE, .keep_all = TRUE) %>%
