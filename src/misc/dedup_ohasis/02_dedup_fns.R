@@ -48,7 +48,8 @@ ohasis_dupes <- function(group_ids) {
    Dup.Duplicates.Within   <- Dup.Duplicates %>% filter(reg_tag == 2)
    Dup.Duplicates.Normal   <- Dup.Duplicates %>% filter(reg_tag == 0)
 
-   Dup.Duplicates.Registry.Final <- data.frame()
+   Dup.Duplicates.Registry.Final       <- data.frame()
+   Dup.Duplicates.Registry.Final.Conso <- list()
    if (nrow(Dup.Duplicates.Registry) > 0) {
       Dup.Duplicates.Registry.Final <- Dup.Duplicates.Registry %>%
          arrange(group_id, desc(harp_registry)) %>%
@@ -66,7 +67,6 @@ ohasis_dupes <- function(group_ids) {
          ) %>%
          select(-CID_1)
 
-      Dup.Duplicates.Registry.Final.Conso <- list()
       for (name in get_names(Dup.Duplicates.Registry.Final, "CID_")) {
          Dup.Duplicates.Registry.Final.Conso[[name]] <- Dup.Duplicates.Registry.Final %>%
             select(
@@ -78,7 +78,8 @@ ohasis_dupes <- function(group_ids) {
       Dup.Duplicates.Registry.Final.Conso <- bind_rows(Dup.Duplicates.Registry.Final.Conso)
    }
 
-   Dup.Duplicates.Normal.Final <- data.frame()
+   Dup.Duplicates.Normal.Final       <- data.frame()
+   Dup.Duplicates.Normal.Final.Conso <- list()
    if (nrow(Dup.Duplicates.Normal) > 0) {
       Dup.Duplicates.Normal.Final <- Dup.Duplicates.Normal %>%
          arrange(group_id) %>%
@@ -96,7 +97,6 @@ ohasis_dupes <- function(group_ids) {
          ) %>%
          select(-CID_1)
 
-      Dup.Duplicates.Normal.Final.Conso <- list()
       for (name in get_names(Dup.Duplicates.Normal.Final, "CID_")) {
          Dup.Duplicates.Normal.Final.Conso[[name]] <- Dup.Duplicates.Normal.Final %>%
             select(
