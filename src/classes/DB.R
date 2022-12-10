@@ -136,10 +136,10 @@ DB <- setRefClass(
                }
 
                lake_dir <- file.path(getwd(), "src", "data_lake", update_type)
-               lapply(list.files(lake_dir, pattern = "ref_*"), lake_table)
-               lapply(list.files(lake_dir, pattern = "px_*"), lake_table)
-               lapply(list.files(lake_dir, pattern = "lab_*"), lake_table)
-               lapply(list.files(lake_dir, pattern = "disp_*"), lake_table)
+               lapply(list.files(lake_dir, pattern = "ref_*.*\\.R"), lake_table)
+               lapply(list.files(lake_dir, pattern = "px_*.*\\.R"), lake_table)
+               lapply(list.files(lake_dir, pattern = "lab_*.*\\.R"), lake_table)
+               lapply(list.files(lake_dir, pattern = "disp_*.*\\.R"), lake_table)
             }
             .log_info("Data lake updated!")
          }
