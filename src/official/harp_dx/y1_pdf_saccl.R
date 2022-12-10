@@ -70,7 +70,9 @@ if (nrow(pdf_for_dl) > 0) {
          drop_download(
             file,
             dir_output,
-            overwrite = TRUE
+            overwrite = TRUE,
+            verbose   = FALSE,
+            progress  = FALSE
          )
          pb$tick(1)
       })
@@ -466,7 +468,7 @@ if ("pdf_results" %in% names(nhsss$harp_dx$corr))
       )
 
 
-dir_nc <- "N:/HARP Cloud/HARP Forms/Confirmatory/2022.09"
+dir_nc <- "E:/2022.11 confirmatory"
 if (nrow(pdf_for_ul)) {
    pb <- progress_bar$new(format = ":current of :total PDFs [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = nrow(pdf_for_ul), width = 100, clear = FALSE)
    pb$tick(0)
@@ -487,11 +489,11 @@ if (nrow(pdf_for_ul)) {
       }
       pb$tick(1)
    }
-}
+   }
 
-# assign to global environment
-nhsss$harp_dx$pdf_saccl$data <- confirm_df
-.log_success("Done!")
+   # assign to global environment
+   nhsss$harp_dx$pdf_saccl$data <- confirm_df
+   .log_success("Done!")
 
-# clean-up created objects
-rm(list = setdiff(ls(), currEnv))
+   # clean-up created objects
+   rm(list = setdiff(ls(), currEnv))
