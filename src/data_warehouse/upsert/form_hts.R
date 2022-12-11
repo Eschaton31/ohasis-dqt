@@ -118,6 +118,7 @@ if ((object %>% count() %>% collect())$n > 0) {
                   FINAL_RESULT %like% "%Inconclusive%" ~ "3_Indeterminate",
                   FINAL_RESULT %like% "%Indeterminate%" ~ "3_Indeterminate",
                   FINAL_RESULT %like% "%PENDING%" ~ "4_Pending",
+                  FINAL_RESULT %like% "%Duplicate%" ~ "5_Duplicate",
                   TRUE ~ FINAL_RESULT
                ),
                CLIENT_TYPE  = case_when(
