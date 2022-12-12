@@ -470,7 +470,6 @@ get_checks <- function(data) {
                             .GlobalEnv$nhsss$harp_tx$official$old_outcome,
                             .GlobalEnv$nhsss$harp_tx$forms$art_first,
                             .GlobalEnv$nhsss$harp_tx$params) %>%
-         tag_curr_data() %>%
          final_conversion()
 
       write_rds(data, file.path(wd, "reg.converted.RDS"))
