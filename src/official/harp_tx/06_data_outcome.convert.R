@@ -465,7 +465,7 @@ get_checks <- function(data) {
 .init <- function() {
    p <- parent.env(environment())
    local(envir = p, {
-      data <- read_rds(file.path(wd, "reg.initial.RDS"))
+      data <- read_rds(file.path(wd, "outcome.initial.RDS"))
       data <- tag_curr_data(data,
                             .GlobalEnv$nhsss$harp_tx$official$old_outcome,
                             .GlobalEnv$nhsss$harp_tx$forms$art_first,
