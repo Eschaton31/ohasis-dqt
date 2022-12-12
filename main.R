@@ -1,4 +1,3 @@
-shell("cls")
 ################################################################################
 # Project name: > OHASIS Data Wrangling
 # Author(s):    > Palo, John Benedict

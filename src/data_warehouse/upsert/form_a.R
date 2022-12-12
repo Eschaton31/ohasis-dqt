@@ -38,19 +38,19 @@ if (dbExistsTable(lw_conn, Id(schema = "ohasis_warehouse", table = "form_a"))) {
       collect()
 }
 
-for_delete_3<- data.frame()
+for_delete_3 <- data.frame()
 if (dbExistsTable(lw_conn, Id(schema = "ohasis_warehouse", table = "form_a"))) {
-for_delete_3 <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
-   filter(
-      !is.na(DELETED_BY)
-   ) %>%
-   inner_join(
-      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_a")) %>%
-         select(REC_ID),
-      by = "REC_ID"
-   ) %>%
-   select(REC_ID) %>%
-   collect()
+   for_delete_3 <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
+      filter(
+         !is.na(DELETED_BY)
+      ) %>%
+      inner_join(
+         y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_a")) %>%
+            select(REC_ID),
+         by = "REC_ID"
+      ) %>%
+      select(REC_ID) %>%
+      collect()
 }
 
 for_delete <- bind_rows(for_delete_1, for_delete_2, for_delete_3)
@@ -150,6 +150,7 @@ if ((object %>% count() %>% collect())$n > 0) {
                   FINAL_RESULT %like% "%Inconclusive%" ~ "3_Indeterminate",
                   FINAL_RESULT %like% "%Indeterminate%" ~ "3_Indeterminate",
                   FINAL_RESULT %like% "%PENDING%" ~ "4_Pending",
+                  FINAL_RESULT %like% "%Duplicate%" ~ "5_Duplicate",
                   TRUE ~ FINAL_RESULT
                ),
                CLIENT_TYPE  = case_when(
