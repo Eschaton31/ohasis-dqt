@@ -472,7 +472,7 @@ get_checks <- function(data) {
                             .GlobalEnv$nhsss$harp_tx$params) %>%
          final_conversion()
 
-      write_rds(data, file.path(wd, "reg.converted.RDS"))
+      write_rds(data, file.path(wd, "outcome.converted.RDS"))
 
       check <- get_checks(data)
    })
