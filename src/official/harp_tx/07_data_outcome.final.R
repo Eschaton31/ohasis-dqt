@@ -503,7 +503,7 @@ get_checks <- function(data) {
    })
 
    local(envir = .GlobalEnv, {
-      ss <- flow_validation(nhsss$harp_tx, "reg.final", ohasis$ym)
+      ss <- flow_validation(nhsss$harp_tx, "outcome.final", ohasis$ym)
       for (sheet in c("2in1+1 and 1+1+1", "line 3", "line 4", "tld to lte")) {
          range_write_color(ss, sheet, "AB", "#FFF2CC")
          range_write_color(ss, sheet, "Y", "#d0e0e3")
