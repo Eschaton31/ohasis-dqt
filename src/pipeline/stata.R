@@ -22,5 +22,10 @@ format_stata <- function(data) {
       attributes(data[[var]])$format.stata <- paste0("%-", char_fmt, "s")
    }
 
+   data %<>%
+      rename_all(
+         ~if_else(nchar(.) > 32, StrLeft(., 32), ., .)
+      )
+
    return(data)
 }
