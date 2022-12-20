@@ -14,9 +14,11 @@ gf$as_of <- as.POSIXct(
 gf$mail$title <- glue("PSFI-PROTECTS Project Indicators for GF-Supported Sites ({gf$coverage$curr_yr}-{gf$coverage$curr_mo})")
 
 gf$mail$to <- c(
-   "crmaranan@pilipinasshellfoundation.org",
+   # "crmaranan@pilipinasshellfoundation.org",
    "lbpnorella@pilipinasshellfoundation.org",
    "agdelacruz@pilipinasshellfoundation.org",
+   "njlosanes@pilipinasshellfoundation.org",
+   "rsrosalijr@pilipinasshellfoundation.org",
    "me.hiv@pilipinasshellfoundation.org"
 )
 
@@ -44,7 +46,8 @@ gf$mail$for_checking <- gm_mime() %>%
          )"
       )
    ) %>%
-   gm_attach_file(file.path(gf$xlsx$dir, gf$xlsx$file))
+   gm_attach_file(file.path(gf$xlsx$dir, gf$xlsx$file)) %>%
+   gm_attach_file(file.path(gf$xlsx$dir, gf$xlsx$duplicates))
 
 gf$mail$for_approval <- gm_mime() %>%
    gm_to(gmail$nhsss$head) %>%
@@ -62,14 +65,15 @@ gf$mail$for_approval <- gm_mime() %>%
    gm_html_body(
       glue(
          r"(
-<p>Hi Sir Noel & Ate Ja,</p>
+<p>Hi Sir Noel,</p>
 <p>Attached here is the flat file for the aforementioned indicators set to be released to the GF M&E Team. All indicators were prepared by myself.</p>
 <p>Once you provide approval, I will release ASAP to the GF M&E Team.</p>
 {gmail_sig()}
          )"
       )
    ) %>%
-   gm_attach_file(file.path(gf$xlsx$dir, gf$xlsx$file))
+   gm_attach_file(file.path(gf$xlsx$dir, gf$xlsx$file)) %>%
+   gm_attach_file(file.path(gf$xlsx$dir, gf$xlsx$duplicates))
 
 gf$mail$for_release <- gm_mime() %>%
    gm_to(
@@ -98,7 +102,8 @@ gf$mail$for_release <- gm_mime() %>%
          )"
       )
    ) %>%
-   gm_attach_file(file.path(gf$xlsx$dir, gf$xlsx$file))
+   gm_attach_file(file.path(gf$xlsx$dir, gf$xlsx$file)) %>%
+   gm_attach_file(file.path(gf$xlsx$dir, gf$xlsx$duplicates))
 
 ##  Logsheet -----------------------------------------------------------------
 
@@ -116,9 +121,11 @@ gf$as_of <- as.POSIXct(
 gf$mail$title <- glue("PSFI-PROTECTS Logsheets for GF-Supported Sites w/ DSA ({gf$coverage$curr_yr}-{gf$coverage$curr_mo})")
 
 gf$mail$to <- c(
-   "crmaranan@pilipinasshellfoundation.org",
+   # "crmaranan@pilipinasshellfoundation.org",
    "lbpnorella@pilipinasshellfoundation.org",
    "agdelacruz@pilipinasshellfoundation.org",
+   "njlosanes@pilipinasshellfoundation.org",
+   "rsrosalijr@pilipinasshellfoundation.org",
    "me.hiv@pilipinasshellfoundation.org"
 )
 
@@ -146,7 +153,8 @@ gf$mail$for_checking <- gm_mime() %>%
          )"
       )
    ) %>%
-   gm_attach_file(file.path(gf$xlsx$dir, gf$xlsx$file))
+   gm_attach_file(file.path(gf$xlsx$dir, gf$xlsx$logsheet_dta)) %>%
+   gm_attach_file(file.path(gf$xlsx$dir, gf$xlsx$logsheet_xl))
 
 gf$mail$for_approval <- gm_mime() %>%
    gm_to(gmail$nhsss$head) %>%
@@ -164,15 +172,15 @@ gf$mail$for_approval <- gm_mime() %>%
    gm_html_body(
       glue(
          r"(
-<p>Hi Sir Noel & Ate Ja,</p>
+<p>Hi Sir Noel,</p>
 <p>Attached here are the logsheet files set to be released to the GF M&E Team. All data were prepared by myself. Data has been limited to those who have submitted a DSA between their faciity and PSFI.</p>
 <p>Once you provide approval, I will release ASAP to the GF M&E Team.</p>
 {gmail_sig()}
          )"
       )
    ) %>%
-   gm_attach_file("H:/Data Sharing/PSFI/2022.06/ohasis_logsheet_2022-06.xlsx") %>%
-   gm_attach_file("H:/Data Sharing/PSFI/2022.06/ohasis_logsheet_2022-06.dta")
+   gm_attach_file(file.path(gf$xlsx$dir, gf$xlsx$logsheet_dta)) %>%
+   gm_attach_file(file.path(gf$xlsx$dir, gf$xlsx$logsheet_xl))
 
 gf$mail$for_release <- gm_mime() %>%
    gm_to(
@@ -184,7 +192,7 @@ gf$mail$for_release <- gm_mime() %>%
             gmail$nhsss$head,
             gmail$nhsss$ss,
             gmail$nhsss$dqt,
-            gmail$nhsss$dat
+            gmail$nhsss$dat1
          )
       )
    ) %>%
@@ -200,5 +208,5 @@ gf$mail$for_release <- gm_mime() %>%
          )"
       )
    ) %>%
-   gm_attach_file("H:/Data Sharing/PSFI/2022.06/ohasis_logsheet_2022-06.xlsx") %>%
-   gm_attach_file("H:/Data Sharing/PSFI/2022.06/ohasis_logsheet_2022-06.dta")
+   gm_attach_file(file.path(gf$xlsx$dir, gf$xlsx$logsheet_dta)) %>%
+   gm_attach_file(file.path(gf$xlsx$dir, gf$xlsx$logsheet_xl))
