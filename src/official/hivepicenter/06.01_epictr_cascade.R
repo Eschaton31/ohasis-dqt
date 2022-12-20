@@ -1,6 +1,7 @@
 local(envir = epictr, {
    inds <- c(
       "dx",
+      "dx_plhiv",
       "plhiv",
       "evertx",
       "evertx_plhiv",

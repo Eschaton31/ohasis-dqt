@@ -13,6 +13,7 @@ local(envir = epictr, {
          summarise_at(
             .vars = vars(
                dx,
+               dx_plhiv,
                plhiv,
             ),
             ~sum(., na.rm = TRUE)
@@ -25,13 +26,14 @@ local(envir = epictr, {
             report_yr = yr
          )
 
+      # adjustment for regional estimates to national figure
       ntl_plhiv <- data$resreg %>%
          filter(year(report_yr) == yr, dx == 1, is.na(mort)) %>%
          summarise(plhiv = n()) %>%
          as.numeric()
 
       reg_plhiv <- data$resreg %>%
-         filter(year(report_yr) == yr, plhiv == 1) %>%
+         filter(year(report_yr) == yr, dx == 1, plhiv == 1) %>%
          summarise(plhiv = n()) %>%
          as.numeric()
 
@@ -47,7 +49,15 @@ local(envir = epictr, {
                plhiv - adjust_plhiv,
                plhiv,
                plhiv
-            )
+            ),
+            dx_plhiv = if_else(
+               PSGC_REG == "" &
+                  PSGC_PROV == "" &
+                  PSGC_AEM == "",
+               dx_plhiv - adjust_plhiv,
+               dx_plhiv,
+               dx_plhiv
+            ),
          )
    }
    data[["est_dx"]] <- bind_rows(data[["est_dx"]])
