@@ -6,7 +6,8 @@ local(envir = epictr, {
 
    for (yr in c(2020, 2021, 2022)) {
       ref_yr            <- as.character(yr)
-      harp$dx[[ref_yr]] <- ohasis$get_data("harp_full", yr, 12) %>%
+      ref_mo            <- ifelse(yr == 2022, '10', '12')
+      harp$dx[[ref_yr]] <- ohasis$get_data("harp_full", yr, ref_mo) %>%
          read_dta() %>%
          mutate_if(
             .predicate = is.character,
@@ -80,7 +81,7 @@ local(envir = epictr, {
             baseline_vl   = if (yr == 2020) if_else(baseline_vl == 0, as.numeric(NA), baseline_vl, baseline_vl) else baseline_vl
          )
 
-      harp$tx[[ref_yr]] <- hs_data("harp_tx", "outcome", yr, 12) %>%
+      harp$tx[[ref_yr]] <- hs_data("harp_tx", "outcome", yr, ref_mo) %>%
          read_dta() %>%
          mutate_if(
             .predicate = is.character,
@@ -96,7 +97,7 @@ local(envir = epictr, {
       if (yr == 2022) {
          harp$tx[[ref_yr]] %<>%
             left_join(
-               y  = hs_data("harp_tx", "reg", yr, 12) %>%
+               y  = hs_data("harp_tx", "reg", yr, ref_mo) %>%
                   read_dta() %>%
                   mutate(
                      confirmatory_code = case_when(
@@ -114,7 +115,7 @@ local(envir = epictr, {
                by = "art_id"
             ) %>%
             left_join(
-               y  = read_dta("E:/_R/library/hiv_vl/20221023_vlnaive-tx_2022-09.dta") %>%
+               y  = read_dta("E:/_R/library/hiv_vl/20221123_vlnaive-tx_2022-10.dta") %>%
                   select(
                      art_id,
                      vl_naive,
@@ -128,7 +129,7 @@ local(envir = epictr, {
 
          harp$dx[[ref_yr]] %<>%
             left_join(
-               y  = read_dta("E:/_R/library/hiv_vl/20221023_vlnaive-dx_2022-09.dta") %>%
+               y  = read_dta("E:/_R/library/hiv_vl/20221123_vlnaive-dx_2022-10.dta") %>%
                   select(
                      idnum,
                      vl_naive,
