@@ -29,9 +29,39 @@ gf$final <- bind_rows(gf$flat) %>%
       ~remove_code(.)
    )
 
-gf$xlsx$dir  <- glue("H:/Data Sharing/PSFI/{ohasis$ym}")
-gf$xlsx$file <- glue("PSFI Indicators ({gf$coverage$curr_yr}.{gf$coverage$curr_mo}).xlsx")
+gf$xlsx$dir          <- glue("E:/Data Sharing/PSFI/{ohasis$ym}")
+gf$xlsx$file         <- glue("PSFI Indicators ({gf$coverage$curr_yr}.{gf$coverage$curr_mo}).xlsx")
+gf$xlsx$logsheet_dta <- glue("ohasis_logsheet_{gf$coverage$curr_yr}-{gf$coverage$curr_mo}.dta")
+gf$xlsx$logsheet_xl <- glue("ohasis_logsheet_{gf$coverage$curr_yr}-{gf$coverage$curr_mo}.xlsx")
+gf$xlsx$duplicates   <- glue("PSFI Logsheet Duplicates ({gf$coverage$curr_yr}.{gf$coverage$curr_mo}).xlsx")
 check_dir(gf$xlsx$dir)
+
+write_dta(
+   gf$logsheet$ohasis %>%
+      filter(with_dsa == 1) %>%
+      select(
+         -starts_with("RISK"),
+         -starts_with("EXPOSE"),
+         RECORD_P12M
+      ),
+   file.path(gf$xlsx$dir, gf$xlsx$logsheet_dta)
+)
+
+write_xlsx(
+   gf$logsheet$ohasis %>%
+      filter(with_dsa == 1) %>%
+      select(
+         -starts_with("RISK"),
+         -starts_with("EXPOSE"),
+         RECORD_P12M
+      ),
+   file.path(gf$xlsx$dir, gf$xlsx$logsheet_xl)
+)
+
+write_xlsx(
+   gf$logsheet$duplicates,
+   file.path(gf$xlsx$dir, gf$xlsx$duplicates)
+)
 
 gf$xlsx$wb       <- createWorkbook()
 gf$xlsx$hs       <- createStyle(
