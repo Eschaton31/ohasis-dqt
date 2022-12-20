@@ -62,7 +62,7 @@ epic$data$tx <- epic$harp$tx$new_reg %>%
          missing   = 0
       ),
       vl_elig          = if_else(
-         condition = epic$coverage$type == "QR" & (interval(artstart_date, epic$coverage$max) / months(1)) >= 3,
+         condition = (interval(artstart_date, epic$coverage$max) / months(1)) >= 3,
          true      = 1,
          false     = 0,
          missing   = 0
@@ -93,28 +93,20 @@ epic$data$tx <- epic$harp$tx$new_reg %>%
          false     = 0,
          missing   = 0
       ),
-      tx_pvls_eligible = if (epic$coverage$type == "QR") {
-         if_else(
-            condition = onart28 == 1 & vl_elig == 1,
-            true      = 1,
-            false     = 0,
-            missing   = 0
-         )
-      } else {
-         0
-      },
-      tx_pvls          = if (epic$coverage$type == "QR") {
-         if_else(
-            condition = onart28 == 1 &
-               is.na(baseline_vl) &
-               !is.na(vlp12m),
-            true      = 1,
-            false     = 0,
-            missing   = 0
-         )
-      } else {
-         0
-      },
+      tx_pvls_eligible = if_else(
+         condition = onart28 == 1 & vl_elig == 1,
+         true      = 1,
+         false     = 0,
+         missing   = 0
+      ),
+      tx_pvls          = if_else(
+         condition = onart28 == 1 &
+            is.na(baseline_vl) &
+            !is.na(vlp12m),
+         true      = 1,
+         false     = 0,
+         missing   = 0
+      ),
 
       # sex variable (use registry if available)
       Sex              = if_else(
