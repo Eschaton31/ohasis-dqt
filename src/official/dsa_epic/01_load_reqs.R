@@ -232,7 +232,7 @@ if (check == "1") {
          )
 
       .log_info("Getting the previous HARP Tx Datasets.")
-      harp$tx$old_reg <- ohasis$get_data("harp_tx-reg", coverage$prev_yr, coverage$prev_mo) %>%
+      harp$tx$old_reg <- hs_data("harp_tx", "reg", coverage$prev_yr, coverage$prev_mo) %>%
          read_dta() %>%
          # convert Stata string missing data to NAs
          mutate_if(
@@ -252,7 +252,7 @@ if (check == "1") {
             ),
          )
 
-      harp$tx$old_outcome <- ohasis$get_data("harp_tx-outcome", coverage$prev_yr, coverage$prev_mo) %>%
+      harp$tx$old_outcome <- hs_data("harp_tx", "outcome", coverage$prev_yr, coverage$prev_mo) %>%
          read_dta() %>%
          # convert Stata string missing data to NAs
          mutate_if(
@@ -267,7 +267,7 @@ if (check == "1") {
          )
 
       .log_info("Getting the new HARP Tx Datasets.")
-      harp$tx$new_reg <- ohasis$get_data("harp_tx-reg", coverage$curr_yr, coverage$curr_mo) %>%
+      harp$tx$new_reg <- hs_data("harp_tx", "reg", coverage$curr_yr, coverage$curr_mo) %>%
          read_dta() %>%
          # convert Stata string missing data to NAs
          mutate_if(
@@ -287,7 +287,7 @@ if (check == "1") {
             ),
          )
 
-      harp$tx$new_outcome <- ohasis$get_data("harp_tx-outcome", coverage$curr_yr, coverage$curr_mo) %>%
+      harp$tx$new_outcome <- hs_data("harp_tx", "outcome", coverage$curr_yr, coverage$curr_mo) %>%
          read_dta() %>%
          # convert Stata string missing data to NAs
          mutate_if(
