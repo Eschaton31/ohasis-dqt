@@ -277,3 +277,7 @@ gf$logsheet$combined <- bind_rows(
    arrange(reach_date) %>%
    # distinct(ohasis_id, .keep_all = TRUE)
    distinct_all()
+
+gf$logsheet$duplicates <- gf$logsheet$combined %>%
+   get_dupes(ohasis_id) %>%
+	relocate(uic, .after = ohasis_id)
