@@ -81,6 +81,7 @@ for (ind in names(epic$linelist)) {
          `Site City`,
          `Site Province`,
          `Site Region`
-      )
+      ) %>%
+      mutate(Sex = as.character(Sex))
 }
 rm(ind, ind_name)
