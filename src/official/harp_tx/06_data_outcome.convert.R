@@ -333,9 +333,10 @@ get_checks <- function(data) {
    update <- substr(toupper(update), 1, 1)
    if (update == "1") {
       # initialize checking layer
+      view_vars <- get_names(data)
 
       # non-negotiable variables
-      vars  <- c(
+      nonnegotiables  <- c(
          "curr_age",
          "curr_hub",
          "curr_class",
