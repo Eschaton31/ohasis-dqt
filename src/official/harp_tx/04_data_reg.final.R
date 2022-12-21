@@ -342,30 +342,30 @@ get_checks <- function(data) {
          ) %>%
          arrange(artstart_hub)
 
-      .log_info("Checking for TAT (confirmatory to enrollment).")
-      check[["tat_confirm_enroll"]] <- data %>%
-         left_join(
-            y  = nhsss$harp_dx$official$new %>%
-               select(
-                  CENTRAL_ID,
-                  confirm_date
-               ),
-            by = "CENTRAL_ID"
-         ) %>%
-         mutate(
-            tat = abs(as.numeric(difftime(confirm_date, artstart_date, units = "days")) / 365.25),
-            tat = floor(tat)
-         ) %>%
-         filter(
-            year >= as.numeric(ohasis$yr) - 1,
-            tat >= 2
-         ) %>%
-         select(
-            any_of(view_vars),
-            confirm_date,
-            tat
-         ) %>%
-         arrange(artstart_hub)
+      # .log_info("Checking for TAT (confirmatory to enrollment).")
+      # check[["tat_confirm_enroll"]] <- data %>%
+      #    left_join(
+      #       y  = nhsss$harp_dx$official$new %>%
+      #          select(
+      #             CENTRAL_ID,
+      #             confirm_date
+      #          ),
+      #       by = "CENTRAL_ID"
+      #    ) %>%
+      #    mutate(
+      #       tat = abs(as.numeric(difftime(confirm_date, artstart_date, units = "days")) / 365.25),
+      #       tat = floor(tat)
+      #    ) %>%
+      #    filter(
+      #       year >= as.numeric(ohasis$yr) - 1,
+      #       tat >= 2
+      #    ) %>%
+      #    select(
+      #       any_of(view_vars),
+      #       confirm_date,
+      #       tat
+      #    ) %>%
+      #    arrange(artstart_hub)
 
       # range-median
       .log_info("Checking range-median of data.")
