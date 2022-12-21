@@ -249,8 +249,13 @@ dedup_group_ids <- function(data) {
    local(envir = p, {
       old  <- .GlobalEnv$nhsss$harp_tx$official$old_reg
       new  <- read_rds(file.path(wd, "reg.converted.RDS"))
+      full <- read_rds(file.path(wd, "reg.final.RDS"))
       data <- dedup_prep(
-         new,
+         full %>%
+            zap_label %>%
+            zap_labels %>%
+            zap_formats %>%
+            relocate(idnum, .after = art_id),
          first,
          middle,
          last,
@@ -266,7 +271,7 @@ dedup_group_ids <- function(data) {
       reclink <- prep_data(old, new)
       check   <- dedup_old(reclink)
       check   <- append(check, dedup_group_ids(data))
-      rm(old, new, reclink)
+      rm(old, new, data, reclink)
    })
 
    local(envir = .GlobalEnv, flow_validation(nhsss$harp_tx, "dedup_old", ohasis$ym))
