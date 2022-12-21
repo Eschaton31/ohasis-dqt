@@ -59,6 +59,30 @@ change_rec_id <- function(pid, old_recid, new_recid) {
    dbDisconnect(db_conn)
 }
 
+# update db duplicate rec_ids
+change_px_id <- function(recid, old_pid, new_pid) {
+   db_conn <- ohasis$conn("db")
+
+   upd_by <- "1300000001"
+   upd_at <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+   dbExecute(
+      db_conn,
+      r"(UPDATE ohasis_interim.px_name SET PATIENT_ID = ?, UPDATED_BY = ?, UPDATED_AT = ? WHERE REC_ID = ? AND PATIENT_ID = ?;)",
+      params = list(new_pid, upd_by, upd_at, recid, old_pid)
+   )
+   dbExecute(
+      db_conn,
+      r"(UPDATE ohasis_interim.px_info SET PATIENT_ID = ?, UPDATED_BY = ?, UPDATED_AT = ? WHERE REC_ID = ? AND PATIENT_ID = ?;)",
+      params = list(new_pid, upd_by, upd_at, recid, old_pid)
+   )
+   dbExecute(
+      db_conn,
+      r"(UPDATE ohasis_interim.px_record SET PATIENT_ID = ?, UPDATED_BY = ?, UPDATED_AT = ? WHERE REC_ID = ? AND PATIENT_ID = ?;)",
+      params = list(new_pid, upd_by, upd_at, recid, old_pid)
+   )
+   dbDisconnect(db_conn)
+}
+
 # update UPDATED_*
 update_credentials <- function(rec_ids) {
    db_conn <- ohasis$conn("db")
