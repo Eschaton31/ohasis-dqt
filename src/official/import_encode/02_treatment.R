@@ -143,6 +143,7 @@ local(envir = import, {
          filter(
             !is.na(CREATED_TIME),
             CREATED_TIME != "DUPLICATE",
+            toupper(VISIT_DATE) != "BLANK",
             nchar(PATIENT_ID) == 18,
          ) %>%
          # mutate(
@@ -352,7 +353,7 @@ local(envir = import, {
          "px_record",
          raw_where = TRUE,
          where     = glue(r"(
-         (DATE(CREATED_AT) BETWEEN '{min}' AND '{max}') AND LEFT(CREATED_AT, 6) = '130000'
+         (DATE(CREATED_AT) BETWEEN '{min}' AND '{max}') AND LEFT(CREATED_BY, 6) = '130000'
          )")
       )
       uploaded$px_medicine <- dbTable(
@@ -361,7 +362,7 @@ local(envir = import, {
          "px_medicine",
          raw_where = TRUE,
          where     = glue(r"(
-         (DATE(CREATED_AT) BETWEEN '{min}' AND '{max}') AND LEFT(CREATED_AT, 6) = '130000'
+         REC_ID IN (SELECT REC_ID FROM ohasis_interim.px_record WHERE (DATE(CREATED_AT) BETWEEN '{min}' AND '{max}') AND LEFT(CREATED_BY, 6) = '130000')
          )")
       )
 
