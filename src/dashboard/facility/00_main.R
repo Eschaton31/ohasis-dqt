@@ -138,7 +138,8 @@ invisible(lapply(unique(dqai$data$FACI), function(faci_code) {
          dqai$harp$tx$outcome %>%
             filter(realhub == faci_code | hub == faci_code)
       ) %>%
-      distinct(art_id) %>%
+      select(art_id, CENTRAL_ID) %>%
+      distinct(art_id, .keep_all = TRUE) %>%
       left_join(
          y  = dqai$harp$tx$reg %>%
             select(
@@ -539,9 +540,20 @@ json <- jsonlite::read_json("C:/Users/johnb/Downloads/philippines.geojson")
 
 json_dta <- data.frame()
 for (i in seq_len(length(json$features))) {
-   iso <- json$features[[i]]$properties$ISO
+   iso  <- json$features[[i]]$properties$ISO
    name <- json$features[[i]]$properties$NAME_1
 
    json_dta <- bind_rows(json_dta, data.frame(ISO = iso, NAME = name))
 }
+
+dqai2 <- as.list(dqai$faci)
+lapply(names(dqai2), function(hub) {
+   name <- tolower(hub)
+   reg  <- (ohasis$ref_faci_code %>% filter(FACI_CODE == hub))$FACI_NHSSS_REG
+   reg  <- reg[1]
+   dir  <- file.path("E:/masterlist", reg)
+   check_dir(dir)
+   write_xlsx(dqai2[[hub]], glue("{dir}/{name}_masterlist_2022-10.xlsx"))
+   write_dta(format_stata(dqai2[[hub]]), glue("{dir}/{name}_masterlist_2022-10.dta"))
+})
 
