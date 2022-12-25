@@ -217,7 +217,148 @@ finalize_faci <- function(data) {
    return(data)
 }
 
-reg_disagg <- function(data) {
+reg_disagg <- function(data, regimen_col, reg_disagg_col, reg_line_col) {
+   concat_col     <- reg_disagg_col
+   regimen_col    <- as.name(regimen_col)
+   reg_disagg_col <- as.name(reg_disagg_col)
+   reg_line_col   <- as.name(reg_line_col)
+
+   data %<>%
+      mutate(
+         # reg disagg
+         !!reg_disagg_col := toupper(str_squish(!!regimen_col)),
+         r_abc            = if_else(
+            stri_detect_fixed(!!reg_disagg_col, "ABC") &
+               !stri_detect_fixed(!!reg_disagg_col, "ABCSYR"),
+            "ABC",
+            NA_character_
+         ),
+         r_abcsyr         = if_else(stri_detect_fixed(!!reg_disagg_col, "ABCSYR"), "ABCsyr", NA_character_),
+         r_azt_3tc        = if_else(stri_detect_fixed(!!reg_disagg_col, "AZT/3TC"), "AZT/3TC", NA_character_),
+         r_azt            = if_else(
+            stri_detect_fixed(!!reg_disagg_col, "AZT") &
+               !stri_detect_fixed(!!reg_disagg_col, "AZT/3TC") &
+               !stri_detect_fixed(!!reg_disagg_col, "AZTSYR"),
+            "AZT",
+            NA_character_
+         ),
+         r_aztsyr         = if_else(stri_detect_fixed(!!reg_disagg_col, "AZTSYR"), "AZTsyr", NA_character_),
+         r_tdf            = if_else(
+            stri_detect_fixed(!!reg_disagg_col, "TDF") &
+               !stri_detect_fixed(!!reg_disagg_col, "TDF/3TC") &
+               !stri_detect_fixed(!!reg_disagg_col, "TDF100MG"),
+            "TDF",
+            NA_character_
+         ),
+         r_tdf_3tc        = if_else(
+            stri_detect_fixed(!!reg_disagg_col, "TDF/3TC") &
+               !stri_detect_fixed(!!reg_disagg_col, "TDF/3TC/EFV") &
+               !stri_detect_fixed(!!reg_disagg_col, "TDF/3TC/DTG"),
+            "TDF/3TC",
+            NA_character_
+         ),
+         r_tdf_3tc_efv    = if_else(stri_detect_fixed(!!reg_disagg_col, "TDF/3TC/EFV"), "TDF/3TC/EFV", NA_character_),
+         r_tdf_3tc_dtg    = if_else(stri_detect_fixed(!!reg_disagg_col, "TDF/3TC/DTG"), "TDF/3TC/DTG", NA_character_),
+         r_tdf100         = if_else(stri_detect_fixed(!!reg_disagg_col, "TDF100MG"), "TDF100mg", NA_character_),
+         r_xtc            = case_when(
+            stri_detect_fixed(!!reg_disagg_col, "3TC") &
+               !stri_detect_fixed(!!reg_disagg_col, "/3TC") &
+               !stri_detect_fixed(!!reg_disagg_col, "3TCSYR") ~ "3TC",
+            stri_detect_fixed(!!reg_disagg_col, "D4T/3TC") ~ "D4T/3TC",
+            TRUE ~ NA_character_
+         ),
+         r_xtcsyr         = if_else(stri_detect_fixed(!!reg_disagg_col, "3TCSYR"), "3TCsyr", NA_character_),
+         r_nvp            = if_else(
+            stri_detect_fixed(!!reg_disagg_col, "NVP") &
+               !stri_detect_fixed(!!reg_disagg_col, "NVPSYR"),
+            "NVP",
+            NA_character_
+         ),
+         r_nvpsyr         = if_else(stri_detect_fixed(!!reg_disagg_col, "NVPSYR"), "NVPsyr", NA_character_),
+         r_efv            = if_else(
+            stri_detect_fixed(!!reg_disagg_col, "EFV") &
+               !stri_detect_fixed(!!reg_disagg_col, "/EFV") &
+               !stri_detect_fixed(!!reg_disagg_col, "EFV50MG") &
+               !stri_detect_fixed(!!reg_disagg_col, "EFV200MG") &
+               !stri_detect_fixed(!!reg_disagg_col, "EFVSYR"),
+            "EFV",
+            NA_character_
+         ),
+         r_efv50          = if_else(stri_detect_fixed(!!reg_disagg_col, "EFV50MG"), "EFV50mg", NA_character_),
+         r_efv200         = if_else(stri_detect_fixed(!!reg_disagg_col, "EFV200MG"), "EFV200mg", NA_character_),
+         r_efvsyr         = if_else(stri_detect_fixed(!!reg_disagg_col, "EFVSYR"), "EFVsyr", NA_character_),
+         r_dtg            = if_else(
+            stri_detect_fixed(!!reg_disagg_col, "DTG") &
+               !stri_detect_fixed(!!reg_disagg_col, "/DTG"),
+            "DTG",
+            NA_character_
+         ),
+         r_lpvr           = if_else(
+            (stri_detect_fixed(!!reg_disagg_col, "LPV/R") |
+               stri_detect_fixed(!!reg_disagg_col, "LPVR")) &
+               (!stri_detect_fixed(!!reg_disagg_col, "RSYR") &
+                  !stri_detect_fixed(!!reg_disagg_col, "R PEDIA")),
+            "LPV/r",
+            NA_character_
+         ),
+         r_lpvr_pedia     = if_else(
+            stri_detect_fixed(!!reg_disagg_col, "LPV") &
+               (stri_detect_fixed(!!reg_disagg_col, "RSYR") |
+                  stri_detect_fixed(!!reg_disagg_col, "R PEDIA")),
+            "LPV/rsyr",
+            NA_character_
+         ),
+         r_ril            = if_else(stri_detect_fixed(!!reg_disagg_col, "RIL"), "RIL", NA_character_),
+         r_ral            = if_else(stri_detect_fixed(!!reg_disagg_col, "RAL"), "RAL", NA_character_),
+         r_ftc            = if_else(stri_detect_fixed(!!reg_disagg_col, "FTC"), "FTC", NA_character_),
+         r_idv            = if_else(stri_detect_fixed(!!reg_disagg_col, "IDV"), "IDV", NA_character_)
+      ) %>%
+      unite(
+         col   = concat_col,
+         sep   = '+',
+         na.rm = T,
+         starts_with("r_", ignore.case = FALSE)
+      ) %>%
+      mutate(
+         # reg disagg
+         !!reg_line_col := case_when(
+            !!reg_disagg_col == "AZT/3TC+NVP" ~ 1,
+            !!reg_disagg_col == "AZT+3TC+NVP" ~ 1,
+            !!reg_disagg_col == "AZT/3TC+EFV" ~ 1,
+            !!reg_disagg_col == "AZT+3TC+EFV" ~ 1,
+            !!reg_disagg_col == "TDF/3TC/EFV" ~ 1,
+            !!reg_disagg_col == "TDF/3TC+EFV" ~ 1,
+            !!reg_disagg_col == "TDF+3TC+EFV" ~ 1,
+            !!reg_disagg_col == "TDF/3TC+NVP" ~ 1,
+            !!reg_disagg_col == "TDF+3TC+NVP" ~ 1,
+            !!reg_disagg_col == "ABC+3TC+NVP" ~ 1,
+            !!reg_disagg_col == "ABC+3TC+EFV" ~ 1,
+            !!reg_disagg_col == "ABC+3TC+DTG" ~ 1,
+            !!reg_disagg_col == "ABC+3TC+RTV" ~ 1,
+            !!reg_disagg_col == "TDF+3TC+RTV" ~ 1,
+            !!reg_disagg_col == "TDF/3TC+RTV" ~ 1,
+            !!reg_disagg_col == "AZT/3TC+RTV" ~ 1,
+            !!reg_disagg_col == "AZT+3TC+RTV" ~ 1,
+            !!reg_disagg_col == "TDF/3TC/DTG" ~ 1,
+            !!reg_disagg_col == "TDF/3TC+DTG" ~ 1,
+            !!reg_disagg_col == "TDF+3TC+DTG" ~ 1,
+            !!reg_disagg_col == "AZT/3TC+LPV/r" ~ 2,
+            !!reg_disagg_col == "AZT+3TC+LPV/r" ~ 2,
+            !!reg_disagg_col == "TDF/3TC+LPV/r" ~ 2,
+            !!reg_disagg_col == "TDF+3TC+LPV/r" ~ 2,
+            !!reg_disagg_col == "ABC+3TC+LPV/r" ~ 2,
+            !!reg_disagg_col == "AZT+3TC+DTG" ~ 2,
+            !!reg_disagg_col == "AZT/3TC+DTG" ~ 2,
+            !!reg_disagg_col == "ABC+3TC+LPV/r" ~ 2,
+            !!reg_disagg_col == "AZT/3TC+NVPsyr" ~ 2,
+            !stri_detect_fixed(!!reg_disagg_col, "syr") & !stri_detect_fixed(!!reg_disagg_col, "pedia") ~ 3,
+            stri_detect_fixed(!!reg_disagg_col, "syr") | stri_detect_fixed(!!reg_disagg_col, "pedia") ~ 4
+         )
+      )
+   return(data)
+}
+
+get_reg_disagg <- function(data, col) {
    data %<>%
       # retag regimen
       select(-art_reg, -line) %>%
@@ -256,7 +397,7 @@ reg_disagg <- function(data) {
       ) %>%
       mutate(
          # old line
-         line          = case_when(
+         line = case_when(
             art_reg == "tdf 3tc efv" ~ 1,
             art_reg == "tdf 3tc nvp" ~ 1,
             art_reg == "azt 3tc efv" ~ 1,
@@ -280,7 +421,7 @@ reg_disagg <- function(data) {
          ),
 
          # new line
-         line          = case_when(
+         line = case_when(
             art_reg == "azt 3tc nvp" ~ 1,
             art_reg == "azt 3tc efv" ~ 1,
             art_reg == "tdf 3tc efv" ~ 1,
@@ -298,136 +439,6 @@ reg_disagg <- function(data) {
             art_reg == "azt 3tc dtg" ~ 2,
             !is.na(art_reg) ~ 3
          ),
-
-         # reg disagg
-         regimen       = toupper(str_squish(latest_regimen)),
-         r_abc         = if_else(
-            stri_detect_fixed(regimen, "ABC") &
-               !stri_detect_fixed(regimen, "ABCSYR"),
-            "ABC",
-            NA_character_
-         ),
-         r_abcsyr      = if_else(stri_detect_fixed(regimen, "ABCSYR"), "ABCsyr", NA_character_),
-         r_azt_3tc     = if_else(stri_detect_fixed(regimen, "AZT/3TC"), "AZT/3TC", NA_character_),
-         r_azt         = if_else(
-            stri_detect_fixed(regimen, "AZT") &
-               !stri_detect_fixed(regimen, "AZT/3TC") &
-               !stri_detect_fixed(regimen, "AZTSYR"),
-            "AZT",
-            NA_character_
-         ),
-         r_aztsyr      = if_else(stri_detect_fixed(regimen, "AZTSYR"), "AZTsyr", NA_character_),
-         r_tdf         = if_else(
-            stri_detect_fixed(regimen, "TDF") &
-               !stri_detect_fixed(regimen, "TDF/3TC") &
-               !stri_detect_fixed(regimen, "TDF100MG"),
-            "TDF",
-            NA_character_
-         ),
-         r_tdf_3tc     = if_else(
-            stri_detect_fixed(regimen, "TDF/3TC") &
-               !stri_detect_fixed(regimen, "TDF/3TC/EFV") &
-               !stri_detect_fixed(regimen, "TDF/3TC/DTG"),
-            "TDF/3TC",
-            NA_character_
-         ),
-         r_tdf_3tc_efv = if_else(stri_detect_fixed(regimen, "TDF/3TC/EFV"), "TDF/3TC/EFV", NA_character_),
-         r_tdf_3tc_dtg = if_else(stri_detect_fixed(regimen, "TDF/3TC/DTG"), "TDF/3TC/DTG", NA_character_),
-         r_tdf100      = if_else(stri_detect_fixed(regimen, "TDF100MG"), "TDF100mg", NA_character_),
-         r_xtc         = case_when(
-            stri_detect_fixed(regimen, "3TC") &
-               !stri_detect_fixed(regimen, "/3TC") &
-               !stri_detect_fixed(regimen, "3TCSYR") ~ "3TC",
-            stri_detect_fixed(regimen, "D4T/3TC") ~ "D4T/3TC",
-            TRUE ~ NA_character_
-         ),
-         r_xtcsyr      = if_else(stri_detect_fixed(regimen, "3TCSYR"), "3TCsyr", NA_character_),
-         r_nvp         = if_else(
-            stri_detect_fixed(regimen, "NVP") &
-               !stri_detect_fixed(regimen, "NVPSYR"),
-            "NVP",
-            NA_character_
-         ),
-         r_nvpsyr      = if_else(stri_detect_fixed(regimen, "NVPSYR"), "NVPsyr", NA_character_),
-         r_efv         = if_else(
-            stri_detect_fixed(regimen, "EFV") &
-               !stri_detect_fixed(regimen, "/EFV") &
-               !stri_detect_fixed(regimen, "EFV50MG") &
-               !stri_detect_fixed(regimen, "EFV200MG") &
-               !stri_detect_fixed(regimen, "EFVSYR"),
-            "EFV",
-            NA_character_
-         ),
-         r_efv50       = if_else(stri_detect_fixed(regimen, "EFV50MG"), "EFV50mg", NA_character_),
-         r_efv200      = if_else(stri_detect_fixed(regimen, "EFV200MG"), "EFV200mg", NA_character_),
-         r_efvsyr      = if_else(stri_detect_fixed(regimen, "EFVSYR"), "EFVsyr", NA_character_),
-         r_dtg         = if_else(
-            stri_detect_fixed(regimen, "DTG") &
-               !stri_detect_fixed(regimen, "/DTG"),
-            "DTG",
-            NA_character_
-         ),
-         r_lpvr        = if_else(
-            (stri_detect_fixed(regimen, "LPV/R") |
-               stri_detect_fixed(regimen, "LPVR")) &
-               (!stri_detect_fixed(regimen, "RSYR") &
-                  !stri_detect_fixed(regimen, "R PEDIA")),
-            "LPV/r",
-            NA_character_
-         ),
-         r_lpvr_pedia  = if_else(
-            stri_detect_fixed(regimen, "LPV") &
-               (stri_detect_fixed(regimen, "RSYR") |
-                  stri_detect_fixed(regimen, "R PEDIA")),
-            "LPV/rsyr",
-            NA_character_
-         ),
-         r_ril         = if_else(stri_detect_fixed(regimen, "RIL"), "RIL", NA_character_),
-         r_ral         = if_else(stri_detect_fixed(regimen, "RAL"), "RAL", NA_character_),
-         r_ftc         = if_else(stri_detect_fixed(regimen, "FTC"), "FTC", NA_character_),
-         r_idv         = if_else(stri_detect_fixed(regimen, "IDV"), "IDV", NA_character_)
-      ) %>%
-      unite(
-         col   = 'regimen',
-         sep   = '+',
-         na.rm = T,
-         starts_with("r_", ignore.case = FALSE)
-      ) %>%
-      mutate(
-         # reg disagg
-         reg_line = case_when(
-            regimen == "AZT/3TC+NVP" ~ 1,
-            regimen == "AZT+3TC+NVP" ~ 1,
-            regimen == "AZT/3TC+EFV" ~ 1,
-            regimen == "AZT+3TC+EFV" ~ 1,
-            regimen == "TDF/3TC/EFV" ~ 1,
-            regimen == "TDF/3TC+EFV" ~ 1,
-            regimen == "TDF+3TC+EFV" ~ 1,
-            regimen == "TDF/3TC+NVP" ~ 1,
-            regimen == "TDF+3TC+NVP" ~ 1,
-            regimen == "ABC+3TC+NVP" ~ 1,
-            regimen == "ABC+3TC+EFV" ~ 1,
-            regimen == "ABC+3TC+DTG" ~ 1,
-            regimen == "ABC+3TC+RTV" ~ 1,
-            regimen == "TDF+3TC+RTV" ~ 1,
-            regimen == "TDF/3TC+RTV" ~ 1,
-            regimen == "AZT/3TC+RTV" ~ 1,
-            regimen == "AZT+3TC+RTV" ~ 1,
-            regimen == "TDF/3TC/DTG" ~ 1,
-            regimen == "TDF/3TC+DTG" ~ 1,
-            regimen == "TDF+3TC+DTG" ~ 1,
-            regimen == "AZT/3TC+LPV/r" ~ 2,
-            regimen == "AZT+3TC+LPV/r" ~ 2,
-            regimen == "TDF/3TC+LPV/r" ~ 2,
-            regimen == "TDF+3TC+LPV/r" ~ 2,
-            regimen == "ABC+3TC+LPV/r" ~ 2,
-            regimen == "AZT+3TC+DTG" ~ 2,
-            regimen == "AZT/3TC+DTG" ~ 2,
-            regimen == "ABC+3TC+LPV/r" ~ 2,
-            regimen == "AZT/3TC+NVPsyr" ~ 2,
-            !stri_detect_fixed(regimen, "syr") & !stri_detect_fixed(regimen, "pedia") ~ 3,
-            stri_detect_fixed(regimen, "syr") | stri_detect_fixed(regimen, "pedia") ~ 4
-         )
       ) %>%
       select(-central_id)
    return(data)
@@ -445,6 +456,38 @@ get_checks <- function(data) {
    update <- substr(toupper(update), 1, 1)
 
    if (update == "1") {
+      data %<>%
+         left_join(
+            y  = .GlobalEnv$nhsss$harp_tx$official$new_reg %>%
+               select(
+                  art_id,
+                  confirmatory_code,
+                  uic,
+                  px_code,
+                  philhealth_no,
+                  philsys_id,
+                  first,
+                  middle,
+                  last,
+                  suffix,
+                  birthdate
+               ),
+            by = "art_id"
+         ) %>%
+         relocate(
+            .after = art_id,
+            confirmatory_code,
+            uic,
+            px_code,
+            philhealth_no,
+            philsys_id,
+            first,
+            middle,
+            last,
+            suffix,
+            birthdate
+         )
+
       # special checks
       .log_info("Checking for shift out of TLD.")
       check[["tld to lte"]] <- data %>%
@@ -495,7 +538,11 @@ get_checks <- function(data) {
       data <- read_rds(file.path(wd, "outcome.converted.RDS"))
       data <- finalize_outcomes(data) %>%
          finalize_faci() %>%
-         reg_disagg()
+         get_reg_disagg()
+
+      data <- reg_disagg(data, "latest_regimen", "regimen", "reg_line")
+      data <- reg_disagg(data, "latest_regimen", "latest_regdisagg", "latest_regline")
+      data <- reg_disagg(data, "previous_regimen", "previous_regdisagg", "previous_regline")
 
       .GlobalEnv$nhsss$harp_tx$official$new_outcome <- data
 
