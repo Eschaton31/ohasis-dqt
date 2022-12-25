@@ -395,10 +395,12 @@ get_checks <- function(data) {
 
       tag_fordrop()
       subset_drops()
-
+      data <- .GlobalEnv$nhsss$harp_tx$official$new_reg
       data %<>%
          remove_drops() %>%
          merge_dx()
+
+      .GlobalEnv$nhsss$harp_tx$official$new_reg <- data
 
       write_rds(data, file.path(wd, "reg.final.RDS"))
 
