@@ -315,8 +315,7 @@ get_checks <- function(data) {
       date_vars <- c(
          "encoded_date",
          "VISIT_DATE",
-         "DISP_DATE",
-         "LATEST_NEXT_DATE"
+         "DISP_DATE"
       )
       check     <- check_dates(data, check, view_vars, date_vars)
 
@@ -431,9 +430,9 @@ get_checks <- function(data) {
          if (update == "1") {
             for (drop in c("drop_notart", "drop_notyet")) {
                if (drop %in% names(.GlobalEnv$nhsss$harp_tx$corr))
-                  for (check in names(check)) {
-                     if (check != "tabstat")
-                        check[[check]] %<>%
+                  for (check_var in names(check)) {
+                     if (check_var != "tabstat")
+                        check[[check_var]] %<>%
                            anti_join(
                               y  = .GlobalEnv$nhsss$harp_tx$corr[[drop]],
                               by = "REC_ID"
