@@ -264,8 +264,7 @@ get_checks <- function(data) {
       date_vars <- c(
          "encoded_date",
          "VISIT_DATE",
-         "DISP_DATE",
-         "LATEST_NEXT_DATE"
+         "DISP_DATE"
       )
       check     <- check_dates(data, check, view_vars, date_vars)
 
