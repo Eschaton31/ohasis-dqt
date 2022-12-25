@@ -25,6 +25,9 @@ local(envir = import, {
             return(as.data.frame(data))
          }))
 
+      data$FORMS %<>%
+         filter(is.na(PATIENT_ID) | toupper(PATIENT_ID) != "DUPLICATE")
+
       return(data)
    }
 
