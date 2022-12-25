@@ -12,8 +12,9 @@ epic$final <- bind_rows(epic$flat) %>%
       Age_Band
    )
 
-# epic$xlsx$dir      <- glue("H:/Data Sharing/FHI 360/{epic$coverage$type}/{epic$coverage$ym}")
-epic$xlsx$dir      <- "H:/Data Sharing/FHI 360/QR/2022.Q3"
+# epic$xlsx$dir      <- glue("E:/Data Sharing/FHI 360/{epic$coverage$type}/{epic$coverage$ym}")
+# epic$xlsx$dir      <- "E:/Data Sharing/FHI 360/QR/2022.Q4"
+epic$xlsx$dir      <- "E:/Data Sharing/FHI 360/HFR/2022.11"
 epic$xlsx$file     <- glue("EpiC {epic$coverage$type} Indicators ({epic$coverage$ym}).xlsx")
 check_dir(epic$xlsx$dir)
 
