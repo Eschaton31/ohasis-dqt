@@ -1,44 +1,38 @@
-##  HARP Tx Linkage Controller -------------------------------------------------
+##  OHASIS Deduplication Controller -------------------------------------------------
 
-# define datasets
-if (!exists("dedup"))
-   dedup <- new.env()
-
-
-dedup$dx <- ohasis$get_data("harp_dx", ohasis$prev_yr, ohasis$prev_mo) %>%
-   read_dta() %>%
-   # convert Stata string missing data to NAs
-   mutate_if(
-      .predicate = is.character,
-      ~if_else(. == '', NA_character_, .)
-   ) %>%
-   select(-starts_with("CENTRAL_ID")) %>%
-   left_join(
-      y  = dedup$id_registry,
-      by = "PATIENT_ID"
-   ) %>%
-   mutate(
-      CENTRAL_ID = if_else(
-         condition = is.na(CENTRAL_ID),
-         true      = PATIENT_ID,
-         false     = CENTRAL_ID
-      ),
-   )
-
-ohasis$db_checks <- ohasis$check_consistency()
-ohasis$data_factory("warehouse", "id_registry", "upsert", TRUE)
 source("src/misc/dedup_ohasis/01_pii.R")
+source("src/misc/dedup_ohasis/02_dedup_fns.R")
 
+dedup <- dedup_download()
+dedup <- dedup_linelist(dedup)
 
+check_dupes <- ohasis_dupes(c(FIRST, MIDDLE, LAST, UIC))
 check_dupes <- ohasis_dupes(c(FIRST, LAST, UIC))
+check_dupes <- ohasis_dupes(c(FIRST, MIDDLE, LAST, UIC_SORT))
+check_dupes <- ohasis_dupes(c(FIRST, LAST, UIC_SORT))
+check_dupes <- ohasis_dupes(c(FIRST_NY, MIDDLE_NY, LAST_NY, UIC))
+check_dupes <- ohasis_dupes(c(FIRST_NY, LAST_NY, UIC))
+check_dupes <- ohasis_dupes(c(FIRST, MIDDLE, LAST, BIRTHDATE, UIC_ORDER))
+check_dupes <- ohasis_dupes(c(FIRST, LAST, BIRTHDATE, CONFIRMATORY_CODE))
+check_dupes <- ohasis_dupes(c(FIRST, LAST, BIRTHDATE, PATIENT_CODE))
+check_dupes <- ohasis_dupes(c(FIRST, LAST, BIRTHDATE, PHIC))
+check_dupes <- ohasis_dupes(c(FIRST, LAST, BIRTHDATE, PHILSYS))
+check_dupes <- ohasis_dupes(c(FIRST_NY, LAST_NY, BIRTHDATE, CONFIRMATORY_CODE))
+check_dupes <- ohasis_dupes(c(FIRST_NY, LAST_NY, BIRTHDATE, PATIENT_CODE))
+check_dupes <- ohasis_dupes(c(FIRST_NY, LAST_NY, BIRTHDATE, PHIC))
+check_dupes <- ohasis_dupes(c(FIRST_NY, LAST_NY, BIRTHDATE, PHILSYS))
+check_dupes <- ohasis_dupes(c(FIRST, MIDDLE, LAST_A, UIC))
+check_dupes <- ohasis_dupes(c(FIRST, LAST_A, UIC))
+check_dupes <- ohasis_dupes(c(FIRST_A, MIDDLE, LAST, UIC))
+check_dupes <- ohasis_dupes(c(FIRST_A, LAST, UIC))
+check_dupes <- ohasis_dupes(c(FIRST_A, MIDDLE, LAST_A, UIC))
 
 # upload
 upload_dupes(check_dupes$registry_up)
 upload_dupes(check_dupes$normal_up)
 
-check_dupes$registry
-check_dupes$normal_up %>%
-   get_dupes(FINAL_CID)
+check_dupes$registry %>% View("reg")
+check_dupes$normal %>% View("norm")
 # dbxUpsert(
 #    dbConnect(
 #       RMariaDB::MariaDB(),
@@ -61,3 +55,15 @@ check_dupes$normal_up %>%
 #       ),
 #    c("PATIENT_ID", "CENTRAL_ID")
 # )
+
+hx_m <- dedup$pii %>%
+   filter(SEX == "1_Male") %>%
+   distinct(CENTRAL_ID)
+hx_f <- dedup$pii %>%
+   filter(SEX == "2_Female") %>%
+   distinct(CENTRAL_ID)
+
+hx_m %>%
+   inner_join(hx_f) %>%
+   left_join(dedup$linelist) %>%
+   write_sheet(as_id("1OPVqAkK_mJXYVeCfwgmr2vZrOHabSdFTHWDQ0LULRA8"), "male and female")
