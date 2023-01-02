@@ -3,18 +3,18 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
    # use hts form as base
    data <- form_hts %>%
       mutate(
-         FORM_VERSON = "HTS Form (v2021)",
+         FORM_VERSION = "HTS Form (v2021)",
       ) %>%
       bind_rows(
          # second priority - form a
          form_a %>%
             mutate(
-               FORM_VERSON = if_else(is.na(FORM_VERSION), "Form A (v2017)", FORM_VERSION),
+               FORM_VERSION = if_else(is.na(FORM_VERSION), "Form A (v2017)", FORM_VERSION),
             ),
          # lastly - cfbs form
          form_cfbs %>%
             mutate(
-               FORM_VERSON = "CFBS Form (v2020)",
+               FORM_VERSION = "CFBS Form (v2020)",
             ) %>%
             rename_at(
                .vars = vars(starts_with("RISK_")),
@@ -23,7 +23,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
       ) %>%
       # make simplified tagging for source form
       mutate(
-         src = FORM_VERSON,
+         src = FORM_VERSION,
          src = stri_replace_first_fixed(src, "Form", ""),
          src = stri_replace_first_fixed(src, " (v", ""),
          src = stri_replace_first_fixed(src, ")", ""),
