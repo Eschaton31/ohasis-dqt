@@ -43,12 +43,20 @@ local(envir = nhsss$harp_linked, {
             TRUE ~ NA_character_
          ),
          cur_age     = age + (as.numeric(yr) - year)
+      ) %>%
+      select(
+         -any_of(c(
+            "firstname",
+            "first",
+            "middle",
+            "last"
+         ))
       )
 
-   if (mo %in% c("03", "06", "09", "12")) {
+   # if (mo %in% c("03", "06", "09", "12")) {
       data$final <- data$final %>%
          left_join(
-            y  = ohasis$get_data("harp_tx-outcome", yr, mo) %>%
+            y  = hs_data("harp_tx", "outcome", yr, mo) %>%
                read_dta(
                   col_select = c(
                      art_id,
@@ -65,7 +73,7 @@ local(envir = nhsss$harp_linked, {
                ),
             by = "art_id"
          )
-   }
+   # }
 })
 
 write_dta(format_stata(nhsss$harp_linked$data$final), nhsss$harp_linked$file)

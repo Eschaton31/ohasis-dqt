@@ -7,13 +7,15 @@ local(envir = nhsss$harp_linked, {
    date_linked <- format(Sys.time(), "%Y%m%d")
 
    dir         <- list()
-   dir$output  <- "H:/_R/library/hiv_full/data"
-   dir$linkage <- glue("H:/System/HARP/_Cascade/{ym}")
+   dir$output  <- "E:/_R/library/hiv_full/data"
+   dir$linkage <- glue("E:/System/HARP/_Cascade/{ym}")
 
    if (mo %in% c("03", "06", "09", "12"))
       file <- file.path(dir$output, glue("{date_linked}_harp_{ym}_wVL.dta"))
    else
       file <- file.path(dir$output, glue("{date_linked}_harp_{ym}_ram_noVL.dta"))
+
+   file <- file.path(dir$output, glue("{date_linked}_harp_{ym}_wVL.dta"))
 
    lapply(dir, check_dir)
 })
@@ -54,7 +56,7 @@ local(envir = nhsss$harp_linked, {
       ) %>%
       mutate(
          artstart_year  = year(artstart_date),
-         artstart_month = year(artstart_date),
+         artstart_month = month(artstart_date),
          everonart      = 1
       ) %>%
       zap_missing()
