@@ -41,7 +41,10 @@ epictr$ref_addr  <- ohasis$ref_addr %>%
       )
    ) %>%
    left_join(
-      y          = epictr$estimates$class %>%
+      y          = read_sheet(
+         as_id("16_ytFIRiAgmo6cqtoy0JkZoI62S5IuWxKyNKHO_R1fs"),
+         "v2022"
+      ) %>%
          select(
             aem_class,
             PSGC_REG,
@@ -63,7 +66,7 @@ epictr$ref_addr  <- ohasis$ref_addr %>%
          PSGC_MUNC == "031405000" ~ "Bulacan City",
          TRUE ~ NAME_AEM
       ),
-      NAME_MUNC  = case_when(
+      NAME_MUNC = case_when(
          PSGC_MUNC == "031405000" ~ "Bulacan City",
          TRUE ~ NAME_MUNC
       )
@@ -107,3 +110,18 @@ epictr$ref_faci <- ohasis$ref_faci_code %>%
       TX_PSGC_MUNC = FACI_PSGC_MUNC,
    ) %>%
    distinct_all()
+
+local(envir = epictr, {
+   params    <- list()
+   params$mo <- input(prompt = "What is the reporting month?", max.char = 2)
+   params$yr <- input(prompt = "What is the reporting year?", max.char = 4)
+   params$mo <- params$mo %>% stri_pad_left(width = 2, pad = "0")
+   params$yr <- params$yr %>% stri_pad_left(width = 4, pad = "0")
+
+   params$min <- paste(sep = "-", params$yr, params$mo, "01")
+   params$max <- params$min %>%
+      as.Date() %>%
+      ceiling_date(unit = "month") %m-%
+      days(1) %>%
+      as.character()
+})
