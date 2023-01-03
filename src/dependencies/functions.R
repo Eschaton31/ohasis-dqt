@@ -17,6 +17,7 @@ input <- function(prompt = NULL, options = NULL, default = NULL, max.char = NULL
       prompt  <- paste0(prompt, "\n", options)
    }
    prompt <- paste0(prompt, "\n", default_txt, "\nPress <RETURN> to continue: ")
+   prompt <- glue(prompt)
 
    # get user input
    # cat(prompt, "\n")
