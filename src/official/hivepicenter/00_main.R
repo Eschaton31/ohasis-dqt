@@ -7,7 +7,7 @@ if (!exists("epictr"))
 epictr$wd   <- file.path(getwd(), "src", "official", "hivepicenter")
 epictr$data <- list()
 
-source(file.path(epictr$wd, "00_forms.R"))
+# source(file.path(epictr$wd, "00_forms.R"))
 source(file.path(epictr$wd, "00_refs.R"))
 source(file.path(epictr$wd, "01_harp.R"))
 source(file.path(epictr$wd, "02_estimates.R"))
