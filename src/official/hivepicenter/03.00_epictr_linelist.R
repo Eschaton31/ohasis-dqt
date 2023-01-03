@@ -2,7 +2,15 @@
 local(envir = epictr, {
    data$linelist <- list()
    for (yr in c(2020, 2021, 2022)) {
-      ref_yr                  <- as.character(yr)
+      ref_yr     <- as.character(yr)
+      ref_mo     <- ifelse(yr == params$yr, params$mo, '12')
+      ref_artmin <- paste(sep = "-", ref_yr, ref_mo, "01")
+      ref_artmax <- ref_artmin %>%
+         as.Date() %>%
+         ceiling_date(unit = "month") %m-%
+         days(1) %>%
+         as.character()
+
       data$linelist[[ref_yr]] <- harp$dx[[ref_yr]] %>%
          select(-starts_with("PSGC")) %>%
          mutate(
@@ -15,8 +23,8 @@ local(envir = epictr, {
                   region    = "UNKNOWN",
                   province  = "UNKNOWN",
                   muncity   = "UNKNOWN",
-                  labcode   = if (yr == 2022) as.character(confirmatory_code) else sacclcode,
-                  age       = if (yr == 2022) curr_age else age,
+                  labcode   = if (yr >= 2022) as.character(confirmatory_code) else sacclcode,
+                  age       = if (yr >= 2022) curr_age else age,
                ) %>%
                select(
                   labcode,
@@ -141,28 +149,18 @@ local(envir = epictr, {
                rhivda_done == 1 ~ "CrCL",
             ),
 
-            txlen_days            = if (yr == 2022) {
-               floor(interval(artstart_date, as.Date("2022-09-30")) / days(1))
-            } else {
-               floor(interval(artstart_date, as.Date(paste0(yr, "-12-31"))) / days(1))
-            },
-            txlen_months          = if (yr == 2022) {
-               floor(interval(artstart_date, as.Date("2022-09-30")) / months(1))
-            } else {
-               floor(interval(artstart_date, as.Date(paste0(yr, "-12-31"))) / months(1))
-            },
+            txlen_days            = floor(interval(artstart_date, as.Date(ref_artmax)) / days(1)),
+            txlen_months          = floor(interval(artstart_date, as.Date(ref_artmax)) / months(1)),
 
             dx                    = if_else(!is.na(idnum), 1, 0, 0),
-            dx_plhiv              = if_else(!is.na(idnum) & (dead != 1 | is.na(dead)), 1, 0, 0),
-            plhiv                 = if_else(dead != 1 | is.na(dead), 1, 0, 0),
+            dx_plhiv              = if_else(!is.na(idnum) &
+                                               (dead != 1 | is.na(dead)) &
+                                               (is.na(outcome) | outcome != "dead"), 1, 0, 0),
+            plhiv                 = if_else((dead != 1 | is.na(dead)) & (is.na(outcome) | outcome != "dead"), 1, 0, 0),
             evertx                = if_else(everonart == 1, 1, 0, 0),
             evertx_plhiv          = if_else(evertx == 1 & plhiv == 1, 1, 0, 0),
             ontx                  = if_else(onart == 1, 1, 0, 0),
-            ontx_1mo              = if (yr == 2022) {
-               if_else(ontx == 1 & latest_nextpickup >= as.Date(paste0(yr, "-09-01")), 1, 0, 0)
-            } else {
-               if_else(ontx == 1 & latest_nextpickup >= as.Date(paste0(yr, "-12-01")), 1, 0, 0)
-            },
+            ontx_1mo              = if_else(ontx == 1 & latest_nextpickup >= as.Date(ref_artmin), 1, 0, 0),
 
             # tag baseline data
             # baseline_vl           = if_else(
@@ -254,11 +252,7 @@ local(envir = epictr, {
             ),
 
             pickup                = if_else(is.na(latest_nextpickup), latest_ffupdate + 30, latest_nextpickup, latest_nextpickup),
-            ltfu_months           = if (yr == 2022) {
-               floor(interval(pickup, as.Date("2022-09-30")) / months(1))
-            } else {
-               floor(interval(pickup, as.Date(paste0(yr, "-12-31"))) / months(1))
-            },
+            ltfu_months           = floor(interval(pickup, as.Date(ref_artmax)) / months(1)),
             ltfulen               = case_when(
                ltfu_months <= 1 ~ "(1) 1 mo. LTFU",
                ltfu_months %in% seq(2, 3) ~ "(2) 2-3 mos. LTFU",
@@ -398,9 +392,9 @@ local(envir = epictr, {
             TX_PSGC_AEM = if_else(aem_class_tx %in% c("a", "ncr", "cebu city", "cebu province"), TX_PSGC_MUNC, TX_PSGC_PROV, TX_PSGC_PROV),
          )
 
-      mo <- ifelse(yr == 2022, "09", "12")
-      data$linelist[[ref_yr]] %>%
-         write_dta(glue(r"(E:/{format(Sys.time(), "%Y%m%d")}_harp_stirup_{yr}-{mo}.dta)"))
+      # mo <- ifelse(yr == 2022, "10", "12")
+      # data$linelist[[ref_yr]] %>%
+      #    write_dta(glue(r"(E:/{format(Sys.time(), "%Y%m%d")}_harp_stirup_{yr}-{mo}.dta)"))
       data$linelist[[ref_yr]] %<>%
          select(
             report_yr,
@@ -414,6 +408,7 @@ local(envir = epictr, {
             gender_identity,
             confirm_type,
             dx,
+            dx_plhiv,
             dead,
             mort,
             plhiv,
