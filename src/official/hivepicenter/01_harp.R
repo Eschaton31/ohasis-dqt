@@ -6,7 +6,7 @@ local(envir = epictr, {
 
    for (yr in c(2020, 2021, 2022)) {
       ref_yr            <- as.character(yr)
-      ref_mo            <- ifelse(yr == 2022, '10', '12')
+      ref_mo            <- ifelse(yr == params$yr, params$mo, '12')
       harp$dx[[ref_yr]] <- ohasis$get_data("harp_full", yr, ref_mo) %>%
          read_dta() %>%
          mutate_if(
@@ -76,8 +76,8 @@ local(envir = epictr, {
                TRUE ~ dx_muncity
             ),
 
-            final_hub     = if (yr == 2022) realhub else toupper(hub),
-            final_branch  = if (yr == 2022) realhub_branch else NA_character_,
+            final_hub     = if (yr >= 2022) realhub else toupper(hub),
+            final_branch  = if (yr >= 2022) realhub_branch else NA_character_,
             baseline_vl   = if (yr == 2020) if_else(baseline_vl == 0, as.numeric(NA), baseline_vl, baseline_vl) else baseline_vl
          )
 
@@ -88,13 +88,13 @@ local(envir = epictr, {
             ~if_else(str_squish(.) == "", NA_character_, ., .)
          ) %>%
          mutate(
-            final_hub    = if (yr == 2022) realhub else toupper(hub),
-            final_branch = if (yr == 2022) realhub_branch else NA_character_,
-            baseline_vl  = if (yr == 2020) if_else(baseline_vl == 0, as.numeric(NA), baseline_vl, baseline_vl) else baseline_vl,
-            art_reg1     = if (yr == 2022) art_reg else art_reg1
+            final_hub    = if (yr >= 2022) realhub else toupper(hub),
+            final_branch = if (yr >= 2022) realhub_branch else NA_character_,
+            baseline_vl  = if (yr >= 2020) if_else(baseline_vl == 0, as.numeric(NA), baseline_vl, baseline_vl) else baseline_vl,
+            art_reg1     = if (yr >= 2022) art_reg else art_reg1
          )
 
-      if (yr == 2022) {
+      if (yr >= 2022) {
          harp$tx[[ref_yr]] %<>%
             left_join(
                y  = hs_data("harp_tx", "reg", yr, ref_mo) %>%
@@ -115,7 +115,7 @@ local(envir = epictr, {
                by = "art_id"
             ) %>%
             left_join(
-               y  = read_dta("E:/_R/library/hiv_vl/20221123_vlnaive-tx_2022-10.dta") %>%
+               y  = read_dta("E:/_R/library/hiv_vl/20230103_vlnaive-tx_2022-11.dta") %>%
                   select(
                      art_id,
                      vl_naive,
@@ -129,7 +129,7 @@ local(envir = epictr, {
 
          harp$dx[[ref_yr]] %<>%
             left_join(
-               y  = read_dta("E:/_R/library/hiv_vl/20221123_vlnaive-dx_2022-10.dta") %>%
+               y  = read_dta("E:/_R/library/hiv_vl/20230103_vlnaive-dx_2022-11.dta") %>%
                   select(
                      idnum,
                      vl_naive,
