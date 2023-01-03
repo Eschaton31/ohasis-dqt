@@ -117,8 +117,7 @@ dedup_linelist <- function(dedup) {
       "BIRTHDATE",
       "PHILSYS_ID",
       "PHILHEALTH_NO",
-      "SEX",
-      "SNAPSHOT"
+      "SEX"
    )
 
    # arrange descendingly based on latest record
