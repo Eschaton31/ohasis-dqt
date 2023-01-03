@@ -3,6 +3,7 @@
 source("src/misc/dedup_ohasis/01_pii.R")
 source("src/misc/dedup_ohasis/02_dedup_fns.R")
 
+ohasis$data_factory("warehouse", "id_registry", "upsert", TRUE)
 dedup <- dedup_download()
 dedup <- dedup_linelist(dedup)
 
