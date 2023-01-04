@@ -666,7 +666,6 @@ DB <- setRefClass(
                "name"
             ) %>%
             .self$get_addr(
-               finalData,
                c(
                   CURR_REG  = "CURR_PSGC_REG",
                   CURR_PROV = "CURR_PSGC_PROV",
