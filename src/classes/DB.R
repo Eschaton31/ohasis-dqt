@@ -646,7 +646,7 @@ DB <- setRefClass(
          cidData  <- dbxSelect(db_conn, cidQuery, pid)$CENTRAL_ID
 
          # get list
-         pidData <- cidData
+         pidData <- pid
          if (length(cidData) > 0) {
             pidQuery <- "SELECT PATIENT_ID FROM ohasis_interim.registry WHERE CENTRAL_ID = ?"
             pidData  <- dbxSelect(db_conn, pidQuery, cidData)$PATIENT_ID
