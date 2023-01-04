@@ -541,92 +541,79 @@ DB <- setRefClass(
       },
 
       # method to decode faci data
-      get_faci          = function(data, faci_set = NULL, type = "nhsss", addr_vars = NULL) {
+      get_faci          = function(linelist, input_set = NULL, return_type = "nhsss", addr_names = NULL) {
          # faci_set format:
          # name = c(faci_id, sub_faci_id)
+         final_faci  <- names(input_set)
+         faci_id     <- input_set[[1]][1]
+         sub_faci_id <- input_set[[1]][2]
 
-         # addr_set format:
-         # reg, prov, munc
+         get <- switch(
+            return_type,
+            nhsss = "FACI_NAME_CLEAN",
+            code  = "FACI_CODE",
+            name  = "FACI_NAME"
+         )
 
-         type <- tolower(type)
-         if (type == "nhsss") {
-            get      <- as.symbol("FACI_NAME_CLEAN")
-            get_reg  <- "FACI_NHSSS_REG"
-            get_prov <- "FACI_NHSSS_PROV"
-            get_munc <- "FACI_NHSSS_MUNC"
-         } else if (type == "code") {
-            get      <- as.symbol("FACI_CODE")
-            get_reg  <- "FACI_NHSSS_REG"
-            get_prov <- "FACI_NHSSS_PROV"
-            get_munc <- "FACI_NHSSS_MUNC"
-         } else if (type == "label") {
-            get      <- as.symbol("FACI_LABEL")
-            get_reg  <- "FACI_NAME_REG"
-            get_prov <- "FACI_NAME_PROV"
-            get_munc <- "FACI_NAME_MUNC"
-         } else if (type == "name") {
-            get      <- as.symbol("FACI_NAME")
-            get_reg  <- "FACI_NAME_REG"
-            get_prov <- "FACI_NAME_PROV"
-            get_munc <- "FACI_NAME_MUNC"
+         # check if sub_faci_id col exists
+         if (!(sub_faci_id %in% names(linelist)))
+            linelist[, sub_faci_id] <- NA_character_
+
+         # check if addresses to  be extracted
+         addr_cols <- NULL
+         if (!is.null(addr_names)) {
+            addr_cols <- c("FACI_PSGC_REG", "FACI_PSGC_PROV", "FACI_PSGC_MUNC")
          }
 
-         final_faci  <- names(faci_set) %>% as.symbol()
-         faci_id     <- faci_set[[1]][1] %>% as.symbol()
-         sub_faci_id <- faci_set[[1]][2] %>% as.symbol()
-
-         if (!is.null(addr_vars)) {
-            named_reg  <- addr_vars[1]
-            named_prov <- addr_vars[2]
-            named_munc <- addr_vars[3]
-         } else {
-            named_reg  <- ""
-            named_prov <- ""
-            named_munc <- ""
-         }
+         # convert to names
+         faci_id     <- as.name(faci_id)
+         sub_faci_id <- as.name(sub_faci_id)
 
          # rename columns
-         data %<>%
-            # clean variables first
+         linelist %<>%
             mutate(
-               !!faci_id     := if_else(
-                  condition = is.na(!!faci_id),
+               {{faci_id}}     := if_else(
+                  condition = is.na({{faci_id}}),
                   true      = "",
-                  false     = !!faci_id
+                  false     = {{faci_id}},
+                  missing   = {{faci_id}}
                ),
-               !!sub_faci_id := case_when(
-                  is.na(!!sub_faci_id) ~ "",
-                  StrLeft(!!sub_faci_id, 6) != !!faci_id ~ "",
-                  TRUE ~ !!sub_faci_id
+               {{sub_faci_id}} := case_when(
+                  is.na({{sub_faci_id}}) ~ "",
+                  StrLeft({{sub_faci_id}}, 6) != {{faci_id}} ~ "",
+                  TRUE ~ {{sub_faci_id}}
                )
             ) %>%
             # get referenced data
             left_join(
                y  = .self$ref_faci %>%
-                  rename_all(
-                     ~case_when(
-                        . == get_reg & named_reg != "" ~ named_reg,
-                        . == get_prov & named_prov != "" ~ named_prov,
-                        . == get_munc & named_munc != "" ~ named_munc,
-                        TRUE ~ .
-                     )
-                  ) %>%
                   select(
-                     !!faci_id     := FACI_ID,
-                     !!sub_faci_id := SUB_FACI_ID,
-                     !!final_faci  := !!get,
-                     any_of(
-                        c(
-                           named_reg,
-                           named_prov,
-                           named_munc
-                        )
-                     )
+                     {{faci_id}}     := FACI_ID,
+                     {{sub_faci_id}} := SUB_FACI_ID,
+                     {{final_faci}}  := {{get}},
+                     if (!is.null(addr_names)) {
+                        any_of(addr_cols)
+                     }
                   ),
-               by = c(as.character(faci_id), as.character(sub_faci_id))
+               by = input_set[[1]]
             ) %>%
             # move then rename to old version
-            relocate(!!final_faci, .after = !!sub_faci_id)
+            relocate({{final_faci}}, .after = {{sub_faci_id}}) %>%
+            # remove id data
+            select(-any_of(input_set[[1]]))
+
+         # extract address
+         if (!is.null(addr_names)) {
+            names(addr_cols) <- addr_names
+            linelist %<>%
+               .self$get_addr(
+                  addr_cols,
+                  return_type
+               ) %>%
+               relocate(addr_names, .after = {{final_faci}})
+         }
+
+         return(linelist)
       },
 
       # method to decode user/staff data
@@ -655,62 +642,56 @@ DB <- setRefClass(
          db_conn <- .self$conn("db")
 
          # get central id if available
-         cid_q <- "SELECT CENTRAL_ID FROM ohasis_interim.registry WHERE PATIENT_ID = ?"
-         cid_d <- dbxSelect(db_conn, cid_q, pid)$CENTRAL_ID
+         cidQuery <- "SELECT CENTRAL_ID FROM ohasis_interim.registry WHERE PATIENT_ID = ?"
+         cidData  <- dbxSelect(db_conn, cidQuery, pid)$CENTRAL_ID
 
          # get list
-         if (length(cid_d) > 0) {
-            pid_q <- "SELECT PATIENT_ID FROM ohasis_interim.registry WHERE CENTRAL_ID = ?"
-            pid_d <- dbxSelect(db_conn, pid_q, cid_d)$PATIENT_ID
-         } else {
-            pid_d <- pid
+         pidData <- cidData
+         if (length(cidData) > 0) {
+            pidQuery <- "SELECT PATIENT_ID FROM ohasis_interim.registry WHERE CENTRAL_ID = ?"
+            pidData  <- dbxSelect(db_conn, pidQuery, cidData)$PATIENT_ID
          }
 
-         final_q <- "SELECT * FROM ohasis_lake.px_pii WHERE PATIENT_ID IN (?)"
-         final_d <- dbxSelect(lw_conn, final_q, list(pid_d))
+         finalQuery <- "SELECT * FROM ohasis_lake.px_pii WHERE PATIENT_ID IN (?)"
+         finalData  <- dbxSelect(lw_conn, finalQuery, list(pidData))
 
-         # convert addresses
-         final_d <- .self$get_addr(
-            final_d,
-            c(
-               "PERM_REG"  = "PERM_PSGC_REG",
-               "PERM_PROV" = "PERM_PSGC_PROV",
-               "PERM_MUNC" = "PERM_PSGC_MUNC"
-            ),
-            "name"
-         )
-         final_d <- .self$get_addr(
-            final_d,
-            c(
-               "CURR_REG"  = "CURR_PSGC_REG",
-               "CURR_PROV" = "CURR_PSGC_PROV",
-               "CURR_MUNC" = "CURR_PSGC_MUNC"
-            ),
-            "name"
-         )
-         final_d <- .self$get_addr(
-            final_d,
-            c(
-               "BIRTH_REG"  = "BIRTH_PSGC_REG",
-               "BIRTH_PROV" = "BIRTH_PSGC_PROV",
-               "BIRTH_MUNC" = "BIRTH_PSGC_MUNC"
-            ),
-            "name"
-         )
-
-         # get faci data
-         final_d <- .self$get_faci(
-            final_d,
-            list("RECORD_FACI" = c("FACI_ID", "SUB_FACI_ID")),
-            "name"
-         )
-
-         # get user data
-         final_d <- .self$get_staff(final_d, c("CREATED" = "CREATED_BY"))
-         final_d <- .self$get_staff(final_d, c("UPDATED" = "UPDATED_BY"))
-         final_d <- .self$get_staff(final_d, c("DELETED" = "DELETED_BY"))
-
-         final_d %<>%
+         finalData %<>%
+            # convert addresses
+            .self$get_addr(
+               c(
+                  PERM_REG  = "PERM_PSGC_REG",
+                  PERM_PROV = "PERM_PSGC_PROV",
+                  PERM_MUNC = "PERM_PSGC_MUNC"
+               ),
+               "name"
+            ) %>%
+            .self$get_addr(
+               finalData,
+               c(
+                  CURR_REG  = "CURR_PSGC_REG",
+                  CURR_PROV = "CURR_PSGC_PROV",
+                  CURR_MUNC = "CURR_PSGC_MUNC"
+               ),
+               "name"
+            ) %>%
+            .self$get_addr(
+               c(
+                  BIRTH_REG  = "BIRTH_PSGC_REG",
+                  BIRTH_PROV = "BIRTH_PSGC_PROV",
+                  BIRTH_MUNC = "BIRTH_PSGC_MUNC"
+               ),
+               "name"
+            ) %>%
+            # get facility data
+            .self$get_faci(
+               list(RECORD_FACI = c("FACI_ID", "SUB_FACI_ID")),
+               "name"
+            ) %>%
+            # get user data
+            .self$get_staff(c(CREATED = "CREATED_BY")) %>%
+            .self$get_staff(c(UPDATED = "UPDATED_BY")) %>%
+            .self$get_staff(c(DELETED = "DELETED_BY")) %>%
+            # remove unneeded columns
             select(
                -starts_with("DEATH_PSGC"),
                -starts_with("SERVICE_PSGC")
@@ -719,6 +700,7 @@ DB <- setRefClass(
 
          dbDisconnect(lw_conn)
          dbDisconnect(db_conn)
+
          return(final_d)
       },
 
