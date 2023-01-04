@@ -8,10 +8,6 @@ download_corrections <- function() {
    )
    if (check == "1") {
       .log_info("Downloading corrections list.")
-      # local(envir = nhsss$harp_tx, {
-      #    .log_info("Getting corrections.")
-      #    corr <- gdrive_correct2(gdrive$path, ohasis$ym)
-      # })
       nhsss <- gdrive_correct2(nhsss, ohasis$ym, "harp_tx")
    }
 }
@@ -100,121 +96,12 @@ download_tables <- function() {
             lw_conn,
             "ohasis_warehouse",
             "id_registry",
-            cols = c("CENTRAL_ID", "PATIENT_ID")
-         )
-
-         .log_info("Downloading {green('Earliest ART Visits')}.")
-         forms$art_first <- dbTable(
-            lw_conn,
-            "ohasis_warehouse",
-            "art_first",
-            cols = c("CENTRAL_ID", "REC_ID"),
-            join = list(
-               "ohasis_warehouse.form_art_bc" = list(
-                  by   = c("REC_ID" = "REC_ID"),
-                  cols = c(
-                     "REC_ID",
-                     "CREATED_AT",
-                     "PATIENT_ID",
-                     "FORM_VERSION",
-                     "CONFIRMATORY_CODE",
-                     "UIC",
-                     "PATIENT_CODE",
-                     "PHILHEALTH_NO",
-                     "PHILSYS_ID",
-                     "FIRST",
-                     "MIDDLE",
-                     "LAST",
-                     "SUFFIX",
-                     "BIRTHDATE",
-                     "AGE",
-                     "AGE_MO",
-                     "SEX",
-                     "SELF_IDENT",
-                     "SELF_IDENT_OTHER",
-                     "CURR_PSGC_REG",
-                     "CURR_PSGC_PROV",
-                     "CURR_PSGC_MUNC",
-                     "CURR_ADDR",
-                     "FACI_ID",
-                     "SUB_FACI_ID",
-                     "SERVICE_FACI",
-                     "SERVICE_SUB_FACI",
-                     "FACI_DISP",
-                     "SUB_FACI_DISP",
-                     "CLIENT_TYPE",
-                     "TX_STATUS",
-                     "WHO_CLASS",
-                     "VISIT_TYPE",
-                     "VISIT_DATE",
-                     "RECORD_DATE",
-                     "DISP_DATE",
-                     "LATEST_NEXT_DATE",
-                     "MEDICINE_SUMMARY",
-                     "IS_PREGNANT",
-                     "NUM_OF_DRUGS",
-                     "CLINIC_NOTES",
-                     "COUNSEL_NOTES"
-                  )
-               )
-            )
-         )
-
-         .log_info("Downloading {green('Latest ART Visits')}.")
-         forms$art_last <- dbTable(
-            lw_conn,
-            "ohasis_warehouse",
-            "art_last",
-            cols = c("CENTRAL_ID", "REC_ID"),
-            join = list(
-               "ohasis_warehouse.form_art_bc" = list(
-                  by   = c("REC_ID" = "REC_ID"),
-                  cols = c(
-                     "REC_ID",
-                     "CREATED_AT",
-                     "PATIENT_ID",
-                     "FORM_VERSION",
-                     "CONFIRMATORY_CODE",
-                     "UIC",
-                     "PATIENT_CODE",
-                     "PHILHEALTH_NO",
-                     "PHILSYS_ID",
-                     "FIRST",
-                     "MIDDLE",
-                     "LAST",
-                     "SUFFIX",
-                     "BIRTHDATE",
-                     "AGE",
-                     "AGE_MO",
-                     "SEX",
-                     "SELF_IDENT",
-                     "SELF_IDENT_OTHER",
-                     "CURR_PSGC_REG",
-                     "CURR_PSGC_PROV",
-                     "CURR_PSGC_MUNC",
-                     "CURR_ADDR",
-                     "FACI_ID",
-                     "SUB_FACI_ID",
-                     "SERVICE_FACI",
-                     "SERVICE_SUB_FACI",
-                     "FACI_DISP",
-                     "SUB_FACI_DISP",
-                     "CLIENT_TYPE",
-                     "TX_STATUS",
-                     "WHO_CLASS",
-                     "VISIT_TYPE",
-                     "VISIT_DATE",
-                     "RECORD_DATE",
-                     "DISP_DATE",
-                     "LATEST_NEXT_DATE",
-                     "MEDICINE_SUMMARY",
-                     "IS_PREGNANT",
-                     "NUM_OF_DRUGS",
-                     "CLINIC_NOTES",
-                     "COUNSEL_NOTES"
-                  )
-               )
-            )
+            cols      = c("CENTRAL_ID", "PATIENT_ID"),
+            where     = r"(
+               (PATIENT_ID IN (SELECT CENTRAL_ID FROM ohasis_warehouse.art_first)) OR
+                  (CENTRAL_ID IN (SELECT CENTRAL_ID FROM ohasis_warehouse.art_first))
+            )",
+            raw_where = TRUE
          )
 
          .log_info("Downloading {green('ART Visits w/in the scope')}.")
@@ -266,9 +153,33 @@ download_tables <- function() {
                "CLINIC_NOTES",
                "COUNSEL_NOTES"
             ),
-            where     = glue("(VISIT_DATE >= '{min}' AND VISIT_DATE <= '{max}') OR (DATE(CREATED_AT) >= '{min}' AND DATE(CREATED_AT) <= '{max}') OR (DATE(UPDATED_AT) >= '{min}' AND DATE(UPDATED_AT) <= '{max}')"),
+            where     = glue("
+            (VISIT_DATE BETWEEN '{min}' AND '{max}') OR
+               (DATE(CREATED_AT) BETWEEN '{min}' AND '{max}') OR
+               (DATE(UPDATED_AT) BETWEEN '{min}' AND '{max}') OR
+               (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.art_first)) OR
+               (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.art_last))"),
             raw_where = TRUE
          )
+
+         .log_info("Downloading {green('Earliest ART Visits')}.")
+         forms$art_first <- lw_conn %>%
+            dbTable(
+               lw_conn,
+               "ohasis_warehouse",
+               "art_first",
+               cols = c("CENTRAL_ID", "REC_ID")
+            ) %>%
+            left_join(forms$form_art_bc)
+
+         .log_info("Downloading {green('Latest ART Visits')}.")
+         forms$art_last <- lw_conn %>%
+            dbTable(
+               "ohasis_warehouse",
+               "art_last",
+               cols = c("CENTRAL_ID", "REC_ID")
+            ) %>%
+            left_join(forms$form_art_bc)
 
          .log_info("Downloading {green('ARVs Disepensed w/in the scope')}.")
          forms$disp_meds <- dbTable(
