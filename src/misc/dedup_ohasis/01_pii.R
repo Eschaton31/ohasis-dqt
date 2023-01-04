@@ -199,7 +199,7 @@ dedup_linelist <- function(dedup) {
    # load harp diagnosis
    .log_info("Reloading HARP dataset.")
    dedup$dx <- hs_data("harp_dx", "reg", ohasis$yr, ohasis$mo) %>%
-      read_dta(col_select = c(idnum, PATIENT_ID)) %>%
+      read_dta(col_select = c(idnum, PATIENT_ID, labcode2)) %>%
       left_join(
          y  = dedup$id_registry,
          by = "PATIENT_ID"
