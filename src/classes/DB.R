@@ -700,7 +700,7 @@ DB <- setRefClass(
          dbDisconnect(lw_conn)
          dbDisconnect(db_conn)
 
-         return(final_d)
+         return(finalData)
       },
 
       # method to load old dataset
