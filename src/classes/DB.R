@@ -475,7 +475,7 @@ DB <- setRefClass(
          # reg, prov, munc
 
          type <- tolower(type)
-         if (type == "nhsss") {
+         if (type %in% c("nhsss", "code")) {
             get_reg  <- as.symbol("NHSSS_REG")
             get_prov <- as.symbol("NHSSS_PROV")
             get_munc <- as.symbol("NHSSS_MUNC")
