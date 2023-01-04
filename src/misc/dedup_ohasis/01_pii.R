@@ -196,6 +196,41 @@ dedup_linelist <- function(dedup) {
          values_from = DATA
       )
 
+   # load harp diagnosis
+   .log_info("Reloading HARP dataset.")
+   dedup$dx <- hs_data("harp_dx", "reg", ohasis$yr, ohasis$mo) %>%
+      read_dta(col_select = c(idnum, PATIENT_ID)) %>%
+      left_join(
+         y  = dedup$id_registry,
+         by = "PATIENT_ID"
+      ) %>%
+      mutate(
+         CENTRAL_ID = if_else(
+            condition = is.na(CENTRAL_ID),
+            true      = PATIENT_ID,
+            false     = CENTRAL_ID
+         ),
+      )
+
+   .log_info("Loading confirmatory data.")
+   dedup$linelist %<>%
+      left_join(
+         y  = dedup$dx %>%
+            select(
+               CENTRAL_ID,
+               labcode2
+            ),
+         by = "CENTRAL_ID"
+      ) %>%
+      mutate(
+         CONFIRMATORY_CODE = if_else(
+            condition = !is.na(labcode2),
+            true      = labcode2,
+            false     = CONFIRMATORY_CODE,
+            missing   = CONFIRMATORY_CODE
+         )
+      )
+
    # standardize for deduplication
    .log_info("Dataset cleaning and preparation.")
    dedup$standard <- dedup_prep(
@@ -215,22 +250,6 @@ dedup_linelist <- function(dedup) {
       phic         = PHILHEALTH_NO,
       philsys      = PHILSYS_ID
    )
-
-   # load harp diagnosis
-   .log_info("Reloading HARP dataset.")
-   dedup$dx <- hs_data("harp_dx", "reg", ohasis$yr, ohasis$mo) %>%
-      read_dta(col_select = c(idnum, PATIENT_ID)) %>%
-      left_join(
-         y  = dedup$id_registry,
-         by = "PATIENT_ID"
-      ) %>%
-      mutate(
-         CENTRAL_ID = if_else(
-            condition = is.na(CENTRAL_ID),
-            true      = PATIENT_ID,
-            false     = CENTRAL_ID
-         ),
-      )
 
    return(dedup)
 }
