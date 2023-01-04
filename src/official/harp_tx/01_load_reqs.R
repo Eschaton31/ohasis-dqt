@@ -163,7 +163,6 @@ download_tables <- function() {
          .log_info("Downloading {green('Earliest ART Visits')}.")
          forms$art_first <- lw_conn %>%
             dbTable(
-               lw_conn,
                "ohasis_warehouse",
                "art_first",
                cols = c("CENTRAL_ID", "REC_ID")
