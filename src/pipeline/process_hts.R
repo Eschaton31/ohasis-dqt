@@ -95,7 +95,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
       ) %>%
       # risk information
       mutate_at(
-         .vars = vars(starts_with("EXPOSE_", ignore.case = FALSE), -contains("DATE")),
+         .vars = vars(starts_with("EXPOSE_", ignore.case = FALSE) & !contains("DATE")),
          ~as.integer(keep_code(.))
       ) %>%
       mutate(
