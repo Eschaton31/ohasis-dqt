@@ -131,7 +131,9 @@ process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_
             select(
                HTS_REC  = REC_ID,
                hts_form = FORM_VERSION,
-               starts_with("hts", ignore.case = FALSE)
+               starts_with("hts", ignore.case = FALSE),
+               starts_with("CURR_PSGC", ignore.case = FALSE),
+               starts_with("PERM_PSGC", ignore.case = FALSE)
             ) %>%
             mutate(with_hts = 1),
          by = "HTS_REC"
@@ -212,7 +214,12 @@ process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_
             PREP_SHIFT,
             PREP_TYPE,
             PREP_REQUESTED,
-            PREP_TYPE_LAST_VISIT
+            PREP_TYPE_LAST_VISIT,
+            starts_with("PRE_INIT", ignore.case = FALSE),
+            starts_with("ELIGIBLE", ignore.case = FALSE),
+            starts_with("KP", ignore.case = FALSE) &
+               !contains("DATE") &
+               !contains("TEXT"),
          ),
          ~as.integer(keep_code(.))
       ) %>%
