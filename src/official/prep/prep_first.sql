@@ -11,7 +11,6 @@ FROM (SELECT data.CENTRAL_ID,
                       rec.*
                FROM ohasis_warehouse.form_prep rec
                         LEFT JOIN ohasis_warehouse.id_registry reg ON rec.PATIENT_ID = reg.PATIENT_ID
-                        LEFT JOIN ohasis_warehouse.prep_ignore ign ON rec.REC_ID = ign.REC_ID
-               WHERE VISIT_DATE < ? AND ign.IGNORE IS NULL
+               WHERE VISIT_DATE < ?
            ) AS data) AS prepstart
 WHERE VISIT_NUM = 1;

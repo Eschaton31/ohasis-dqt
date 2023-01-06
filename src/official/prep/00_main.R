@@ -14,8 +14,8 @@ nhsss$prep$wd <- file.path(getwd(), "src", "official", "prep")
 source(file.path(nhsss$prep$wd, "01_load_reqs.R"))
 source(file.path(nhsss$prep$wd, "02_load_visits.R"))
 source(file.path(nhsss$prep$wd, "02_data_reg.initial.R"))
-source(file.path(nhsss$prep$wd, "04_data_reg.convert.R"))
-source(file.path(nhsss$prep$wd, "05_data_reg.final.R"))
+source(file.path(nhsss$prep$wd, "03_data_reg.convert.R"))
+source(file.path(nhsss$prep$wd, "04_data_reg.final.R"))
 
 ##  PII Deduplication ----------------------------------------------------------
 
@@ -33,9 +33,9 @@ rm(dedup)
 
 ##  Begin linkage of outcomes dataset ------------------------------------------
 
-source(file.path(nhsss$prep$wd, "11_data_outcome.initial.R"))
-source(file.path(nhsss$prep$wd, "12_data_outcome.convert.R"))
-source(file.path(nhsss$prep$wd, "13_data_outcome.final.R"))
+source(file.path(nhsss$prep$wd, "05_data_outcome.initial.R"))
+source(file.path(nhsss$prep$wd, "06_data_outcome.convert.R"))
+source(file.path(nhsss$prep$wd, "07_data_outcome.final.R"))
 
 ##  Finalize dataset -----------------------------------------------------------
 

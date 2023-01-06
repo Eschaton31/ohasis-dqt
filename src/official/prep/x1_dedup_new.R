@@ -1,47 +1,26 @@
-##  Prepare dataset for initial deduplication ----------------------------------
-
-# list of current vars for code cleanup
-currEnv <- ls()[ls() != "currEnv"]
-
-.log_info("Preparing dataset for initial deduplication.")
-dedup_new <- dedup_prep(
-   data         = nhsss$prep$reg.converted$data %>% mutate(CONFIRMATORY_CODE = NA_character_),
-   name_f       = first,
-   name_m       = middle,
-   name_l       = last,
-   name_s       = suffix,
-   uic          = uic,
-   birthdate    = birthdate,
-   code_confirm = CONFIRMATORY_CODE,
-   code_px      = px_code,
-   phic         = philhealth_no,
-   philsys      = philsys_id
-)
-
 ##  Grouped identifiers for deduplication --------------------------------------
 
-.log_info("Deduplicating based on grouped identifiers.")
-nhsss$prep$dedup_new <- list()
-group_pii            <- list(
-   "UIC.Base"            = "uic",
-   "UIC.Fixed"           = "UIC_SORT",
-   "Name.Base"           = c("FIRST", "LAST", "birthdate"),
-   "Name.Fixed"          = c("FIRST_NY", "LAST_NY", "birthdate"),
-   "Name.Partial"        = c("FIRST_A", "LAST_A", "birthdate"),
-   "YMName.Base"         = c("FIRST", "LAST", "BIRTH_YR", "BIRTH_MO"),
-   "YDName.Fixed"        = c("FIRST", "LAST", "BIRTH_YR", "BIRTH_DY"),
-   "MDName.Partial"      = c("FIRST", "LAST", "BIRTH_MO", "BIRTH_DY"),
-   "YMNameClean.Base"    = c("FIRST_NY", "LAST_NY", "BIRTH_YR", "BIRTH_MO"),
-   "YDNameClean.Fixed"   = c("FIRST_NY", "LAST_NY", "BIRTH_YR", "BIRTH_DY"),
-   "MDNameClean.Partial" = c("FIRST_NY", "LAST_NY", "BIRTH_MO", "BIRTH_DY")
-)
-invisible(
-   lapply(seq_along(group_pii), function(i) {
+dedup_group_ids <- function(data) {
+   dedup_new <- list()
+   group_pii <- list(
+      "UIC.Base"            = "uic",
+      "UIC.Fixed"           = "UIC_SORT",
+      "Name.Base"           = c("FIRST", "LAST", "birthdate"),
+      "Name.Fixed"          = c("FIRST_NY", "LAST_NY", "birthdate"),
+      "Name.Partial"        = c("FIRST_A", "LAST_A", "birthdate"),
+      "YMName.Base"         = c("FIRST", "LAST", "BIRTH_YR", "BIRTH_MO"),
+      "YDName.Fixed"        = c("FIRST", "LAST", "BIRTH_YR", "BIRTH_DY"),
+      "MDName.Partial"      = c("FIRST", "LAST", "BIRTH_MO", "BIRTH_DY"),
+      "YMNameClean.Base"    = c("FIRST_NY", "LAST_NY", "BIRTH_YR", "BIRTH_MO"),
+      "YDNameClean.Fixed"   = c("FIRST_NY", "LAST_NY", "BIRTH_YR", "BIRTH_DY"),
+      "MDNameClean.Partial" = c("FIRST_NY", "LAST_NY", "BIRTH_MO", "BIRTH_DY")
+   )
+   for (i in seq_len(length(group_pii))) {
       dedup_name <- names(group_pii)[[i]]
       dedup_id   <- group_pii[[i]]
 
       # tag duplicates based on grouping
-      df <- dedup_new %>%
+      df <- data %>%
          filter_at(
             .vars           = vars(dedup_id),
             .vars_predicate = all_vars(!is.na(.))
@@ -57,17 +36,34 @@ invisible(
          mutate(DUP_IDS = paste(collapse = ', ', dedup_id))
 
       # if any found, include in list for review
-      if (nrow(df) > 0)
-         .GlobalEnv$nhsss$prep$dedup_new[[dedup_name]] <- df
+      dedup_new[[dedup_name]] <- df
+   }
+
+   return(dedup_new)
+}
+
+##  Actual flow ----------------------------------------------------------------
+
+.init <- function() {
+   p <- parent.env(environment())
+   local(envir = p, {
+      data <- read_rds(file.path(wd, "reg.converted.RDS"))
+      data <- dedup_prep(
+         data %>% mutate(confirmatory_code = NA_character_),
+         first,
+         middle,
+         last,
+         suffix,
+         uic,
+         birthdate,
+         confirmatory_code,
+         px_code,
+         philhealth_no,
+         philsys_id
+      )
+
+      check <- dedup_group_ids(data)
    })
-)
 
-##  Consolidate issues ---------------------------------------------------------
-
-# write into NHSSS GSheet
-gdrive_validation(nhsss$prep, "dedup_new", ohasis$ym, list_name = NULL)
-
-.log_success("Done!")
-
-# clean-up created objects
-rm(list = setdiff(ls(), currEnv))
+   local(envir = .GlobalEnv, flow_validation(nhsss$prep, "dedup_new", ohasis$ym))
+}

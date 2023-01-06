@@ -1,60 +1,50 @@
-##  Filter Initial Data & Remove Already Reported ------------------------------
-clean_data <- function(prep_first, old_reg) {
-   data <- prep_first %>%
-      anti_join(
-         y  = old_reg %>%
-            select(CENTRAL_ID),
+##  Append to the previous art registry ----------------------------------------
+
+clean_data <- function(forms, new_reg) {
+   # get forms and relevant dates
+   data <- new_reg %>%
+      select(
+         -(starts_with("prep") & !matches("prep_id")),
+         -starts_with("hts"),
+         -starts_with("lab"),
+         -ends_with("screen"),
+         -any_of(c("REC_ID",
+                   "PATIENT_ID",
+                   "self_identity",
+                   "self_identity_other",
+                   "gender_identity",
+                   "sti_visit",
+                   "eligible",
+                   "with_hts",
+                   "dispensed"))
+      ) %>%
+      left_join(
+         y  = forms$prepdisp_first %>%
+            select(
+               CENTRAL_ID,
+               PREP_START_DATE = VISIT_DATE
+            ),
          by = "CENTRAL_ID"
       ) %>%
-      filter(
-         VISIT_DATE <= ohasis$next_date
+      left_join(
+         y  = forms$prep_init_p12m %>%
+            select(
+               CENTRAL_ID,
+               INITIATION_DATE = VISIT_DATE
+            ),
+         by = "CENTRAL_ID"
       ) %>%
-      mutate_at(
-         .vars = vars(FIRST, MIDDLE, LAST, SUFFIX),
-         ~toupper(.)
+      left_join(
+         y  = forms$prep_last,
+         by = "CENTRAL_ID"
       ) %>%
       mutate(
          # date variables
          encoded_date    = as.Date(CREATED_AT),
-         visit_date      = VISIT_DATE,
-
-         # name
-         name            = paste0(
-            if_else(
-               condition = is.na(LAST),
-               true      = "",
-               false     = LAST
-            ), ", ",
-            if_else(
-               condition = is.na(FIRST),
-               true      = "",
-               false     = FIRST
-            ), " ",
-            if_else(
-               condition = is.na(MIDDLE),
-               true      = "",
-               false     = MIDDLE
-            ), " ",
-            if_else(
-               condition = is.na(SUFFIX),
-               true      = "",
-               false     = SUFFIX
-            )
-         ),
-         name            = str_squish(name),
-         STANDARD_FIRST  = stri_trans_general(FIRST, "latin-ascii"),
+         LATEST_VISIT    = VISIT_DATE,
 
          # Age
-         AGE             = if_else(
-            condition = is.na(AGE) & !is.na(AGE_MO),
-            true      = AGE_MO / 12,
-            false     = as.double(AGE)
-         ),
-         AGE_DTA         = if_else(
-            condition = !is.na(BIRTHDATE),
-            true      = floor((VISIT_DATE - BIRTHDATE) / 365.25) %>% as.numeric(),
-            false     = as.numeric(NA)
-         ),
+         AGE_DTA         = calc_age(birthdate, VISIT_DATE),
 
          # tag those without PREP_FACI
          use_record_faci = if_else(
@@ -110,7 +100,7 @@ clean_data <- function(prep_first, old_reg) {
 
 prioritize_reports <- function(data) {
    data %<>%
-      arrange(VISIT_DATE, desc(LATEST_NEXT_DATE), CENTRAL_ID) %>%
+      arrange(desc(VISIT_DATE), desc(LATEST_NEXT_DATE), CENTRAL_ID) %>%
       distinct(CENTRAL_ID, .keep_all = TRUE) %>%
       rename(
          PREP_FACI     = SERVICE_FACI,
@@ -130,7 +120,8 @@ attach_faci_names <- function(data) {
       ) %>%
       ohasis$get_faci(
          list(PREP_FACI_CODE = c("PREP_FACI", "PREP_SUB_FACI")),
-         "code"
+         "code",
+         c("prep_reg", "prep_prov", "prep_munc")
       ) %>%
       # arrange via faci
       mutate(
@@ -150,7 +141,7 @@ attach_faci_names <- function(data) {
          ),
       ) %>%
       mutate_at(
-         .vars = vars(FACI_CODE, PREP_FACI_CODE),
+         .vars = vars(PREP_FACI_CODE),
          ~case_when(
             stri_detect_regex(., "^HASH") ~ "HASH",
             stri_detect_regex(., "^SAIL") ~ "SAIL",
@@ -160,10 +151,6 @@ attach_faci_names <- function(data) {
       ) %>%
       mutate(
          PREP_BRANCH = case_when(
-            sail_clinic == 1 ~ PREP_BRANCH,
-            tly_clinic == 1 & is.na(PREP_BRANCH) ~ "TLY-ANGLO",
-            tly_clinic == 1 & PREP_BRANCH == "TLY" ~ "TLY-ANGLO",
-            tly_clinic == 1 & PREP_BRANCH != "TLY" ~ PREP_BRANCH,
             PREP_FACI_CODE == "HASH" & is.na(PREP_BRANCH) ~ "HASH-QC",
             PREP_FACI_CODE == "TLY" & is.na(PREP_BRANCH) ~ "TLY-ANGLO",
             PREP_FACI_CODE == "SHP" & is.na(PREP_BRANCH) ~ "SHIP-MAKATI",
@@ -180,27 +167,29 @@ attach_faci_names <- function(data) {
 get_checks <- function(data) {
    check  <- list()
    update <- input(
-      prompt  = "Run `reg-initial` validations?",
+      prompt  = "Run `outcome.initial` validations?",
       options = c("1" = "yes", "2" = "no"),
       default = "1"
    )
+   update <- substr(toupper(update), 1, 1)
    if (update == "1") {
       # initialize checking layer
 
       view_vars <- c(
          "REC_ID",
-         "PATIENT_ID",
+         "CENTRAL_ID",
          "FORM_VERSION",
-         "UIC",
-         "PATIENT_CODE",
-         "PHILHEALTH_NO",
-         "PHILSYS_ID",
-         "FIRST",
-         "MIDDLE",
-         "LAST",
-         "SUFFIX",
-         "BIRTHDATE",
-         "SEX",
+         "prep_id",
+         "uic",
+         "px_code",
+         "philhealth_no",
+         "philsys_id",
+         "first",
+         "middle",
+         "last",
+         "suffix",
+         "birthdate",
+         "sex",
          "PREP_FACI_CODE",
          "PREP_BRANCH",
          "VISIT_DATE",
@@ -216,29 +205,33 @@ get_checks <- function(data) {
          "prep_plan",
          "prep_type"
       )
-      check     <- check_pii(data, check, view_vars)
 
       # dates
       date_vars <- c(
          "encoded_date",
-         "VISIT_DATE"
+         "VISIT_DATE",
+         "DISP_DATE"
       )
       check     <- check_dates(data, check, view_vars, date_vars)
 
       # non-negotiable variables
       nonnegotiables <- c(
-         "FORM_VERSION",
          "PREP_FACI_CODE",
-         "FIRST",
-         "LAST",
-         "CENTRAL_ID",
-         "AGE",
-         "SEX",
-         "UIC",
+         "PREP_TYPE",
+         "PREP_PLAN",
          "MEDICINE_SUMMARY"
       )
       check          <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
-      check          <- check_age(data, check, view_vars)
+
+      .log_info("Checking for dispensing later than next pick-up.")
+      check[["disp_>_next"]] <- data %>%
+         filter(
+            VISIT_DATE > LATEST_NEXT_DATE
+         ) %>%
+         select(
+            any_of(view_vars),
+            LATEST_NEXT_DATE
+         )
 
       # special checks
       .log_info("Checking for dispensed with no meds.")
@@ -355,32 +348,7 @@ get_checks <- function(data) {
          "AGE_MO"
       )
       check   <- check_tabstat(data, check, tabstat)
-
-      # Remove already tagged data from validation
-      exclude <- input(
-         prompt  = "Exclude clients initially tagged for dropping from validations?",
-         options = c("1" = "yes", "2" = "no"),
-         default = "1"
-      )
-      exclude <- substr(toupper(exclude), 1, 1)
-      if (exclude == "1") {
-         .log_info("Dropping unwanted records.")
-         if (update == "1") {
-            for (drop in c("drop_notart", "drop_notyet")) {
-               if (drop %in% names(nhsss$prep$corr))
-                  for (check in names(nhsss$prep$reg.initial$check)) {
-                     if (check != "tabstat")
-                        nhsss$prep$reg.initial$check[[check]] %<>%
-                           anti_join(
-                              y  = nhsss$prep$corr[[drop]],
-                              by = "REC_ID"
-                           )
-                  }
-            }
-         }
-      }
    }
-
    return(check)
 }
 
@@ -389,14 +357,17 @@ get_checks <- function(data) {
 .init <- function() {
    p <- parent.env(environment())
    local(envir = p, {
-      data <- clean_data(.GlobalEnv$nhsss$prep$forms$prep_first, .GlobalEnv$nhsss$prep$official$old_reg) %>%
+      forms <- .GlobalEnv$nhsss$prep$forms
+      data  <- clean_data(forms, .GlobalEnv$nhsss$prep$official$new_reg) %>%
          prioritize_reports() %>%
          attach_faci_names()
 
-      write_rds(data, file.path(wd, "reg.initial.RDS"))
+      rm(forms)
+
+      write_rds(data, file.path(wd, "outcome.initial.RDS"))
 
       check <- get_checks(data)
    })
 
-   local(envir = .GlobalEnv, flow_validation(nhsss$prep, "reg.initial", ohasis$ym))
+   local(envir = .GlobalEnv, flow_validation(nhsss$prep, "outcome.initial", ohasis$ym))
 }
