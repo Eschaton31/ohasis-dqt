@@ -51,7 +51,12 @@ standardize_data <- function(initial) {
             self_identity_other == "N/A" ~ NA_character_,
             TRUE ~ self_identity_other
          ),
-         FIRST_TIME          = keep_code(FIRST_TIME)
+         FIRST_TIME          = keep_code(FIRST_TIME),
+         FIRST_TIME          = case_when(
+            FIRST_TIME == 1 ~ as.integer(1),
+            FIRST_TIME == 0 ~ NA_integer_,
+            TRUE ~ NA_integer_
+         )
       ) %>%
       generate_gender_identity(SEX, SELF_IDENT, SELF_IDENT_OTHER, gender_identity)
 

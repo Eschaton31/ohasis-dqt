@@ -67,6 +67,12 @@ tag_curr_data <- function(data, prev_outcome, prepdisp_first, params) {
             self_identity_other == "N/A" ~ NA_character_,
             TRUE ~ self_identity_other
          ),
+         FIRST_TIME          = keep_code(FIRST_TIME),
+         FIRST_TIME          = case_when(
+            FIRST_TIME == 1 ~ as.integer(1),
+            FIRST_TIME == 0 ~ NA_integer_,
+            TRUE ~ NA_integer_
+         )
       ) %>%
       # get mortality data
       left_join(
@@ -99,8 +105,8 @@ tag_curr_data <- function(data, prev_outcome, prepdisp_first, params) {
          y  = prev_outcome %>%
             select(
                prep_id,
-               prev_reinit    = prep_reinit_date,
-               prev_outcome   = outcome,
+               prev_reinit  = prep_reinit_date,
+               prev_outcome = outcome,
             ),
          by = "prep_id"
       ) %>%
