@@ -88,3 +88,15 @@ get_cid <- function(linelist, cid_list, pid_col) {
 
    return(linelist)
 }
+
+calc_age <- function(birthdate, as_of_date = Sys.time(), date_format = "%Y-%m-%d") {
+   birthdate  <- as.Date(birthdate, format = date_format)
+   as_of_date <- as.Date(as_of_date, format = date_format)
+   age        <- if_else(
+      condition = !is.na(birthdate),
+      true      = as.integer(floor(interval(birthdate, as_of_date) / years(1))),
+      false     = NA_integer_
+   )
+
+   return(age)
+}
