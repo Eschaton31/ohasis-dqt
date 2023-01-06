@@ -34,7 +34,7 @@ flow_register()
 ##  Load primary classes -------------------------------------------------------
 
 # initiate the project & database
-ohasis <- DB("2022", "11", "flows")
+ohasis <- DB("2022", "12", "check dupes")
 
 ##  example flow pipeline
 flow_register()
@@ -58,3 +58,14 @@ nhsss$harp_tx$steps$`07_data_outcome.final`$.init()
 nhsss$harp_tx$steps$x1_dedup_new$.init()
 nhsss$harp_tx$steps$x2_dedup_old$.init()
 nhsss$harp_tx$steps$x3_dedup_dx$.init()
+
+# prep
+nhsss$prep$steps$`01_load_reqs`$.init()
+nhsss$prep$steps$`02_data_reg.initial`$.init()
+nhsss$prep$steps$`03_data_reg.convert`$.init()
+nhsss$prep$steps$`04_data_reg.final`$.init()
+nhsss$prep$steps$`05_data_outcome.initial`$.init()
+nhsss$prep$steps$`06_data_outcome.convert`$.init()
+nhsss$prep$steps$`07_data_outcome.final`$.init()
+nhsss$prep$steps$x1_dedup_new$.init()
+nhsss$prep$steps$x2_dedup_old$.init()
