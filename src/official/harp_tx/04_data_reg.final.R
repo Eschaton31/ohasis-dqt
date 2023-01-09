@@ -244,11 +244,113 @@ merge_dx <- function(data) {
             )
          ),
       ) %>%
-      distinct(CENTRAL_ID, .keep_all = TRUE)
+      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      relocate(idnum, .after = art_id)
 
    return(data)
 }
 
+##  Merge w/ Tx Registry -------------------------------------------------------
+
+merge_prep <- function(data) {
+   prep <- hs_data("prep", "reg", ohasis$yr, ohasis$mo) %>%
+      read_dta(
+         col_select = c(
+            PATIENT_ID,
+            prep_id
+         )
+      ) %>%
+      get_cid(nhsss$harp_tx$forms$id_registry, PATIENT_ID) %>%
+      select(-PATIENT_ID)
+
+   if (!("prep_id" %in% names(data)))
+      data %<>% mutate(prep_id = NA_integer_)
+
+   # get prep_id
+   data %<>%
+      left_join(
+         y  = prep %>%
+            rename(prepreg_prep_id = prep_id),
+         by = "CENTRAL_ID"
+      ) %>%
+      mutate(
+         # tag clients for updating w/ prep registry data
+         use_prepreg = if_else(
+            condition = !is.na(prepreg_prep_id),
+            true      = 1,
+            false     = 0,
+            missing   = 0
+         ),
+         prep_id    = if_else(
+            condition = use_prepreg == 1,
+            true      = as.integer(prepreg_prep_id),
+            false     = NA_integer_,
+            missing   = NA_integer_
+         ),
+      )
+
+   # remove prep registry variables
+   data %<>%
+      select(
+         -use_prepreg,
+         -starts_with("prepreg")
+      ) %>%
+      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      relocate(prep_id, .after = idnum)
+
+   return(data)
+}
+
+##  Merge w/ Death Registry ----------------------------------------------------
+
+merge_dead <- function(data) {
+   dead <- ohasis$get_data("harp_dead", ohasis$yr, ohasis$mo) %>%
+      read_dta(
+         col_select = c(
+            PATIENT_ID,
+            mort_id
+         )
+      ) %>%
+      get_cid(nhsss$harp_tx$forms$id_registry, PATIENT_ID) %>%
+      select(-PATIENT_ID)
+
+   if (!("mort_id" %in% names(data)))
+      data %<>% mutate(mort_id = NA_integer_)
+
+   # get mort_id
+   data %<>%
+      left_join(
+         y  = dead %>%
+            rename(deadreg_mort_id = mort_id),
+         by = "CENTRAL_ID"
+      ) %>%
+      mutate(
+         # tag clients for updating w/ dead registry data
+         use_deadreg = if_else(
+            condition = !is.na(deadreg_mort_id),
+            true      = 1,
+            false     = 0,
+            missing   = 0
+         ),
+         mort_id     = if_else(
+            condition = use_deadreg == 1,
+            true      = as.integer(deadreg_mort_id),
+            false     = NA_integer_,
+            missing   = NA_integer_
+         ),
+      )
+
+   # remove dead registry variables
+   data %<>%
+      select(
+         -use_deadreg,
+         -starts_with("deadreg")
+      ) %>%
+      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      relocate(mort_id, .after = prep_id)
+
+   return(data)
+}
 
 ##  Flag data for validation ---------------------------------------------------
 
@@ -398,7 +500,9 @@ get_checks <- function(data) {
       data <- .GlobalEnv$nhsss$harp_tx$official$new_reg
       data %<>%
          remove_drops() %>%
-         merge_dx()
+         merge_dx() %>%
+         merge_prep() %>%
+         merge_dead()
 
       .GlobalEnv$nhsss$harp_tx$official$new_reg <- data
 
