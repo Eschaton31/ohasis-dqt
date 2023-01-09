@@ -7,6 +7,7 @@ currEnv <- ls()[ls() != "currEnv"]
 output_version <- format(Sys.time(), "%Y%m%d")
 output_name    <- paste0(output_version, '_reg_', ohasis$yr, '-', ohasis$mo)
 output_dir     <- file.path("archive", ohasis$ym, ohasis$output_title, "harp_dx")
+output_dir     <- Sys.getenv("HARP_DX")
 
 nhsss$harp_dx$official$new_file <- file.path(output_dir, paste0(output_name, ".dta"))
 check_dir(output_dir)

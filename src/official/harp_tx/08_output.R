@@ -8,6 +8,7 @@ output_version      <- format(Sys.time(), "%Y%m%d")
 output_name.reg     <- paste0(output_version, '_reg-art_', ohasis$yr, '-', ohasis$mo)
 output_name.outcome <- paste0(output_version, '_onart_', ohasis$yr, '-', ohasis$mo)
 output_dir          <- file.path("archive", ohasis$ym, ohasis$output_title, "harp_tx")
+output_dir          <- Sys.getenv("HARP_TX")
 
 nhsss$harp_tx$official$file_reg     <- file.path(output_dir, paste0(output_name.reg, ".dta"))
 nhsss$harp_tx$official$file_outcome <- file.path(output_dir, paste0(output_name.outcome, ".dta"))
