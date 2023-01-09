@@ -4,11 +4,11 @@
 currEnv <- ls()[ls() != "currEnv"]
 
 .log_info("Checking output directory.")
-output_version      <- format(Sys.time(), "%Y%m%d")
-output_name.reg     <- paste0(output_version, '_reg-prep_', ohasis$yr, '-', ohasis$mo)
-output_name.outcome <- paste0(output_version, '_onprep_', ohasis$yr, '-', ohasis$mo)
-output_dir          <- file.path("archive", ohasis$ym, ohasis$output_title, "prep")
-
+output_version                   <- format(Sys.time(), "%Y%m%d")
+output_name.reg                  <- paste0(output_version, '_reg-prep_', ohasis$yr, '-', ohasis$mo)
+output_name.outcome              <- paste0(output_version, '_onprep_', ohasis$yr, '-', ohasis$mo)
+output_dir                       <- file.path("archive", ohasis$ym, ohasis$output_title, "prep")
+output_dir                       <- Sys.getenv("PREP")
 nhsss$prep$official$file_reg     <- file.path(output_dir, paste0(output_name.reg, ".dta"))
 nhsss$prep$official$file_outcome <- file.path(output_dir, paste0(output_name.outcome, ".dta"))
 check_dir(output_dir)
@@ -16,11 +16,11 @@ check_dir(output_dir)
 # write main file
 .log_info("Saving in Stata data format.")
 write_dta(
-   data = nhsss$prep$official$new_reg,
+   data = format_stata(nhsss$prep$official$new_reg),
    path = nhsss$prep$official$file_reg
 )
 write_dta(
-   data = nhsss$prep$official$new_outcome,
+   data = format_stata(nhsss$prep$official$new_outcome),
    path = nhsss$prep$official$file_outcome
 )
 
