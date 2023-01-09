@@ -141,6 +141,7 @@ check_dir <- function(dir) {
             update = 1,
          )
       data %<>%
+         select(-matches("NEW_VALUE", ignore.case = FALSE)) %>%
          left_join(
             y  = var_clean,
             by = eb_id
