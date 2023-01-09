@@ -40,11 +40,11 @@ tag_curr_data <- function(data, prev_outcome, art_first, params) {
       left_join(
          y  = dead %>%
             select(
-               CENTRAL_ID,
+               # CENTRAL_ID,
                mort_id,
                ref_death_date
             ),
-         by = "CENTRAL_ID"
+         by = "mort_id"
       ) %>%
       # get latest outcome data
       left_join(
@@ -249,6 +249,7 @@ final_conversion <- function(data) {
          CENTRAL_ID,
          art_id,
          idnum,
+         prep_id,
          mort_id,
          year,
          month,

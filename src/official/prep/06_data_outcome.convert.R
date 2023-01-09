@@ -78,11 +78,11 @@ tag_curr_data <- function(data, prev_outcome, prepdisp_first, params) {
       left_join(
          y  = dead %>%
             select(
-               CENTRAL_ID,
+               # CENTRAL_ID,
                mort_id,
                ref_death_date
             ),
-         by = "CENTRAL_ID"
+         by = "mort_id"
       ) %>%
       mutate(
          # status as of current report
@@ -168,9 +168,11 @@ final_conversion <- function(data) {
          CENTRAL_ID,
          PATIENT_ID,
          prep_id,
+         idnum,
+         art_id,
+         mort_id,
          year,
          month,
-         confirmatory_code,
          px_code,
          uic,
          first,
