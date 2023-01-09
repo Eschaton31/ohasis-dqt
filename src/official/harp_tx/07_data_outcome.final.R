@@ -181,6 +181,7 @@ finalize_faci <- function(data) {
          CENTRAL_ID,
          art_id,
          idnum,
+         prep_id,
          mort_id,
          sex,
          curr_age,

@@ -130,7 +130,7 @@ finalize_faci <- function(data) {
          # starts_with("kp_"),
          # starts_with("curr_", ignore.case = FALSE),
          -starts_with("prev_", ignore.case = FALSE),
-         -age
+         -any_of("age")
       ) %>%
       rename(
          latest_ffupdate   = curr_ffup,
@@ -158,6 +158,6 @@ finalize_faci <- function(data) {
       data <- finalize_outcomes(data) %>%
          finalize_faci()
 
-      .GlobalEnv$nhsss$harp_tx$official$new_outcome <- data
+      .GlobalEnv$nhsss$prep$official$new_outcome <- data
    })
 }
