@@ -9,7 +9,9 @@ flow(
       "06" = "data_outcome.convert",
       "07" = "data_outcome.final",
       "x1" = "dedup_new",
-      "x2" = "dedup_old"
+      "x2" = "dedup_old",
+      "x3" = "dedup_dx",
+      "x4" = "dedup_tx"
    ),
    file.path(getwd(), "src", "official", "prep"),
    nhsss
