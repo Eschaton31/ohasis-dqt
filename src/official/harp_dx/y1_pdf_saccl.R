@@ -380,7 +380,7 @@ match_ohasis <- function(confirm_df) {
       val            <- names(nhsss$harp_dx$corr$pdf_saccl[[var]])[2]
       var_pairs[key] <- val
    }
-   var_pairs <- var_pairs[-1]
+   var_pairs                                  <- var_pairs[-1]
    nhsss$harp_dx$steps$y1_pdf_saccl$var_pairs <- var_pairs
 
    return(confirm_df)
@@ -513,7 +513,7 @@ upload_pdf <- function(confirm_df) {
          file_old <- confirm_df[i, "FILENAME"] %>% as.character()
          file_new <- confirm_df[i, "LABCODE"] %>% as.character()
 
-         if (!is.na(file_new)) {
+         if (file.exists(file_old) && !is.na(file_new)) {
             file_old <- file.path(dir_output, file_old)
             file_new <- file.path(dir_nc, glue("{file_new}.pdf"))
 
