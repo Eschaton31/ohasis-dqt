@@ -567,6 +567,7 @@ local(envir = import, {
                TRUE ~ PIECE
             )
          ) %>%
+         distinct(REC_ID, CREATED_AT, CREATED_BY, ADDR_TYPE, PIECE, .keep_all = TRUE) %>%
          pivot_wider(
             id_cols      = c(REC_ID, CREATED_AT, CREATED_BY, ADDR_TYPE),
             names_from   = PIECE,
@@ -628,6 +629,7 @@ local(envir = import, {
                TRUE ~ LAB_TEST
             )
          ) %>%
+         distinct(REC_ID, CREATED_AT, CREATED_BY, LAB_TEST, PIECE, .keep_all = TRUE) %>%
          pivot_wider(
             id_cols      = c(REC_ID, CREATED_AT, CREATED_BY, LAB_TEST),
             names_from   = PIECE,
@@ -831,6 +833,7 @@ local(envir = import, {
             ),
             DISEASE_VAX = "102000"
          ) %>%
+         distinct(REC_ID, CREATED_AT, CREATED_BY, DISEASE_VAX, VAX_NUM, PIECE, .keep_all = TRUE) %>%
          pivot_wider(
             id_cols      = c(REC_ID, CREATED_AT, CREATED_BY, DISEASE_VAX, VAX_NUM),
             names_from   = PIECE,
