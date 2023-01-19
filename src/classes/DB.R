@@ -262,13 +262,12 @@ DB <- setRefClass(
       # update lake
       data_factory      = function(db_type = NULL, table_name = NULL, update_type = NULL, default_yes = FALSE, from = NULL, to = NULL) {
          # append "ohasis_" as db name
-         db_name     <- paste0("ohasis_", db_type)
+         db_name     <- ifelse(db_type %in% c("lake", "warehouse"), paste0("ohasis_", db_type), db_type)
          table_space <- Id(schema = db_name, table = table_name)
 
          # get input
          if (default_yes == TRUE) {
             update <- "1"
-            .log_info("Updating {red(table_name)} @ the {red(db_type)}.")
          } else {
             update <- input(
                prompt  = paste0("Update ", red(table_name), "?"),
@@ -276,37 +275,67 @@ DB <- setRefClass(
                default = "1"
             )
          }
-         update <- substr(toupper(update), 1, 1)
 
          # update
          if (update == "1") {
+            .log_info("Updating {red(table_name)} @ the {red(db_type)}.")
+
+            # get files
+            factory_dir   <- file.path(getwd(), "src", paste0("data_", db_type))
+            factory_files <- dir_info(factory_dir, recurse = TRUE, regexp = table_name)
+            factory_file  <- filter(factory_files, basename(path) == paste0(table_name, '.R'))$path
+            factory_sql   <- filter(factory_files, basename(path) == paste0(table_name, '.sql'))$path
+
             # open connections
             .log_info("Opening connections.")
-            db_conn <- .self$conn("db")
-            lw_conn <- .self$conn("lw")
+            db_conn      <- .self$conn("db")
+            lw_conn      <- .self$conn("lw")
+            table_exists <- dbExistsTable(lw_conn, table_space)
 
             # data for deletion (warehouse)
             for_delete <- data.frame()
 
-            # get snapshots
-            snapshot      <- .self$get_snapshots(db_type, table_name)
-            snapshot$data <- if_else(!is.na(snapshot$data), snapshot$data + 1, snapshot$data)
-            snapshot_old  <- if_else(snapshot$old < snapshot$data, snapshot$old, snapshot$data) %>% as.character()
-            snapshot_new  <- snapshot$new %>% as.character()
+            # read sql first, then parse for necessary snapshots
+            query_snapshot <- paste0("SELECT MAX(SNAPSHOT) AS snapshot FROM ", db_name, ".", table_name)
+            if (length(factory_sql) != 0) {
+               sql_query   <- read_file(factory_sql)
+               sql_tables  <- substr(sql_query,
+                                     stri_locate_first_fixed(sql_query, "FROM "),
+                                     stri_locate_first_fixed(sql_query, "-- ID_COLS") - 1)
+               query_table <- substr(sql_query,
+                                     1,
+                                     stri_locate_first_fixed(sql_query, "-- ID_COLS") - 1)
+               query_nrow  <- paste0("SELECT COUNT(*) AS nrow ", sql_tables)
+               id_col      <- substr(sql_query,
+                                     stri_locate_first_fixed(sql_query, "-- ID_COLS: ") + 12,
+                                     nchar(sql_query))
+               id_col      <- str_split(id_col, ", ")[[1]]
+            }
 
-            # if specified days to update
-            if (!is.null(from))
+            # snapshots are the reference for scoping
+            # get start date of records  to be fetched
+            if (!is.null(from)) {
                snapshot_old <- from
-
-            # if specified days to update
-            if (!is.null(to))
-               snapshot_new <- to
-
-            if (update_type == "refresh") {
+            } else if (update_type == "refresh") {
                snapshot_old <- "1970-01-01 00:00:00"
 
-               if (dbExistsTable(lw_conn, table_space))
-                  dbExecute(lw_conn, glue(r"(DROP TABLE `{db_name}`.`{table_name}`;)"))
+               if (table_exists)
+                  dbRemoveTable(lw_conn, table_space)
+            } else if (table_exists) {
+               snapshot_old <- as.character(dbGetQuery(lw_conn, query_snapshot)$snapshot)
+            }
+
+            # get end date of records  to be fetched
+            if (!is.null(to)) {
+               snapshot_new <- to
+            } else {
+               snapshot_new <- str_split(.self$timestamp, "\\.")[[1]]
+               snapshot_new <- paste0(snapshot_new[1], "-",
+                                      snapshot_new[2], "-",
+                                      snapshot_new[3], " ",
+                                      substr(snapshot_new[4], 1, 2), ":",
+                                      substr(snapshot_new[4], 3, 4), ":",
+                                      substr(snapshot_new[4], 5, 6))
             }
 
             # # rollback 1 month to get other changes
@@ -316,29 +345,63 @@ DB <- setRefClass(
 
             # run data lake script for object
             .log_info("Getting new/updated data.")
-            factory_file <- file.path(getwd(), "src", paste0("data_", db_type), "refresh", paste0(table_name, '.R'))
-            if (!file.exists(factory_file))
-               factory_file <- file.path(getwd(), "src", paste0("data_", db_type), "upsert", paste0(table_name, '.R'))
+            if (length(factory_sql) != 0) {
+               # get number of affected rows
+               object <- tibble()
+               params <- list(snapshot_old, snapshot_new, snapshot_old, snapshot_new, snapshot_old, snapshot_new)
+               n_rows <- dbGetQuery(db_conn, query_nrow, params = params)$nrow
+               n_rows <- ifelse(length(n_rows) > 1, length(n_rows), as.numeric(n_rows))
+               n_rows <- as.integer(n_rows)
 
-            source(factory_file, local = TRUE)
+               # get actual result set
+               .log_info("Number of records to fetch = {green(formatC(n_rows, big.mark = ','))}.")
+               rs <- dbSendQuery(db_conn, query_table, params = params)
+
+               chunk_size <- 1000
+               if (n_rows >= chunk_size) {
+                  # upload in chunks to monitor progress
+                  n_chunks <- ceiling(n_rows / chunk_size)
+
+                  # get progress
+                  pb_name <- paste0(table_name, ": :current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed")
+
+                  pb <- progress_bar$new(format = pb_name, total = n_chunks, width = 100, clear = FALSE)
+                  pb$tick(0)
+
+                  # fetch in chunks
+                  for (i in seq_len(n_chunks)) {
+                     chunk  <- dbFetch(rs, chunk_size)
+                     object <- bind_rows(object, chunk)
+                     pb$tick(1)
+                  }
+               } else {
+                  object <- dbFetch(rs)
+               }
+               dbClearResult(rs)
+
+               for_delete <- object %>% select({{id_col}}) %>% distinct_all()
+               continue   <- ifelse(nrow(object) == 0, 0, 1)
+            } else {
+               source(factory_file, local = TRUE)
+            }
 
             # keep connection alive
             dbDisconnect(lw_conn)
             lw_conn <- .self$conn("lw")
 
-            # check if there is data for deletion
-            if (nrow(for_delete) > 0 && dbExistsTable(lw_conn, table_space)) {
-               .log_info("Number of invalidated records = {red(formatC(nrow(for_delete), big.mark = ','))}.")
-               dbxDelete(
-                  lw_conn,
-                  table_space,
-                  for_delete,
-                  batch_size = 1000
-               )
-               .log_success("Invalidated records removed.")
-            }
-
             if (continue > 0) {
+               # check if there is data for deletion
+               if (nrow(for_delete) > 0 && table_exists) {
+                  .log_info("Number of invalidated records = {red(formatC(nrow(for_delete), big.mark = ','))}.")
+                  dbxDelete(
+                     lw_conn,
+                     table_space,
+                     for_delete,
+                     batch_size = 1000
+                  )
+                  .log_success("Invalidated records removed.")
+               }
+
                .log_info("Payload = {red(formatC(nrow(object), big.mark = ','))} rows.")
                .self$upsert(lw_conn, db_type, table_name, object, id_col)
                # update reference
@@ -716,7 +779,7 @@ DB <- setRefClass(
       ) {
          # open connections
          .log_info("Opening connections.")
-         db_conn <- ohasis$conn("lw")
+         db_conn <- .self$conn("lw")
          db_name <- "ohasis_warehouse"
 
          # references for old dataset
@@ -791,8 +854,8 @@ DB <- setRefClass(
                dbExecute(db_conn, glue(r"(DROP TABLE `ohasis_warehouse`.`{warehouse_table}`;)"))
 
             # upload info
-            # ohasis$upsert(db_conn, "warehouse", warehouse_table, old_dataset, "PATIENT_ID")
-            ohasis$upsert(db_conn, "warehouse", warehouse_table, old_dataset, names(id_col))
+            # .self$upsert(db_conn, "warehouse", warehouse_table, old_dataset, "PATIENT_ID")
+            .self$upsert(db_conn, "warehouse", warehouse_table, old_dataset, names(id_col))
          }
 
          if (reload == "2") {
