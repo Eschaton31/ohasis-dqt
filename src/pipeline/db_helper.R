@@ -192,6 +192,128 @@ dbTable <- function(conn, dbname, table, cols = NULL, where = NULL, join = NULL,
    return(data)
 }
 
+dbTable2 <- function(conn, dbname, table, cols = ..1, where = ..2, join = NULL, raw_where = FALSE, name = NULL) {
+   # get ellipsis arguments
+   ellipsis <- match.call(expand.dots = FALSE)
+   cols     <- ifelse(!is.null(ellipsis$cols), deparse(ellipsis$cols), NA)
+   where    <- ifelse(!is.null(ellipsis$where), deparse(ellipsis$where), NA)
+
+   # define params to be used in sql
+   sql_cols  <- ""
+   sql_from  <- ""
+   sql_join  <- ""
+   sql_where <- ""
+
+   # get alias
+   tbl_alias <- names(table)
+   tbl_name  <- ifelse(!is.null(tbl_alias), paste0(table, " AS ", tbl_alias), table)
+   tbl_name  <- ifelse(!grepl(dbname, tbl_name), paste0(dbname, ".", tbl_name), tbl_name)
+   tbl_alias <- ifelse(is.null(tbl_alias), table, tbl_alias)
+   sql_from  <- paste0("FROM ", tbl_name)
+
+   # if cols defined, limit to columns
+   if (!is.na(cols)) {
+      cols     <- ifelse(StrLeft(cols, stri_locate_first_fixed(cols, "(")) == "list(",
+                         substr(cols, 6, nchar(cols) - 1),
+                         substr(cols, 3, nchar(cols) - 1))
+      cols     <- str_split(cols, ", ")[[1]]
+      cols     <- stri_replace_all_fixed(cols, intToUtf8(34), "")
+      cols     <- ifelse(grepl("\\.", cols), cols, paste0(tbl_alias, ".", cols))
+      sql_cols <- paste(collapse = ", \n", cols)
+   } else {
+      sql_cols <- "*"
+   }
+
+   # if to limit number of rows based on conditions
+   if (!is.na(where)) {
+      if (raw_where == TRUE) {
+         sql_where <- paste0("WHERE ", where)
+      } else {
+         where     <- ifelse(StrLeft(where, stri_locate_first_fixed(where, "(")) == "list(",
+                             substr(where, 6, nchar(where) - 1),
+                             substr(where, 3, nchar(where) - 1))
+         where     <- str_split(where, ", ")[[1]]
+         where     <- ifelse(grepl("\\.", where), where, paste0(tbl_alias, ".", where))
+         where     <- paste0("(", where, ")")
+         where     <- stri_replace_all_fixed(where, "|", " OR ")
+         where     <- stri_replace_all_fixed(where, "&", " AND ")
+         where     <- stri_replace_all_fixed(where, "==", " = ")
+         where     <- stri_replace_all_fixed(where, "!=", " <> ")
+         where     <- str_squish(where)
+         sql_where <- paste0("WHERE ", paste(collapse = " AND ", where))
+      }
+   }
+
+   # if to join on tables
+   # join list structure is expected to be:
+   # list(
+   #    join_type = list(table, on)
+   # )
+   if (!is.null(join)) {
+      for (i in seq_len(length(join))) {
+         join_type <- names(join)[i]
+         join_type <- switch(join_type,
+                             left_join  = "LEFT JOIN ",
+                             right_join = "RIGHT JOIN ",
+                             inner_join = "JOIN ")
+
+         join_table <- join[[i]]$table
+         join_alias <- ifelse(!is.null(names(join_table)),
+                              paste0(join_table, " AS ", names(join_table)),
+                              join_table)
+         join_alias <- ifelse(stri_count_fixed(join_alias, ".") == 0, paste0(dbname, ".", join_alias), join_alias)
+
+         # id columns to join by/on
+         join_on <- join[[i]]$on
+         for (j in seq_len(length(join_on))) {
+            join_col <- ifelse(grepl("\\.", names(join_on)[j]), names(join_on)[j], paste0(join_alias, ".", names(join_on)[j]))
+            join_on  <- paste0(join_col, " = ", join_on[j])
+         }
+
+         sql_join[i] <- paste0(join_type, join_alias, " ON ", paste(collapse = " AND ", join_on))
+      }
+      sql_join <- paste0(collapse = " \n", sql_join)
+   }
+
+   # build query using previous params
+   query_table <- paste("SELECT", sql_cols, sql_from, sql_join, sql_where)
+   query_nrow  <- paste("SELECT COUNT(*) AS nrow", sql_from, sql_join, sql_where)
+
+   # get number of affected rows
+   data   <- tibble()
+   n_rows <- dbGetQuery(conn, query_nrow)$nrow
+   n_rows <- ifelse(length(n_rows) > 1, length(n_rows), as.numeric(n_rows))
+   n_rows <- as.integer(n_rows)
+
+   # get actual result set
+   .log_info("Number of records to fetch = {green(formatC(n_rows, big.mark = ','))}.")
+   rs <- dbSendQuery(conn, query_table)
+
+   chunk_size <- 1000
+   if (n_rows >= chunk_size) {
+      # upload in chunks to monitor progress
+      n_chunks <- ceiling(n_rows / chunk_size)
+
+      # get progress
+      pb_name <- paste0(table, ": :current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed")
+
+      pb <- progress_bar$new(format = pb_name, total = n_chunks, width = 100, clear = FALSE)
+      pb$tick(0)
+
+      # fetch in chunks
+      for (i in seq_len(n_chunks)) {
+         chunk <- dbFetch(rs, chunk_size)
+         data  <- bind_rows(data, chunk)
+         pb$tick(1)
+      }
+   } else {
+      data <- dbFetch(rs)
+   }
+   dbClearResult(rs)
+
+   return(data)
+}
+
 # get inventory data
 get_inv <- function(iid) {
    inv        <- list()
