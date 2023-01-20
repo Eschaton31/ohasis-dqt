@@ -56,6 +56,7 @@ local(envir = import, {
             by = c("TX_FACI" = "FACI_CODE")
          ) %>%
          select(
+            PAGE_ID,
             REC_ID,
             PATIENT_ID,
             TX_FACI,
