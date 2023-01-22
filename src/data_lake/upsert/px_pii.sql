@@ -120,8 +120,7 @@ FROM ohasis_interim.px_record AS rec
          LEFT JOIN ohasis_interim.px_addr AS birth ON rec.REC_ID = birth.REC_ID AND birth.ADDR_TYPE = 3
          LEFT JOIN ohasis_interim.px_addr AS death ON rec.REC_ID = death.REC_ID AND death.ADDR_TYPE = 4
          LEFT JOIN ohasis_interim.px_addr AS location ON rec.REC_ID = location.REC_ID AND location.ADDR_TYPE = 5
-WHERE rec.DELETED_AT IS NULL
-  AND service.SERVICE_TYPE NOT IN ('101102', '101106')
+WHERE service.SERVICE_TYPE NOT IN ('101102', '101106')
   AND ((rec.CREATED_AT BETWEEN ? AND ?) OR
        (rec.UPDATED_AT BETWEEN ? AND ?) OR
        (rec.DELETED_AT BETWEEN ? AND ?));
