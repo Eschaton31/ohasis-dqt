@@ -450,3 +450,91 @@ oh_px_id <- function(db_conn = NULL, faci_id = NULL) {
 
    return(patient_id)
 }
+
+dup_faci_id <- function(keep_faci, drop_faci, reason = NA_character_) {
+   # get dupes
+   dupes <- ohasis$ref_faci %>%
+      filter(FACI_ID %in% c(keep_faci, drop_faci)) %>%
+      filter(SUB_FACI_ID == "") %>%
+      mutate(
+         REASON     = reason,
+         MAIN_FACI  = keep_faci,
+         CREATED_BY = '1300000001',
+         CREATED_AT = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+      ) %>%
+      select(
+         MAIN_FACI,
+         DUPE_FACI = FACI_ID,
+         REASON,
+         FACI_NAME,
+         FACI_NAME_CLEAN,
+         FACI_CODE,
+         PUBPRIV,
+         LAT,
+         LONG,
+         EMAIL,
+         MOBILE,
+         LANDLINE,
+         REG       = FACI_PSGC_REG,
+         PROV      = FACI_PSGC_PROV,
+         MUNC      = FACI_PSGC_MUNC,
+         ADDRESS   = FACI_ADDR,
+      )
+
+   #  prepare update & select queries queries per table
+   sql_update <- list()
+   sql_select <- list()
+   table_cols <- list(
+      "px_cfbs.FACI_ID",
+      "px_cfbs.PARTNER_FACI",
+      "px_confirm.FACI_ID",
+      "px_confirm.SOURCE",
+      "px_faci.FACI_ID",
+      "px_faci.REFER_BY_ID",
+      "px_faci.REFER_TO_ID",
+      "px_medicine.FACI_ID",
+      "px_medicine_disc.FACI_ID",
+      "px_record.FACI_ID",
+      "px_test.FACI_ID",
+      "px_test_hiv.FACI_ID",
+      "referral.REFER_BY_ID",
+      "referral.REFER_TO_ID",
+      "users.FACI_ID",
+      "inventory.FACI_ID",
+      "inventory.SOURCE"
+   )
+   for (table_col in table_cols) {
+      pair  <- strsplit(table_col, "\\.")[[1]]
+      table <- pair[1]
+      col   <- pair[2]
+
+      sql_update[[table_col]] <- paste0("UPDATE ohasis_interim.", table, " SET ", col, " = ? WHERE ", col, " = ?;")
+
+      if (grepl("^px", table))
+         sql_select[[table_col]] <- paste0("SELECT DISTINCT REC_ID FROM ohasis_interim.", table, " WHERE ", col, " = ?;")
+   }
+
+   # get record ids for those affected
+   db_conn <- ohasis$conn("db")
+   rec_ids <- data.frame()
+   for (query in sql_select) {
+      data    <- dbGetQuery(db_conn, query, params = list(drop_faci))
+      rec_ids <- rec_ids %>% bind_rows(data) %>% distinct(REC_ID)
+   }
+
+   # update records
+   for (query in sql_update) {
+      dbExecute(db_conn, query, params = list(keep_faci, drop_faci))
+   }
+   update_credentials(rec_ids$REC_ID)
+
+   # remove duplicate facility from referece data
+   dbExecute(db_conn, "DELETE FROM ohasis_interim.facility WHERE FACI_ID = ?;", params = list(drop_faci))
+
+   # log data in facility_duplicates
+   dbxUpsert(db_conn,
+             Id(schema = "ohasis_interim", table = "facility_duplicates"),
+             dupes,
+             c("MAIN_FACI", "DUPE_FACI"))
+   dbDisconnect(db_conn)
+}
