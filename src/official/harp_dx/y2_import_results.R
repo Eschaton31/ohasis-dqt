@@ -7,7 +7,7 @@ local(envir = import, {
 
    download_confirm <- function() {
       db_conn    <- ohasis$conn("db")
-      px_confirm <- dbTable(db_conn, "ohasis_interim", "px_confirm")
+      px_confirm <- dbTable2(db_conn, "ohasis_interim", "px_confirm", cols = c(REC_ID, CONFIRM_CODE))
       dbDisconnect(db_conn)
 
       return(px_confirm)
