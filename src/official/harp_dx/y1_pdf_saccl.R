@@ -127,7 +127,7 @@ read_pdf <- function(dir_output) {
             slice(1)
 
       # different ways of processing based on form type
-      if (form$text == "LAB-F-374") {
+      if (nrow(form) > 0 && form$text == "LAB-F-374") {
          # get pii data
          raw_data <- pdf_section(df[[1]], seq(165, 317), seq(170, 180)) %>%
             bind_rows(pdf_section(df[[1]], seq(165, 700), seq(105, 140)))
