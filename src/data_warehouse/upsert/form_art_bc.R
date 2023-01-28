@@ -477,18 +477,19 @@ if ((object %>% count() %>% collect())$n > 0) {
                y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "px_prophylaxis")),
                by = "REC_ID"
             ) %>%
+            filter(!is.na(IS_PROPH)) %>%
             mutate(
                IS_PROPH    = case_when(
                   IS_PROPH == "0" ~ "0_No",
                   IS_PROPH == "1" ~ "1_Yes",
-                  TRUE ~ NA_character_
+                  TRUE ~ as.character(IS_PROPH)
                ),
                PROPHYLAXIS = case_when(
                   PROPHYLAXIS == "1" ~ "BCG",
                   PROPHYLAXIS == "2" ~ "COTRI",
                   PROPHYLAXIS == "3" ~ "AZITHRO",
                   PROPHYLAXIS == "4" ~ "FLUCANO",
-                  TRUE ~ PROPHYLAXIS
+                  TRUE ~ as.character(PROPHYLAXIS)
                )
             ) %>%
             pivot_wider(
@@ -498,9 +499,9 @@ if ((object %>% count() %>% collect())$n > 0) {
             ) %>%
             rename_all(
                ~case_when(
-                  . == "COTRI_IS_PROPH" ~ "PROPH_COTRI",
-                  . == "AZITHRO_IS_PROPH" ~ "PROPH_AZITHRO",
-                  . == "FLUCANO_IS_PROPH" ~ "PROPH_FLUCANO",
+                  . == "COTRI" ~ "PROPH_COTRI",
+                  . == "AZITHRO" ~ "PROPH_AZITHRO",
+                  . == "FLUCANO" ~ "PROPH_FLUCANO",
                   TRUE ~ .
                )
             ) %>%
