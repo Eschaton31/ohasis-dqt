@@ -358,7 +358,7 @@ DB <- setRefClass(
                rs <- dbSendQuery(db_conn, query_table, params = params)
 
                chunk_size <- 1000
-               if (n_rows >= chunk_size) {
+               if (!is.na(n_rows) && n_rows >= chunk_size) {
                   # upload in chunks to monitor progress
                   n_chunks <- ceiling(n_rows / chunk_size)
 
