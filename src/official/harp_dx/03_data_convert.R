@@ -563,7 +563,8 @@ tag_class <- function(data) {
             StrLeft(MODALITY, 6) == "101101" ~ "FBT",
             StrLeft(MODALITY, 6) == "101103" ~ "CBS",
             StrLeft(MODALITY, 6) == "101104" ~ "FBS",
-            StrLeft(MODALITY, 6) == "101304" ~ "ST",
+            StrLeft(MODALITY, 6) == "101105" ~ "ST",
+            StrLeft(MODALITY, 6) == "101304" ~ "REACH",
          ),
 
          # form (HTS)
