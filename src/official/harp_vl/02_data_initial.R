@@ -98,7 +98,7 @@ data_forms <- dbTable(
    "form_art_bc",
    raw_where = TRUE,
    where     = glue(r"(
-(LAB_VIRAL_DATE IS NOT NULL OR LAB_VIRAL_RESULT) AND
+(LAB_VIRAL_DATE IS NOT NULL OR LAB_VIRAL_RESULT IS NOT NULL) AND
   (VISIT_DATE >= '{start_vl}' OR LAB_VIRAL_DATE >= '{start_vl}')
 )"),
    cols      = c("PATIENT_ID", "VISIT_DATE", "LAB_VIRAL_DATE", "LAB_VIRAL_RESULT")
@@ -107,14 +107,7 @@ dbDisconnect(lw_conn)
 
 data_forms <- data_forms %>%
    # get latest central ids
-   left_join(id_registry) %>%
-   mutate(
-      CENTRAL_ID = if_else(
-         condition = is.na(CENTRAL_ID),
-         true      = PATIENT_ID,
-         false     = CENTRAL_ID
-      ),
-   ) %>%
+   get_cid(id_registry, PATIENT_ID) %>%
    select(
       CENTRAL_ID,
       vl_date_2 = LAB_VIRAL_DATE,
@@ -156,12 +149,21 @@ data_ml  <- lapply(ml_files, function(ml) {
    qr <- substr(ml,
                 stri_locate_first_fixed(ml, "vl_ml_") + 6,
                 stri_locate_first_fixed(ml, ".dta") - 1)
-   if (qr != "ever")
-      read_dta(ml) %>%
+   if (qr != "ever") {
+      data <- read_dta(ml)
+      if (!grepl("Q", qr)) {
+         data %<>%
+            select(-any_of("id")) %>%
+            rename(
+               id = row_id
+            )
+      }
+      data %<>%
          mutate(
             id = as.character(id),
             qr = qr
          )
+   }
 })
 data_ml  <- bind_rows(data_ml)
 
@@ -173,6 +175,7 @@ data_ml %<>%
       src_file,
       src_sheet,
       qr,
+      any_of("vlml2022"),
       starts_with("vl_result"),
       starts_with("vl_date")
    )
@@ -238,6 +241,7 @@ data_ml %<>%
          TRUE ~ 0
       ),
       vl_date_2     = case_when(
+         vlml2022 == 1 ~ as.Date(vl_date),
          !is.na(vl_excel_date) ~ vl_excel_date,
          stri_detect_fixed(vl_date, "/") & hub == "tch" ~ as.Date(StrLeft(vl_date, 10), "%d/%m/%Y"),
          stri_detect_fixed(vl_date, "/") & hub == "dcs" ~ as.Date(StrLeft(vl_date, 10), "%d/%m/%Y"),
@@ -271,7 +275,8 @@ vl_data <- data_forms %>%
             CENTRAL_ID,
             vl_date_2,
             vl_result,
-            vl_result_alt
+            vl_result_alt,
+            vlml2022
          ) %>%
          mutate(res_tag = 1)
    ) %>%
@@ -378,8 +383,9 @@ vl_data <- data_forms %>%
       ),
 
       vl_result_2    = case_when(
+         vlml2022 == 1 ~ as.numeric(vl_result),
          sci_cal == "x10" ~ as.numeric(substr(vl_result, 1, stri_locate_first_fixed(vl_result, "X10") - 1)) * 10,
-         sci_cal == "eo" ~ as.numeric(str_squish(substr(vl_result, 1, stri_locate_first_regex(vl_result, "[:digit:]E")))) * (10 * as.numeric(substr(vl_result, stri_locate_first_regex(vl_result, "[:digit:]E") + 2, stri_locate_first_regex(vl_result, "[:digit:]E") + 4))),
+         sci_cal == "eo" ~ as.numeric(str_squish(substr(vl_result, 1, stri_locate_first_regex(vl_result, "[:digit:]E")))) * (10^as.numeric(substr(vl_result, stri_locate_first_regex(vl_result, "[:digit:]E") + 2, stri_locate_first_regex(vl_result, "[:digit:]E") + 4))),
          less_than == 1 &
             stri_detect_fixed(vl_result, "40") &
             stri_detect_fixed(vl_result, "1.6") ~ 39,
@@ -513,7 +519,7 @@ vl_data %<>%
       !is.na(vl_result_2),
    ) %>%
    bind_rows(
-      read_dta("E:/_R/library/hiv_vl/data/20220510_vl_ml_ever.dta") %>%
+      read_dta(file.path(Sys.getenv("HARP_VL"), "20220510_vl_ml_ever.dta")) %>%
          filter(PATIENT_ID != "") %>%
          mutate_if(
             .predicate = is.character,
@@ -533,9 +539,9 @@ vl_data %<>%
 
 ##  Merge w/ onart dataset -----------------------------------------------------
 
-onart_prev <- read_dta(ohasis$get_data("harp_tx-reg", "2022", "10")) %>%
+onart_prev <- read_dta(hs_data("harp_tx", "reg", "2022", "11")) %>%
    left_join(
-      y  = read_dta(hs_data("harp_tx", "outcome", "2022", "10")) %>%
+      y  = read_dta(hs_data("harp_tx", "outcome", "2022", "11")) %>%
          select(
             art_id,
             vl_date,
@@ -659,6 +665,6 @@ nhsss$harp_tx$official$file_vl <- file.path(Sys.getenv("HARP_TX"), paste0(output
 # write main file
 .log_info("Saving in Stata data format.")
 write_dta(
-   data = onart_vl,
+   data = format_stata(onart_vl),
    path = nhsss$harp_tx$official$file_vl
 )
