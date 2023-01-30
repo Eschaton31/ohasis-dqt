@@ -1,12 +1,8 @@
-##  Load data from vl masterlist -----------------------------------------------
+##  Set configurations ---------------------------------------------------------
 
-vlml              <- new.env()
-vlml$config       <- read_sheet("1Yj-qP7sA8k-X0L9UHoXNl-TmBkPMfLkUIOlWNGJdENo", "eb_vl_ml")
-vlml$px_id        <- lapply(sheet_names("1jaXjBjfWy6QsL4wcxFT6_LXYnEw5Unx-hAZUq2WIWiI"), function(sheet) {
-   data <- read_sheet("1jaXjBjfWy6QsL4wcxFT6_LXYnEw5Unx-hAZUq2WIWiI", sheet)
-   return(data)
-})
-names(vlml$px_id) <- sheet_names("1jaXjBjfWy6QsL4wcxFT6_LXYnEw5Unx-hAZUq2WIWiI")
+# list of current vars for code cleanup
+vlml    <- new.env()
+currEnv <- ls()[ls() != "currEnv"]
 
 local(envir = vlml, {
    params    <- list()
@@ -15,12 +11,33 @@ local(envir = vlml, {
    params$yr <- input(prompt = "What is the reporting year?", max.char = 4)
    params$yr <- stri_pad_left(params$yr, width = 4, pad = "0")
    params$ym <- paste0(params$yr, ".", params$mo)
-   config %<>% filter(yr.mo == params$ym)
 })
 
+##  Download reference datasets ------------------------------------------------
+
 local(envir = vlml, {
-   files <- file.path(Sys.getenv("HARP_VL"), "..", "ml", params$ym) %>%
-      dir_info() %>%
+   config       <- read_sheet("1Yj-qP7sA8k-X0L9UHoXNl-TmBkPMfLkUIOlWNGJdENo", "eb_vl_ml") %>%
+      filter(yr.mo == params$ym)
+   px_id        <- lapply(sheet_names("1jaXjBjfWy6QsL4wcxFT6_LXYnEw5Unx-hAZUq2WIWiI"), function(sheet) {
+      data <- read_sheet("1jaXjBjfWy6QsL4wcxFT6_LXYnEw5Unx-hAZUq2WIWiI", sheet)
+      return(data)
+   })
+   names(px_id) <- sheet_names("1jaXjBjfWy6QsL4wcxFT6_LXYnEw5Unx-hAZUq2WIWiI")
+})
+
+##  Set directories ------------------------------------------------------------
+
+local(envir = vlml, {
+   dir         <- list()
+   dir$dropbox <- file.path(Sys.getenv("DRIVE_DROPBOX"), "File requests/HARP Form Submission/VL Masterlist", params$ym)
+   dir$local   <- file.path(Sys.getenv("HARP_VL"), "..", "ml", params$ym)
+   invisible(lapply(dir, check_dir))
+})
+
+##  Get submitted masterlists---------------------------------------------------
+
+local(envir = vlml, {
+   files <- dir_info(dir$dropbox) %>%
       mutate(
          filename  = basename(path),
          file_type = tools::file_ext(path)
@@ -28,360 +45,257 @@ local(envir = vlml, {
    files <- split(files, ~file_type)
    data  <- list()
    refs  <- list()
+   check <- list()
 })
-
-##  Import data from .docx files -----------------------------------------------
-
-.log_info("Importing .docx masterlists.")
-docx_list  <- list()
-docx_files <- list.files(dir_output, ".docx", full.names = TRUE)
-docx_files <- docx_files[!stri_detect_regex(docx_files, "~")]
-if (length(docx_files) > 0) {
-   for (docx in docx_files) {
-      # extract hub name from file
-      hub <- basename(docx) %>% StrLeft(3)
-
-      # special consideration processing
-      if (hub == "smd")
-         df <- docx_extract_tbl(docxtractr::read_docx(docx), header = FALSE) %>%
-            slice(-1) %>%
-            rename(
-               id                = 1,
-               px_code           = 2,
-               confirmatory_code = 3,
-               uic               = 4,
-               vl_result         = 5,
-               vl_date           = 6,
-               remarks           = 7
-            )
-      else if (hub == "mtl")
-         df <- docx_extract_tbl(docxtractr::read_docx(docx), preserve = TRUE) %>%
-            separate(
-               col  = "Patient.Code.UIC.SACCL.Code",
-               sep  = "\n",
-               into = c("px_code", "uic", "confirmatory_code")
-            )
-      else if (hub == "fps")
-         df <- docx_extract_tbl(docxtractr::read_docx(docx), tbl_number = docx_tbl_count(docxtractr::read_docx(docx)))
-      else
-         df <- docx_extract_tbl(docxtractr::read_docx(docx))
-
-      # standardize dataset
-      df %<>%
-         # clean strings
-         mutate_if(
-            .predicate = is.character,
-            ~str_squish(.) %>% if_else(. == "", NA_character_, .)
-         ) %>%
-         # remove empty vectors
-         remove_empty(which = c("cols", "rows")) %>%
-         # special renaming to standardize
-         rename_all(
-            ~case_when(
-               . == "CONFIRMATORY.CODE" ~ "confirmatory_code",
-               . == "CONFIMATORY.CODE" ~ "confirmatory_code",
-               . == "PATIENT.CODE" ~ "px_code",
-               . == "UIC" ~ "uic",
-               . == "VL.RESULT" ~ "vl_result",
-               . == "VIRAL.LOAD.RESULT" ~ "vl_result",
-               . == "VL.Test.Result" ~ "vl_result",
-               . == "RESULT" ~ "vl_result",
-               . == "Result" ~ "vl_result",
-               . == "VL.TEST.RESULTS" ~ "vl_result",
-               . == "DATE.PERFORMED" ~ "vl_date",
-               . == "Date" ~ "vl_date",
-               . == "DATE" ~ "vl_date",
-               . == "DATE.DONE" ~ "vl_date",
-               . == "DATE..DONE" ~ "vl_date",
-               . == "DATE.TAKEN" ~ "vl_date",
-               . == "Date.Performed.Result" ~ "vl_date",
-               . == "REMARKS" ~ "remarks",
-               . == "NAME.OF............PATIENT" ~ "name",
-               . == "NAME.OF..PATIENT" ~ "name",
-               . == "Name" ~ "name",
-               . == "ADDRESS" ~ "curr_addr",
-               . == "Age" ~ "age",
-               . == "AGE" ~ "age",
-               . == "SEX" ~ "sex",
-               . == "Sex" ~ "sex",
-               TRUE ~ .
-            )
-         ) %>%
-         mutate(
-            hub     = hub,
-            .before = 1
-         ) %>%
-         mutate(
-            src_file = basename(docx),
-         )
-
-      # consolidate into a datafram
-      docx_list[[hub]] <- df
-   }
-
-
-   # consolidate and clean per column data
-   .log_info("Cleaning consolidated tables.")
-   docx_df <- bind_rows(docx_list)
-   if (!("remarks" %in% names(docx_df)))
-      docx_df$remarks <- NA_character_
-
-   docx_df %<>%
-      mutate(
-         # remove spaces first
-         vl_date     = stri_replace_all_fixed(vl_date, ".", ""),
-         vl_date     = stri_replace_all_fixed(vl_date, ",", " , "),
-         vl_date     = str_squish(vl_date),
-         vl_date     = stri_replace_all_fixed(vl_date, " ,", ","),
-
-         # do 2 passes
-         # vl_date_2   = case_when(
-         #    hub == "ace" ~ as.Date(vl_date, tryFormats = c("%Y/%m/%d", "%Y-%m/%d")),
-         #    hub == "btn" & !stri_detect_fixed(vl_date, ",") ~ as.Date(vl_date, "%B%e%Y"),
-         #    hub == "btn" & stri_detect_regex(vl_date, "^[A-Z][A-Z][A-Z] [0-9]") ~ as.Date(vl_date, "%b %e, %Y"),
-         #    hub == "btn" & stri_detect_fixed(vl_date, ",") ~ as.Date(vl_date, "%B %e, %Y"),
-         #    hub == "btn" & stri_detect_regex(vl_date, "\\.[0-9]+,") ~ as.Date(vl_date, "%b.%e,%Y"),
-         #    hub == "btn" & stri_detect_regex(vl_date, "\\.[0-9]+[0-9]+") ~ as.Date(vl_date, "%b.%E,%Y"),
-         #    hub == "con" ~ as.Date(vl_date, "%m/%d/%Y"),
-         #    hub == "fps" ~ as.Date(vl_date, "%m/%d/%Y"),
-         #    hub == "smd" ~ as.Date(vl_date, "%m/%d/%Y"),
-         #    hub == "mtl" ~ as.Date(vl_date, "%m/%d/%Y"),
-         #    hub == "asm" ~ as.Date(substr(vl_date, 1, 10), "%m/%d/%Y"),
-         #    hub == "amp" ~ as.Date(substr(vl_date, 1, 10), "%m/%d/%y"),
-         # ),
-
-         # vl_result
-         use_remarks = case_when(
-            hub == "fps" & is.na(vl_result) ~ 1,
-            TRUE ~ 0
-         ),
-         vl_result   = if_else(
-            condition = use_remarks == 1,
-            true      = remarks,
-            false     = vl_result,
-            missing   = vl_result
-         ),
-         remarks     = if_else(
-            condition = use_remarks == 1,
-            true      = NA_character_,
-            false     = remarks,
-            missing   = remarks
-         ),
-
-         # uic
-         uic         = case_when(
-            hub == "ace" ~ substr(uic, stri_locate_first_fixed(uic, ".") + 1, nchar(uic)),
-            TRUE ~ uic
-         ),
-
-         # tag data for dropping
-         drop        = case_when(
-            vl_date == "Not Done" ~ 1,
-            vl_date == "Not done" ~ 1,
-            vl_date == "Date Performed" ~ 1,
-            vl_result == "Not Done" ~ 1,
-            vl_result == "Not done" ~ 1,
-            vl_result == "NO DATA" ~ 1,
-            TRUE ~ 0
-         )
-      ) %>%
-      filter(drop == 0) %>%
-      remove_empty(which = c("cols", "rows"))
-} else {
-   docx_df <- data.frame()
-}
 
 ##  Import data from .pdf files ------------------------------------------------
 
 .log_info("Importing .pdf masterlists.")
-pdf_list  <- list()
-pdf_files <- list.files(dir_output, ".pdf", full.names = TRUE)
-pdf_files <- pdf_files[!stri_detect_regex(pdf_files, "~")]
-if (length(pdf_files) > 0) {
-   for (pdf in pdf_files) {
-      # extract hub name from file
-      hub <- basename(pdf) %>% StrLeft(3)
+local(envir = vlml, {
+   if ("pdf" %in% names(files)) {
+      refs$pdf <- files$pdf %>%
+         left_join(
+            y  = config,
+            by = "filename"
+         )
 
-      if (hub == "btn") {
-         lst <- tabulizer::extract_tables(file = pdf, method = "lattice")
+      data$pdf <- lapply(seq_len(nrow(refs$pdf)), function(i, ref) {
+         hub_code <- ref[i,]$hub_code
 
-         for (i in seq_len(length(lst))) {
-            names(lst)[i] <- glue("tab_{i}")
-            lst[[i]]      <- as.data.frame(lst[[i]])
+         pdf         <- tabulizer::extract_tables(file = ref[i,]$path, method = "lattice")
+         data        <- lapply(seq_len(length(pdf)), function(i) as.data.frame(pdf[[i]]))
+         data        <- bind_rows(data)
+         names(data) <- unlist(data[1,])
+         data        <- data[-1,]
+         if (hub_code == "VRH") {
+            data %<>%
+               rename_all(
+                  ~case_when(
+                     . == "SACCL CODE" ~ "confirmatory_code",
+                     . == "UIC" ~ "uic",
+                     . == "PATIENT CODE" ~ "px_code",
+                     . == "LATEST VL DATE" ~ "vl_date",
+                     . == "LATEST VL RESULT" ~ "vl_result",
+                     TRUE ~ .
+                  )
+               ) %>%
+               mutate(
+                  uic       = gsub("/", "", uic),
+                  vl_date_2 = as.character(as.Date(vl_date, "%d-%b-%y")),
+                  row_id    = paste(sep = "_", "pdf", hub_code, ref[i,]$path, row_number())
+               )
          }
 
-         df        <- bind_rows(lst)
-         names(df) <- unlist(df[1,])
-         df        <- df[-1,]
-      }
+         data <- data %>%
+            mutate(hub = hub_code)
 
-      # standardize dataset
-      df %<>%
-         # clean strings
-         mutate_if(
-            .predicate = is.character,
-            ~str_squish(.) %>% if_else(. == "", NA_character_, .)
-         ) %>%
-         # remove empty vectors
-         remove_empty(which = c("cols", "rows")) %>%
-         # special renaming to standardize
-         rename_all(
-            ~case_when(
-               . == "CONFIRMATORY\rCODE" ~ "confirmatory_code",
-               . == "PATIENT\rCODE" ~ "px_code",
-               . == "UIC" ~ "uic",
-               . == "RESULT" ~ "vl_result",
-               . == "DATE" ~ "vl_date",
-               . == "REMARKS" ~ "remarks",
-               TRUE ~ .
-            )
-         ) %>%
-         mutate(
-            hub     = hub,
-            .before = 1
-         ) %>%
-         mutate(
-            src_file = basename(pdf),
-         )
-
-      # consolidate into a datafram
-      pdf_list[[hub]] <- df
+      }, ref = refs$pdf)
+      data$pdf <- bind_rows(data$pdf)
    }
-
-   # consolidate and clean per column data
-   .log_info("Cleaning consolidated tables.")
-   pdf_df <- bind_rows(pdf_list) %>%
-      mutate(
-         # remove spaces first
-         vl_date     = stri_replace_all_fixed(vl_date, ".", ""),
-         vl_date     = stri_replace_all_fixed(vl_date, ",", " , "),
-         vl_date     = str_squish(vl_date),
-         vl_date     = stri_replace_all_fixed(vl_date, " ,", ","),
-
-         # do 2 passes
-         # vl_date_2   = case_when(
-         #    hub == "btn" & !stri_detect_fixed(vl_date, ",") ~ as.Date(vl_date, "%B%e%Y"),
-         #    hub == "btn" & stri_detect_regex(vl_date, "^[A-Z][A-Z][A-Z] [0-9]") ~ as.Date(vl_date, "%b %e, %Y"),
-         #    hub == "btn" & stri_detect_fixed(vl_date, ",") ~ as.Date(vl_date, "%B %e, %Y"),
-         #    hub == "btn" & stri_detect_regex(vl_date, "\\.[0-9]+,") ~ as.Date(vl_date, "%b.%e,%Y"),
-         #    hub == "btn" & stri_detect_regex(vl_date, "\\.[0-9]+[0-9]+") ~ as.Date(vl_date, "%b.%E,%Y"),
-         # ),
-
-         # vl_result
-         use_remarks = case_when(
-            hub == "fps" & is.na(vl_result) ~ 1,
-            TRUE ~ 0
-         ),
-         vl_result   = if_else(
-            condition = use_remarks == 1,
-            true      = remarks,
-            false     = vl_result,
-            missing   = vl_result
-         ),
-         remarks     = if_else(
-            condition = use_remarks == 1,
-            true      = NA_character_,
-            false     = remarks,
-            missing   = remarks
-         ),
-
-         # uic
-         uic         = case_when(
-            hub == "ace" ~ substr(uic, stri_locate_first_fixed(uic, ".") + 1, nchar(uic)),
-            TRUE ~ uic
-         ),
-
-         # tag data for dropping
-         drop        = case_when(
-            vl_date == "Not Done" ~ 1,
-            vl_date == "Not done" ~ 1,
-            vl_date == "Date Performed" ~ 1,
-            vl_result == "Not Done" ~ 1,
-            vl_result == "Not done" ~ 1,
-            vl_result == "NO DATA" ~ 1,
-            TRUE ~ 0
-         )
-      ) %>%
-      filter(drop == 0) %>%
-      remove_empty(which = c("cols", "rows"))
-} else {
-   pdf_df <- data.frame()
-}
+})
 
 ##  Import data from .xlsx files -----------------------------------------------
 
 .log_info("Importing .xls* masterlists.")
-
 local(envir = vlml, {
    refs$xlsx <- files$xlsx %>%
       left_join(
          y  = config,
          by = "filename"
       ) %>%
-      rowwise() %>%
-      mutate(
-         sheets = paste(collapse = ", ", excel_sheets(path))
-      ) %>%
-      ungroup()
+      mutate(sheets = NA_character_)
+
+   for (i in seq_len(nrow(refs$xlsx))) {
+      password <- refs$xlsx[i,]$password
+      file     <- refs$xlsx[i,]$path
+      if (!is.na(password)) {
+         refs$xlsx[i,]$sheets <- paste(collapse = ", ", XLConnect::getSheets(XLConnect::loadWorkbook(file, password = password)))
+      } else {
+         refs$xlsx[i,]$sheets <- paste(collapse = ", ", excel_sheets(file))
+      }
+   }
+   XLConnect::xlcFreeMemory()
+   rm(i, password, file)
+
+   if (nrow(refs$xlsx %>% filter(is.na(import_sheets)))) {
+      .log_warn("VL MLs not yet included in config.")
+      check$no_config <- filter(refs$xlsx, is.na(import_sheets))
+   }
 
    data$xlsx <- lapply(seq_len(nrow(refs$xlsx)), function(i, ref) {
       hub_code  <- ref[i,]$hub_code
       password  <- ifelse(!is.na(ref[i,]$password), ref[i,]$password, "")
       start_row <- ifelse(!is.na(ref[i,]$start_row), ref[i,]$start_row, 4)
       start_col <- ifelse(!is.na(ref[i,]$start_col), ref[i,]$start_col, 1)
+      sheets    <- ifelse(!is.na(ref[i,]$import_sheets), ref[i,]$import_sheets, '')
+      sheets    <- ifelse(sheets == "", 1, strsplit(sheets, ", ")[[1]])
 
       if (password == "") {
-         data <- read_xlsx(ref[i,]$path, col_types = "text", skip = start_row - 1) %>%
-            remove_empty() %>%
+         data <- lapply(sheets, function(sheet) {
+            data <- read_xlsx(ref[i,]$path, col_types = "text", skip = start_row - 1, sheet = sheet) %>%
+               remove_empty(c("rows", "cols")) %>%
+               mutate(
+                  row_id = paste(sep = "_", "xlsx", hub_code, ref[i,]$path, sheet, row_number())
+               )
+            return(data)
+         })
+         data %<>%
+            bind_rows() %>%
             mutate(hub = hub_code)
+      } else {
+         wb <- XLConnect::loadWorkbook(ref[i,]$path, password = password)
+
+         data <- lapply(sheets, function(sheet) {
+            data <- wb %>%
+               XLConnect::readWorksheet(
+                  sheet,
+                  colTypes = XLC$DATA_TYPE.STRING,
+                  startRow = start_row,
+                  startCol = start_col,
+                  header   = TRUE
+               ) %>%
+               remove_empty(c("rows", "cols")) %>%
+               mutate(
+                  row_id = paste(sep = "_", "xlsx", hub_code, sheet, row_number())
+               )
+            return(data)
+         })
+         data %<>%
+            bind_rows() %>%
+            mutate(hub = hub_code)
+
+         rm(wb)
+         XLConnect::xlcFreeMemory()
       }
+
+      data %<>%
+         rename_all(
+            ~case_when(
+               . == "Patient code" ~ "px_code",
+               . == "FACILITY CODE" ~ "px_code",
+               . == "Patient.code" ~ "px_code",
+               . == "Confirmatory code" ~ "confirmatory_code",
+               . == "Confirmatory.code" ~ "confirmatory_code",
+               . == "CONFIRAMATORY CODE" ~ "confirmatory_code",
+               . == "Full Name" ~ "name",
+               . == "Full.Name" ~ "name",
+               . == "UIC" ~ "uic",
+               . == "Sex" ~ "sex",
+               . == "ART Start Date" ~ "artstart_date",
+               . == "ART.Start.Date" ~ "artstart_date",
+               . == "Latest_Visit" ~ "latest_ffupdate",
+               . == "Latest_Regimen" ~ "latest_regimen",
+               . == "Latest Regimen" ~ "latest_regimen",
+               . == "Outcome" ~ "outcome",
+               . == "DATE OF VIRAL LOAD" ~ "vl_date",
+               . == "Viral.load.date" ~ "vl_date",
+               . == "Viral load date" ~ "vl_date",
+               . == "Viral load result" ~ "vl_result",
+               . == "Viral.load.result" ~ "vl_result",
+               . == "RESULT" ~ "vl_result",
+               . == "If baseline viral load test, put Y" ~ "baseline_vl",
+               . == "If.baseline.viral.load.test..put.Y" ~ "baseline_vl",
+               . == "Remarks" ~ "remarks",
+               . == "REMARKS" ~ "remarks",
+               TRUE ~ .
+            )
+         )
+
+      return(data)
    }, ref = refs$xlsx)
    data$xlsx <- bind_rows(data$xlsx) %>%
       mutate(
-         drop = if_else(
-            `Confirmatory code` == "DOH-ABC-12345",
-            1,
-            0,
-            0
-         )
+         drop = case_when(
+            confirmatory_code == "DOH-ABC-12345" ~ 1,
+            uic == "DONE UPDATING OHASIS" ~ 1,
+            TRUE ~ 0
+         ),
       ) %>%
       filter(drop == 0)
+
+   if ("First Name" %in% names(data$xlsx)) {
+      data$xlsx %<>%
+         mutate(
+            name = if_else(
+               is.na(name) & !is.na(`First Name`),
+               paste0(
+                  if_else(
+                     condition = is.na(`Last Name`),
+                     true      = "",
+                     false     = `Last Name`
+                  ), ", ",
+                  if_else(
+                     condition = is.na(`First Name`),
+                     true      = "",
+                     false     = `First Name`
+                  ), " ",
+                  if_else(
+                     condition = is.na(`Middle Name`),
+                     true      = "",
+                     false     = `Middle Name`
+                  ), " ",
+                  if_else(
+                     condition = is.na(`Name Ext.`),
+                     true      = "",
+                     false     = `Name Ext.`
+                  )
+               ),
+               name,
+               name
+            )
+         )
+   }
 })
 
 ##  Match w/ OHASIS Patient IDs ------------------------------------------------
 
 local(envir = vlml, {
    conso <- bind_rows(data) %>%
-      rename_all(
-         ~case_when(
-            . == "Patient code" ~ "px_code",
-            . == "Confirmatory code" ~ "confirmatory_code",
-            . == "Full Name" ~ "name",
-            . == "UIC" ~ "uic",
-            . == "Sex" ~ "sex",
-            . == "ART Start Date" ~ "artstart_date",
-            . == "Latest_Visit" ~ "latest_ffupdate",
-            . == "Latest_Regimen" ~ "latest_regimen",
-            . == "Outcome" ~ "outcome",
-            . == "Viral load date" ~ "vl_date",
-            . == "Viral load result" ~ "vl_result",
-            . == "If baseline viral load test, put Y" ~ "baseline_vl",
-            . == "Remarks" ~ "remarks",
-            TRUE ~ .
-         )
-      ) %>%
+      mutate(vl_date_2 = vl_date) %>%
       mutate_at(
-         .vars = vars(latest_ffupdate, artstart_date, vl_date),
-         ~case_when(
-            StrIsNumeric(.) ~ excel_numeric_to_date(as.numeric(.)),
-            TRUE ~ as.Date(., "%Y-%m-%d")
-         )
+         .vars = vars(name, confirmatory_code, uic, px_code),
+         ~str_squish(toupper(.))
       ) %>%
       mutate(
-         sex        = StrLeft(sex, 1),
-         hub        = tolower(hub),
-         PATIENT_ID = NA_character_
-      )
+         confirmatory_code = if_else(str_squish(confirmatory_code) == "", NA_character_, confirmatory_code, confirmatory_code),
+         uic               = stri_replace_all_fixed(uic, "-", ""),
+         sex               = StrLeft(sex, 1),
+         hub               = tolower(hub),
+         PATIENT_ID        = NA_character_
+      ) %>%
+      relocate(hub, px_code, confirmatory_code, name, uic, .before = 1)
+
+   for (var in c("latest_ffupdate", "artstart_date", "vl_date_2")) {
+      conso %<>%
+         mutate(
+            date_num = as.numeric(!!as.name(var))
+         ) %>%
+         rowwise() %>%
+         mutate(
+            first_dash = stri_locate_first_fixed(!!as.name(var), "-")[1, 1]
+         ) %>%
+         ungroup() %>%
+         mutate(
+            !!as.name(var) := case_when(
+               grepl(paste(collapse = "|", toupper(month.abb[1:12])), !!as.name(var)) ~ as.Date(!!as.name(var), "%d-%b-%y"),
+               !is.na(date_num) ~ excel_numeric_to_date(date_num),
+               !!as.name(var) %in% c("NULL", "N/A", "NA") ~ NA_Date_,
+               !!as.name(var) == "03/182022" ~ as.Date("2022-03-18"),
+               !!as.name(var) == "1--2-2021" ~ as.Date("2021-01-02"),
+               !!as.name(var) == "12/072022" ~ as.Date("2022-12-07"),
+               first_dash %in% c(2, 3) ~ as.Date(!!as.name(var), "%m-%d-%Y"),
+               grepl("/", !!as.name(var)) ~ as.Date(!!as.name(var), "%m/%d/%Y"),
+               grepl("\\.", !!as.name(var)) ~ as.Date(!!as.name(var), "%m.%d.%Y"),
+               TRUE ~ as.Date(!!as.name(var), "%Y-%m-%d")
+            )
+         ) %>%
+         select(-first_dash, -date_num)
+   }
+   rm(var)
+   if (nrow(conso %>% filter(is.na(vl_date_2), !is.na(vl_date)))) {
+      .log_warn("Records w/ unconverted dates still exist.")
+      check$date_format <- filter(conso, is.na(vl_date_2), !is.na(vl_date))
+   }
 
    for (i in seq_len(length(px_id))) {
       merge_ids <- names(px_id[[i]])
@@ -393,6 +307,7 @@ local(envir = vlml, {
             left_join(
                y  = px_id[[i]] %>%
                   as.data.frame() %>%
+                  distinct(select(., merge_ids), .keep_all = TRUE) %>%
                   rename(
                      !!curr_pass := PATIENT_ID
                   ),
@@ -408,215 +323,119 @@ local(envir = vlml, {
             ) %>%
             select(-starts_with("id_pass"))
    }
+   rm(i, merge_ids, curr_pass)
+   conso %<>% distinct(row_id, .keep_all = TRUE)
+
+   if (nrow(conso %>% filter(is.na(PATIENT_ID)))) {
+      .log_warn("Records w/o Patient IDs still exist.")
+      check$no_pid <- filter(conso, is.na(PATIENT_ID))
+   }
 })
 
-if (!("birthdate" %in% names(docx_df)) && nrow(docx_df) > 0)
-   docx_df$birthdate <- NA_character_
-
-for (var in c("birthdate", "name", "birthdate"))
-   if (!(var %in% names(pdf_df)) && nrow(pdf_df > 0))
-      pdf_df[var] <- NA_character_
-
-# add ids
-pdf_df %<>% mutate(PATIENT_ID = NA_character_, row_id = row_number())
-docx_df %<>% mutate(PATIENT_ID = NA_character_, row_id = row_number())
-xlsx_df %<>% mutate(PATIENT_ID = NA_character_, row_id = row_number())
-for (i in seq_len(length(nhsss$harp_vl$corr$PATIENT_ID))) {
-   merge_ids <- names(nhsss$harp_vl$corr$PATIENT_ID[[i]])
-   merge_ids <- merge_ids[merge_ids != "PATIENT_ID"]
-   curr_pass <- as.symbol(glue("id_pass_{i}"))
-
-   if (nrow(pdf_df) > 0)
-      pdf_df %<>%
-         left_join(
-            y  = nhsss$harp_vl$corr$PATIENT_ID[[i]] %>%
-               as.data.frame() %>%
-               rename(
-                  !!curr_pass := PATIENT_ID
-               ),
-            by = merge_ids
-         ) %>%
-         mutate(
-            PATIENT_ID = if_else(
-               condition = !is.na(!!curr_pass) & is.na(PATIENT_ID),
-               true      = !!curr_pass,
-               false     = PATIENT_ID,
-               missing   = PATIENT_ID
-            )
-         ) %>%
-         select(-starts_with("id_pass"))
-
-   if (nrow(docx_df) > 0)
-      docx_df %<>%
-         left_join(
-            y  = nhsss$harp_vl$corr$PATIENT_ID[[i]] %>%
-               as.data.frame() %>%
-               rename(
-                  !!curr_pass := PATIENT_ID
-               ),
-            by = merge_ids
-         ) %>%
-         mutate(
-            PATIENT_ID = if_else(
-               condition = !is.na(!!curr_pass) & is.na(PATIENT_ID),
-               true      = !!curr_pass,
-               false     = PATIENT_ID,
-               missing   = PATIENT_ID
-            )
-         ) %>%
-         select(-starts_with("id_pass"))
-
-   xlsx_df %<>%
-      left_join(
-         y  = nhsss$harp_vl$corr$PATIENT_ID[[i]] %>%
-            as.data.frame() %>%
-            rename(
-               !!curr_pass := PATIENT_ID
-            ),
-         by = merge_ids
+##  Slightly clean results -----------------------------------------------------
+local(envir = vlml, {
+   conso %<>%
+      mutate(
+         vl_result_nomeasure = toupper(str_squish(vl_result)),
+      ) %>%
+      mutate_at(
+         .vars = vars(vl_result_nomeasure),
+         ~stri_replace_all_regex(., " \\(LOG [0-9]\\.[0-9][0-9]\\)$", "") %>%
+            stri_replace_all_regex("COPIES/ML$", "") %>%
+            stri_replace_all_regex("COPIES ML$", "") %>%
+            stri_replace_all_regex("COPIE/ML$", "") %>%
+            stri_replace_all_regex("COPIES/ ML$", "") %>%
+            stri_replace_all_regex("COPIES$", "") %>%
+            stri_replace_all_regex("C/ML$", "") %>%
+            stri_replace_all_regex("^HIV-", "HIV") %>%
+            stri_replace_all_regex("^HIV -", "HIV") %>%
+            stri_replace_all_regex("^HIV 1", "HIV1") %>%
+            stri_replace_all_regex("^HIV DETECTED,", "") %>%
+            stri_replace_all_regex("^HIV1 DETECTED ", "") %>%
+            stri_replace_all_regex("^HIV1 DETECTED,", "") %>%
+            stri_replace_all_regex("^HIV1 DETECETD,", "") %>%
+            stri_replace_all_regex("^HIV1 DETECTED;", "") %>%
+            stri_replace_all_regex("^HIV1 DETECETED,", "") %>%
+            stri_replace_all_regex("7.00 E03", "7.00E03") %>%
+            str_squish()
       ) %>%
       mutate(
-         PATIENT_ID = if_else(
-            condition = !is.na(!!curr_pass) & is.na(PATIENT_ID),
-            true      = !!curr_pass,
-            false     = PATIENT_ID,
-            missing   = PATIENT_ID
+         drop                    = case_when(
+            grepl("^ERROR", vl_result_nomeasure) ~ 1,
+            vl_result_nomeasure == "AWAITING RESULT" ~ 1,
+            vl_result_nomeasure == "N/A" ~ 1,
+            vl_result_nomeasure == "INVALID" ~ 1,
+            vl_result_nomeasure == "DETECTED" ~ 1,
+            TRUE ~ 0
+         ),
+         vl_result_eo_num        = if_else(
+            stri_detect_regex(vl_result_nomeasure, "[:digit:]E"),
+            substr(vl_result_nomeasure, 1, stri_locate_first_regex(vl_result_nomeasure, "[:digit:]E") - 1),
+            NA_character_
+         ),
+         vl_result_eo_multiplier = if_else(
+            stri_detect_regex(vl_result_nomeasure, "[:digit:]E"),
+            substr(vl_result_nomeasure, stri_locate_first_regex(vl_result_nomeasure, "[:digit:]E") + 2, nchar(vl_result_nomeasure)),
+            NA_character_
+         ),
+         vl_result_eo_final      = as.numeric(vl_result_eo_num) * (10^as.numeric(vl_result_eo_multiplier)),
+         vl_result_2             = case_when(
+            !grepl("[^[:digit:]]", gsub(" ", "", vl_result_nomeasure)) ~ gsub(" ", "", vl_result_nomeasure),
+            !grepl("[^[:digit:]]", gsub(" *, *", "", vl_result_nomeasure)) ~ gsub(" *, *", "", vl_result_nomeasure),
+            !is.na(vl_result_eo_num) & !is.na(vl_result_eo_multiplier) ~ as.character(vl_result_eo_final),
+            grepl("LESS THAN 40", vl_result_nomeasure) ~ "39",
+            grepl("< 40", vl_result_nomeasure) ~ "39",
+            grepl("< 47", vl_result_nomeasure) ~ "46",
+            grepl("< 800", vl_result_nomeasure) ~ "799",
+            grepl("\\b<20", vl_result_nomeasure) | grepl("<20\\b", vl_result_nomeasure) ~ "19",
+            grepl("\\b<22", vl_result_nomeasure) | grepl("<22\\b", vl_result_nomeasure) ~ "21",
+            grepl("\\b<32", vl_result_nomeasure) | grepl("<32\\b", vl_result_nomeasure) ~ "31",
+            grepl("\\b<33", vl_result_nomeasure) | grepl("<33\\b", vl_result_nomeasure) ~ "32",
+            grepl("\\b<34", vl_result_nomeasure) | grepl("<34\\b", vl_result_nomeasure) ~ "33",
+            grepl("\\b<40", vl_result_nomeasure) | grepl("<40\\b", vl_result_nomeasure) ~ "39",
+            grepl("\\b<42", vl_result_nomeasure) | grepl("<42\\b", vl_result_nomeasure) ~ "41",
+            grepl("\\b<47", vl_result_nomeasure) | grepl("<47\\b", vl_result_nomeasure) ~ "46",
+            grepl("\\b<48", vl_result_nomeasure) | grepl("<48\\b", vl_result_nomeasure) ~ "487",
+            grepl("\\b<49", vl_result_nomeasure) | grepl("<49\\b", vl_result_nomeasure) ~ "48",
+            grepl("\\b<52", vl_result_nomeasure) | grepl("<52\\b", vl_result_nomeasure) ~ "51",
+            grepl("\\b<800", vl_result_nomeasure) | grepl("<800\\b", vl_result_nomeasure) ~ "799",
+            vl_result_nomeasure == "LESS THAN 40" ~ "39",
+            vl_result_nomeasure == "HIV1 RNA NOT DETECTED" ~ "0",
+            vl_result_nomeasure == "NOT DETECTED" ~ "0",
+            vl_result_nomeasure == "NOT DTECTED" ~ "0",
+            vl_result_nomeasure == "HIV1 UNDETECTED" ~ "0",
+            vl_result_nomeasure == "HIV NOT DETECTED" ~ "0",
+            vl_result_nomeasure == "HIV1 NOT DETECTED" ~ "0",
+            vl_result_nomeasure == "HIV1-NOT DETECTED" ~ "0",
+            vl_result_nomeasure == "HIV1NOT DETECTED" ~ "0",
+            vl_result_nomeasure == "HIVNOT DETECTED" ~ "0",
+            vl_result_nomeasure == "HIV1, NOT DETECTED" ~ "0",
+            vl_result_nomeasure == "HIV UNDETECTED" ~ "0",
+            vl_result_nomeasure == "HIV ILUNDETECTED" ~ "0",
+            vl_result_nomeasure == "UD" ~ "0",
+            vl_result_nomeasure == "2.00" ~ "2",
+            vl_result_nomeasure == "AWAITING RESULT" ~ NA_character_,
+            vl_result_nomeasure == "N/A" ~ NA_character_,
+            vl_result_nomeasure == "INVALID" ~ NA_character_,
+            vl_result_nomeasure == "HIV1 DETECTED" ~ NA_character_,
+            StrIsNumeric(vl_result_nomeasure) ~ vl_result_nomeasure
+         ),
+
+         drop                    = if_else(
+            is.na(vl_date) & is.na(vl_result_2),
+            1,
+            drop,
+            drop
          )
       ) %>%
-      select(-starts_with("id_pass"))
-}
+      filter(drop == 0) %>%
+      as_tibble()
 
-# dedup (rows must be unique
-pdf_df %<>% distinct(row_id, .keep_all = TRUE)
-xlsx_df %<>% distinct(row_id, .keep_all = TRUE)
-xlsx_df %<>% distinct(row_id, .keep_all = TRUE) %>%
-   rename_all(
-      ~case_when(
-         stri_detect_fixed(., "Virally Supressed (Yes/No)") ~ "vl_result_alt",
-         TRUE ~ .
-      )
-   )
-
-##  Flag data for validation ---------------------------------------------------
-
-update <- input(
-   prompt  = "Run `vl_ml` validations?",
-   options = c("1" = "yes", "2" = "no"),
-   default = "1"
-)
-update <- substr(toupper(update), 1, 1)
-
-nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$check <- list()
-if (update == "1") {
-   # check for new columns in .docx data
-   .log_info("Checking for un-accounted variables in .docx files.")
-   docxnames <- c('hub', 'uic', 'confirmatory_code', 'px_code', 'vl_result', 'vl_date', 'remarks', 'name', 'curr_addr', 'age', 'sex', 'id', 'vl_date_2', 'use_remarks', 'drop', 'row_id', 'PATIENT_ID', 'src_file', 'src_sheet')
-   newnames  <- setdiff(names(docx_df), docxnames)
-   if (length(newnames) > 0) {
-      nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$check[["docx_newvars"]] <- docx_df %>%
-         filter_at(
-            .vars           = vars(newnames),
-            .vars_predicate = any_vars(!is.na(.))
-         )
-   }
-
-   # check for new columns in .pdf data
-   .log_info("Checking for un-accounted variables in .pdf files.")
-   pdfnames <- c('hub', 'uic', 'confirmatory_code', 'px_code', 'vl_result', 'vl_date', 'remarks', 'name', 'curr_addr', 'age', 'sex', 'id', 'vl_date_2', 'use_remarks', 'drop', 'row_id', 'PATIENT_ID', 'src_file', 'src_sheet')
-   newnames <- setdiff(names(pdf_df), pdfnames)
-   if (length(newnames) > 0) {
-      nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$check[["pdf_newvars"]] <- pdf_df %>%
-         filter_at(
-            .vars           = vars(newnames),
-            .vars_predicate = any_vars(!is.na(.))
-         )
-   }
-
-   # check for new columns in .xlsx data
-   .log_info("Checking for un-accounted variables in .xlsx files.")
-   xlsxnames <- c('hub', 'cd4_date', 'uic', 'confirmatory_code', 'px_code', 'vl_date', 'vl_result', 'remarks', 'vl_result_alt', 'vl_date_alt', 'artstart_date', 'age', 'birthdate', 'sex', 'curr_addr', 'contact', 'latest_regimen', 'artstart_ddate', 'philhealth_no', 'latest_ffupdate', 'latest_nextpickup', 'cd4_result', 'vl_suppressed', 'actions_taken', 'name', 'px_code_alt', 'date_request', 'vl_code', 'date_receive', 'id', 'baseline_vl_result', 'outcome', 'vl_cat', 'source', 'drop', 'vl_date_2', 'row_id', 'status', 'PATIENT_ID', 'src_file', 'src_sheet', 'status', 'baseline_cd4_result', "hiv_test_result", "year")
-   newnames  <- setdiff(names(xlsx_df), xlsxnames)
-   if (length(newnames) > 0) {
-      nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$check[["xlsx_newvars"]] <- xlsx_df %>%
-         filter_at(
-            .vars           = vars(newnames),
-            .vars_predicate = any_vars(!is.na(.))
-         )
-   }
-
-   # missing vl data
-   .log_info("Finding data w/o VL info.")
-   nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$check[["vl_data_missing"]] <- bind_rows(docx_df, pdf_df, xlsx_df) %>%
-      filter(
-         is.na(vl_date) | is.na(vl_result)
-      )
-
-   # no patient id yes
-   .log_info("Checking for those w/ missing PATIENT_IDs.")
-   nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$check[["PATIENT_ID"]] <- bind_rows(docx_df, pdf_df, xlsx_df) %>%
-      filter(
-         is.na(PATIENT_ID)
-      )
-
-   # colnames
-   .log_info("Checking for those w/ missing PATIENT_IDs.")
-   docx_cols <- data.frame()
-   for (i in seq_len(length(docx_list)))
-      docx_cols <- bind_rows(
-         docx_cols,
-         data.frame(
-            hub  = names(docx_list)[i],
-            cols = paste(collapse = ", ", names(docx_list[[i]]))
-         )
-      )
-   nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$check[["docx_cols"]] <- docx_cols
-
-   pdf_cols <- data.frame()
-   for (i in seq_len(length(pdf_list)))
-      pdf_cols <- bind_rows(
-         pdf_cols,
-         data.frame(
-            hub  = names(pdf_list)[i],
-            cols = paste(collapse = ", ", names(pdf_list[[i]]))
-         )
-      )
-   nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$check[["pdf_cols"]] <- pdf_cols
-
-   xlsx_cols <- data.frame()
-   for (i in seq_len(length(xlsx_list)))
-      xlsx_cols <- bind_rows(
-         xlsx_cols,
-         data.frame(
-            hub  = names(xlsx_list)[i],
-            cols = paste(collapse = ", ", names(xlsx_list[[i]]))
-         )
-      )
-   nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$check[["xlsx_cols"]] <- xlsx_cols
-}
-
-for (i in names(nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$check))
-   if (sum(dim(nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$check[[i]])) == 0)
-      nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$check[[i]] <- NULL
-
-##  Consolidate issues ---------------------------------------------------------
-
-# write into NHSSS GSheet
-data_name <- glue("vl_ml_{ml_report}")
-if (!is.empty(nhsss$harp_vl[[data_name]]$check))
-   .validation_gsheets(
-      data_name   = data_name,
-      parent_list = nhsss$harp_vl[[data_name]]$check,
-      drive_path  = paste0(nhsss$harp_vl$gdrive$path$report, "Validation/"),
-      surv_name   = "HARP VL"
-   )
-
-# assign to global environment
-nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$docx_df   <- docx_df
-nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$pdf_df    <- pdf_df
-nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$xlsx_df   <- xlsx_df
-nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$docx_list <- docx_list
-nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$pdf_list  <- pdf_list
-nhsss$harp_vl[[glue("vl_ml_{ml_report}")]]$xlsx_list <- xlsx_list
+   conso %>%
+      filter(is.na(vl_result_2)) %>%
+      distinct(vl_result, vl_result_2, vl_result_nomeasure, vl_result_eo_num, vl_result_eo_multiplier) %>%
+      print(n = 1000)
+})
 
 ##  Save data ------------------------------------------------------------------
 
@@ -626,7 +445,30 @@ save <- input(
    default = "1"
 )
 if (save == "1")
-   write_dta(bind_rows(docx_df, pdf_df, xlsx_df), glue(r"({Sys.getenv("HARP_VL")}/{format(Sys.time(), "%Y%m%d")}_vl_ml_{ml_report}.dta)"))
+   local(envir = vlml, {
+      conso %>%
+         select(
+            -drop,
+            -vl_date,
+            -vl_result,
+            -vl_result_nomeasure,
+            -starts_with("vl_result_eo"),
+            -any_of(c("Last Name", "First Name", "Middle Name", "Name Ext.", "Latest Regimen"))
+         ) %>%
+         rename(vl_result = vl_result_2) %>%
+         rename(vl_date = vl_date_2) %>%
+         mutate_if(
+            .predicate = is.Date,
+            ~as.character(.)
+         ) %>%
+         select(
+            -contains(" "),
+            -contains("."),
+         ) %>%
+         mutate(vlml2022 = 1) %>%
+         format_stata() %>%
+         write_dta(file.path(Sys.getenv("HARP_VL"), paste0(format(Sys.time(), "%Y%m%d"), "_vl_ml_", params$yr, "-", params$mo, ".dta")))
+   })
 
 .log_success("Done!")
 
