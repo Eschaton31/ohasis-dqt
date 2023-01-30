@@ -1,5 +1,5 @@
 dir  <- "H:/Events/STIR-UP/2022/Maps"
-dx   <- read_dta(hs_data("harp_dx", "reg", 2022, 8))
+dx   <- read_dta(hs_data("harp_dx", "reg", 2022, 12))
 addr <- ohasis$ref_addr %>%
    left_join(
       y = read_sheet("16_ytFIRiAgmo6cqtoy0JkZoI62S5IuWxKyNKHO_R1fs", "v2022") %>%
@@ -67,8 +67,8 @@ data <- dx %>%
    ) %>%
    left_join(
       y = addr %>%
-         mutate(id = paste0("PH", PSGC_MUNC)) %>%
-         select(id, aem_class)
+         mutate(ISO = paste0("", PSGC_MUNC)) %>%
+         select(ISO, aem_class)
    )
 
 spdf <- read_sf("H:/_QGIS/Shapefiles/Philippines 2020-05-29/phl_admbnda_adm3_psa_namria_20200529.shp")
@@ -102,8 +102,20 @@ spdf_simplified <- spdf %>%
       geometry = st_union(st_make_valid(st_set_precision(geometry, 1e6)))
    )
 spdf_filtered   <- spdf_simplified %>%
+   filter(ADM1_PCODE == "PH070000000") %>%
    left_join(
-      y = data
+      y = data,
+      by = c("ISO" = "ISO")
+   )
+est_regions     <- read_xlsx("C:/Users/johnb/Downloads/est_plhiv_regions.xlsx")
+spdf_filtered   <- spdf_simplified %>%
+   select(PSGC_REG = ADM1_PCODE, ADM1_EN) %>%
+   right_join(
+      y = est_regions %>%
+         left_join(
+            y = addr %>%
+               distinct(region, PSGC_REG)
+         )
    )
 
 ggplot() +
@@ -114,8 +126,88 @@ ggplot() +
       alpha  = 0.9,
       colour = NA
    )
+est_regions <- data.frame()
+p           <- ggplot() +
+   geom_sf(
+      data   = spdf_filtered,
+      aes(fill = spdf_filtered$dx),
+      size   = 0,
+      alpha  = 0.9,
+      colour = NA
+   ) +
+   geom_sf_label(
+      data   = spdf_filtered,
+      aes(label = spdf_filtered$NAME_1),
+      size   = 10,
+      family = "Infra"
+   ) +
+   theme_void() +
+   scale_fill_viridis(
+      # option = "F",
+      trans  = "log",
+      # breaks = c(1, 5, 10, 20, 50, 100),
+      breaks = scales::pretty_breaks(),
+      name   = "Diagnosed Cases",
+      guide  = guide_legend(
+         keyheight      = unit(20, units = "mm"),
+         keywidth       = unit(25, units = "mm"),
+         label.position = "right",
+         title.position = 'top',
+         nrow           = 17,
+         direction      = "horizontal",
+      )
+   ) +
+   # labs(
+   #    title    = glue("Diagnosis among {name} Residents"),
+   #    subtitle = "Number of diagnosed HIV cases per city/municipality",
+   #    caption  = "Data: HIV/AIDS & ART Registry of the Philippines, August 2022"
+   # ) +
+   theme(
+      text             = element_text(color = "#22211d", family = "Infra"),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      plot.background  = element_rect(fill = "transparent", color = NA),
+      panel.background = element_rect(fill = "transparent", color = NA),
+      # legend.background    = element_rect(fill = "#f5f5f2", color = NA),
 
+      # plot.title           = element_text(
+      #    size   = 22,
+      #    hjust  = 0.01,
+      #    color  = "#4e4d47",
+      #    # margin = margin(b = -0.1, t = 0.4, l = 2, unit = "cm"),
+      #    family = "Infra",
+      #    face   = "bold"
+      # ),
+      # plot.subtitle        = element_text(
+      #    size   = 17,
+      #    hjust  = 0.01,
+      #    color  = "#4e4d47",
+      #    # margin = margin(b = -0.1, t = 0.43, l = 2, unit = "cm"),
+      #    family = "Infra",
+      #    face   = "plain"
+      # ),
+      # plot.caption         = element_text(
+      #    size   = 12, color = "#4e4d47",
+      #    # margin = margin(b = 0.3, r = -99, unit = "cm"),
+      #    family = "Infra",
+      #    face   = "italic"
+      # ),
+      # plot.margin          = grid::unit(c(3, 2, 3, 2), "mm"),
 
+      # legend.position      = "bottom",
+      # legend.justification = "left",
+      legend.title     = element_text(
+         size   = 20,
+         family = "Infra",
+         face   = "bold"
+      ),
+      legend.text      = element_text(
+         size   = 20,
+         family = "Infra"
+      ),
+   )
+
+ggsave("C:/Users/johnb/Downloads/dx7_2022.png", p, bg = "transparent", dpi = 300, height = 25, width = 25)
 spdf_addr <- spdf %>%
    as.data.frame() %>%
    distinct(ADM1_EN, ADM1_PCODE)
