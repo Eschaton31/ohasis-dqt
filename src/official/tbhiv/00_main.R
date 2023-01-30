@@ -9,9 +9,9 @@ if (!("tbhiv" %in% names(nhsss)))
 
 nhsss$tbhiv$wd               <- file.path(getwd(), "src", "official", "tbhiv")
 nhsss$tbhiv$coverage$curr_yr <- "2022"
-nhsss$tbhiv$coverage$curr_mo <- "06"
+nhsss$tbhiv$coverage$curr_mo <- "12"
 nhsss$tbhiv$coverage$prev_yr <- "2022"
-nhsss$tbhiv$coverage$prev_mo <- "03"
+nhsss$tbhiv$coverage$prev_mo <- "09"
 
 ##  Begin linkage of art registry ----------------------------------------------
 
@@ -73,9 +73,14 @@ local(envir = nhsss$tbhiv, {
          "TB_IPT_OUTCOME",
          "TB_IPT_OUTCOME_OTHER"
       ),
-      where     = glue("(VISIT_DATE >= '{min}' AND VISIT_DATE <= '{max}')"),
+      where     = glue("
+      (VISIT_DATE BETWEEN '{min}' AND '{max}')
+      "),
       raw_where = TRUE
    )
+
+   forms$form_art_bc %<>%
+      get_cid(forms$id_registry, PATIENT_ID)
 
    .log_success("Done.")
    dbDisconnect(lw_conn)
@@ -85,50 +90,38 @@ local(envir = nhsss$tbhiv, {
 local(envir = nhsss$tbhiv, {
    harp <- list()
 
-   .log_info("Getting HARP Dx Dataset.")
-   harp$dx <- ohasis$get_data("harp_dx", coverage$curr_yr, coverage$curr_mo) %>%
-      read_dta() %>%
-      # convert Stata string missing data to NAs
-      mutate_if(
-         .predicate = is.character,
-         ~if_else(. == '', NA_character_, .)
-      ) %>%
-      select(-starts_with("CENTRAL_ID")) %>%
-      left_join(
-         y  = forms$id_registry,
-         by = "PATIENT_ID"
-      ) %>%
-      mutate(
-         CENTRAL_ID = if_else(
-            condition = is.na(CENTRAL_ID),
-            true      = PATIENT_ID,
-            false     = CENTRAL_ID
-         ),
-      )
-
    .log_info("Getting the new HARP Tx Datasets.")
-   harp$tx$new_reg <- ohasis$get_data("harp_tx-reg", coverage$curr_yr, coverage$curr_mo) %>%
-      read_dta() %>%
+   harp$tx$new_reg <- hs_data("harp_tx", "reg", coverage$curr_yr, coverage$curr_mo) %>%
+      read_dta(
+         col_select = c(
+            PATIENT_ID,
+            art_id,
+            sex,
+            artstart_date,
+            idnum
+         )
+      ) %>%
       # convert Stata string missing data to NAs
       mutate_if(
          .predicate = is.character,
          ~if_else(. == '', NA_character_, .)
       ) %>%
       select(-starts_with("CENTRAL_ID")) %>%
-      left_join(
-         y  = forms$id_registry,
-         by = "PATIENT_ID"
-      ) %>%
-      mutate(
-         CENTRAL_ID = if_else(
-            condition = is.na(CENTRAL_ID),
-            true      = PATIENT_ID,
-            false     = CENTRAL_ID
-         ),
-      )
+      get_cid(forms$id_registry, PATIENT_ID)
 
-   harp$tx$new_outcome <- ohasis$get_data("harp_tx-outcome", coverage$curr_yr, coverage$curr_mo) %>%
-      read_dta() %>%
+   harp$tx$new_outcome <- hs_data("harp_tx", "outcome", coverage$curr_yr, coverage$curr_mo) %>%
+      read_dta(
+         col_select = c(
+            REC_ID,
+            art_id,
+            hub,
+            branch,
+            realhub,
+            realhub_branch,
+            curr_age,
+            outcome,
+            latest_ffupdate)
+      ) %>%
       # convert Stata string missing data to NAs
       mutate_if(
          .predicate = is.character,
@@ -151,20 +144,9 @@ local(envir = nhsss$tbhiv, {
 }
 
 nhsss$tbhiv$data <- nhsss$tbhiv$harp$tx$new_reg %>%
-   select(-REC_ID, -PATIENT_ID) %>%
+   select(-PATIENT_ID) %>%
    left_join(
-      y  = nhsss$tbhiv$forms$form_art_bc %>%
-         left_join(
-            y  = nhsss$tbhiv$forms$id_registry,
-            by = "PATIENT_ID"
-         ) %>%
-         mutate(
-            CENTRAL_ID = if_else(
-               condition = is.na(CENTRAL_ID),
-               true      = PATIENT_ID,
-               false     = CENTRAL_ID
-            ),
-         ),
+      y  = nhsss$tbhiv$forms$form_art_bc,
       by = "CENTRAL_ID"
    ) %>%
    mutate(
@@ -379,26 +361,26 @@ nhsss$tbhiv$data <- nhsss$tbhiv$harp$tx$new_reg %>%
       ),
    )
 
-write_dta(nhsss$tbhiv$data, "H:/System/HARP/TB-HIV/2022-2ndQr/TB-HIV Q2.dta")
-
-df <- nhsss$tbhiv$data %>%
-   mutate(
-      visits    = if_else(visit == 1 & onart == 1, 1, 0, 0),
-      screened  = if_else(visits == 1 & screened == 1, 1, 0, 0),
-      final_new = if_else(screened == 1 & withtb != 1 & final_new == 1, 1, 0, 0),
-      onipt     = if_else(final_new == 1 &
-                             screened == 1 &
-                             withtb != 1 &
-                             onipt == 1, 1, 0, 0)
-   ) %>%
-   group_by(ART_FACI_CODE, ART_FACI_NAME, ART_FACI_REGION, ART_FACI_PROVINCE, ART_FACI_MUNCITY) %>%
-   summarize(
-      Visits            = sum(visits),
-      `Screened for TB` = sum(screened),
-      `New on ART`      = sum(final_new),
-      `On IPT`          = sum(onipt),
-   ) %>%
-   ungroup() %>%
-   adorn_totals()
-
-write_xlsx(df, "H:/System/HARP/TB-HIV/2022-1stQr/2022 - Jan-Mar 1st Qr TB-HIV Indicator Report (Final).xlsx")
+write_dta(nhsss$tbhiv$data, "H:/System/HARP/TB-HIV/2022-4thQr/TB-HIV Q7.dta")
+#
+# df <- nhsss$tbhiv$data %>%
+#    mutate(
+#       visits    = if_else(visit == 1 & onart == 1, 1, 0, 0),
+#       screened  = if_else(visits == 1 & screened == 1, 1, 0, 0),
+#       final_new = if_else(screened == 1 & withtb != 1 & final_new == 1, 1, 0, 0),
+#       onipt     = if_else(final_new == 1 &
+#                              screened == 1 &
+#                              withtb != 1 &
+#                              onipt == 1, 1, 0, 0)
+#    ) %>%
+#    group_by(ART_FACI_CODE, ART_FACI_NAME, ART_FACI_REGION, ART_FACI_PROVINCE, ART_FACI_MUNCITY) %>%
+#    summarize(
+#       Visits            = sum(visits),
+#       `Screened for TB` = sum(screened),
+#       `New on ART`      = sum(final_new),
+#       `On IPT`          = sum(onipt),
+#    ) %>%
+#    ungroup() %>%
+#    adorn_totals()
+#
+# write_xlsx(df, "H:/System/HARP/TB-HIV/2022-1stQr/2022 - Jan-Mar 1st Qr TB-HIV Indicator Report (Final).xlsx")
