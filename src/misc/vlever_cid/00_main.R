@@ -44,37 +44,31 @@ data_forms <- form_art_bc %>%
 
 ##  Get masterlist data from the past 4 quarters -------------------------------
 
-vl_yr   <- 2022
-prev_yr <- 2021
+vl_yr    <- 2022
+prev_yr  <- 2021
 # calculate datasets needed
-data_ml <- read_dta("C:/data/harp_vl/data/20220810_vl_ml_2022-Q3.dta") %>%
-   mutate(qr = "2022-Q3") %>%
-   bind_rows(
-      read_dta("C:/data/harp_vl/data/20220810_vl_ml_2022-Q2.dta") %>%
-         mutate(qr = "2022-Q2")
-   ) %>%
-   bind_rows(
-      read_dta("C:/data/harp_vl/data/20220510_vl_ml_2022-Q1.dta") %>%
-         mutate(qr = "2022-Q1")
-   ) %>%
-   bind_rows(
-      read_dta("C:/data/harp_vl/data/20220510_vl_ml_2021-Q4.dta") %>%
-         mutate(qr = "2021-Q4")
-   ) %>%
-   bind_rows(
-      read_dta("C:/data/harp_vl/data/20220510_vl_ml_2021-Q3.dta") %>%
-         mutate(qr = "2021-Q3")
-   ) %>%
-   bind_rows(
-      read_dta("C:/data/harp_vl/data/20220510_vl_ml_2021-Q2.dta") %>%
-         mutate(qr = "2021-Q2")
-   ) %>%
-   bind_rows(
-      read_dta("C:/data/harp_vl/data/20220510_vl_ml_ever.dta") %>%
+ml_files <- list.files(Sys.getenv("HARP_VL"), "*\\.dta", full.names = TRUE)
+data_ml  <- lapply(ml_files, function(ml) {
+   qr <- substr(ml,
+                stri_locate_first_fixed(ml, "vl_ml_") + 6,
+                stri_locate_first_fixed(ml, ".dta") - 1)
+   if (qr != "ever") {
+      data <- read_dta(ml)
+      if (!grepl("Q", qr)) {
+         data %<>%
+            select(-any_of("id")) %>%
+            rename(
+               id = row_id
+            )
+      }
+      data %<>%
          mutate(
-            id = as.character(id)
+            id = as.character(id),
+            qr = qr
          )
-   )
+   }
+})
+data_ml  <- bind_rows(data_ml)
 
 # get only needed columns
 data_ml %<>%
@@ -84,6 +78,7 @@ data_ml %<>%
       src_file,
       src_sheet,
       qr,
+      any_of("vlml2022"),
       starts_with("vl_result"),
       starts_with("vl_date")
    )
@@ -149,6 +144,7 @@ data_ml %<>%
          TRUE ~ 0
       ),
       vl_date_2     = case_when(
+         vlml2022 == 1 ~ as.Date(vl_date),
          !is.na(vl_excel_date) ~ vl_excel_date,
          stri_detect_fixed(vl_date, "/") & hub == "tch" ~ as.Date(StrLeft(vl_date, 10), "%d/%m/%Y"),
          stri_detect_fixed(vl_date, "/") & hub == "dcs" ~ as.Date(StrLeft(vl_date, 10), "%d/%m/%Y"),
@@ -182,7 +178,8 @@ vl_data <- data_forms %>%
             CENTRAL_ID,
             vl_date_2,
             vl_result,
-            vl_result_alt
+            vl_result_alt,
+            vlml2022
          ) %>%
          mutate(res_tag = 1)
    ) %>%
@@ -205,6 +202,9 @@ vl_data <- data_forms %>%
       vl_result      = stri_replace_all_fixed(vl_result, "HIV DETECTED, ", ""),
       vl_result      = stri_replace_all_fixed(vl_result, "HIV-1 DETECETED, ", ""),
       vl_result      = stri_replace_all_fixed(vl_result, "HIV-1 DETECTED,", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, "HIV-DETECTED ", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, "HIV 1DETECTED ", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, "HOV-1 DETECTED ", ""),
       vl_result      = stri_replace_all_fixed(vl_result, "HIV-1 DETECTED", ""),
       vl_result      = stri_replace_all_fixed(vl_result, "HIV1 DETECTED ", ""),
       vl_result      = stri_replace_all_fixed(vl_result, "HIV1 DETECTED", ""),
@@ -215,6 +215,9 @@ vl_data <- data_forms %>%
       vl_result      = stri_replace_all_fixed(vl_result, "HI-1 DETECTED ", ""),
       vl_result      = stri_replace_all_fixed(vl_result, "HIV-1 DETECETD, ", ""),
       vl_result      = stri_replace_all_fixed(vl_result, "HIV 1- DETECTED ", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, "HI-1 DETECTED", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, "HIV- DETECTED ", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, "HIV-1 NO DETECTED", ""),
       vl_result      = stri_replace_all_fixed(vl_result, "HIV 1 ", ""),
       vl_result      = stri_replace_all_fixed(vl_result, " COPIES/ML", ""),
       vl_result      = stri_replace_all_fixed(vl_result, " COPPIES/ML", ""),
@@ -231,6 +234,15 @@ vl_data <- data_forms %>%
       vl_result      = stri_replace_all_fixed(vl_result, "COIPES/ML", ""),
       vl_result      = stri_replace_all_fixed(vl_result, " COPIE", ""),
       vl_result      = stri_replace_all_fixed(vl_result, " CPIES", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, " C0PIES", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, " CPOIES", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, " COIES", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, "COIES", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, " COPES", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, " COPIS", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, " XOPIES", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, " COPPIES", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, " CELLS", ""),
       vl_result      = stri_replace_all_fixed(vl_result, " /ML", ""),
       vl_result      = stri_replace_all_fixed(vl_result, " M/L", ""),
       vl_result      = stri_replace_all_fixed(vl_result, " / ML", ""),
@@ -241,11 +253,17 @@ vl_data <- data_forms %>%
       vl_result      = stri_replace_all_fixed(vl_result, "C/U", ""),
       vl_result      = stri_replace_all_fixed(vl_result, "ML", ""),
       vl_result      = stri_replace_all_fixed(vl_result, " CPPIES", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, ", ", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, " ,", ""),
+      vl_result      = stri_replace_all_fixed(vl_result, " `", ""),
+      vl_result      = stri_replace_last_regex(vl_result, "\\.00$", ""),
+      vl_result      = stri_replace_last_regex(vl_result, "([:digit:])EO", "$1E0"),
       vl_result      = stri_replace_all_fixed(vl_result, "(12/11/2020) 2.51 E05 (LOG 5.40)", "2.51 E05 (LOG 5.40)"),
 
       # tag those w/ less than data
       less_than      = case_when(
          stri_detect_fixed(vl_result, ">") ~ 1,
+         stri_detect_fixed(vl_result, "+") ~ 1,
          stri_detect_fixed(vl_result, "<") ~ 1,
          stri_detect_fixed(toupper(vl_result), "LESS THAN") ~ 1,
          stri_detect_fixed(toupper(vl_result), "LESS ") ~ 1,
@@ -268,6 +286,9 @@ vl_data <- data_forms %>%
       ),
 
       vl_result_2    = case_when(
+         vlml2022 == 1 ~ as.numeric(vl_result),
+         sci_cal == "x10" ~ as.numeric(substr(vl_result, 1, stri_locate_first_fixed(vl_result, "X10") - 1)) * 10,
+         sci_cal == "eo" ~ as.numeric(str_squish(substr(vl_result, 1, stri_locate_first_regex(vl_result, "[:digit:]E")))) * (10^as.numeric(substr(vl_result, stri_locate_first_regex(vl_result, "[:digit:]E") + 2, stri_locate_first_regex(vl_result, "[:digit:]E") + 4))),
          less_than == 1 &
             stri_detect_fixed(vl_result, "40") &
             stri_detect_fixed(vl_result, "1.6") ~ 39,
@@ -285,7 +306,11 @@ vl_data <- data_forms %>%
          stri_detect_fixed(vl_result, "MOT DET") ~ 0,
          stri_detect_fixed(vl_result, "NOT DETETED") ~ 0,
          stri_detect_fixed(vl_result, "UNDETECT") ~ 0,
+         stri_detect_fixed(vl_result, "UNDETETABLE") ~ 0,
+         stri_detect_fixed(vl_result, "UNDETECETD") ~ 0,
          stri_detect_fixed(vl_result, "NO MEASURABLE") ~ 0,
+         stri_detect_fixed(vl_result, "NOT TEDECTED") ~ 0,
+         stri_detect_fixed(vl_result, "NOTY DETECTED") ~ 0,
          str_detect(vl_result, glue("\\bND\\b")) ~ 0,
          vl_result %in% c("HND", "ND", "N/D", "UD", "TND", "UNDE", "UN", "N.D", "NP", "UNDECTABLE", "UNDECTED", "UNDET") ~ 0,
          vl_result %in% c("TARGET NOT DETECTED", "TARGET NOT DEFECTED", "TNDD", "TNDS", "U", "UNDETACTABLE", "UNDETE", "UNTEDECTABLE", "UP") ~ 0,
@@ -295,6 +320,7 @@ vl_data <- data_forms %>%
          vl_result == "L70" ~ 69,
          vl_result == "L70" ~ 69,
          vl_result %in% c("LT 34", "LT6 34") ~ 33,
+         !is.na(as.numeric(stri_replace_all_fixed(vl_result, " ", ""))) ~ as.numeric(stri_replace_all_fixed(vl_result, " ", ""))
       ),
 
       # tag for dropping
@@ -387,7 +413,8 @@ vl_data <- data_forms %>%
             StrIsNumeric(stri_replace_all_fixed(vl_result, ".", "")) ~ as.numeric(stri_replace_all_regex(vl_result, ".", "")),
          TRUE ~ vl_result_2
       )
-   ) %>%
+   )
+vl_data %<>%
    # remove for dropping data
    filter(
       drop == 0,
@@ -395,7 +422,7 @@ vl_data <- data_forms %>%
       !is.na(vl_result_2),
    ) %>%
    bind_rows(
-      read_dta("C:/data/harp_vl/data/20220510_vl_ml_ever.dta") %>%
+      read_dta(file.path(Sys.getenv("HARP_VL"), "20220510_vl_ml_ever.dta")) %>%
          filter(PATIENT_ID != "") %>%
          mutate_if(
             .predicate = is.character,
@@ -413,7 +440,7 @@ vl_data <- data_forms %>%
          )
    )
 
-end_vl <- "2022-09-30"
+end_vl      <- "2022-12-31"
 vl_filtered <- vl_data %>%
    mutate(
       drop = case_when(
@@ -444,22 +471,12 @@ vl_last  <- vl_filtered %>%
 vl_final <- vl_first %>%
    full_join(vl_last)
 
-dx    <- read_dta("C:/data/harp_full/data/20221021_harp_2022-09_wVL.dta")
-tx    <- read_dta("C:/data/harp_tx/data/20221020_reg-art_2022-09.dta")
+dx    <- read_dta("H:/_R/library/hiv_full/data/20230130_harp_2022-12_wVL.dta")
+tx    <- read_dta("H:/_R/library/hiv_tx/data/20230130_reg-art_2022-12_mod.dta")
 vl_dx <- dx %>%
    select(-contains("CENTRAL_ID")) %>%
    # get latest central ids
-   left_join(
-      y  = id_registry,
-      by = "PATIENT_ID"
-   ) %>%
-   mutate(
-      CENTRAL_ID = if_else(
-         condition = is.na(CENTRAL_ID),
-         true      = PATIENT_ID,
-         false     = CENTRAL_ID
-      ),
-   ) %>%
+   get_cid(id_registry, PATIENT_ID) %>%
    left_join(vl_final) %>%
    mutate(
       newdata         = case_when(
@@ -509,21 +526,11 @@ vl_dx <- dx %>%
 vl_tx <- tx %>%
    select(-contains("CENTRAL_ID")) %>%
    left_join(
-      y  = read_dta("C:/data/harp_tx/data/20221021_onart-vl_2022-09.dta", col_select = c(art_id, vl_date, vl_result)),
+      y  = read_dta("H:/_R/library/hiv_tx/data/20230130_onart-vl_2022-12_mod.dta", col_select = c(art_id, vl_date, vl_result)),
       by = "art_id"
    ) %>%
    # get latest central ids
-   left_join(
-      y  = id_registry,
-      by = "PATIENT_ID"
-   ) %>%
-   mutate(
-      CENTRAL_ID = if_else(
-         condition = is.na(CENTRAL_ID),
-         true      = PATIENT_ID,
-         false     = CENTRAL_ID
-      ),
-   ) %>%
+   get_cid(id_registry, PATIENT_ID) %>%
    left_join(vl_final) %>%
    mutate(
       newdata         = case_when(
@@ -569,3 +576,6 @@ vl_tx <- tx %>%
       vl_result_last,
    ) %>%
    distinct(art_id, .keep_all = TRUE)
+
+write_dta(vl_dx, "H:/_R/library/hiv_vl/20230130_vlnaive-dx_2022-12.dta")
+write_dta(vl_tx, "H:/_R/library/hiv_vl/20230130_vlnaive-tx_2022-12.dta")
