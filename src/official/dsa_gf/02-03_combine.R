@@ -220,7 +220,7 @@ gf$logsheet$combined <- bind_rows(
 			"CBS_PROV" = "HIV_SERVICE_PSGC_PROV",
 			"CBS_MUNC" = "HIV_SERVICE_PSGC_MUNC"
 		 ),
-		 "name"
+		 "nhsss"
 	  ) %>%
 		 select(
 			ohasis_record = REC_ID,
