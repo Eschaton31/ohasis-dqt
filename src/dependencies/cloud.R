@@ -101,6 +101,10 @@ gdrive_endpoint <- function(surv_name = NULL, report_period = NULL) {
    path$primary <- glue(r"(~/DQT/Data Factory/{surv_name}/)")
    path$report  <- glue(r"({path$primary}{report_period}/)")
 
+   path$primary <- (drive_ls("~/DQT", "Data Factory") %>%
+      drive_ls(surv_name))$id
+   path$report  <- (drive_ls(path$primary, report_period))$id
+
    # create folders if not exists
    drive_folders <- list(
       c(path$primary, report_period),
@@ -113,7 +117,7 @@ gdrive_endpoint <- function(surv_name = NULL, report_period = NULL) {
          path   <- folder[2] # name of dir to be checked
 
          # get sub-folders
-         dribble <- drive_ls(parent)
+         dribble <- drive_ls(as_id(parent))
 
          # create folder if not exists
          if (nrow(dribble %>% filter(name == path)) == 0)
@@ -129,8 +133,8 @@ gdrive_correct <- function(drive_path = NULL, report_period = NULL) {
    corr <- list()
 
    # drive path
-   primary_files <- drive_ls(paste0(drive_path, ".all/"))
-   report_files  <- drive_ls(paste0(drive_path, report_period, "/Cleaning/"))
+   primary_files <- drive_ls(drive_ls(as_id(drive_path$primary), ".all")$id)
+   report_files  <- drive_ls( drive_ls(as_id(drive_path$report), "Cleaning")$id)
 
    # list of correction files
    .log_info("Getting list of correction datasets.")
