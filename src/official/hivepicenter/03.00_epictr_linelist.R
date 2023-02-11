@@ -156,9 +156,20 @@ local(envir = epictr, {
             dx_plhiv              = if_else(!is.na(idnum) &
                                                (dead != 1 | is.na(dead)) &
                                                (is.na(outcome) | outcome != "dead"), 1, 0, 0),
+            # dx_plhiv              = case_when(
+            #    dx == 1 & outcome == "alive on arv" ~ 1,
+            #    dx == 1 & (dead != 1 | is.na(dead)) & (is.na(outcome) | outcome != "dead"),
+            #    TRUE ~ 0
+            # ),
             plhiv                 = if_else((dead != 1 | is.na(dead)) & (is.na(outcome) | outcome != "dead"), 1, 0, 0),
+            # plhiv              = case_when(
+            #    outcome == "alive on arv" ~ 1,
+            #    (dead != 1 | is.na(dead)) & (is.na(outcome) | outcome != "dead"),
+            #    TRUE ~ 0
+            # ),
             evertx                = if_else(everonart == 1, 1, 0, 0),
-            evertx_plhiv          = if_else(evertx == 1 & plhiv == 1, 1, 0, 0),
+            # evertx_plhiv          = if_else(evertx == 1 & plhiv == 1, 1, 0, 0),
+            evertx_plhiv          = if_else(evertx == 1 & outcome != "dead", 1, 0, 0),
             ontx                  = if_else(onart == 1, 1, 0, 0),
             ontx_1mo              = if_else(ontx == 1 & latest_nextpickup >= as.Date(ref_artmin), 1, 0, 0),
 
@@ -277,32 +288,38 @@ local(envir = epictr, {
                   muncity       = NHSSS_MUNC,
                   RES_PSGC_REG  = PSGC_REG,
                   RES_PSGC_PROV = PSGC_PROV,
-                  RES_PSGC_MUNC = PSGC_MUNC
-               ),
-         ) %>%
-         left_join(
-            y          = estimates$class %>%
-               select(
-                  aem_class_res = aem_class,
-                  RES_PSGC_REG  = PSGC_REG,
-                  RES_PSGC_PROV = PSGC_PROV,
                   RES_PSGC_MUNC = PSGC_MUNC,
+                  RES_PSGC_AEM  = PSGC_AEM,
+                  RES_NAME_AEM  = NAME_AEM,
+                  RES_NAME_REG  = NAME_REG,
+                  RES_NAME_PROV = NAME_PROV,
+                  RES_NAME_MUNC = NAME_MUNC,
+                  RES_ISO3166   = ISO
                ),
-            na_matches = "never"
          ) %>%
-         mutate(
-            RES_PSGC_AEM = if_else(aem_class_res %in% c("a", "ncr", "cebu city", "cebu province"), RES_PSGC_MUNC, RES_PSGC_PROV, RES_PSGC_PROV),
-         ) %>%
-         group_by(RES_PSGC_REG, RES_PSGC_PROV) %>%
-         mutate(
-            muncity_aem = case_when(
-               !is.na(aem_class_res) ~ muncity,
-               paste(collapse = "", aem_class_res) == "" ~ province,
-               paste(collapse = "", aem_class_res) != "" ~ paste0(province, "_ROTP"),
-               TRUE ~ muncity
-            )
-         ) %>%
-         ungroup() %>%
+         # left_join(
+         #    y          = estimates$class %>%
+         #       select(
+         #          aem_class_res = aem_class,
+         #          RES_PSGC_REG  = PSGC_REG,
+         #          RES_PSGC_PROV = PSGC_PROV,
+         #          RES_PSGC_MUNC = PSGC_MUNC,
+         #       ),
+         #    na_matches = "never"
+         # ) %>%
+         # mutate(
+         #    RES_PSGC_AEM = if_else(aem_class_res %in% c("a", "ncr", "cebu city", "cebu province"), RES_PSGC_MUNC, RES_PSGC_PROV, RES_PSGC_PROV),
+         # ) %>%
+         # group_by(RES_PSGC_REG, RES_PSGC_PROV) %>%
+         # mutate(
+         #    muncity_aem = case_when(
+         #       !is.na(aem_class_res) ~ muncity,
+         #       paste(collapse = "", aem_class_res) == "" ~ province,
+         #       paste(collapse = "", aem_class_res) != "" ~ paste0(province, "_ROTP"),
+         #       TRUE ~ muncity
+         #    )
+         # ) %>%
+         # ungroup() %>%
          # dx address
          left_join(
             y = ref_addr %>%
@@ -313,38 +330,44 @@ local(envir = epictr, {
                   DX_PSGC_REG  = PSGC_REG,
                   DX_PSGC_PROV = PSGC_PROV,
                   DX_PSGC_MUNC = PSGC_MUNC,
+                  DX_PSGC_AEM  = PSGC_AEM,
+                  DX_NAME_AEM  = NAME_AEM,
+                  DX_NAME_REG  = NAME_REG,
+                  DX_NAME_PROV = NAME_PROV,
+                  DX_NAME_MUNC = NAME_MUNC,
+                  DX_ISO3166   = ISO
                ),
          ) %>%
-         left_join(
-            y          = estimates$class %>%
-               select(
-                  aem_class_dx = aem_class,
-                  DX_PSGC_REG  = PSGC_REG,
-                  DX_PSGC_PROV = PSGC_PROV,
-                  DX_PSGC_MUNC = PSGC_MUNC
-               ),
-            na_matches = "never"
-         ) %>%
-         mutate(
-            DX_PSGC_AEM  = if_else(aem_class_dx %in% c("a", "ncr", "cebu city", "cebu province"), DX_PSGC_MUNC, DX_PSGC_PROV, DX_PSGC_PROV),
-            final_branch = case_when(
-               final_hub == "HASH" & is.na(final_branch) ~ "HASH-QC",
-               final_hub == "TLY" & is.na(final_branch) ~ "TLY-ANGLO",
-               final_hub == "SHP" & is.na(final_branch) ~ "SHIP-MAKATI",
-               # is.na(final_branch) ~ "",
-               TRUE ~ final_branch
-            ),
-         ) %>%
-         group_by(DX_PSGC_REG, DX_PSGC_PROV) %>%
-         mutate(
-            dx_muncity_aem = case_when(
-               !is.na(aem_class_dx) ~ dx_muncity,
-               paste(collapse = "", aem_class_dx) == "" ~ dx_province,
-               paste(collapse = "", aem_class_dx) != "" ~ paste0(dx_province, "_ROTP"),
-               TRUE ~ dx_muncity
-            )
-         ) %>%
-         ungroup() %>%
+         # left_join(
+         #    y          = estimates$class %>%
+         #       select(
+         #          aem_class_dx = aem_class,
+         #          DX_PSGC_REG  = PSGC_REG,
+         #          DX_PSGC_PROV = PSGC_PROV,
+         #          DX_PSGC_MUNC = PSGC_MUNC
+         #       ),
+         #    na_matches = "never"
+         # ) %>%
+         # mutate(
+         #    DX_PSGC_AEM  = if_else(aem_class_dx %in% c("a", "ncr", "cebu city", "cebu province"), DX_PSGC_MUNC, DX_PSGC_PROV, DX_PSGC_PROV),
+         #    final_branch = case_when(
+         #       final_hub == "HASH" & is.na(final_branch) ~ "HASH-QC",
+         #       final_hub == "TLY" & is.na(final_branch) ~ "TLY-ANGLO",
+         #       final_hub == "SHP" & is.na(final_branch) ~ "SHIP-MAKATI",
+         #       # is.na(final_branch) ~ "",
+         #       TRUE ~ final_branch
+         #    ),
+         # ) %>%
+         # group_by(DX_PSGC_REG, DX_PSGC_PROV) %>%
+         # mutate(
+         #    dx_muncity_aem = case_when(
+         #       !is.na(aem_class_dx) ~ dx_muncity,
+         #       paste(collapse = "", aem_class_dx) == "" ~ dx_province,
+         #       paste(collapse = "", aem_class_dx) != "" ~ paste0(dx_province, "_ROTP"),
+         #       TRUE ~ dx_muncity
+         #    )
+         # ) %>%
+         # ungroup() %>%
          left_join(
             y  = ohasis$ref_faci_code %>%
                mutate(
@@ -377,19 +400,25 @@ local(envir = epictr, {
                ) %>%
                distinct_all() %>%
                left_join(
-                  y          = estimates$class %>%
+                  y          = ref_addr %>%
                      select(
-                        aem_class_tx = aem_class,
+                        # aem_class_tx = aem_class,
                         TX_PSGC_REG  = PSGC_REG,
                         TX_PSGC_PROV = PSGC_PROV,
-                        TX_PSGC_MUNC = PSGC_MUNC
+                        TX_PSGC_MUNC = PSGC_MUNC,
+                        TX_PSGC_AEM  = PSGC_AEM,
+                        TX_NAME_AEM  = NAME_AEM,
+                        TX_NAME_REG  = NAME_REG,
+                        TX_NAME_PROV = NAME_PROV,
+                        TX_NAME_MUNC = NAME_MUNC,
+                        TX_ISO3166   = ISO
                      ),
                   na_matches = "never"
                ),
             by = c("final_hub", "final_branch")
-         ) %>%
-         mutate(
-            TX_PSGC_AEM = if_else(aem_class_tx %in% c("a", "ncr", "cebu city", "cebu province"), TX_PSGC_MUNC, TX_PSGC_PROV, TX_PSGC_PROV),
+            # ) %>%
+            # mutate(
+            #    TX_PSGC_AEM = if_else(aem_class_tx %in% c("a", "ncr", "cebu city", "cebu province"), TX_PSGC_MUNC, TX_PSGC_PROV, TX_PSGC_PROV),
          )
 
       # mo <- ifelse(yr == 2022, "10", "12")
@@ -433,20 +462,35 @@ local(envir = epictr, {
             RES_PSGC_PROV,
             RES_PSGC_MUNC,
             RES_PSGC_AEM,
-            aem_class_res,
+            RES_NAME_REG,
+            RES_NAME_PROV,
+            RES_NAME_MUNC,
+            RES_NAME_AEM,
+            RES_ISO3166,
+            # aem_class_res,
             DX_PSGC_REG,
             DX_PSGC_PROV,
             DX_PSGC_MUNC,
             DX_PSGC_AEM,
+            DX_NAME_REG,
+            DX_NAME_PROV,
+            DX_NAME_MUNC,
+            DX_NAME_AEM,
+            DX_ISO3166,
             dxlab_standard,
-            aem_class_dx,
+            # aem_class_dx,
             TX_PSGC_REG,
             TX_PSGC_PROV,
             TX_PSGC_MUNC,
             TX_PSGC_AEM,
+            TX_NAME_REG,
+            TX_NAME_PROV,
+            TX_NAME_MUNC,
+            TX_NAME_AEM,
+            TX_ISO3166,
             TX_FACI_ID,
             TX_FACI_NAME,
-            aem_class_tx,
+            # aem_class_tx,
             final_hub,
             final_branch,
             outcome,
@@ -476,53 +520,53 @@ local(envir = epictr, {
             startpickuplen_months,
             vl_naive
          ) %>%
-         left_join(
-            y          = ref_addr %>%
-               select(
-                  RES_PSGC_REG  = PSGC_REG,
-                  RES_PSGC_PROV = PSGC_PROV,
-                  RES_PSGC_MUNC = PSGC_MUNC,
-                  RES_NAME_REG  = NAME_REG,
-                  RES_NAME_PROV = NAME_PROV,
-                  RES_NAME_MUNC = NAME_MUNC,
-                  RES_ISO3166   = ISO
-               ),
-            na_matches = "never"
-         ) %>%
-         distinct_all() %>%
-         left_join(
-            y          = ref_addr %>%
-               select(
-                  TX_PSGC_REG  = PSGC_REG,
-                  TX_PSGC_PROV = PSGC_PROV,
-                  TX_PSGC_MUNC = PSGC_MUNC,
-                  TX_NAME_REG  = NAME_REG,
-                  TX_NAME_PROV = NAME_PROV,
-                  TX_NAME_MUNC = NAME_MUNC,
-                  TXS_ISO3166  = ISO
-               ),
-            na_matches = "never"
-         ) %>%
-         distinct_all() %>%
-         left_join(
-            y          = ref_addr %>%
-               select(
-                  DX_PSGC_REG  = PSGC_REG,
-                  DX_PSGC_PROV = PSGC_PROV,
-                  DX_PSGC_MUNC = PSGC_MUNC,
-                  DX_NAME_REG  = NAME_REG,
-                  DX_NAME_PROV = NAME_PROV,
-                  DX_NAME_MUNC = NAME_MUNC,
-                  DX_ISO3166   = ISO
-               ),
-            na_matches = "never"
-         ) %>%
+         # left_join(
+         #    y          = ref_addr %>%
+         #       select(
+         #          RES_PSGC_REG  = PSGC_REG,
+         #          RES_PSGC_PROV = PSGC_PROV,
+         #          RES_PSGC_MUNC = PSGC_MUNC,
+         #          RES_NAME_REG  = NAME_REG,
+         #          RES_NAME_PROV = NAME_PROV,
+         #          RES_NAME_MUNC = NAME_MUNC,
+         #          RES_ISO3166   = ISO
+         #       ),
+         #    na_matches = "never"
+         # ) %>%
+         # distinct_all() %>%
+         # left_join(
+         #    y          = ref_addr %>%
+         #       select(
+         #          TX_PSGC_REG  = PSGC_REG,
+         #          TX_PSGC_PROV = PSGC_PROV,
+         #          TX_PSGC_MUNC = PSGC_MUNC,
+         #          TX_NAME_REG  = NAME_REG,
+         #          TX_NAME_PROV = NAME_PROV,
+         #          TX_NAME_MUNC = NAME_MUNC,
+         #          TXS_ISO3166  = ISO
+         #       ),
+         #    na_matches = "never"
+         # ) %>%
+         # distinct_all() %>%
+         # left_join(
+         #    y          = ref_addr %>%
+         #       select(
+         #          DX_PSGC_REG  = PSGC_REG,
+         #          DX_PSGC_PROV = PSGC_PROV,
+         #          DX_PSGC_MUNC = PSGC_MUNC,
+         #          DX_NAME_REG  = NAME_REG,
+         #          DX_NAME_PROV = NAME_PROV,
+         #          DX_NAME_MUNC = NAME_MUNC,
+         #          DX_ISO3166   = ISO
+         #       ),
+         #    na_matches = "never"
+         # ) %>%
          distinct_all() %>%
          mutate(
-            report_yr    = as.Date(paste(sep = "-", report_yr, "01-01")),
-            RES_NAME_AEM = if_else(aem_class_res %in% c("a", "ncr", "cebu city", "cebu province"), RES_NAME_MUNC, RES_NAME_PROV, RES_NAME_PROV),
-            DX_NAME_AEM  = if_else(aem_class_dx %in% c("a", "ncr", "cebu city", "cebu province"), DX_NAME_MUNC, DX_NAME_PROV, DX_NAME_PROV),
-            TX_NAME_AEM  = if_else(aem_class_tx %in% c("a", "ncr", "cebu city", "cebu province"), TX_NAME_MUNC, TX_NAME_PROV, TX_NAME_PROV),
+            report_yr = as.Date(paste(sep = "-", report_yr, "01-01")),
+            # RES_NAME_AEM = if_else(aem_class_res %in% c("a", "ncr", "cebu city", "cebu province"), RES_NAME_MUNC, RES_NAME_PROV, RES_NAME_PROV),
+            # DX_NAME_AEM  = if_else(aem_class_dx %in% c("a", "ncr", "cebu city", "cebu province"), DX_NAME_MUNC, DX_NAME_PROV, DX_NAME_PROV),
+            # TX_NAME_AEM  = if_else(aem_class_tx %in% c("a", "ncr", "cebu city", "cebu province"), TX_NAME_MUNC, TX_NAME_PROV, TX_NAME_PROV),
          ) %>%
          mutate_at(
             .vars = vars(contains("PSGC")),
