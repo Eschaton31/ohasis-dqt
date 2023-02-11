@@ -1,4 +1,19 @@
- ##  prepare dataset for TX_CURR ------------------------------------------------
+##  prepare dataset for TX_CURR ------------------------------------------------
+
+risk <- gf$harp$prep$new_outcome %>%
+   select(
+      prep_id,
+      contains("risk", ignore.case = FALSE)
+   ) %>%
+   select(-ends_with("screen")) %>%
+   pivot_longer(
+      cols = contains("risk", ignore.case = FALSE)
+   ) %>%
+   group_by(prep_id) %>%
+   summarise(
+      risks = paste0(collapse = ", ", unique(sort(value)))
+   ) %>%
+   ungroup()
 
 gf$linelist$kp6a <- gf$harp$prep$new_reg %>%
    select(
@@ -15,7 +30,11 @@ gf$linelist$kp6a <- gf$harp$prep$new_reg %>%
    ) %>%
    left_join(
       y  = gf$harp$prep$new_outcome %>%
-         select(-CENTRAL_ID, -REC_ID),
+         select(-CENTRAL_ID, -REC_ID, -sex),
+      by = "prep_id"
+   ) %>%
+   left_join(
+      y  = risk,
       by = "prep_id"
    ) %>%
    left_join(
@@ -155,6 +174,8 @@ gf$linelist$kp6a <- gf$harp$prep$new_reg %>%
 
       # KAP
       msm              = case_when(
+         stri_detect_fixed(prep_risk_sexwithm, "yes") ~ 1,
+         stri_detect_fixed(hts_risk_sexwithm, "yes") ~ 1,
          kp_msm == 1 ~ 1,
          TRUE ~ 0
       ),
@@ -171,11 +192,7 @@ gf$linelist$kp6a <- gf$harp$prep$new_reg %>%
          missing   = 0
       ),
       unknown          = if_else(
-         condition = kp_msm == 0 &
-            kp_tgp == 0 &
-            kp_sw == 0 &
-            kp_pwid == 0 &
-            kp_tgw == 0,
+         condition = risks == "(no data)",
          true      = 1,
          false     = 0,
          missing   = 0
@@ -205,16 +222,21 @@ gf$linelist$kp6a <- gf$harp$prep$new_reg %>%
       RECORD_P6M       = reach_date %m-% months(6),
       RECORD_P12M      = reach_date %m-% months(12),
       `DISAG 3`        = case_when(
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) %in% c("0", "2") & analp12m == "w/in 6m" ~ "1) Sexual Risk (anal sex) past 6 months",
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) %in% c("0", "2") & analp12m == "w/in 12m" ~ "2) Sexual Risk (anal sex) past 12 months",
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) %in% c("0", "2") & analp12m == ">p12m" ~ "3) Sexual Risk (anal sex) >12 months",
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "4" ~ "0) Sexual Risk (anal sex) past 30 days",
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "3" ~ "1) Sexual Risk (anal sex) past 6 months",
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "1" ~ "2) Sexual Risk (anal sex) past 12 months",
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "2" ~ "3) Sexual Risk (anal sex) >12 months",
-         is.na(RISK_CONDOMLESS_ANAL) & analp12m == "w/in 6m" ~ "1) Sexual Risk (anal sex) past 6 months",
-         is.na(RISK_CONDOMLESS_ANAL) & analp12m == "w/in 12m" ~ "2) Sexual Risk (anal sex) past 12 months",
-         is.na(RISK_CONDOMLESS_ANAL) & analp12m == ">p12m" ~ "3) Sexual Risk (anal sex) >12 months",
+         # StrLeft(RISK_CONDOMLESS_ANAL, 1) %in% c("0", "2") & analp12m == "w/in 6m" ~ "1) Sexual Risk (anal sex) past 6 months",
+         # StrLeft(RISK_CONDOMLESS_ANAL, 1) %in% c("0", "2") & analp12m == "w/in 12m" ~ "2) Sexual Risk (anal sex) past 12 months",
+         # StrLeft(RISK_CONDOMLESS_ANAL, 1) %in% c("0", "2") & analp12m == ">p12m" ~ "3) Sexual Risk (anal sex) >12 months",
+         # StrLeft(RISK_CONDOMLESS_ANAL, 1) == "4" ~ "0) Sexual Risk (anal sex) past 30 days",
+         # StrLeft(RISK_CONDOMLESS_ANAL, 1) == "3" ~ "1) Sexual Risk (anal sex) past 6 months",
+         # StrLeft(RISK_CONDOMLESS_ANAL, 1) == "1" ~ "2) Sexual Risk (anal sex) past 12 months",
+         # StrLeft(RISK_CONDOMLESS_ANAL, 1) == "2" ~ "3) Sexual Risk (anal sex) >12 months",
+         # is.na(RISK_CONDOMLESS_ANAL) & analp12m == "w/in 6m" ~ "1) Sexual Risk (anal sex) past 6 months",
+         # is.na(RISK_CONDOMLESS_ANAL) & analp12m == "w/in 12m" ~ "2) Sexual Risk (anal sex) past 12 months",
+         # is.na(RISK_CONDOMLESS_ANAL) & analp12m == ">p12m" ~ "3) Sexual Risk (anal sex) >12 months",
+         prep_risk_sexwithm == "yes-p01m" | hts_risk_sexwithm == "yes-p01m" ~ "1) Sexual Risk (anal sex) past 6 months",
+         prep_risk_sexwithm == "yes-p03m" | hts_risk_sexwithm == "yes-p03m" ~ "1) Sexual Risk (anal sex) past 6 months",
+         prep_risk_sexwithm == "yes-p06m" | hts_risk_sexwithm == "yes-p06m" ~ "1) Sexual Risk (anal sex) past 6 months",
+         prep_risk_sexwithm == "yes-p12m" | hts_risk_sexwithm == "yes-p12m" ~ "2) Sexual Risk (anal sex) past 12 months",
+         prep_risk_sexwithm == "yes-beyond_p12m" | hts_risk_sexwithm == "yes-beyond_p12m" ~ "3) Sexual Risk (anal sex) >12 months",
          date_last_sex_msm >= RECORD_P6M ~ "1) Sexual Risk (anal sex) past 6 months",
          date_last_sex_msm >= RECORD_P12M ~ "2) Sexual Risk (anal sex) past 12 months",
          date_last_sex_msm < RECORD_P12M ~ "3) Sexual Risk (anal sex) >12 months",
@@ -311,3 +333,4 @@ gf$linelist$kp6a <- gf$harp$prep$new_reg %>%
    ) %>%
    arrange(reach_date, `DISAG 3`) %>%
    distinct(CENTRAL_ID, .keep_all = TRUE)
+rm(risk)
