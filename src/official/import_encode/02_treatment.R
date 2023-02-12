@@ -153,8 +153,15 @@ local(envir = import, {
          # mutate(
          #    encoder = substr(encoder, 9, 2000),
          # ) %>%
+         # mutate(
+         #    encoder = str_squish(encoder),
+         #    encoder = case_when(
+         #       encoder == "rnrufon@doh.gov.ph" ~ "rnrufon.pbsp@gmail.com",
+         #       TRUE ~ encoder
+         #    )
+         # ) %>%
          left_join(
-            y  = .GlobalEnv$ohasis$ref_staff %>%
+            y          = .GlobalEnv$ohasis$ref_staff %>%
                mutate(
                   EMAIL = str_squish(EMAIL),
                   EMAIL = case_when(
@@ -166,45 +173,50 @@ local(envir = import, {
                   encoder    = EMAIL,
                   CREATED_BY = STAFF_ID
                ),
-            by = "encoder"
+            by         = "encoder",
+            na_matches = "never"
          ) %>%
          left_join(
-            y  = encoded$ref_faci %>%
+            y          = encoded$ref_faci %>%
                select(
                   TX_FACI = FACI_CODE,
                   FACI_ID
                ) %>%
                distinct_all(),
-            by = "TX_FACI"
+            by         = "TX_FACI",
+            na_matches = "never"
          ) %>%
          left_join(
-            y  = encoded$ref_faci %>%
+            y          = encoded$ref_faci %>%
                select(
                   DISPENSING_FACI = FACI_CODE,
                   DISP_FACI       = FACI_ID,
                   DISP_SUB_FACI   = SUB_FACI_ID
                ) %>%
                distinct_all(),
-            by = "DISPENSING_FACI"
+            by         = "DISPENSING_FACI",
+            na_matches = "never"
          ) %>%
          left_join(
-            y  = encoded$ref_faci %>%
+            y          = encoded$ref_faci %>%
                select(
                   REFER_FACI  = FACI_CODE,
                   REFER_BY_ID = FACI_ID
                ) %>%
                distinct_all(),
-            by = "REFER_FACI"
+            by         = "REFER_FACI",
+            na_matches = "never"
          ) %>%
          left_join(
-            y  = .GlobalEnv$import$STAFF %>%
+            y          = .GlobalEnv$import$STAFF %>%
                select(
                   PROVIDER_ID = USER_ID,
                   FACI_ID,
                   PROVIDER_NAME
                ) %>%
                distinct_all(),
-            by = c("FACI_ID", "PROVIDER_NAME")
+            by         = c("FACI_ID", "PROVIDER_NAME"),
+            na_matches = "never"
          ) %>%
          mutate(
             .after       = REC_ID,
@@ -414,7 +426,7 @@ local(envir = import, {
             SUB_FACI_ID = DISP_SUB_FACI
          ) %>%
          full_join(
-            y  = encoded$DISPENSE %>%
+            y          = encoded$DISPENSE %>%
                filter(!is.na(PAGE_ID), !stri_detect_fixed(DISP_DATE, "DUPLICATE")) %>%
                distinct_all() %>%
                group_by(
@@ -426,7 +438,8 @@ local(envir = import, {
                   ARV_NUM = row_number()
                ) %>%
                ungroup(),
-            by = c("encoder", "PAGE_ID", "DISP_DATE")
+            by         = c("encoder", "PAGE_ID", "DISP_DATE"),
+            na_matches = "never"
          ) %>%
          filter(is.na(DRUG))
 
@@ -443,7 +456,7 @@ local(envir = import, {
             SUB_FACI_ID = DISP_SUB_FACI
          ) %>%
          full_join(
-            y  = encoded$DISPENSE %>%
+            y          = encoded$DISPENSE %>%
                filter(!is.na(PAGE_ID), !stri_detect_fixed(DISP_DATE, "DUPLICATE")) %>%
                distinct_all() %>%
                group_by(
@@ -455,7 +468,8 @@ local(envir = import, {
                   ARV_NUM = row_number()
                ) %>%
                ungroup(),
-            by = c("encoder", "PAGE_ID", "DISP_DATE")
+            by         = c("encoder", "PAGE_ID", "DISP_DATE"),
+            na_matches = "never"
          ) %>%
          filter(is.na(REC_ID))
 
@@ -906,7 +920,7 @@ local(envir = import, {
             SUB_FACI_ID = DISP_SUB_FACI
          ) %>%
          full_join(
-            y  = encoded$DISPENSE %>%
+            y          = encoded$DISPENSE %>%
                filter(!is.na(PAGE_ID), !stri_detect_fixed(DISP_DATE, "DUPLICATE")) %>%
                distinct_all() %>%
                group_by(
@@ -918,7 +932,8 @@ local(envir = import, {
                   ARV_NUM = row_number()
                ) %>%
                ungroup(),
-            by = c("encoder", "PAGE_ID", "DISP_DATE")
+            by         = c("encoder", "PAGE_ID", "DISP_DATE"),
+            na_matches = "never"
          ) %>%
          filter(!is.na(REC_ID)) %>%
          left_join(
@@ -986,11 +1001,12 @@ local(envir = import, {
             SUB_FACI_ID = DISP_SUB_FACI
          ) %>%
          inner_join(
-            y  = encoded$DISCONTINUE %>%
+            y          = encoded$DISCONTINUE %>%
                mutate(
                   encoder = stri_replace_all_fixed(encoder, glue("{ohasis$ym}_"), ""),
                ),
-            by = c("encoder", "PAGE_ID")
+            by         = c("encoder", "PAGE_ID"),
+            na_matches = "never"
          ) %>%
          left_join(
             y  = encoded$ref_meds %>%
