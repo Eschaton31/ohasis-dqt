@@ -58,6 +58,13 @@ pipeline <- function(system, parent, step = NULL, group = "official") {
 
 # flow
 flow <- function(flow_env, tasks, wd = getwd(), parent_env = globalenv()) {
+   parent_name <- deparse(substitute(parent_env))
+   if (!(parent_name %in% c("globalenv()", ".GlobalEnv"))) {
+      if (!exists(parent_name, envir = .GlobalEnv)) {
+         .GlobalEnv[[parent_name]] <- new.env()
+      }
+   }
+
    # check if environment exists
    env_name <- deparse(substitute(flow_env))
    if (!exists(env_name, envir = parent_env))
