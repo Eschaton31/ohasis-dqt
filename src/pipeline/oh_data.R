@@ -100,3 +100,42 @@ calc_age <- function(birthdate, as_of_date = Sys.time(), date_format = "%Y-%m-%d
 
    return(age)
 }
+
+gen_agegrp <- function(age, cat_type = c("harp", "5yr")) {
+   age <- as.integer(floor(age))
+
+   if (cat_type == "harp") {
+      agegrp <- case_when(
+         age %in% seq(0, 14) ~ "<15",
+         age %in% seq(15, 24) ~ "15-24",
+         age %in% seq(25, 34) ~ "25-34",
+         age %in% seq(35, 49) ~ "35-49",
+         age %in% seq(50, 1000) ~ "50+",
+         TRUE ~ "(no data)"
+      )
+   }
+
+   if (cat_type == "5yr") {
+      agegrp <- case_when(
+         age %in% seq(0, 4) ~ "<15",
+         age %in% seq(5, 9) ~ "<15",
+         age %in% seq(10, 14) ~ "<15",
+         age %in% seq(15, 17) ~ "15-17",
+         age %in% seq(18, 19) ~ "18-19",
+         age %in% seq(20, 24) ~ "20-24",
+         age %in% seq(25, 29) ~ "25-29",
+         age %in% seq(30, 34) ~ "30-34",
+         age %in% seq(35, 49) ~ "35-49",
+         age %in% seq(50, 54) ~ "50-54",
+         age %in% seq(55, 59) ~ "55-59",
+         age %in% seq(60, 64) ~ "60-64",
+         age %in% seq(65, 69) ~ "65-69",
+         age %in% seq(70, 74) ~ "70-74",
+         age %in% seq(75, 79) ~ "75-79",
+         age %in% seq(80, 1000) ~ "80+",
+         TRUE ~ "(no data)"
+      )
+   }
+
+   return(agegrp)
+}
