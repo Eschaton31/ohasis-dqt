@@ -31,7 +31,7 @@ load_packages <- function(path_to_file) {
 
          # if package is not installed locally, download, then load
       else {
-         install.packages(package)
+         install.packages(package, lib = Sys.getenv("R_LIBS"))
          do.call("p_load", list(package))
       }
    }
