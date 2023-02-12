@@ -1,5 +1,12 @@
 for (ind in names(epic$linelist)) {
-   ind_name              <- toupper(ind)
+   ind_name <- toupper(ind)
+
+   new_cols <- c("DISAG 4", "DISAG 5", "DISAG 6")
+   for (col in new_cols) {
+      if (!(col %in% names(epic$linelist[[ind]])))
+         epic$linelist[[ind]][[col]] <- NA_character_
+   }
+
    epic$flat[[ind_name]] <- epic$linelist[[ind]] %>%
       filter(site_epic_2022 == 1) %>%
       mutate(
@@ -42,6 +49,9 @@ for (ind in names(epic$linelist)) {
          Age_Band,
          `DISAG 2`,
          `DISAG 3`,
+         `DISAG 4`,
+         `DISAG 5`,
+         `DISAG 6`,
          `Site City`,
          `Site Province`,
          `Site Region`,
@@ -73,6 +83,9 @@ for (ind in names(epic$linelist)) {
          `Type of Support`,
          `DISAG 2`,
          `DISAG 3`,
+         `DISAG 4`,
+         `DISAG 5`,
+         `DISAG 6`,
          `KP Population`,
          Age_Band,
          Value,
