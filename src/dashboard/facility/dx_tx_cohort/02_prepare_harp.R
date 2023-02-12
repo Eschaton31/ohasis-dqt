@@ -120,6 +120,7 @@ add_faci_info <- function(data) {
          list(CONFIRM_LAB = c("CONFIRM_FACI", "CONFIRM_SUB_FACI")),
          "name"
       ) %>%
+      mutate(FACI_ID = HARP_FACI) %>%
       ohasis$get_faci(
          list(DX_LAB = c("HARP_FACI", "HARP_SUB_FACI")),
          "name",
@@ -132,6 +133,7 @@ add_faci_info <- function(data) {
          "name",
          c("TX_REG", "TX_PROV", "TX_MUNC")
       ) %>%
+      mutate(CURR_FACI = REAL_FACI) %>%
       ohasis$get_faci(
          list(REAL_HUB = c("REAL_FACI", "REAL_SUB_FACI")),
          "name",
@@ -422,10 +424,10 @@ attach_tx_to_dx <- function(data) {
                latest_regimen,
                latest_ffupdate,
                latest_nextpickup,
-               REAL_HUB,
-               REAL_REG,
-               REAL_MUNC,
-               REAL_MUNC,
+               CURR_TX_HUB  = REAL_HUB,
+               CURR_TX_REG  = REAL_REG,
+               CURR_TX_PROV = REAL_PROV,
+               CURR_TX_MUNC = REAL_MUNC
             ),
          by = join_by(idnum)
       )
@@ -460,7 +462,7 @@ attach_tx_to_dx <- function(data) {
    return(data)
 }
 
-remove_cols <- function(data) {
+remove_cols <- function(data, oh) {
    data$dx %<>%
       select(
          -ends_with("PSGC_MUNC"),
@@ -485,7 +487,6 @@ remove_cols <- function(data) {
             "DX_FACI",
             "DX_SUB_FACI",
             "remarks",
-            "FACI_ID",
             "SUB_FACI_ID",
             "SERVICE_FACI",
             "SERVICE_SUB_FACI",
@@ -523,6 +524,36 @@ remove_cols <- function(data) {
             "startpickuplen",
             "ltfulen"
          ))
+      ) %>%
+      left_join(
+         y  = oh$tx %>%
+            mutate(ORIG_FACI = FACI_ID) %>%
+            ohasis$get_faci(
+               list(HUB_NAME = c("FACI_ID", "SUB_FACI_ID")),
+               "name",
+               c("HUB_REG", "HUB_PROV", "HUB_MUNC")
+            ) %>%
+            distinct(CENTRAL_ID, HUB_NAME, .keep_all = TRUE),
+         by = "CENTRAL_ID"
+      ) %>%
+      rename(
+         FACI_ID      = ORIG_FACI,
+         CURR_TX_HUB  = REAL_HUB,
+         CURR_TX_REG  = REAL_REG,
+         CURR_TX_PROV = REAL_PROV,
+         CURR_TX_MUNC = REAL_MUNC
+      ) %>%
+      mutate(
+         outcome     = case_when(
+            FACI_ID != CURR_FACI & outcome == "onart" ~ "transout - other hub",
+            FACI_ID == CURR_FACI ~ outcome,
+            TRUE ~ outcome
+         ),
+         outcome_new = case_when(
+            FACI_ID != CURR_FACI & outcome_new == "onart" ~ "transout - other hub",
+            FACI_ID == CURR_FACI ~ outcome_new,
+            TRUE ~ outcome_new
+         )
       )
 
    return(data)
@@ -535,5 +566,5 @@ remove_cols <- function(data) {
    p$data <- add_addr_info(p$data)
    p$data <- gen_disagg(p$data, p$params)
    p$data <- attach_tx_to_dx(p$data)
-   p$data <- remove_cols(p$data)
+   p$data <- remove_cols(p$data, p$oh)
 }
