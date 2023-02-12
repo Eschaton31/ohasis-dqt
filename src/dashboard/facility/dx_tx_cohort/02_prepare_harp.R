@@ -141,28 +141,44 @@ add_faci_info <- function(data) {
    return(data)
 }
 
+# attach address names
+add_addr_info <- function(data) {
+   data$dx %<>%
+      left_join(
+         y  = ohasis$ref_addr %>%
+            mutate(
+               drop = if_else(
+                  condition = StrLeft(PSGC_MUNC, 4) == "1339" & PSGC_MUNC != "133900000",
+                  true      = 1,
+                  false     = 0,
+                  missing   = 0
+               )
+            ) %>%
+            filter(drop == 0) %>%
+            select(
+               region         = NHSSS_REG,
+               province       = NHSSS_PROV,
+               muncity        = NHSSS_MUNC,
+               PERM_NAME_REG  = NAME_REG,
+               PERM_NAME_PROV = NAME_PROV,
+               PERM_NAME_MUNC = NAME_MUNC,
+               PERM_PSGC_REG  = PSGC_REG,
+               PERM_PSGC_PROV = PSGC_PROV,
+               PERM_PSGC_MUNC = PSGC_MUNC
+            ),
+         by = c("region", "province", "muncity")
+      )
+
+   return(data)
+}
+
 # disaggregations
 gen_disagg <- function(data, params) {
    data$dx %<>%
       mutate(
          # dx age
-         dx_age       = floor(age),
-         dx_age_c     = case_when(
-            dx_age >= 0 & dx_age < 15 ~ "<15",
-            dx_age >= 15 & dx_age < 25 ~ "15-24",
-            dx_age >= 25 & dx_age < 35 ~ "25-34",
-            dx_age >= 35 & dx_age < 50 ~ "35-49",
-            dx_age >= 50 & dx_age < 1000 ~ "50+",
-            TRUE ~ "(no data)"
-         ),
-         dx_age_c     = case_when(
-            dx_age >= 0 & dx_age < 15 ~ "<15",
-            dx_age >= 15 & dx_age < 25 ~ "15-24",
-            dx_age >= 25 & dx_age < 35 ~ "25-34",
-            dx_age >= 35 & dx_age < 50 ~ "35-49",
-            dx_age >= 50 & dx_age < 1000 ~ "50+",
-            TRUE ~ "(no data)"
-         ),
+         dx_age_c1    = gen_agegrp(age, "harp"),
+         dx_age_c2    = gen_agegrp(age, "5yr"),
 
          #sex
          sex          = case_when(
@@ -184,8 +200,18 @@ gen_disagg <- function(data, params) {
             TRUE ~ transmit
          ),
 
-         msm          = if_else(sex == "Male" & sexhow %in% c("HOMOSEXUAL", "BISEXUAL"), 1, 0, 0),
-         tgw          = if_else(sex == "Male" & self_identity %in% c("FEMALE", "OTHERS"), 1, 0, 0),
+         msm          = if_else(
+            sex == "Male" & sexhow %in% c("HOMOSEXUAL", "BISEXUAL"),
+            1,
+            0,
+            0
+         ),
+         tgw          = if_else(
+            sex == "Male" & self_identity %in% c("FEMALE", "OTHERS"),
+            1,
+            0,
+            0
+         ),
          kap_type     = case_when(
             transmit == "IVDU" ~ "PWID",
             msm == 1 & tgw == 0 ~ "MSM",
@@ -197,12 +223,18 @@ gen_disagg <- function(data, params) {
          ),
 
          confirm_type = case_when(
+            confirmlab == "OTHERS" ~ "OTHERS",
             is.na(rhivda_done) ~ "SACCL",
             rhivda_done == 0 ~ "SACCL",
             rhivda_done == 1 ~ "CrCL",
          ),
 
-         mortality    = if_else((dead != 1 | is.na(dead)) & (is.na(outcome) | outcome != "dead"), 0, 1, 1),
+         mortality    = if_else(
+            (dead != 1 | is.na(dead)) & (is.na(outcome) | outcome != "dead"),
+            0,
+            1,
+            1
+         ),
          dx           = if_else(!is.na(idnum), 1, 0, 0),
          dx_plhiv     = if_else(dx == 1 & mortality == 0, 1, 0, 0),
       )
@@ -210,23 +242,8 @@ gen_disagg <- function(data, params) {
    data$tx %<>%
       mutate(
          # dx age
-         tx_age                = floor(curr_age),
-         tx_age_c              = case_when(
-            tx_age >= 0 & tx_age < 15 ~ "<15",
-            tx_age >= 15 & tx_age < 25 ~ "15-24",
-            tx_age >= 25 & tx_age < 35 ~ "25-34",
-            tx_age >= 35 & tx_age < 50 ~ "35-49",
-            tx_age >= 50 & tx_age < 1000 ~ "50+",
-            TRUE ~ "(no data)"
-         ),
-         tx_age_c              = case_when(
-            tx_age >= 0 & tx_age < 15 ~ "<15",
-            tx_age >= 15 & tx_age < 25 ~ "15-24",
-            tx_age >= 25 & tx_age < 35 ~ "25-34",
-            tx_age >= 35 & tx_age < 50 ~ "35-49",
-            tx_age >= 50 & tx_age < 1000 ~ "50+",
-            TRUE ~ "(no data)"
-         ),
+         tx_age_c1             = gen_agegrp(curr_age, "harp"),
+         tx_age_c2             = gen_agegrp(curr_age, "5yr"),
 
          # sex
          sex                   = case_when(
@@ -253,9 +270,10 @@ gen_disagg <- function(data, params) {
          ),
          outcome_new           = case_when(
             outcome == "dead" ~ "dead",
-            outcome == "stopped" ~ "stopped",
-            diff > 30 ~ "ltfu",
             diff <= 30 ~ "onart",
+            grepl("stopped", outcome) & diff > 30 ~ outcome,
+            grepl("transout", outcome) & diff > 30 ~ outcome,
+            diff > 30 ~ "ltfu",
             outcome == "ltfu" ~ "ltfu",
             TRUE ~ "(no data)"
          ),
@@ -364,9 +382,147 @@ gen_disagg <- function(data, params) {
             ltfu_months > 120 ~ "(8) 10+ yrs. LTFU",
             TRUE ~ "(no data)"
          ),
+      )
 
-         ltfuestablish         = if_else(onart == 0 & startpickuplen_months >= 6, 1, 0, 0),
-         ltfuestablish_new     = if_else(onart_new == 0 & startpickuplen_months >= 6, 1, 0, 0),
+   return(data)
+}
+
+# disaggregations
+attach_tx_to_dx <- function(data) {
+   data$dx %<>%
+      select(-outcome) %>%
+      left_join(
+         y  = data$tx %>%
+            select(
+               idnum,
+               art_id,
+               tx_age_c1,
+               tx_age_c2,
+               everonart,
+               everonart_plhiv,
+               onart,
+               onart_new,
+               outcome,
+               outcome_new,
+               artestablish,
+               artestablish_new,
+               baseline_vl,
+               baseline_vl_new,
+               vltested,
+               vltested_new,
+               vlsuppress,
+               vlsuppress_50,
+               vlp12m,
+               mmd,
+               tld,
+               tle,
+               artlen,
+               startpickuplen,
+               ltfulen,
+               latest_regimen,
+               latest_ffupdate,
+               latest_nextpickup,
+               REAL_HUB,
+               REAL_REG,
+               REAL_MUNC,
+               REAL_MUNC,
+            ),
+         by = join_by(idnum)
+      )
+
+   data$tx %<>%
+      left_join(
+         y  = data$dx %>%
+            select(
+               idnum,
+               dx_age_c1,
+               dx_age_c2,
+               dx,
+               dx_plhiv,
+               mot,
+               kap_type,
+               confirm_type,
+               PERM_NAME_REG,
+               PERM_NAME_PROV,
+               PERM_NAME_MUNC,
+               PERM_PSGC_REG,
+               PERM_PSGC_PROV,
+               PERM_PSGC_MUNC,
+               DX_LAB,
+               DX_REG,
+               DX_PROV,
+               DX_MUNC,
+               CONFIRM_LAB
+            ),
+         by = join_by(idnum)
+      )
+
+   return(data)
+}
+
+remove_cols <- function(data) {
+   data$dx %<>%
+      select(
+         -ends_with("PSGC_MUNC"),
+         -ends_with("PSGC_PROV"),
+         -any_of(c(
+            "PATIENT_ID",
+            "REC_ID",
+            "transmit",
+            "sexhow",
+            "muncity",
+            "province",
+            "region",
+            "confirmlab",
+            "rhivda_done",
+            "dxlab_standa1rd",
+            "dx_muncity",
+            "dx_province",
+            "dx_region",
+            "TEST_FACI",
+            "mort",
+            "dead",
+            "DX_FACI",
+            "DX_SUB_FACI",
+            "remarks",
+            "FACI_ID",
+            "SUB_FACI_ID",
+            "SERVICE_FACI",
+            "SERVICE_SUB_FACI",
+            "use_record_faci",
+            "TEST_SUB_FACI",
+            "NHSSS_FACI",
+            "NHSSS_SUB_FACI",
+            "faci_src",
+            "msm",
+            "tgw"
+         ))
+      )
+
+   data$tx %<>%
+      select(
+         -ends_with("PSGC_MUNC"),
+         -ends_with("PSGC_PROV"),
+         -any_of(c(
+            "hub",
+            "branch",
+            "realhub",
+            "realhub_branch",
+            "previous_ffupdate",
+            "previous_nextpickup",
+            "previous_regimen",
+            "art_reg",
+            "PATIENT_ID",
+            "TX_HUB",
+            "TX_REG",
+            "TX_PROV",
+            "TX_MUNC",
+            "artlen_days",
+            "artlen_months",
+            "diff",
+            "startpickuplen",
+            "ltfulen"
+         ))
       )
 
    return(data)
@@ -376,5 +532,8 @@ gen_disagg <- function(data, params) {
    p      <- envir
    p$data <- get_faci_ids(p$harp, p$oh)
    p$data <- add_faci_info(p$data)
+   p$data <- add_addr_info(p$data)
    p$data <- gen_disagg(p$data, p$params)
+   p$data <- attach_tx_to_dx(p$data)
+   p$data <- remove_cols(p$data)
 }
