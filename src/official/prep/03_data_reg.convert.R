@@ -164,11 +164,7 @@ final_conversion <- function(data) {
          .vars = vars(
             sex,
          ),
-         ~if_else(
-            condition = !is.na(.),
-            true      = substr(., stri_locate_first_fixed(., "_") + 1, stri_length(.)),
-            false     = NA_character_
-         )
+         ~remove_code(.)
       )
 
    return(data)

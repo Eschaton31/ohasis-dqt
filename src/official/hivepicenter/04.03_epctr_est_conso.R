@@ -16,6 +16,7 @@ epictr$data$est <- epictr$data$est_dx %>%
             NAME_REG,
             NAME_PROV,
             NAME_MUNC,
+            NAME_AEM
          ) %>%
          mutate_at(
             .vars = vars(contains("PSGC")),
@@ -25,7 +26,7 @@ epictr$data$est <- epictr$data$est_dx %>%
    distinct_all() %>%
    mutate(
       report_yr = as.Date(paste(sep = "-", report_yr, "01-01")),
-      NAME_AEM  = if_else(aem_class %in% c("a", "ncr", "cebu city", "cebu province"), NAME_MUNC, NAME_PROV, NAME_PROV),
+      # NAME_AEM  = if_else(aem_class %in% c("a", "ncr", "cebu city", "cebu province"), NAME_MUNC, NAME_PROV, NAME_PROV),
    )
 
 lw_conn     <- ohasis$conn("lw")

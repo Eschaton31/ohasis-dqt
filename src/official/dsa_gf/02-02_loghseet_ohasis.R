@@ -3,155 +3,22 @@
 # list of current vars for code cleanup
 currEnv <- ls()[ls() != "currEnv"]
 
-##  Download relevant form data ------------------------------------------------
-
-# Form A + HTS Forms
-.log_info("Getting Form A data.")
-form_a <- gf$forms$form_a %>%
-   filter(
-      RECORD_DATE >= as.Date(gf$coverage$min),
-      RECORD_DATE <= as.Date(gf$coverage$max)
-   ) %>%
-   mutate(
-      FORM        = "Form A",
-      MODALITY    = "101101_FBT",
-      TEST_AGREED = "1_Yes"
-   ) %>%
-   select(
-      REC_ID,
-      FORM,
-      PATIENT_ID,
-      UIC,
-      SEX,
-      FACI_ID,
-      SELF_IDENT,
-      SELF_IDENT_OTHER,
-      TEST_FACI     = SERVICE_FACI,
-      TEST_SUB_FACI = SERVICE_SUB_FACI,
-      SERVICE_BY,
-      RECORD_DATE,
-      TEST_MSM      = FORMA_MSM,
-      TEST_TGW      = FORMA_TGW,
-      EXPOSE_SEX_M_NOCONDOM,
-      NUM_M_PARTNER,
-      NUM_F_PARTNER,
-      MODALITY,
-      TEST_AGREED,
-      TEST_DATE     = T0_DATE,
-      TEST_RESULT   = T0_RESULT,
-      T1_DATE,
-      T1_RESULT,
-      DATE_CONFIRM,
-      CONFIRM_RESULT,
-      CLINIC_NOTES,
-      COUNSEL_NOTES,
-      CREATED_BY
-   )
-
-.log_info("Getting HTS Form data.")
-form_hts <- gf$forms$form_hts %>%
-   filter(
-      RECORD_DATE >= as.Date(gf$coverage$min),
-      RECORD_DATE <= as.Date(gf$coverage$max)
-   ) %>%
-   mutate(FORM = "HTS Form") %>%
-   select(
-      REC_ID,
-      FORM,
-      PATIENT_ID,
-      UIC,
-      SEX,
-      FACI_ID,
-      SELF_IDENT,
-      SELF_IDENT_OTHER,
-      TEST_FACI     = SERVICE_FACI,
-      TEST_SUB_FACI = SERVICE_SUB_FACI,
-      SERVICE_BY,
-      RECORD_DATE,
-      TEST_MSM      = HTS_MSM,
-      TEST_TGW      = HTS_TGW,
-      HIV_SERVICE_ADDR,
-      EXPOSE_SEX_M_AV_DATE,
-      EXPOSE_SEX_M_AV_NOCONDOM_DATE,
-      EXPOSE_SEX_F_AV_DATE,
-      EXPOSE_SEX_F_AV_NOCONDOM_DATE,
-      TEST_AGREED   = SCREEN_AGREED,
-      MODALITY,
-      TEST_DATE     = T0_DATE,
-      TEST_RESULT   = T0_RESULT,
-      T1_DATE,
-      T1_RESULT,
-      DATE_CONFIRM,
-      CONFIRM_RESULT,
-      REACH_CLINICAL,
-      REACH_ONLINE,
-      REACH_INDEX_TESTING,
-      REACH_SSNT,
-      REACH_VENUE,
-      CLINIC_NOTES,
-      COUNSEL_NOTES,
-      CREATED_BY
-   )
-
-.log_info("Getting CFBS Form data.")
-form_cfbs <- gf$forms$form_cfbs %>%
-   filter(
-      RECORD_DATE >= as.Date(gf$coverage$min),
-      RECORD_DATE <= as.Date(gf$coverage$max)
-   ) %>%
-   mutate(
-      FORM = "CFBS Form"
-   ) %>%
-   select(
-      REC_ID,
-      FORM,
-      PATIENT_ID,
-      UIC,
-      SEX,
-      FACI_ID,
-      SELF_IDENT,
-      SELF_IDENT_OTHER,
-      TEST_FACI     = SERVICE_FACI,
-      TEST_SUB_FACI = SERVICE_SUB_FACI,
-      SERVICE_BY,
-      RECORD_DATE,
-      TEST_MSM      = CFBS_MSM,
-      TEST_TGW      = CFBS_TGW,
-      NUM_F_PARTNER,
-      NUM_M_PARTNER,
-      HIV_SERVICE_ADDR,
-      RISK_M_SEX_ORAL_ANAL,
-      RISK_CONDOMLESS_ANAL,
-      RISK_CONDOMLESS_ANAL_DATE,
-      RISK_CONDOMLESS_VAGINAL,
-      RISK_CONDOMLESS_VAGINAL_DATE,
-      TEST_AGREED   = SCREEN_AGREED,
-      MODALITY,
-      TEST_DATE,
-      TEST_RESULT,
-      CLINIC_NOTES,
-      COUNSEL_NOTES,
-      CREATED_BY
-   )
-
 ##  Combine testing data  ------------------------------------------------------
 
 .log_info("Creating unified reach dataset.")
-reach <- form_a %>%
-   bind_rows(form_hts) %>%
-   bind_rows(form_cfbs) %>%
-   # get cid for merging
-   left_join(
-      y  = gf$forms$id_registry,
-      by = "PATIENT_ID"
+hts_data <- process_hts(gf$forms$form_hts, gf$forms$form_a, gf$forms$form_cfbs) %>%
+   get_cid(gf$forms$id_registry, PATIENT_ID)
+reach    <- hts_data %>%
+   mutate(reach_date = hts_date) %>%
+   filter(
+      reach_date >= as.Date(gf$coverage$min),
+      reach_date <= as.Date(gf$coverage$max)
+   ) %>%
+   rename(
+      TEST_FACI     = SERVICE_FACI,
+      TEST_SUB_FACI = SERVICE_SUB_FACI
    ) %>%
    mutate(
-      CENTRAL_ID      = if_else(
-         condition = is.na(CENTRAL_ID),
-         true      = PATIENT_ID,
-         false     = CENTRAL_ID
-      ),
-
       # tag those without form faci
       use_record_faci = if_else(
          condition = is.na(TEST_FACI),
@@ -183,20 +50,8 @@ reach <- form_a %>%
          false     = FACI_ID
       ),
    ) %>%
-   select(-FACI_ID) %>%
-   mutate_at(
-      .var = vars(
-         names(select(
-            .,
-            -REC_ID,
-            -TEST_AGREED,
-            -MODALITY,
-            -starts_with("EXPOSE"),
-            -starts_with("RISK"),
-            -contains("RESULT")
-         ) %>% select_if(is.character))
-      ),
-      ~remove_code(.)
+   mutate(
+      GF_FACI_2 = GF_FACI,
    )
 
 ##  Facilities -----------------------------------------------------------------
@@ -222,6 +77,7 @@ reach <- ohasis$get_staff(reach, c("PROVIDER" = "SERVICE_BY"))
 # combine all testing forms
 .log_info("Generating logsheet.")
 gf$logsheet$ohasis <- reach %>%
+   rename(GF_FACI = GF_FACI_2) %>%
    rename(FINAL_RESULT = CONFIRM_RESULT) %>%
    select(-contains("CONFIRM")) %>%
    # registry data for old dx
@@ -372,9 +228,20 @@ gf$logsheet$ohasis <- reach %>%
       SEX              = case_when(
          CENTRAL_SEX == "MALE" ~ "M",
          CENTRAL_SEX == "FEMALE" ~ "F",
-         TRUE ~ StrLeft(SEX, 1)
+         TRUE ~ substr(SEX, 3, 3)
       ),
 
+      SELF_IDENT       = StrLeft(SELF_IDENT, 1),
+      SELF_IDENT       = case_when(
+         SELF_IDENT == "1" ~ "M",
+         SELF_IDENT == "2" ~ "F",
+         SELF_IDENT == "3" ~ "O",
+      ),
+
+
+      msm              = if_else(SEX == "M" & grepl("yes-", risk_sexwithm), 1, 0),
+      tgw              = if_else(SEX == "M" & SELF_IDENT == "F", 1, 0),
+      pwid             = if_else(grepl("yes-", risk_injectdrug), 1, 0),
       # final KAP
       KAP              = case_when(
          !is.na(transmit) &
@@ -385,10 +252,12 @@ gf$logsheet$ohasis <- reach %>%
             CENTRAL_TGW == 1 ~ "TGW",
          !is.na(transmit) &
             CENTRAL_PWID == 1 ~ "PWID",
-         is.na(transmit) &
-            TEST_MSM == 1 &
-            (is.na(TEST_TGW) | TEST_TGW == 0) ~ "MSM",
-         is.na(transmit) & TEST_MSM == 1 & TEST_TGW == 1 ~ "TGW",
+         # is.na(transmit) &
+         #    TEST_MSM == 1 &
+         #    (is.na(TEST_TGW) | TEST_TGW == 0) ~ "MSM",
+         # is.na(transmit) & TEST_MSM == 1 & TEST_TGW == 1 ~ "TGW",
+         is.na(transmit) & msm == 1 & tgw == 0 ~ "MSM",
+         is.na(transmit) & msm == 1 & tgw == 1 ~ "TGW",
          CENTRAL_SEX == "MALE" & sexhow == "HETEROSEXUAL" ~ "Hetero Male",
          CENTRAL_SEX == "FEMALE" & sexhow == "HETEROSEXUAL" ~ "Hetero Female",
          TRUE ~ "OTHERS"
@@ -404,33 +273,35 @@ gf$logsheet$ohasis <- reach %>%
          RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ EXPOSE_SEX_M_AV_NOCONDOM_DATE,
       ),
       SEX_ORAL         = case_when(
-         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "1" ~ "Y",
-         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "2" ~ "Y",
-         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "0" ~ "N",
+         StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "1" ~ "Y",
+         StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "2" ~ "Y",
+         StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "0" ~ "N",
          TRUE ~ "N"
       ),
       SEX_ANAL_RECEIVE = case_when(
-         RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ "Y",
-         RECORD_P12M <= EXPOSE_SEX_M_AV_NOCONDOM_DATE & is.na(EXPOSE_SEX_M_AV_DATE) ~ "Y",
-         RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE > EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
-         RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
-         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "1" ~ "Y",
-         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "2" ~ "Y",
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "1" ~ "Y",
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "2" ~ "Y",
-         StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == "1" ~ "Y",
+         risk_sexwithm %in% c("yes-p01m", "yes-p03m", "yes-p06m", "yes-p12m") ~ "Y",
+         # RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ "Y",
+         # RECORD_P12M <= EXPOSE_SEX_M_AV_NOCONDOM_DATE & is.na(EXPOSE_SEX_M_AV_DATE) ~ "Y",
+         # RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE > EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
+         # RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
+         # StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "1" ~ "Y",
+         # StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "2" ~ "Y",
+         # StrLeft(EXPOSE_CONDOMLESS_ANAL, 1) == "1" ~ "Y",
+         # StrLeft(EXPOSE_CONDOMLESS_ANAL, 1) == "2" ~ "Y",
+         # StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == "1" ~ "Y",
          TRUE ~ "N"
       ),
       SEX_ANAL_INSERT  = case_when(
-         RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ "Y",
-         RECORD_P12M <= EXPOSE_SEX_M_AV_NOCONDOM_DATE & is.na(EXPOSE_SEX_M_AV_DATE) ~ "Y",
-         RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE > EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
-         RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
-         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "1" ~ "Y",
-         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "2" ~ "Y",
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "1" ~ "Y",
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "2" ~ "Y",
-         StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == "1" ~ "Y",
+         risk_sexwithm %in% c("yes-p01m", "yes-p03m", "yes-p06m", "yes-p12m") ~ "Y",
+         # RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ "Y",
+         # RECORD_P12M <= EXPOSE_SEX_M_AV_NOCONDOM_DATE & is.na(EXPOSE_SEX_M_AV_DATE) ~ "Y",
+         # RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE > EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
+         # RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
+         # StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "1" ~ "Y",
+         # StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "2" ~ "Y",
+         # StrLeft(EXPOSE_CONDOMLESS_ANAL, 1) == "1" ~ "Y",
+         # StrLeft(EXPOSE_CONDOMLESS_ANAL, 1) == "2" ~ "Y",
+         # StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == "1" ~ "Y",
          TRUE ~ "N"
       ),
       analp12m         = case_when(
@@ -446,71 +317,78 @@ gf$logsheet$ohasis <- reach %>%
          RECORD_P12M > EXPOSE_SEX_M_AV_NOCONDOM_DATE & is.na(EXPOSE_SEX_M_AV_DATE) ~ ">p12m",
          RECORD_P12M > EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE > EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ ">p12m",
          RECORD_P12M > EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ ">p12m",
-         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "1" ~ "w/in 12m",
-         StrLeft(RISK_M_SEX_ORAL_ANAL, 1) == "2" ~ ">p12m",
+         StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "1" ~ "w/in 12m",
+         StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "2" ~ ">p12m",
          StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == "2" ~ ">p12m",
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "1" ~ "w/in 12m",
-         StrLeft(RISK_CONDOMLESS_ANAL, 1) == "2" ~ ">p12m",
+         StrLeft(EXPOSE_CONDOMLESS_ANAL, 1) == "1" ~ "w/in 12m",
+         StrLeft(EXPOSE_CONDOMLESS_ANAL, 1) == "2" ~ ">p12m",
          StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == "1" ~ "w/in 12m",
          SEX_ANAL_INSERT == "Y" | SEX_ANAL_RECEIVE == "Y" ~ ">p12m",
          TRUE ~ "(no data)"
       ),
       SEX_VAGINAL      = case_when(
-         StrLeft(RISK_CONDOMLESS_VAGINAL, 1) == "1" ~ "Y",
-         StrLeft(RISK_CONDOMLESS_VAGINAL, 1) == "0" ~ "N",
-         StrLeft(RISK_CONDOMLESS_VAGINAL, 1) == "2" ~ "N",
-         RECORD_P12M <= EXPOSE_SEX_M_AV_DATE ~ "Y",
-         RECORD_P12M <= EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
-         RECORD_P12M <= EXPOSE_SEX_F_AV_DATE ~ "Y",
-         RECORD_P12M <= EXPOSE_SEX_F_AV_NOCONDOM_DATE ~ "Y",
-         !is.na(EXPOSE_SEX_M_AV_DATE) ~ "Y",
-         !is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ "Y",
-         !is.na(EXPOSE_SEX_F_AV_DATE) ~ "Y",
-         !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ "Y",
+         risk_sexwithf %in% c("yes-p01m", "yes-p03m", "yes-p06m", "yes-p12m") ~ "Y",
+         # StrLeft(EXPOSE_CONDOMLESS_VAGINAL, 1) == "1" ~ "Y",
+         #  StrLeft(EXPOSE_CONDOMLESS_VAGINAL, 1) == "0" ~ "N",
+         #  StrLeft(EXPOSE_CONDOMLESS_VAGINAL, 1) == "2" ~ "N",
+         #  RECORD_P12M <= EXPOSE_SEX_M_AV_DATE ~ "Y",
+         #  RECORD_P12M <= EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
+         #  RECORD_P12M <= EXPOSE_SEX_F_AV_DATE ~ "Y",
+         #  RECORD_P12M <= EXPOSE_SEX_F_AV_NOCONDOM_DATE ~ "Y",
+         #  !is.na(EXPOSE_SEX_M_AV_DATE) ~ "Y",
+         #  !is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ "Y",
+         #  !is.na(EXPOSE_SEX_F_AV_DATE) ~ "Y",
+         #  !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ "Y",
          TRUE ~ "N"
       ),
       CONDOM_STAGE     = "N/A",
       TESTED           = case_when(
-         StrLeft(TEST_AGREED, 1) == "0" ~ "Not Tested",
-         StrLeft(MODALITY, 6) == "101101" ~ "Facility/Clinic (by MedTech)",
-         StrLeft(MODALITY, 6) == "101104" ~ "Outreach/Community (by MedTech)",
-         StrLeft(MODALITY, 6) == "101103" ~ "CBS",
-         StrLeft(MODALITY, 6) == "101105" ~ "Self-testing / Self-testing (No Result)",
-         !is.na(TEST_DATE) &
-            is.na(MODALITY) &
-            GF_FACI == "130605" ~ "CBS",
-         !is.na(TEST_DATE) &
-            is.na(MODALITY) &
-            GF_FACI != "130605" ~ "Facility/Clinic (by MedTech)",
-         StrLeft(MODALITY, 6) == "101304" ~ "Not Tested",
+         StrLeft(SCREEN_AGREED, 1) == "0" ~ "Not Tested",
+         hts_modality == "FBT" ~ "Facility/Clinic (by MedTech)",
+         hts_modality == "FBS" ~ "Outreach/Community (by MedTech)",
+         hts_modality == "CBS" ~ "CBS",
+         hts_modality == "ST" ~ "Self-testing / Self-testing (No Result)",
+         # !is.na(TEST_DATE) &
+         #    is.na(MODALITY) &
+         #    GF_FACI == "130605" ~ "CBS",
+         # !is.na(TEST_DATE) &
+         #    is.na(MODALITY) &
+         #    GF_FACI != "130605" ~ "Facility/Clinic (by MedTech)",
+         hts_modality == "REACH" ~ "Not Tested",
          is.na(TEST_DATE) ~ "Not Tested",
          TRUE ~ MODALITY
       ),
       EVERONPREP       = if_else(!is.na(prepstart_date), "N", "Y"),
       REACTIVE         = case_when(
-         StrLeft(TEST_RESULT, 1) == "1" ~ "Y",
-         StrLeft(T1_RESULT, 1) == "1" ~ "Y",
-         StrLeft(TEST_RESULT, 1) == "2" ~ "N",
-         StrLeft(TEST_RESULT, 1) == "3" ~ "N",
-         StrLeft(T1_RESULT, 1) == "2" ~ "N",
-         StrLeft(T1_RESULT, 1) == "3" ~ "N",
-         StrLeft(FINAL_RESULT, 1) == "1" ~ "Y",
-         StrLeft(FINAL_RESULT, 1) == "2" ~ "N",
-         StrLeft(FINAL_RESULT, 1) == "3" ~ "N",
-         StrLeft(FINAL_RESULT, 1) == "4" ~ "N",
+         hts_result == "R" ~ "Y",
+         # StrLeft(TEST_RESULT, 1) == "1" ~ "Y",
+         # StrLeft(T1_RESULT, 1) == "1" ~ "Y",
+         # StrLeft(TEST_RESULT, 1) == "2" ~ "N",
+         # StrLeft(TEST_RESULT, 1) == "3" ~ "N",
+         # StrLeft(T1_RESULT, 1) == "2" ~ "N",
+         # StrLeft(T1_RESULT, 1) == "3" ~ "N",
+         # StrLeft(FINAL_RESULT, 1) == "1" ~ "Y",
+         # StrLeft(FINAL_RESULT, 1) == "2" ~ "N",
+         # StrLeft(FINAL_RESULT, 1) == "3" ~ "N",
+         # StrLeft(FINAL_RESULT, 1) == "4" ~ "N",
          TRUE ~ "N"
       ),
       TEST_DATE        = case_when(
-         is.na(TEST_DATE) & !is.na(TEST_RESULT) ~ RECORD_DATE,
-         is.na(TEST_DATE) & !is.na(T1_RESULT) ~ RECORD_DATE,
-         TRUE ~ as.Date(TEST_DATE)
+         # is.na(TEST_DATE) & !is.na(TEST_RESULT) ~ RECORD_DATE,
+         # is.na(TEST_DATE) & !is.na(T1_RESULT) ~ RECORD_DATE,
+         TESTED != "Not Tested" ~ hts_date
       ),
-      DOH_FORM         = glue::glue("DOH-EB Form: {FORM}")
+      FORM             = case_when(
+         src == "hts2021" ~ "HTS Form",
+         src == "a2017" ~ "Form A",
+         src == "cfbs2020" ~ "CFBS Form",
+      ),
+      DOH_FORM         = glue::glue("DOH-EB Form: {FORM}"),
    ) %>%
    unite(
       col   = "VENUE_TYPE",
       sep   = " ",
-      starts_with("reach_", ignore.case = FALSE),
+      starts_with("reach_", ignore.case = FALSE) & !matches("reach_date"),
       na.rm = TRUE
    ) %>%
    unite(
@@ -529,43 +407,33 @@ gf$logsheet$ohasis <- reach %>%
    #    by = "CENTRAL_ID"
    # ) %>%
    left_join(
-      y  = form_a %>%
-         bind_rows(form_hts) %>%
-         # get cid for merging
-         left_join(
-            y  = gf$forms$id_registry,
-            by = "PATIENT_ID"
-         ) %>%
+      y  = hts_data %>%
          mutate(
-            CENTRAL_ID = if_else(
-               condition = is.na(CENTRAL_ID),
-               true      = PATIENT_ID,
-               false     = CENTRAL_ID
-            ),
-
-            use_test   = case_when(
-               !is.na(TEST_RESULT) ~ "t0",
-               is.na(TEST_RESULT) & !is.na(T1_RESULT) ~ "t1",
-               is.na(TEST_RESULT) &
-                  is.na(T1_RESULT) &
-                  !is.na(CONFIRM_RESULT) ~ "confirm",
-            ),
-            T1_DATE    = case_when(
-               use_test == "t0" ~ as.Date(TEST_DATE),
-               use_test == "t1" ~ as.Date(T1_DATE),
-               use_test == "confirm" ~ as.Date(RECORD_DATE),
-               TRUE ~ RECORD_DATE
-            ),
-            T1_RESULT  = case_when(
-               use_test == "t0" ~ StrLeft(TEST_RESULT, 1),
-               use_test == "t1" ~ StrLeft(T1_RESULT, 1),
-               use_test == "confirm" ~ StrLeft(CONFIRM_RESULT, 1),
-               TRUE ~ NA_character_
-            ),
+            # use_test   = case_when(
+            #    !is.na(TEST_RESULT) ~ "t0",
+            #    is.na(TEST_RESULT) & !is.na(T1_RESULT) ~ "t1",
+            #    is.na(TEST_RESULT) &
+            #       is.na(T1_RESULT) &
+            #       !is.na(CONFIRM_RESULT) ~ "confirm",
+            # ),
+            # T1_DATE    = case_when(
+            #    use_test == "t0" ~ as.Date(TEST_DATE),
+            #    use_test == "t1" ~ as.Date(T1_DATE),
+            #    use_test == "confirm" ~ as.Date(RECORD_DATE),
+            #    TRUE ~ RECORD_DATE
+            # ),
+            # T1_RESULT  = case_when(
+            #    use_test == "t0" ~ StrLeft(TEST_RESULT, 1),
+            #    use_test == "t1" ~ StrLeft(T1_RESULT, 1),
+            #    use_test == "confirm" ~ StrLeft(CONFIRM_RESULT, 1),
+            #    TRUE ~ NA_character_
+            # ),
+            T1_DATE   = hts_date,
+            T1_RESULT = hts_result
          ) %>%
          filter(
-            !is.na(T1_RESULT),
-            StrLeft(MODALITY, 6) == "101101"
+            T1_RESULT != "(no data)",
+            hts_modality == "FBT"
          ) %>%
          arrange(desc(T1_DATE)) %>%
          distinct(CENTRAL_ID, .keep_all = TRUE) %>%
@@ -627,7 +495,7 @@ gf$logsheet$ohasis <- reach %>%
    ) %>%
    mutate(
       T1_COMPLETE = if_else(
-         condition = RECORD_DATE <= T1_GF_DATE,
+         condition = reach_date <= T1_GF_DATE,
          true      = "Y",
          false     = "N",
          missing   = "N"
@@ -646,9 +514,9 @@ gf$logsheet$ohasis <- reach %>%
       ),
       DATE_CONFIRMED = confirm_date,
       SELF_IDENT     = case_when(
-         StrLeft(SELF_IDENT, 1) == "1" ~ "MAN",
-         StrLeft(SELF_IDENT, 1) == "2" ~ "WOMAN",
-         StrLeft(SELF_IDENT, 1) == "3" ~ "OTHER",
+         SELF_IDENT == "M" ~ "MAN",
+         SELF_IDENT == "F" ~ "WOMAN",
+         SELF_IDENT == "O" ~ "OTHER",
       ),
    ) %>%
    distinct_all() %>%
@@ -659,13 +527,13 @@ gf$logsheet$ohasis <- reach %>%
    ) %>%
    arrange(RECORD_DATE, DATE_CONFIRMED) %>%
    distinct(CENTRAL_ID, GF_SITE, RECORD_DATE, MODALITY, .keep_all = TRUE) %>%
-   arrange(GF_SITE, RECORD_DATE) %>%
-   mutate(
-      reach_date = case_when(
-         TEST_DATE >= 2020 ~ TEST_DATE,
-         TRUE ~ RECORD_DATE
-      )
-   ) %>%
+   arrange(GF_SITE, reach_date) %>%
+   # mutate(
+   #    reach_date = case_when(
+   #       TEST_DATE >= 2020 ~ TEST_DATE,
+   #       TRUE ~ RECORD_DATE
+   #    )
+   # ) %>%
    filter(reach_date >= as.Date(gf$coverage$min)) %>%
    select(
       ohasis_id            = CENTRAL_ID,

@@ -78,3 +78,153 @@ range_write_color <- function(ss, sheet, column, color) {
    )
    googlesheets4::request_make(req)
 }
+
+dedup_by <- function(ss, sheet, col_start, col_end) {
+   col_formula <- col_start
+
+   # columns must be letters
+   col_start <- xlcolconv(col_start)-1
+   col_end   <- xlcolconv(col_end)-1
+
+   # get sheet properties
+   req <- googlesheets4::request_generate(
+      endpoint = "sheets.spreadsheets.get",
+      params   = list(spreadsheetId = ss)
+   )
+   val <- googlesheets4::request_make(req)
+   res <- httr::content(val)
+   for (i in seq_len(length(res$sheets))) {
+      sheet_name <- res$sheets[[i]]$properties$title
+
+      if (sheet_name == sheet)
+         sheet_id <- res$sheets[[i]]$properties$sheetId
+   }
+
+   # write to sheet
+   req <- googlesheets4::request_generate(
+      endpoint = "sheets.spreadsheets.batchUpdate",
+      params   = list(
+         spreadsheetId = ss,
+         requests      = list(
+            setDataValidation = list(
+               rule  = list(
+                  condition    = list(
+                     type   = 'ONE_OF_LIST',
+                     values = list(
+                        list(userEnteredValue = "Y"),
+                        list(userEnteredValue = "N")
+                     )
+                  ),
+                  showCustomUi = TRUE
+               ),
+               range = list(
+                  sheetId          = sheet_id,
+                  # startRowIndex    = row_start,
+                  # endRowIndex      = row_end,
+                  startColumnIndex = col_start,
+                  endColumnIndex   = col_end
+               )
+            )
+         )
+      )
+   )
+   googlesheets4::request_make(req)
+
+   # conditional formatting
+   req <- googlesheets4::request_generate(
+      endpoint = "sheets.spreadsheets.batchUpdate",
+      params   = list(
+         spreadsheetId = ss,
+         requests      = list(
+            deleteConditionalFormatRule = list(
+               index   = 0,
+               sheetId = sheet_id
+            )
+         )
+      )
+   )
+   googlesheets4::request_make(req)
+   req <- googlesheets4::request_generate(
+      endpoint = "sheets.spreadsheets.batchUpdate",
+      params   = list(
+         spreadsheetId = ss,
+         requests      = list(
+            deleteConditionalFormatRule = list(
+               index   = 0,
+               sheetId = sheet_id
+            )
+         )
+      )
+   )
+   googlesheets4::request_make(req)
+   req <- googlesheets4::request_generate(
+      endpoint = "sheets.spreadsheets.batchUpdate",
+      params   = list(
+         spreadsheetId = ss,
+         requests      = list(
+            addConditionalFormatRule = list(
+               rule = list(
+                  ranges      = list(
+                     sheetId          = sheet_id,
+                     # startRowIndex    = row_start,
+                     # endRowIndex      = row_end,
+                     startColumnIndex = col_start,
+                     endColumnIndex   = col_end
+                  ),
+                  booleanRule = list(
+                     condition = list(
+                        type   = "CUSTOM_FORMULA",
+                        values = list(userEnteredValue = glue(r"(={col_formula}1 = "Y")"))
+                     ),
+                     format    = list(
+                        backgroundColorStyle = list(
+                           rgbColor = list(
+                              red   = 97 / 255,
+                              green = 226 / 255,
+                              blue  = 148 / 255
+                           )
+                        )
+                     )
+                  )
+               )
+            )
+         )
+      )
+   )
+   googlesheets4::request_make(req)
+   req <- googlesheets4::request_generate(
+      endpoint = "sheets.spreadsheets.batchUpdate",
+      params   = list(
+         spreadsheetId = ss,
+         requests      = list(
+            addConditionalFormatRule = list(
+               rule = list(
+                  ranges      = list(
+                     sheetId          = sheet_id,
+                     # startRowIndex    = row_start,
+                     # endRowIndex      = row_end,
+                     startColumnIndex = col_start,
+                     endColumnIndex   = col_end
+                  ),
+                  booleanRule = list(
+                     condition = list(
+                        type   = "CUSTOM_FORMULA",
+                        values = list(userEnteredValue = glue(r"(={col_formula}1 = "N")"))
+                     ),
+                     format    = list(
+                        backgroundColorStyle = list(
+                           rgbColor = list(
+                              red   = 189 / 255,
+                              green = 147 / 255,
+                              blue  = 216 / 255
+                           )
+                        )
+                     )
+                  )
+               )
+            )
+         )
+      )
+   )
+   googlesheets4::request_make(req)
+}

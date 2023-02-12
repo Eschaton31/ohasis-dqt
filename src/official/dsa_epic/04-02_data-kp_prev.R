@@ -2,7 +2,27 @@
 
 epic$linelist$kp_prev <- epic$linelist$hts_tst %>%
    mutate(
-      SCREEN_AGREED = "1_Yes"
+      SCREEN_AGREED  = "1_Yes",
+      FINAL_FACI     = case_when(
+         old_dx == 0 & !is.na(CENTRAL_FACI) ~ CENTRAL_FACI,
+         use_test == "confirm" ~ CONFIRM_FACI,
+         use_test == "test" ~ TEST_FACI,
+         use_test == "cfbs" ~ CFBS_FACI,
+         use_test == "st" ~ ST_FACI,
+      ),
+      FINAL_SUB_FACI = case_when(
+         old_dx == 0 & !is.na(CENTRAL_FACI) ~ CENTRAL_SUB_FACI,
+         use_test == "confirm" ~ CONFIRM_SUB_FACI,
+         use_test == "test" ~ TEST_SUB_FACI,
+         use_test == "cfbs" ~ CFBS_SUB_FACI,
+         use_test == "st" ~ ST_SUB_FACI,
+      ),
+      FINAL_SUB_FACI = if_else(
+         condition = !(FINAL_FACI %in% c("130001", "130605")),
+         true      = NA_character_,
+         false     = FINAL_SUB_FACI,
+         missing   = FINAL_SUB_FACI
+      ),
    ) %>%
    select(
       CENTRAL_ID,
@@ -89,7 +109,7 @@ epic$linelist$kp_prev <- epic$linelist$hts_tst %>%
       ),
 
       # old confirmed
-      old_dx = case_when(
+      old_dx          = case_when(
          confirm_date >= as.Date(epic$coverage$min) ~ 0,
          ref_report < as.Date(epic$coverage$min) ~ 1,
          TRUE ~ 0
@@ -190,7 +210,7 @@ epic$linelist$kp_prev <- epic$linelist$hts_tst %>%
          missing   = "(no data)"
       ),
 
-      PREV_SUB_FACI    = if_else(
+      PREV_SUB_FACI   = if_else(
          condition = !(PREV_FACI %in% c("130001", "130605")),
          true      = NA_character_,
          false     = PREV_SUB_FACI,

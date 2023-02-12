@@ -28,6 +28,8 @@ icap$linelist$prep_ineligible <- icap$harp$prep$new_reg %>%
 
       # KAP
       msm             = case_when(
+         stri_detect_fixed(prep_risk_sexwithm, "yes") ~ 1,
+         stri_detect_fixed(hts_risk_sexwithm, "yes") ~ 1,
          kp_msm == 1 ~ 1,
          TRUE ~ 0
       ),
@@ -44,11 +46,7 @@ icap$linelist$prep_ineligible <- icap$harp$prep$new_reg %>%
          missing   = 0
       ),
       unknown         = if_else(
-         condition = kp_msm == 0 &
-            kp_tgp == 0 &
-            kp_sw == 0 &
-            kp_pwid == 0 &
-            kp_tgw == 0,
+         condition = risks == "(no data)",
          true      = 1,
          false     = 0,
          missing   = 0

@@ -44,17 +44,19 @@ gmail$nhsss$ss    <- c(
 )
 gmail$nhsss$dqt   <- c(
    "mcrendon@doh.gov.ph",
-   "kmasilo@doh.gov.ph"
+   "kmasilo@doh.gov.ph",
+   "nesaplagio@doh.gov.ph",
+   "fqyap@doh.gov.ph"
 )
 gmail$nhsss$dat   <- c(
    "jsmartinez@doh.gov.ph",
    "cjtinaja@doh.gov.ph",
    "kapamittan@doh.gov.ph",
    "jfnadal@doh.gov.ph",
-   "rpamor@doh.gov.ph",
    "roricaflanca.doh@gmail.com",
    "jmdeliso@doh.gov.ph",
-   "macabreros.doh@gmail.com"
+   "macabreros.doh@gmail.com",
+   "macabreros@doh.gov.ph"
 )
 gmail$nhsss$ihbss <- c(
    "jsmartinez@doh.gov.ph",

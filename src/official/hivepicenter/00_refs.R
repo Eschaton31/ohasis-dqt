@@ -41,10 +41,9 @@ epictr$ref_addr  <- ohasis$ref_addr %>%
       )
    ) %>%
    left_join(
-      y          = read_sheet(
-         as_id("16_ytFIRiAgmo6cqtoy0JkZoI62S5IuWxKyNKHO_R1fs"),
-         "v2022"
-      ) %>%
+      y          = as_id("16_ytFIRiAgmo6cqtoy0JkZoI62S5IuWxKyNKHO_R1fs") %>%
+         read_sheet("v2022") %>%
+         filter(muncity != "ROTP") %>%
          select(
             aem_class,
             PSGC_REG,
@@ -53,9 +52,26 @@ epictr$ref_addr  <- ohasis$ref_addr %>%
          ),
       na_matches = "never"
    ) %>%
+   left_join(
+      y          = as_id("16_ytFIRiAgmo6cqtoy0JkZoI62S5IuWxKyNKHO_R1fs") %>%
+         read_sheet("v2022") %>%
+         filter(muncity == "ROTP") %>%
+         select(
+            aem_class_rotp = aem_class,
+            PSGC_REG,
+            PSGC_PROV
+         ),
+      na_matches = "never"
+   ) %>%
    mutate(
-      PSGC_AEM = if_else(aem_class %in% c("a", "ncr", "cebu city", "cebu province"), PSGC_MUNC, PSGC_PROV, PSGC_PROV),
-      NAME_AEM = if_else(aem_class %in% c("a", "ncr", "cebu city", "cebu province"), NAME_MUNC, NAME_PROV, NAME_PROV),
+      rotp = if_else(is.na(aem_class) & !is.na(aem_class_rotp), 1, 0, 0),
+      aem_class = if_else(rotp == 1, aem_class, aem_class),
+      PSGC_AEM  = if_else(aem_class %in% c("a", "ncr", "cebu city", "cebu province"), PSGC_MUNC, PSGC_PROV, PSGC_PROV),
+      NAME_AEM  = case_when(
+         aem_class %in% c("a", "ncr", "cebu city", "cebu province") & rotp != 1 ~ NAME_MUNC,
+         rotp == 1 & !grepl("Province", NAME_PROV) ~ paste0(NAME_PROV, " Province"),
+         TRUE ~ NAME_PROV
+      ),
    ) %>%
    mutate(
       NAME_PROV = case_when(

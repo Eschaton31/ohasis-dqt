@@ -108,7 +108,8 @@ local(envir = epictr, {
                muncity  = NHSSS_MUNC,
                PSGC_REG,
                PSGC_PROV,
-               PSGC_MUNC
+               PSGC_MUNC,
+               PSGC_AEM
             ),
          by = c(
             "region",
@@ -120,9 +121,9 @@ local(envir = epictr, {
          .vars = vars(starts_with("PSGC")),
          ~if_else(. != "", paste0("PH", .), "")
       ) %>%
-      mutate(
-         PSGC_AEM = if_else(aem_class %in% c("a", "ncr", "cebu city", "cebu province"), PSGC_MUNC, PSGC_PROV, PSGC_PROV),
-      ) %>%
+      # mutate(
+      #    PSGC_AEM = if_else(aem_class %in% c("a", "ncr", "cebu city", "cebu province"), PSGC_MUNC, PSGC_PROV, PSGC_PROV),
+      # ) %>%
       select(
          region,
          province,

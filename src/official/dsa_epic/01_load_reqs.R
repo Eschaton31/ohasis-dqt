@@ -397,6 +397,35 @@ if (check == "1") {
                select(prep_id, CENTRAL_ID),
             by = "prep_id"
          )
+
+      if (!("prep_risk_sexwithm" %in% names(harp$prep$new_outcome)))
+         harp$prep$new_outcome %<>% mutate(prep_risk_sexwithm = "(no data)")
+
+      if (!("hts_risk_sexwithm" %in% names(harp$prep$new_outcome)))
+         harp$prep$new_outcome %<>% mutate(hts_risk_sexwithm = "(no data)")
+
+      risk <- harp$prep$new_outcome %>%
+         select(
+            prep_id,
+            contains("risk", ignore.case = FALSE)
+         ) %>%
+         select(-ends_with("screen")) %>%
+         pivot_longer(
+            cols = contains("risk", ignore.case = FALSE)
+         ) %>%
+         group_by(prep_id) %>%
+         summarise(
+            risks = paste0(collapse = ", ", unique(sort(value)))
+         ) %>%
+         ungroup()
+
+      harp$prep$new_outcome %<>%
+         left_join(risk)
+
+      if (!("risks" %in% names(harp$prep$new_outcome)))
+         harp$prep$new_outcome %<>% mutate(risks = NA_character_)
+
+      rm(risk)
    })
 }
 rm(check)

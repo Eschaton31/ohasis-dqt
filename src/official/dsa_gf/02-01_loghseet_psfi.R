@@ -104,10 +104,11 @@ for (kp in c("MSM", "TGW", "PWID", "MSMTGW")) {
             matches("artstart_date"),
             matches("date_last_inject")
          ),
-         ~if_else(
-            condition = StrIsNumeric(.),
-            true      = excel_numeric_to_date(as.numeric(.)),
-            false     = NA_Date_
+         ~case_when(
+            StrIsNumeric(.) ~ excel_numeric_to_date(as.numeric(.)),
+            stri_detect_fixed(., "/") ~ as.Date(., "%m/%d/%Y"),
+            stri_detect_fixed(., "-") ~ as.Date(., "%Y-%m-%d"),
+            # TRUE ~ as.Date(.)
          )
       ) %>%
       mutate(
