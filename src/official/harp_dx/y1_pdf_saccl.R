@@ -351,12 +351,14 @@ clean_data <- function(confirm_df) {
             false     = FINAL_INTERPRETATION
          ),
 
-         # date confirm is non-standard for the duplicates results
-         NHSSS_DATE_CONFIRM    = case_when(
-            stri_detect_fixed(NHSSS_DATE_CONFIRM, "/") ~ as.POSIXct(NHSSS_DATE_CONFIRM, format = "%m/%d/%Y", tz = "UTC"),
-            stri_detect_fixed(NHSSS_DATE_CONFIRM, "-") ~ as.POSIXct(NHSSS_DATE_CONFIRM, format = "%Y-%m-%d %H:%M:%S", tz = "UTC"),
-            TRUE ~ NA_POSIXct_
-         ),
+         if ("NHSSS_DATE_CONFIRM" %in% names(.)) {
+            # date confirm is non-standard for the duplicates results
+            NHSSS_DATE_CONFIRM = case_when(
+               stri_detect_fixed(NHSSS_DATE_CONFIRM, "/") ~ as.POSIXct(NHSSS_DATE_CONFIRM, format = "%m/%d/%Y", tz = "UTC"),
+               stri_detect_fixed(NHSSS_DATE_CONFIRM, "-") ~ as.POSIXct(NHSSS_DATE_CONFIRM, format = "%Y-%m-%d %H:%M:%S", tz = "UTC"),
+               TRUE ~ NA_POSIXct_
+            )
+         },
       ) %>%
       select(-AGE_SEX) %>%
       distinct(FILENAME, .keep_all = TRUE)
@@ -505,7 +507,7 @@ upload_pdf <- function(confirm_df) {
          )
 
 
-   dir_nc <- "E:/2022.11 confirmatory"
+   dir_nc <- "N:/HARP Cloud/HARP Forms/Confirmatory/2022.12"
    if (nrow(pdf_for_ul)) {
       pb <- progress_bar$new(format = ":current of :total PDFs [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = nrow(pdf_for_ul), width = 100, clear = FALSE)
       pb$tick(0)
