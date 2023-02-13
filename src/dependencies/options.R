@@ -22,4 +22,4 @@ options(
       CRAN     = "https://cloud.r-project.org"
    )
 )
-.protected <- c("gmail", "nhsss", "epic", "ohasis", "gf", "dqai", "dr", "ihbss")
+.protected <- readLines("protected.txt")
