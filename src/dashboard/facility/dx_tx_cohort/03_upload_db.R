@@ -10,7 +10,7 @@ create_tables <- function(data) {
 
    # dbCreateTable(lw_conn, table_space, data$dx)
    ohasis$upsert(lw_conn, "db_faci", "dx_cohort", data$dx, "idnum")
-   ohasis$upsert(lw_conn, "db_faci", "tx_cohort", data$tx, "art_id")
+   ohasis$upsert(lw_conn, "db_faci", "tx_cohort", data$tx, c("art_id", "FACI_ID"))
    dbDisconnect(lw_conn)
 }
 

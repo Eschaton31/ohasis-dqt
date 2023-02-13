@@ -128,12 +128,12 @@ add_faci_info <- function(data) {
       )
 
    data$tx %<>%
+      mutate(CURR_FACI = REAL_FACI) %>%
       ohasis$get_faci(
          list(TX_HUB = c("TX_FACI", "TX_SUB_FACI")),
          "name",
          c("TX_REG", "TX_PROV", "TX_MUNC")
       ) %>%
-      mutate(CURR_FACI = REAL_FACI) %>%
       ohasis$get_faci(
          list(REAL_HUB = c("REAL_FACI", "REAL_SUB_FACI")),
          "name",
@@ -542,18 +542,18 @@ remove_cols <- function(data, oh) {
          CURR_TX_REG  = REAL_REG,
          CURR_TX_PROV = REAL_PROV,
          CURR_TX_MUNC = REAL_MUNC
-      ) %>%
-      mutate(
-         outcome     = case_when(
-            FACI_ID != CURR_FACI & outcome == "onart" ~ "transout - other hub",
-            FACI_ID == CURR_FACI ~ outcome,
-            TRUE ~ outcome
-         ),
-         outcome_new = case_when(
-            FACI_ID != CURR_FACI & outcome_new == "onart" ~ "transout - other hub",
-            FACI_ID == CURR_FACI ~ outcome_new,
-            TRUE ~ outcome_new
-         )
+      # ) %>%
+      # mutate(
+      #    outcome     = case_when(
+      #       FACI_ID != CURR_FACI & outcome == "onart" ~ "transout - other hub",
+      #       FACI_ID == CURR_FACI ~ outcome,
+      #       TRUE ~ outcome
+      #    ),
+      #    outcome_new = case_when(
+      #       FACI_ID != CURR_FACI & outcome_new == "onart" ~ "transout - other hub",
+      #       FACI_ID == CURR_FACI ~ outcome_new,
+      #       TRUE ~ outcome_new
+      #    )
       )
 
    return(data)
