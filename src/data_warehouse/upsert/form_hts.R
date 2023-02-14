@@ -244,7 +244,7 @@ if ((object %>% count() %>% collect())$n > 0) {
                by = "REC_ID"
             ) %>%
             mutate(
-               WORK        = toupper(WORK),
+               WORK_TEXT   = toupper(WORK_TEXT),
                IS_STUDENT  = case_when(
                   IS_STUDENT == "0" ~ "0_No",
                   IS_STUDENT == "1" ~ "1_Yes",
