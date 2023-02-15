@@ -1,6 +1,6 @@
 SELECT rec.REC_ID,
        rec.PATIENT_ID,
-       CONCAT(form.FORM, ' (', form.VERSION, ')')                                                      AS FORM_VERSION,
+       CONCAT(form.FORM, ' (v', form.VERSION, ')')                                                     AS FORM_VERSION,
        rec.CREATED_BY,
        rec.CREATED_AT,
        rec.UPDATED_BY,
@@ -42,20 +42,7 @@ SELECT rec.REC_ID,
        name.MIDDLE,
        name.LAST,
        name.SUFFIX,
-       CASE
-           WHEN (SERVICE_TYPE = '*00001') THEN 'Mortality'
-           WHEN (SERVICE_TYPE = '101101') THEN 'HIV FBT'
-           WHEN (SERVICE_TYPE = '101102') THEN 'HIV FBT'
-           WHEN (SERVICE_TYPE = '101103') THEN 'CBS'
-           WHEN (SERVICE_TYPE = '101104') THEN 'FBS'
-           WHEN (SERVICE_TYPE = '101105') THEN 'ST'
-           WHEN (SERVICE_TYPE = '101201') THEN 'ART'
-           WHEN (SERVICE_TYPE = '101301') THEN 'PrEP'
-           WHEN (SERVICE_TYPE = '101303') THEN 'PMTCT-N'
-           WHEN (SERVICE_TYPE = '101304') THEN 'Reach'
-           WHEN (SERVICE_TYPE = '') THEN NULL
-           ELSE SERVICE_TYPE
-           END                                                                                         AS SERVICE_TYPE,
+       service.SERVICE_TYPE,
        profile.AGE,
        profile.AGE_MO,
        profile.GENDER_AFFIRM_THERAPY,
@@ -114,14 +101,30 @@ FROM ohasis_interim.px_record AS rec
          LEFT JOIN ohasis_interim.px_form AS form ON rec.REC_ID = form.REC_ID
          LEFT JOIN ohasis_interim.px_profile AS profile ON rec.REC_ID = profile.REC_ID
          LEFT JOIN ohasis_interim.addr_country AS country ON profile.NATIONALITY = country.COUNTRY_CODE
-         LEFT JOIN ohasis_interim.px_faci AS service ON rec.REC_ID = service.REC_ID
+         LEFT JOIN (SELECT REC_ID,
+                           MAX(CASE
+                                   WHEN (SERVICE_TYPE = '*00001') THEN 'Mortality'
+                                   WHEN (SERVICE_TYPE = '101101') THEN 'HIV FBT'
+                                   WHEN (SERVICE_TYPE = '101102') THEN 'HIV FBT'
+                                   WHEN (SERVICE_TYPE = '101103') THEN 'CBS'
+                                   WHEN (SERVICE_TYPE = '101104') THEN 'FBS'
+                                   WHEN (SERVICE_TYPE = '101105') THEN 'ST'
+                                   WHEN (SERVICE_TYPE = '101106') THEN 'HIV FBT'
+                                   WHEN (SERVICE_TYPE = '101201') THEN 'ART'
+                                   WHEN (SERVICE_TYPE = '101301') THEN 'PrEP'
+                                   WHEN (SERVICE_TYPE = '101303') THEN 'PMTCT-N'
+                                   WHEN (SERVICE_TYPE = '101304') THEN 'Reach'
+                                   WHEN (SERVICE_TYPE = '') THEN NULL
+                                   ELSE SERVICE_TYPE
+                               END) AS SERVICE_TYPE
+                    FROM ohasis_interim.px_faci
+                    GROUP BY REC_ID) AS service ON rec.REC_ID = service.REC_ID
          LEFT JOIN ohasis_interim.px_addr AS perm ON rec.REC_ID = perm.REC_ID AND perm.ADDR_TYPE = 2
          LEFT JOIN ohasis_interim.px_addr AS curr ON rec.REC_ID = curr.REC_ID AND curr.ADDR_TYPE = 1
          LEFT JOIN ohasis_interim.px_addr AS birth ON rec.REC_ID = birth.REC_ID AND birth.ADDR_TYPE = 3
          LEFT JOIN ohasis_interim.px_addr AS death ON rec.REC_ID = death.REC_ID AND death.ADDR_TYPE = 4
          LEFT JOIN ohasis_interim.px_addr AS location ON rec.REC_ID = location.REC_ID AND location.ADDR_TYPE = 5
-WHERE service.SERVICE_TYPE NOT IN ('101102', '101106')
-  AND ((rec.CREATED_AT BETWEEN ? AND ?) OR
+WHERE ((rec.CREATED_AT BETWEEN ? AND ?) OR
        (rec.UPDATED_AT BETWEEN ? AND ?) OR
-       (rec.DELETED_AT BETWEEN ? AND ?));
+       (rec.DELETED_AT BETWEEN ? AND ?)) ;
 -- ID_COLS: REC_ID
