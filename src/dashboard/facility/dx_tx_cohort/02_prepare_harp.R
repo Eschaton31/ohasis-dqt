@@ -1,3 +1,101 @@
+reg_disagg <- function(data, regimen_col, reg_disagg_col) {
+   concat_col     <- reg_disagg_col
+   regimen_col    <- as.name(regimen_col)
+   reg_disagg_col <- as.name(reg_disagg_col)
+
+   data %<>%
+      mutate(
+         # reg disagg
+         !!reg_disagg_col := toupper(str_squish(!!regimen_col)),
+         r_abc            = if_else(
+            stri_detect_fixed(!!reg_disagg_col, "ABC") &
+               !stri_detect_fixed(!!reg_disagg_col, "ABCSYR"),
+            "ABC",
+            NA_character_
+         ),
+         r_abcsyr         = if_else(stri_detect_fixed(!!reg_disagg_col, "ABCSYR"), "ABCsyr", NA_character_),
+         r_azt_3tc        = if_else(stri_detect_fixed(!!reg_disagg_col, "AZT/3TC"), "AZT/3TC", NA_character_),
+         r_azt            = if_else(
+            stri_detect_fixed(!!reg_disagg_col, "AZT") &
+               !stri_detect_fixed(!!reg_disagg_col, "AZT/3TC") &
+               !stri_detect_fixed(!!reg_disagg_col, "AZTSYR"),
+            "AZT",
+            NA_character_
+         ),
+         r_aztsyr         = if_else(stri_detect_fixed(!!reg_disagg_col, "AZTSYR"), "AZTsyr", NA_character_),
+         r_tdf            = if_else(
+            stri_detect_fixed(!!reg_disagg_col, "TDF") &
+               !stri_detect_fixed(!!reg_disagg_col, "TDF/3TC") &
+               !stri_detect_fixed(!!reg_disagg_col, "TDF100MG"),
+            "TDF",
+            NA_character_
+         ),
+         r_tdf_3tc        = if_else(
+            stri_detect_fixed(!!reg_disagg_col, "TDF/3TC") &
+               !stri_detect_fixed(!!reg_disagg_col, "TDF/3TC/EFV") &
+               !stri_detect_fixed(!!reg_disagg_col, "TDF/3TC/DTG"),
+            "TDF/3TC",
+            NA_character_
+         ),
+         r_tdf_3tc_efv    = if_else(stri_detect_fixed(!!reg_disagg_col, "TDF/3TC/EFV"), "TDF/3TC/EFV", NA_character_),
+         r_tdf_3tc_dtg    = if_else(stri_detect_fixed(!!reg_disagg_col, "TDF/3TC/DTG"), "TDF/3TC/DTG", NA_character_),
+         r_tdf100         = if_else(stri_detect_fixed(!!reg_disagg_col, "TDF100MG"), "TDF100mg", NA_character_),
+         r_xtc            = case_when(
+            stri_detect_fixed(!!reg_disagg_col, "3TC") &
+               !stri_detect_fixed(!!reg_disagg_col, "/3TC") &
+               !stri_detect_fixed(!!reg_disagg_col, "3TCSYR") ~ "3TC",
+            stri_detect_fixed(!!reg_disagg_col, "D4T/3TC") ~ "D4T/3TC",
+            TRUE ~ NA_character_
+         ),
+         r_xtcsyr         = if_else(stri_detect_fixed(!!reg_disagg_col, "3TCSYR"), "3TCsyr", NA_character_),
+         r_nvp            = if_else(
+            stri_detect_fixed(!!reg_disagg_col, "NVP") &
+               !stri_detect_fixed(!!reg_disagg_col, "NVPSYR"),
+            "NVP",
+            NA_character_
+         ),
+         r_nvpsyr         = if_else(stri_detect_fixed(!!reg_disagg_col, "NVPSYR"), "NVPsyr", NA_character_),
+         r_efv            = if_else(
+            stri_detect_fixed(!!reg_disagg_col, "EFV") &
+               !stri_detect_fixed(!!reg_disagg_col, "/EFV") &
+               !stri_detect_fixed(!!reg_disagg_col, "EFV50MG") &
+               !stri_detect_fixed(!!reg_disagg_col, "EFV200MG") &
+               !stri_detect_fixed(!!reg_disagg_col, "EFVSYR"),
+            "EFV",
+            NA_character_
+         ),
+         r_efv50          = if_else(stri_detect_fixed(!!reg_disagg_col, "EFV50MG"), "EFV50mg", NA_character_),
+         r_efv200         = if_else(stri_detect_fixed(!!reg_disagg_col, "EFV200MG"), "EFV200mg", NA_character_),
+         r_efvsyr         = if_else(stri_detect_fixed(!!reg_disagg_col, "EFVSYR"), "EFVsyr", NA_character_),
+         r_dtg            = if_else(
+            stri_detect_fixed(!!reg_disagg_col, "DTG") &
+               !stri_detect_fixed(!!reg_disagg_col, "/DTG"),
+            "DTG",
+            NA_character_
+         ),
+         r_lpvr           = if_else(
+            (stri_detect_fixed(!!reg_disagg_col, "LPV/R") |
+               stri_detect_fixed(!!reg_disagg_col, "LPVR")) &
+               (!stri_detect_fixed(!!reg_disagg_col, "RSYR") &
+                  !stri_detect_fixed(!!reg_disagg_col, "R PEDIA")),
+            "LPV/r",
+            NA_character_
+         ),
+         r_lpvr_pedia     = if_else(
+            stri_detect_fixed(!!reg_disagg_col, "LPV") &
+               (stri_detect_fixed(!!reg_disagg_col, "RSYR") |
+                  stri_detect_fixed(!!reg_disagg_col, "R PEDIA")),
+            "LPV/rsyr",
+            NA_character_
+         ),
+         r_ril            = if_else(stri_detect_fixed(!!reg_disagg_col, "RIL"), "RIL", NA_character_),
+         r_ral            = if_else(stri_detect_fixed(!!reg_disagg_col, "RAL"), "RAL", NA_character_),
+         r_ftc            = if_else(stri_detect_fixed(!!reg_disagg_col, "FTC"), "FTC", NA_character_),
+         r_idv            = if_else(stri_detect_fixed(!!reg_disagg_col, "IDV"), "IDV", NA_character_)
+      )
+   return(data)
+}
+
 get_faci_ids <- function(harp, oh) {
    data    <- list()
    data$dx <- harp$dx %>%
@@ -283,6 +381,36 @@ gen_disagg <- function(data, params) {
          onart_new             = if_else(onart == 1 & latest_nextpickup >= as.Date(params$min), 1, 0, 0),
 
 
+         diff                  = floor(interval(previous_next_pickup, as.Date(params$min) - 1) / days(1)),
+         previous_outcome      = case_when(
+            outcome == "alive on arv" ~ "onart",
+            outcome == "lost to follow up" ~ "ltfu",
+            outcome == "trans out" ~ "transout",
+            TRUE ~ outcome
+         ),
+         previous_outcome_new  = case_when(
+            outcome == "dead" ~ "dead",
+            diff <= 30 ~ "onart",
+            grepl("stopped", outcome) & diff > 30 ~ outcome,
+            grepl("transout", outcome) & diff > 30 ~ outcome,
+            diff > 30 ~ "ltfu",
+            outcome == "ltfu" ~ "ltfu",
+            TRUE ~ "(no data)"
+         ),
+
+         diff                  = floor(interval(previous_next_pickup, latest_ffupdate) / days(1)),
+         iit                   = case_when(
+            outcome == "onart" & outcome != previous_outcome & diff < 90 ~ "IIT (ART <3 months)",
+            outcome == "onart" & outcome != previous_outcome & diff %in% seq(90, 179) ~ "IIT (ART 3-5 months)",
+            outcome == "onart" & outcome != previous_outcome & diff >= 180 ~ "IIT (ART >=6 months)",
+         ),
+         iit_new                   = case_when(
+            outcome_new == "onart" & outcome != previous_outcome_new & diff < 90 ~ "IIT (ART <3 months)",
+            outcome_new == "onart" & outcome != previous_outcome_new & diff %in% seq(90, 179) ~ "IIT (ART 3-5 months)",
+            outcome_new == "onart" & outcome != previous_outcome_new & diff >= 180 ~ "IIT (ART >=6 months)",
+         ),
+
+
          baseline_vl           = if_else(
             condition = baseline_vl == 1,
             true      = 1,
@@ -406,6 +534,8 @@ attach_tx_to_dx <- function(data) {
                onart_new,
                outcome,
                outcome_new,
+               iit,
+               iit_new,
                artestablish,
                artestablish_new,
                baseline_vl,
@@ -421,15 +551,29 @@ attach_tx_to_dx <- function(data) {
                artlen,
                startpickuplen,
                ltfulen,
+               artstart_date,
                latest_regimen,
                latest_ffupdate,
                latest_nextpickup,
+               CURR_FACI,
                CURR_TX_HUB  = REAL_HUB,
                CURR_TX_REG  = REAL_REG,
                CURR_TX_PROV = REAL_PROV,
                CURR_TX_MUNC = REAL_MUNC
             ),
          by = join_by(idnum)
+      ) %>%
+      mutate(
+         tat_confirm_art = floor(interval(confirm_date, artstart_date) / days(1)),
+         tat_confirm_art = case_when(
+            tat_confirm_art < 0 ~ "0) Tx before dx",
+            tat_confirm_art == 0 ~ "1) Same day",
+            tat_confirm_art >= 1 & tat_confirm_art <= 14 ~ "2) RAI (w/in 14 days)",
+            tat_confirm_art >= 15 & tat_confirm_art <= 30 ~ "3) W/in 30days",
+            tat_confirm_art >= 31 ~ "4) More than 30 days",
+            is.na(confirm_date) & !is.na(idnum) ~ "5) More than 30 days",
+            TRUE ~ "(not yet confirmed)",
+         )
       )
 
    data$tx %<>%
@@ -444,6 +588,7 @@ attach_tx_to_dx <- function(data) {
                mot,
                kap_type,
                confirm_type,
+               confirm_date,
                PERM_NAME_REG,
                PERM_NAME_PROV,
                PERM_NAME_MUNC,
@@ -457,6 +602,18 @@ attach_tx_to_dx <- function(data) {
                CONFIRM_LAB
             ),
          by = join_by(idnum)
+      ) %>%
+      mutate(
+         tat_confirm_art = floor(interval(confirm_date, artstart_date) / days(1)),
+         tat_confirm_art = case_when(
+            tat_confirm_art < 0 ~ "0) Tx before dx",
+            tat_confirm_art == 0 ~ "1) Same day",
+            tat_confirm_art >= 1 & tat_confirm_art <= 14 ~ "2) RAI (w/in 14 days)",
+            tat_confirm_art >= 15 & tat_confirm_art <= 30 ~ "3) W/in 30days",
+            tat_confirm_art >= 31 ~ "4) More than 30 days",
+            is.na(confirm_date) & !is.na(idnum) ~ "5) More than 30 days",
+            TRUE ~ "(not yet confirmed)",
+         )
       )
 
    return(data)
@@ -521,8 +678,8 @@ remove_cols <- function(data, oh) {
             "artlen_days",
             "artlen_months",
             "diff",
-            "startpickuplen",
-            "ltfulen"
+            "startpickuplen_months",
+            "ltfulen_month"
          ))
       ) %>%
       left_join(
@@ -542,18 +699,18 @@ remove_cols <- function(data, oh) {
          CURR_TX_REG  = REAL_REG,
          CURR_TX_PROV = REAL_PROV,
          CURR_TX_MUNC = REAL_MUNC
-      # ) %>%
-      # mutate(
-      #    outcome     = case_when(
-      #       FACI_ID != CURR_FACI & outcome == "onart" ~ "transout - other hub",
-      #       FACI_ID == CURR_FACI ~ outcome,
-      #       TRUE ~ outcome
-      #    ),
-      #    outcome_new = case_when(
-      #       FACI_ID != CURR_FACI & outcome_new == "onart" ~ "transout - other hub",
-      #       FACI_ID == CURR_FACI ~ outcome_new,
-      #       TRUE ~ outcome_new
-      #    )
+         # ) %>%
+         # mutate(
+         #    outcome     = case_when(
+         #       FACI_ID != CURR_FACI & outcome == "onart" ~ "transout - other hub",
+         #       FACI_ID == CURR_FACI ~ outcome,
+         #       TRUE ~ outcome
+         #    ),
+         #    outcome_new = case_when(
+         #       FACI_ID != CURR_FACI & outcome_new == "onart" ~ "transout - other hub",
+         #       FACI_ID == CURR_FACI ~ outcome_new,
+         #       TRUE ~ outcome_new
+         #    )
       )
 
    return(data)
@@ -567,4 +724,7 @@ remove_cols <- function(data, oh) {
    p$data <- gen_disagg(p$data, p$params)
    p$data <- attach_tx_to_dx(p$data)
    p$data <- remove_cols(p$data, p$oh)
+
+   p$data$dx <- reg_disagg(p$data$dx, "latest_regimen", "regimen")
+   p$data$tx <- reg_disagg(p$data$tx, "latest_regimen", "regimen")
 }
