@@ -14,6 +14,9 @@ set_coverage <- function(yr = NULL, mo = NULL) {
       days(1) %>%
       as.character()
 
+   params$prev_mo <- stri_pad_left(month(as.Date(params$min) %m-% months(1)), 2, "0")
+   params$prev_yr <- stri_pad_left(year(as.Date(params$min) %m-% months(1)), 2, "0")
+
    return(params)
 }
 
@@ -58,7 +61,7 @@ load_harp <- function(params = NULL) {
          )
       ) %>%
       left_join(
-         y = ohasis$get_data("harp_full", params$yr, params$mo) %>%
+         y  = ohasis$get_data("harp_full", params$yr, params$mo) %>%
             read_dta(
                col_select = c(
                   idnum,
@@ -67,6 +70,10 @@ load_harp <- function(params = NULL) {
                   outcome
                )
             ),
+         by = join_by(idnum)
+      ) %>%
+      left_join(
+         y  = read_dta("C:/data/harp_vl/20230130_vlnaive-dx_2022-12.dta"),
          by = join_by(idnum)
       ) %>%
       mutate_if(
@@ -81,9 +88,6 @@ load_harp <- function(params = NULL) {
             REC_ID,
             art_id,
             idnum,
-            previous_ffupdate,
-            previous_nextpickup,
-            previous_regimen,
             latest_ffupdate,
             latest_nextpickup,
             latest_regimen,
@@ -127,6 +131,25 @@ load_harp <- function(params = NULL) {
                )
             ),
          by = "art_id"
+      ) %>%
+      left_join(
+         y  = hs_data("harp_tx", "outcome", params$prev_yr, params$prev_mo) %>%
+            read_dta(
+               col_select = c(
+                  art_id,
+                  latest_nextpickup,
+                  outcome
+               )
+            ) %>%
+            rename(
+               previous_next_pickup = latest_nextpickup,
+               previous_outcome     = outcome
+            ),
+         by = "art_id"
+      ) %>%
+      left_join(
+         y  = read_dta("C:/data/harp_vl/20230130_vlnaive-tx_2022-12.dta"),
+         by = join_by(art_id)
       ) %>%
       mutate_if(
          .predicate = is.character,
