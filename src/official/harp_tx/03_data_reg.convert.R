@@ -97,7 +97,7 @@ standardize_data <- function(initial) {
          CD4_DATE            = if_else(
             condition = CD4_ENROLL <= 182,
             true      = CD4_DATE,
-            false     = as.numeric(NA)
+            false     = as.Date(NA)
          ),
          CD4_RESULT          = if_else(
             condition = CD4_ENROLL <= 182,
