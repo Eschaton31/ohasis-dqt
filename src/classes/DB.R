@@ -233,6 +233,7 @@ DB <- setRefClass(
                   stri_detect_fixed(Var1, "ADDR") ~ "TEXT NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
                   stri_detect_fixed(Var1, "SUB_FACI") ~ "CHAR(10) NULL COLLATE 'utf8_general_ci'",
                   stri_detect_fixed(Var1, "SUB_SOURCE") ~ "CHAR(10) NULL COLLATE 'utf8_general_ci'",
+                  stri_detect_fixed(Var1, "x_age_c") ~ "VARCHAR(9) NULL COLLATE 'utf8_general_ci'",
                   stri_detect_fixed(Var1, "FACI") ~ "CHAR(6) NULL COLLATE 'utf8_general_ci'",
                   stri_detect_fixed(Var1, "SOURCE") ~ "CHAR(6) NULL COLLATE 'utf8_general_ci'",
                   Mode == "numeric" & Class == "Date" ~ "DATE NULL DEFAULT NULL",

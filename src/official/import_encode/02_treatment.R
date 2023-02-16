@@ -1069,6 +1069,7 @@ local(envir = import, {
                      select(REC_ID) %>%
                      inner_join(
                         y  = done$px_medicine %>%
+                           filter(is.na(MEDICINE)) %>%
                            select(REC_ID),
                         by = "REC_ID"
                      ),
@@ -1082,6 +1083,7 @@ local(envir = import, {
                      select(REC_ID) %>%
                      inner_join(
                         y  = done$px_medicine %>%
+                           filter(is.na(MEDICINE)) %>%
                            select(REC_ID),
                         by = "REC_ID"
                      ),
