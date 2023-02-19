@@ -172,11 +172,15 @@ local(envir = vlml, {
          rename_all(
             ~case_when(
                . == "Patient code" ~ "px_code",
+               . == "Patient Code" ~ "px_code",
                . == "FACILITY CODE" ~ "px_code",
                . == "Patient.code" ~ "px_code",
                . == "Confirmatory code" ~ "confirmatory_code",
+               . == "Confirmatory Code" ~ "confirmatory_code",
                . == "Confirmatory.code" ~ "confirmatory_code",
                . == "CONFIRAMATORY CODE" ~ "confirmatory_code",
+               . == "SACCL CODE" ~ "confirmatory_code",
+               . == "SACCL Code" ~ "confirmatory_code",
                . == "Full Name" ~ "name",
                . == "Full.Name" ~ "name",
                . == "UIC" ~ "uic",
@@ -189,9 +193,13 @@ local(envir = vlml, {
                . == "Outcome" ~ "outcome",
                . == "DATE OF VIRAL LOAD" ~ "vl_date",
                . == "Viral.load.date" ~ "vl_date",
+               . == "Latest VL Date" ~ "vl_date",
                . == "Viral load date" ~ "vl_date",
+               . == "Viral Load Date" ~ "vl_date",
                . == "Viral load result" ~ "vl_result",
+               . == "Viral Load Result" ~ "vl_result",
                . == "Viral.load.result" ~ "vl_result",
+               . == "Latest VL Result" ~ "vl_result",
                . == "RESULT" ~ "vl_result",
                . == "If baseline viral load test, put Y" ~ "baseline_vl",
                . == "If.baseline.viral.load.test..put.Y" ~ "baseline_vl",
@@ -344,8 +352,11 @@ local(envir = vlml, {
             stri_replace_all_regex("COPIES/ML$", "") %>%
             stri_replace_all_regex("COPIES ML$", "") %>%
             stri_replace_all_regex("COPIE/ML$", "") %>%
+            stri_replace_all_regex("COPIES/MLN$", "") %>%
             stri_replace_all_regex("COPIES/ ML$", "") %>%
+            stri_replace_all_regex("COPIES /ML$", "") %>%
             stri_replace_all_regex("COPIES$", "") %>%
+            stri_replace_all_regex("CP/ML$", "") %>%
             stri_replace_all_regex("C/ML$", "") %>%
             stri_replace_all_regex("^HIV-", "HIV") %>%
             stri_replace_all_regex("^HIV -", "HIV") %>%
@@ -403,6 +414,7 @@ local(envir = vlml, {
             vl_result_nomeasure == "HIV1 RNA NOT DETECTED" ~ "0",
             vl_result_nomeasure == "NOT DETECTED" ~ "0",
             vl_result_nomeasure == "NOT DTECTED" ~ "0",
+            vl_result_nomeasure == "ND" ~ "0",
             vl_result_nomeasure == "HIV1 UNDETECTED" ~ "0",
             vl_result_nomeasure == "HIV NOT DETECTED" ~ "0",
             vl_result_nomeasure == "HIV1 NOT DETECTED" ~ "0",
