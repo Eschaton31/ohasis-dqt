@@ -25,7 +25,7 @@ nhsss$harp_dead$official$new <- nhsss$harp_dead$converted$data %>%
 .log_info("Matching w/ HARP Dx Registry dataset for `idnum`.")
 
 .log_info("Getting latest dx registry dataset.")
-nhsss$harp_dx$official$new <- ohasis$get_data("harp_dx", ohasis$yr, ohasis$mo) %>%
+nhsss$harp_dx$official$new <- hs_data("harp_dx", "reg", ohasis$yr, ohasis$mo) %>%
    read_dta(
       col_select = c(
          REC_ID,
