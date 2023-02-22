@@ -262,7 +262,6 @@ get_checks <- function(data) {
 
       # dates
       date_vars <- c(
-         "encoded_date",
          "VISIT_DATE",
          "DISP_DATE"
       )
