@@ -8,7 +8,7 @@ library(writexl)
 library(readxl)
 library(haven)
 
-# basic parmas
+# basic params
 data_dir  <- "D:/Downloads/Documents" # set dir
 data_path <- file.path(data_dir, "play_data.xlsx") # set path
 data_orig <- read_xlsx(data_path) # read excel file
@@ -32,7 +32,7 @@ data_new$lastName <- toupper(data_new$lastName)
 # concatenate name parts into fullname, first letter only for middle name
 data_new$fullName <- paste0(
    ifelse(!is.na(data_new$lastName), data_new$lastName, ""), ", ",
-   ifelse(!is.na(data_new$lastName), data_new$lastName, ""), " ",
+   ifelse(!is.na(data_new$firstName), data_new$firstName, ""), " ",
    substr(ifelse(!is.na(data_new$middleName),
                  data_new$middleName,
                  ""),
@@ -41,9 +41,11 @@ data_new$fullName <- paste0(
 )
 
 # extract birth year
-data_new$birthYear <- ifelse(!is.na(data_new$bdate),
-                             substr(data_new$bdate, 1, 4),
-                             "")
+data_new$birthYear <- ifelse(
+   !is.na(data_new$bdate),
+   substr(data_new$bdate, 1, 4),
+   ""
+)
 
 # save as dta
 write_dta(data_new, file.path(data_dir, "output_bene.dta"))
