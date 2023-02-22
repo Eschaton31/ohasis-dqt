@@ -265,11 +265,16 @@ define_params <- function() {
       params               <- list()
       params$latest_art_id <- max(as.integer(official$old_reg$art_id), na.rm = TRUE)
 
-      params$cutoff_mo   <- if_else(as.numeric(ohasis$next_mo) <= 3, as.numeric(ohasis$next_mo) + 9, as.numeric(ohasis$next_mo) - 3)
-      params$cutoff_mo   <- stri_pad_left(as.character(params$cutoff_mo), 2, '0')
-      params$cutoff_yr   <- if_else(as.numeric(ohasis$next_mo) <= 3, as.numeric(ohasis$next_yr) - 1, as.numeric(ohasis$next_yr))
-      params$cutoff_yr   <- as.character(params$cutoff_yr)
-      params$cutoff_date <- as.Date(paste(sep = '-', params$cutoff_yr, params$cutoff_mo, '01'))
+      # params$cutoff_mo   <- if_else(as.numeric(ohasis$next_mo) <= 3, as.numeric(ohasis$next_mo) + 9, as.numeric(ohasis$next_mo) - 3)
+      # params$cutoff_mo   <- stri_pad_left(as.character(params$cutoff_mo), 2, '0')
+      # params$cutoff_yr   <- if_else(as.numeric(ohasis$next_mo) <= 3, as.numeric(ohasis$next_yr) - 1, as.numeric(ohasis$next_yr))
+      # params$cutoff_yr   <- as.character(params$cutoff_yr)
+      # params$cutoff_date <- as.Date(paste(sep = '-', params$cutoff_yr, params$cutoff_mo, '01'))
+      params$cutoff_date <- paste(sep = "-", ohasis$yr, ohasis$mo, "01") %>%
+         as.Date() %>%
+         ceiling_date(unit = "month") %m-%
+         days(31) %>%
+         as.character()
    })
 }
 
