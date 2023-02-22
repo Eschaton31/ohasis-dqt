@@ -608,10 +608,22 @@ onart_vl <- nhsss$harp_tx$official$new_reg %>%
          false     = NA_integer_,
          missing   = NA_integer_
       ),
+      baseline_vl   = if_else(
+         condition = difftime(vl_date_2, artstart_date, units = "days") <= 180,
+         true      = as.integer(1),
+         false     = NA_integer_,
+         missing   = NA_integer_
+      ),
 
       # tag if suppressed
       vl_suppressed = if_else(
          condition = vl_result_2 < 1000,
+         true      = 1,
+         false     = 0,
+         missing   = 0
+      ) %>% as.integer(),
+      vl_suppressed = if_else(
+         condition = vl_result_2 < 50,
          true      = 1,
          false     = 0,
          missing   = 0
