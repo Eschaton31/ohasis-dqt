@@ -87,5 +87,3 @@ dxlab_to_id <- function(data, facility_ids, dx_lab_cols = NULL) {
 
    return(data)
 }
-
-dxlab_to_id(pepfar$harp$dx, c("FACI_ID", "SUB_FACI_ID"), c("dx_region", "dx_province", "dx_muncity", "dxlab_standard"))
