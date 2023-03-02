@@ -62,3 +62,30 @@ faci_code_to_id <- function(data, ref_faci_code, faci_branch) {
 
    return(data)
 }
+
+dxlab_to_id <- function(data, facility_ids, dx_lab_cols = NULL) {
+   faci_id     <- facility_ids[1]
+   sub_faci_id <- facility_ids[2]
+
+   dx_reg  <- dx_lab_cols[1]
+   dx_prov <- dx_lab_cols[2]
+   dx_munc <- dx_lab_cols[3]
+   dx_lab  <- dx_lab_cols[4]
+
+   data %<>%
+      left_join(
+         y = read_sheet("1WiUiB7n5qkvyeARwGV1l1ipuCknDT8wZ6Pt7662J2ms", "Sheet1") %>%
+            select(
+               {{dx_reg}}      := dx_region,
+               {{dx_prov}}     := dx_province,
+               {{dx_munc}}     := dx_muncity,
+               {{dx_lab}}      := dxlab_standard,
+               {{faci_id}}     := FACI_ID,
+               {{sub_faci_id}} := SUB_FACI_ID
+            )
+      )
+
+   return(data)
+}
+
+dxlab_to_id(pepfar$harp$dx, c("FACI_ID", "SUB_FACI_ID"), c("dx_region", "dx_province", "dx_muncity", "dxlab_standard"))
