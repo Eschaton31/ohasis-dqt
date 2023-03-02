@@ -536,7 +536,7 @@ ohasis$upsert(lw_conn, "harp", "json_muncity", json_dta, "PSGC_MUNC")
 dbDisconnect(lw_conn)
 
 
-json <- jsonlite::read_json("C:/Users/johnb/Downloads/philippines.geojson")
+json <- jsonlite::read_json("C:/Users/Administrator/Downloads/philippines.geojson")
 
 json_dta <- data.frame()
 for (i in seq_len(length(json$features))) {
@@ -546,6 +546,7 @@ for (i in seq_len(length(json$features))) {
    json_dta <- bind_rows(json_dta, data.frame(ISO = iso, NAME = name))
 }
 
+write_dta(json_dta, "C:/Users/Administrator/Downloads/iso3166_2_ph.dta")
 dqai2 <- as.list(dqai$faci)
 lapply(names(dqai2), function(hub) {
    name <- tolower(hub)
