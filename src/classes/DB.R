@@ -382,7 +382,9 @@ DB <- setRefClass(
                }
                dbClearResult(rs)
 
-               for_delete <- object %>% select({ { id_col } }) %>% distinct_all()
+               for_delete <- object %>%
+                  select({{id_col}}) %>%
+                  distinct_all()
                continue   <- ifelse(nrow(object) == 0, 0, 1)
             } else {
                source(factory_file, local = TRUE)
@@ -638,25 +640,25 @@ DB <- setRefClass(
          # rename columns
          linelist %<>%
             mutate(
-               { { faci_id } }     := if_else(
-                  condition = is.na({ { faci_id } }),
+               {{faci_id}}     := if_else(
+                  condition = is.na({{faci_id}}),
                   true      = "",
-                  false     = { { faci_id } },
-                  missing   = { { faci_id } }
+                  false     = {{faci_id}},
+                  missing   = {{faci_id}}
                ),
-               { { sub_faci_id } } := case_when(
-                  is.na({ { sub_faci_id } }) ~ "",
-                  StrLeft({ { sub_faci_id } }, 6) != { { faci_id } } ~ "",
-                  TRUE ~ { { sub_faci_id } }
+               {{sub_faci_id}} := case_when(
+                  is.na({{sub_faci_id}}) ~ "",
+                  StrLeft({{sub_faci_id}}, 6) != {{faci_id}} ~ "",
+                  TRUE ~ {{sub_faci_id}}
                )
             ) %>%
             # get referenced data
             left_join(
                y  = .self$ref_faci %>%
                   select(
-                     { { faci_id } }     := FACI_ID,
-                     { { sub_faci_id } } := SUB_FACI_ID,
-                     { { final_faci } }  := { { get } },
+                     {{faci_id}}     := FACI_ID,
+                     {{sub_faci_id}} := SUB_FACI_ID,
+                     {{final_faci}}  := {{get}},
                      if (!is.null(addr_names)) {
                         any_of(addr_cols)
                      }
@@ -664,7 +666,7 @@ DB <- setRefClass(
                by = input_set[[1]]
             ) %>%
             # move then rename to old version
-            relocate({ { final_faci } }, .after = { { sub_faci_id } }) %>%
+            relocate({{final_faci}}, .after = {{sub_faci_id}}) %>%
             # remove id data
             select(-any_of(input_set[[1]]))
 
@@ -675,8 +677,7 @@ DB <- setRefClass(
                .self$get_addr(
                   addr_cols,
                   return_type
-               ) %>%
-               relocate(addr_names, .after = { { final_faci } })
+               )
          }
 
          return(linelist)
