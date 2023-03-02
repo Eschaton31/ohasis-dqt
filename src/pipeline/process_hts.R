@@ -46,7 +46,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
       # results
       mutate(
          hts_date     = case_when(
-            TEST_DATE > -25567 ~ as.Date(TEST_DATE),
+            TEST_DATE >= -25567 & interval(RECORD_DATE, TEST_DATE) / years(1) <= -2 ~ as.Date(RECORD_DATE),
+            TEST_DATE >= -25567  & interval(RECORD_DATE, TEST_DATE) / years(1) > -2 ~ as.Date(TEST_DATE),
+            T0_DATE >= -25567 & interval(RECORD_DATE, T0_DATE) / years(1) <= -2 ~ as.Date(RECORD_DATE),
+            T0_DATE >= -25567  & interval(RECORD_DATE, T0_DATE) / years(1) > -2 ~ as.Date(T0_DATE),
             !is.na(DATE_COLLECT) ~ as.Date(DATE_COLLECT),
             T1_DATE < RECORD_DATE ~ as.Date(T1_DATE),
             TRUE ~ RECORD_DATE
