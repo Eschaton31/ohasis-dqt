@@ -8,7 +8,6 @@ biostat3
 aod
 bazar
 haven
-readstata13
 dplyr
 stringi
 stringr
@@ -40,7 +39,6 @@ fastLink
 stringdist
 phonics
 glue
-googleway
 crayon
 docxtractr
 rJava
@@ -50,7 +48,5 @@ openxlsx
 ruODK
 quarto
 kwb.nextcloud
-plumber
 arrow
-targets
 envnames
