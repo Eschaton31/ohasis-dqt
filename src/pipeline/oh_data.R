@@ -139,3 +139,13 @@ gen_agegrp <- function(age, cat_type = c("harp", "5yr")) {
 
    return(agegrp)
 }
+
+null_dates <- function(date, type = "POSIXct") {
+   new_date <- switch(
+      type,
+      POSIXct = if_else(date == -62169984000, NA_POSIXct_, date, NA_POSIXct_),
+      Date    = if_else(date == -719560, NA_Date_, date, NA_Date_),
+   )
+
+   return(new_date)
+}
