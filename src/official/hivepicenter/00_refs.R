@@ -78,8 +78,17 @@ epictr$ref_addr  <- ohasis$ref_addr %>%
          stri_detect_fixed(NAME_PROV, "NCR") ~ stri_replace_all_fixed(NAME_PROV, " (Not a Province)", ""),
          TRUE ~ NAME_PROV
       ),
+      PSGC_PROV  = case_when(
+         PSGC_MUNC == "129804000" ~ "124700000",
+         TRUE ~ PSGC_PROV
+      ),
+      PSGC_AEM  = case_when(
+         PSGC_MUNC == "129804000" ~ "124700000",
+         TRUE ~ PSGC_AEM
+      ),
       NAME_AEM  = case_when(
          PSGC_MUNC == "031405000" ~ "Bulacan City",
+         PSGC_MUNC == "129804000" ~ "Cotabato Province",
          TRUE ~ NAME_AEM
       ),
       NAME_MUNC = case_when(
