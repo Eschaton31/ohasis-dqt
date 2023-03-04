@@ -16,6 +16,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             mutate(
                FORM_VERSION = "CFBS Form (v2020)",
             ) %>%
+            rename(
+               T0_DATE   = TEST_DATE,
+               T0_RESULT = TEST_RESULT,
+            ) %>%
             rename_at(
                .vars = vars(starts_with("RISK_")),
                ~stri_replace_first_fixed(., "RISK_", "EXPOSE_")
@@ -36,7 +40,6 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             T1_RESULT,
             T2_RESULT,
             T3_RESULT,
-            TEST_RESULT,
             CONFIRM_RESULT,
             MODALITY,
             SCREEN_AGREED
@@ -46,10 +49,8 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
       # results
       mutate(
          hts_date     = case_when(
-            TEST_DATE >= -25567 & interval(RECORD_DATE, TEST_DATE) / years(1) <= -2 ~ as.Date(RECORD_DATE),
-            TEST_DATE >= -25567  & interval(RECORD_DATE, TEST_DATE) / years(1) > -2 ~ as.Date(TEST_DATE),
             T0_DATE >= -25567 & interval(RECORD_DATE, T0_DATE) / years(1) <= -2 ~ as.Date(RECORD_DATE),
-            T0_DATE >= -25567  & interval(RECORD_DATE, T0_DATE) / years(1) > -2 ~ as.Date(T0_DATE),
+            T0_DATE >= -25567 & interval(RECORD_DATE, T0_DATE) / years(1) > -2 ~ as.Date(T0_DATE),
             !is.na(DATE_COLLECT) ~ as.Date(DATE_COLLECT),
             T1_DATE < RECORD_DATE ~ as.Date(T1_DATE),
             TRUE ~ RECORD_DATE
@@ -67,8 +68,9 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             T1_RESULT == 2 ~ "NR",
             T0_RESULT == 1 ~ "R",
             T0_RESULT == 2 ~ "NR",
-            TEST_RESULT == 1 ~ "R",
-            TEST_RESULT == 2 ~ "NR",
+            grepl("HIV-NR", toupper(CLINIC_NOTES)) ~ "NR",
+            grepl("HIN NR", toupper(CLINIC_NOTES)) ~ "NR",
+            grepl("HIV-NR", toupper(COUNSEL_NOTES)) ~ "NR",
             TRUE ~ "(no data)"
          ),
          hts_modality = case_when(
