@@ -242,6 +242,7 @@ labbs_sheet <- function(xl, disease, sheet_name, env = globalenv()) {
             -any_of(c(
                "reg_faci_id",
                "faci_name",
+               "faci_type",
                "region",
                "province",
                "muncity",
@@ -250,11 +251,10 @@ labbs_sheet <- function(xl, disease, sheet_name, env = globalenv()) {
                "faci_status",
                "var",
                "month",
-               "value"
-            ))
-
-               -
-               starts_with("x01_"),
+               "value",
+               "last_col"
+            )),
+            -starts_with("x01_"),
             -starts_with("x02_"),
             -starts_with("x03_"),
             -starts_with("x04_"),
@@ -277,12 +277,8 @@ labbs_sheet <- function(xl, disease, sheet_name, env = globalenv()) {
 
 labbs_agg <- function(data, id_cols, config) {
 
-   cols   <- config$cols %>%
+   cols <- config$cols %>%
       filter(sheet == data[1,]$labbs_disease)
-   cols_1 <- paste0(toupper(cols$r_col), "_F")
-   cols_2 <- paste0(toupper(cols$r_col), "_M")
-   cols_3 <- paste0(toupper(cols$r_col), "_PREG")
-   cols_4 <- paste0(toupper(cols$r_col), "_TOTAL")
 
    group_vars <- c(id_cols, "var")
    aggregate  <- data %>%
@@ -296,10 +292,7 @@ labbs_agg <- function(data, id_cols, config) {
       ) %>%
       select(
       {{id_cols}},
-      any_of(cols_1),
-      any_of(cols_2),
-      any_of(cols_3),
-      any_of(cols_4),
+      starts_with(toupper(cols$r_col), ignore.case = FALSE)
       ) %>%
       mutate_if(
          .predicate = is.numeric,
