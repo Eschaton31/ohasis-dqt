@@ -318,22 +318,25 @@ if (dedup_confirm$same_rows)
 if (!dedup_confirm$same_rows) {
    log_info("Creating tables for upsert.")
    local(envir = dedup_confirm, {
-      upsert            <- list()
-      upsert$registry   <- reclink$for_match %>%
-         select(REC_ID, PATIENT_ID) %>%
-         inner_join(
-            y  = reclink$matched %>%
-               inner_join(
-                  y  = data$harp_dx %>%
-                     select(CENTRAL_ID, idnum),
-                  by = join_by(idnum)
-               ),
-            by = join_by(REC_ID)
-         ) %>%
-         select(
-            CENTRAL_ID,
-            PATIENT_ID
-         )
+      upsert <- list()
+
+      if (nrow(reclink$matched %>% filter(!is.na(REC_ID))) > 0) {
+         upsert$registry <- reclink$for_match %>%
+            select(REC_ID, PATIENT_ID) %>%
+            inner_join(
+               y  = reclink$matched %>%
+                  inner_join(
+                     y  = data$harp_dx %>%
+                        select(CENTRAL_ID, idnum),
+                     by = join_by(idnum)
+                  ),
+               by = join_by(REC_ID)
+            ) %>%
+            select(
+               CENTRAL_ID,
+               PATIENT_ID
+            )
+      }
       upsert$px_confirm <- reclink$final %>%
          select(
             REC_ID,
@@ -342,7 +345,7 @@ if (!dedup_confirm$same_rows) {
             REMARKS
          )
 
-      upsert$px_record <- reclink$for_match %>%
+      upsert$px_record <- reclink$final %>%
          select(
             REC_ID,
             PATIENT_ID,
@@ -358,8 +361,10 @@ if (!dedup_confirm$same_rows) {
    log_info("Updating live records with linked data.")
    local(envir = dedup_confirm, {
 
-      log_info("Uploading duplicates into {green('registry')}.")
-      upload_dupes(upsert$registry)
+      if ("registry" %in% names(upsert)) {
+         log_info("Uploading duplicates into {green('registry')}.")
+         upload_dupes(upsert$registry)
+      }
 
       conn <- dbConnect(
          RMariaDB::MariaDB(),
