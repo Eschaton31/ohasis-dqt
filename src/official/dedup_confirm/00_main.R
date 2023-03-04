@@ -306,7 +306,7 @@ local(envir = dedup_confirm, {
 
 local(envir = dedup_confirm, {
    match_names <- intersect(names(reclink$for_match), names(reclink$final))
-   same_rows   <- all.equal(select(reclink$for_match, all_of(match_names)),
+   same_rows   <- identical(select(reclink$for_match, all_of(match_names)),
                             select(reclink$final, all_of(match_names)))
    rm(match_names)
 })
