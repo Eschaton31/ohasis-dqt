@@ -91,6 +91,17 @@ FROM ohasis_interim.registry
 
 log_info("Loading HARP Dx registry.")
 local(envir = dedup_confirm, {
+   log_info("Checking for updated registry.")
+   Sys.setenv(HARP_DX = "N:/DQT/library/harp_dx")
+   ver_cloud <- hs_data("harp_dx", "reg", params$yr, params$mo)
+   readRenviron(".Renviron")
+   ver_local <- hs_data("harp_dx", "reg", params$yr, params$mo)
+
+   if (basename(ver_cloud) != basename(ver_local)) {
+      log_info("Downnloading new registry.")
+      fs::file_copy(ver_cloud, file.path(Sys.getenv("HARP_DX"), basename(ver_cloud)))
+   }
+
    data$harp_dx <- hs_data("harp_dx", "reg", params$yr, params$mo) %>%
       read_dta(
          col_select = c(
