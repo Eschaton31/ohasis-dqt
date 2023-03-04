@@ -161,6 +161,27 @@ labbs$agg    <- list()
 labbs$agg$qr <- lapply(labbs$long, labbs_agg, c("faci_name", "region", "province", "qr"), labbs$config)
 labbs$agg$yr <- lapply(labbs$long, labbs_agg, c("faci_name", "region", "province"), labbs$config)
 
+labbs$check$qr <- lapply(labbs$agg$qr, function(data) {
+   col_preg  <- data %>% get_names("_PREG$")
+   review_df <- data %>%
+      mutate(with_issue = 0)
+
+   for (i in seq_along(col_preg)) {
+      preg <- col_preg[i] %>% as.name()
+      f    <- gsub("_PREG$", "_F", preg) %>% as.name()
+
+      review_df %<>%
+         mutate(
+            with_issue = case_when(
+               {{ preg }} > {{ f }} ~ 1,
+               TRUE ~ with_issue
+            )
+         )
+   }
+
+   return(review_df %>% filter(with_issue == 1))
+})
+
 labbs_review <- bind_rows(labbs$long) %>%
    distinct(region, province, faci_name)
 
