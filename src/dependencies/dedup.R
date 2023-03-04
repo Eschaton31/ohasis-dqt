@@ -172,3 +172,69 @@ upload_dupes <- function(data) {
 
    dbDisconnect(db_conn)
 }
+
+quick_reclink <- function(data_match, data_ref, id_find, id_ref, match_cols, distance_col) {
+   distance_x <- as.name(paste0(distance_col, ".x"))
+   distance_y <- as.name(paste0(distance_col, ".y"))
+   reclink_df <- fastLink(
+      dfA              = data_match,
+      dfB              = data_ref,
+      varnames         = match_cols,
+      stringdist.match = match_cols,
+      partial.match    = match_cols,
+      threshold.match  = 0.95,
+      cut.a            = 0.90,
+      cut.p            = 0.85,
+      dedupe.matches   = FALSE,
+      n.cores          = 4,
+   )
+
+   reclink_review <- data.frame()
+   if (length(reclink_df$matches$inds.a) > 0) {
+      reclink_matched <- getMatches(
+         dfA         = data_match,
+         dfB         = data_ref,
+         fl.out      = reclink_df,
+         combine.dfs = FALSE
+      )
+
+      reclink_review <- reclink_matched$dfA.match %>%
+         mutate(
+            MATCH_ID = row_number()
+         ) %>%
+         select(
+            posterior,
+            MATCH_ID,
+            any_of(c(id_find, match_cols))
+         ) %>%
+         left_join(
+            y  = reclink_matched$dfB.match %>%
+               mutate(
+                  MATCH_ID = row_number()
+               ) %>%
+               select(
+                  posterior,
+                  MATCH_ID,
+                  any_of(c(id_ref, match_cols))
+               ),
+            by = "MATCH_ID"
+         ) %>%
+         select(-posterior.y) %>%
+         rename(posterior = posterior.x) %>%
+         arrange(desc(posterior)) %>%
+         relocate(posterior, .before = MATCH_ID) %>%
+         # Additional sift through of matches
+         mutate(
+            # levenshtein
+            LV       = stringdist::stringsim(!!distance_x, !!distance_y, method = 'lv'),
+            # jaro-winkler
+            JW       = stringdist::stringsim(!!distance_x, !!distance_y, method = 'jw'),
+            # qgram
+            QGRAM    = stringdist::stringsim(!!distance_x, !!distance_y, method = 'qgram', q = 3),
+            AVG_DIST = (LV + QGRAM + JW) / 3,
+         ) %>%
+         # choose 60% and above match
+         filter(AVG_DIST >= 0.60, !is.na(posterior))
+   }
+   return(reclink_review)
+}
