@@ -38,10 +38,12 @@ data <- dx %>%
       dx = n()
    ) %>%
    left_join(
-      y = addr %>%
-         mutate(id = paste0("PH", PSGC_MUNC)) %>%
-         select(id, aem_class)
-   )
+      y  = addr %>%
+         # mutate(id = paste0("PH", PSGC_MUNC)) %>%
+         select(ISO = PSGC_MUNC, aem_class),
+      by = "ISO"
+   ) %>%
+   distinct_all()
 
 data <- dx %>%
    select(
@@ -72,8 +74,38 @@ data <- dx %>%
    )
 
 spdf <- read_sf("H:/_QGIS/Shapefiles/Philippines 2020-05-29/phl_admbnda_adm3_psa_namria_20200529.shp")
+spdf <- ms_simplify(spdf, keep = 0.001)
 
-spdf            <- read_sf("H:/_QGIS/geojson_bene/ph_muncity_rewind.geojson")
+spdf_simplified <- spdf %>%
+   mutate(
+      NAME_1 = case_when(
+         ISO == "PH-AGN" ~ "Agusan del Norte",
+         ISO == "PH-BEN" ~ "Benguet",
+         ISO == "PH-CAS" ~ "Camarines Sur",
+         ISO == "PH-DAV" ~ "Davao del Norte",
+         ISO == "PH-ISA" ~ "Isabela",
+         ISO == "PH-LAN" ~ "Lanao del Norte",
+         ISO == "PH-LEY" ~ "Leyte",
+         ISO == "PH-MSR" ~ "Misamis Oriental",
+         ISO == "PH-MNL" ~ "National Capital Region",
+         ISO == "PH-PAM" ~ "Pampanga",
+         ISO == "PH-PAN" ~ "Pangasinan",
+         ISO == "PH-PLW" ~ "Palawan",
+         ISO == "PH-QUE" ~ "Quezon",
+         ISO == "PH-ZAN" ~ "Zamboanga del Norte",
+         ISO == "PH-SCO" ~ "South Cotabato",
+         ISO == "PH-ZMB" ~ "Zambales",
+         TRUE ~ NAME_1
+      )
+   ) %>%
+   group_by(ISO, NAME_1) %>%
+   summarize(
+      # geometry = st_union(geometry)
+      # geometry = st_union(st_make_valid(st_set_precision(geometry, 1e6)))
+      geometry = st_union(geometry)
+   )
+
+spdf            <- read_sf("C:/Users/Administrator/Downloads/philippines.geojson.txt")
 spdf_simplified <- spdf %>%
    left_join(
       y = addr %>%
@@ -99,9 +131,55 @@ spdf_simplified <- spdf %>%
    group_by(ADM1_EN, ADM1_PCODE, ISO, NAME_1) %>%
    summarize(
       # geometry = st_union(geometry)
-      geometry = st_union(st_make_valid(st_set_precision(geometry, 1e6)))
+      # geometry = st_union(st_make_valid(st_set_precision(geometry, 1e6)))
+      geometry = st_union(st_make_valid(geometry))
    )
-spdf_filtered   <- spdf_simplified %>%
+
+st_no_overlap <- function(polygons) {
+
+   centroids <- st_centroid(polygons)
+
+   # Voronoi tesselation
+   voronoi <-
+      centroids %>%
+         st_geometry() %>%
+         st_union() %>%
+         st_voronoi() %>%
+         st_collection_extract()
+
+   # Put them back in their original order
+   voronoi <- voronoi[unlist(st_intersects(centroids, voronoi))]
+
+   # Keep the attributes
+   result <- centroids
+
+   # Intersect voronoi zones with polygons
+   st_geometry(result) <-
+      mapply(function(x, y) st_intersection(x, y),
+             st_geometry(polygons),
+             voronoi,
+             SIMPLIFY = FALSE) %>%
+         st_sfc(crs = st_crs(polygons))
+
+   result
+}
+
+st_overlaps(st_set_precision(st_no_overlap(st_sf(geometry = spdf_simplified)), 1e8))
+
+plot_map(ms_simplify(spdf, keep = 0.001),
+         strokecolor = '#097FB3',
+         fillcolor   = '#AED3E4')
+
+spdf_simplified_v2 <- st_simplify(st_difference(spdf),
+                                  preserveTopology = TRUE,
+                                  dTolerance       = 10000)
+st_write(spdf_simplified %>% select(-ADM1_EN, -ADM1_PCODE), "C:/Users/Administrator/Downloads/ph_aem2.geojson", driver = "GeoJSON", delete_dsn = TRUE)
+st_write(spdf_simplified, "C:/Users/Administrator/Downloads/ph_provinces.geojson", driver = "GeoJSON", delete_dsn = TRUE)
+
+plot_map(spdf_simplified, strokecolor = '#097FB3',
+
+         fillcolor                    = '#AED3E4')
+spdf_filtered <- spdf_simplified %>%
    filter(ADM1_PCODE == "PH070000000") %>%
    left_join(
       y = data,
