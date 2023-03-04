@@ -3,7 +3,7 @@
 merge_harp <- function(harp, coverage) {
    data <- harp$tx$new %>%
       rename(
-         art_sex = sex
+         HARPTX_SEX = sex
       ) %>%
       # ML & RTT data
       left_join(
@@ -62,37 +62,37 @@ tag_indicators <- function(data, coverage) {
          ),
 
          # tag specific indicators
-         tx_curr          = if_else(
+         TX_CURR          = if_else(
             condition = onart28 == 1,
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         tx_new           = if_else(
+         TX_NEW           = if_else(
             condition = newonart == 1,
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         tx_ml            = if_else(
+         TX_ML            = if_else(
             condition = prev_onart28 == 1 & onart28 == 0,
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         tx_rtt           = if_else(
+         TX_RTT           = if_else(
             condition = prev_onart28 == 0 & onart28 == 1,
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         tx_pvls_eligible = if_else(
+         TX_PVLS_ELIGIBLE = if_else(
             condition = onart28 == 1 & vl_elig == 1,
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         tx_pvls          = if_else(
+         TX_PVLS          = if_else(
             condition = onart28 == 1 &
                is.na(baseline_vl) &
                !is.na(vlp12m),
@@ -110,7 +110,7 @@ generate_disagg <- function(data, coverage) {
    data %<>%
       mutate(
          # sex variable (use registry if available)
-         Sex             = coalesce(StrLeft(coalesce(HARPDX_SEX, sex), 1), "(no data)"),
+         Sex             = coalesce(StrLeft(coalesce(HARPDX_SEX, HARPTX_SEX), 1), "(no data)"),
 
          # KAP
          msm             = case_when(
