@@ -21,7 +21,7 @@ create_tables <- function(data) {
       tx_cohort     = list(data = data$tx, pk = c("art_id", "FACI_ID")),
       dx_tx_cascade = list(data = cascade$dx_tx, pk = cascade_ids),
       reach         = list(data = data$reach, pk = "CENTRAL_ID"),
-      hts           = list(data = data$hts, pk = "CENTRAL_ID"),
+      hts           = list(data = data$hts, pk = "CENTRAL_ID")
    )
    for (table in names(tables)) {
       table_space <- Id(schema = "db_faci", table = table)
@@ -31,7 +31,7 @@ create_tables <- function(data) {
       upload <- tables[[table]]$data
       keys   <- tables[[table]]$pk
       dbCreateTable(lw_conn, table_space, upload)
-      dbAddPrimaryKey(lw_conn, table_space, primary_key = keys)
+      dbExecute(lw_conn, stri_c("ALTER TABLE db_faci.", table, " ADD PRIMARY KEY (", stri_c(collapse = ", ", keys), ");"))
       ohasis$upsert(lw_conn, "db_faci", table, upload, keys)
    }
 
