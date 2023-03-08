@@ -95,7 +95,7 @@ epic$linelist$kp_prev %<>%
       msm             = case_when(
          use_central == 1 &
             Sex == "M" &
-            sexhow %in% c("HOMSOEXUAL", "BISEXUAL") ~ 1,
+            sexhow %in% c("HOMOSEXUAL", "BISEXUAL") ~ 1,
          use_central == 0 &
             Sex == "M" &
             grepl("yes-", risk_sexwithm) ~ 1,

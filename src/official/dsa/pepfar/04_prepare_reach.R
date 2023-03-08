@@ -197,7 +197,7 @@ generate_disagg <- function(data) {
          msm             = case_when(
             use_harpdx == 1 &
                Sex == "M" &
-               sexhow %in% c("HOMSOEXUAL", "BISEXUAL") ~ 1,
+               sexhow %in% c("HOMOSEXUAL", "BISEXUAL") ~ 1,
             use_harpdx == 0 &
                Sex == "M" &
                grepl("yes-", risk_sexwithm) ~ 1,
