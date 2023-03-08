@@ -50,6 +50,7 @@ faci_code_to_id <- function(data, ref_faci_code, faci_branch) {
                   TRUE ~ branch_faci
                ),
             ) %>%
+            distinct(FACI_ID, main_faci, branch_faci, .keep_all = TRUE) %>%
             select(
                {{faci_id}}     := FACI_ID,
                {{sub_faci_id}} := SUB_FACI_ID,
