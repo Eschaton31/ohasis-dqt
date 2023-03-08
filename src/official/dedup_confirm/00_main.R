@@ -386,15 +386,19 @@ FROM ohasis_interim.registry
       })
    }
    gc()
-   slackr_msg(
-      stri_c(
-         ">*SUCCESS!*\n",
-         ">The rHIVda Deduplication cron job was executed successfully.\n",
-         ">The next iteration will run on `",
-         format(ceiling_date(Sys.time(), "hour"), "%b %d, %Y @ %Y %X"), "`."
-      ),
-      mrkdwn = "true"
-   )
+
+   for (channel in c("#dqt", "#dat_coordinators")) {
+      slackr_msg(
+         stri_c(
+            ">*SUCCESS!*\n",
+            ">The rHIVda Deduplication cron job was executed successfully.\n",
+            ">The next iteration will run on `",
+            format(ceiling_date(Sys.time(), "hour"), "%b %d, %Y @ %Y %X"), "`."
+         ),
+         mrkdwn  = "true",
+         channel = channel
+      )
+   }
 },
    error = function(e) {
       slackr_msg(
