@@ -34,7 +34,8 @@ p_load_gh(
    "ropensci/tabulizer",
    "lmullen/genderdata",
    "SymbolixAU/googlePolylines",
-   "SymbolixAU/googleway"
+   "SymbolixAU/googleway",
+   "schardtbc/DBIExt"
 )
 
 # nhsss unique functions
