@@ -239,7 +239,7 @@ DB <- setRefClass(
                   Mode == "numeric" & Class == "Date" ~ "DATE NULL DEFAULT NULL",
                   Mode == "numeric" & Class == "POSIXct" ~ "DATETIME NULL DEFAULT NULL",
                   Mode == "numeric" ~ "INT(11) NULL DEFAULT NULL",
-                  Mode == "character" ~ "TEXT NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
+                  Mode == "character" ~ "VARCHAR(255) NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
                   TRUE ~ NA_character_
                ),
                SQL  = paste0("`", Var1, "` ", Type),
