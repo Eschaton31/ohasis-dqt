@@ -128,6 +128,17 @@ gen_cascade <- function(data) {
          values_to = "total"
       )
 
+   cascade$dx_tx <- cascade$dx %>%
+      mutate(
+         data_src = "dx"
+      ) %>%
+      bind_rows(
+         cascade$tx %>%
+            mutate(
+               data_src = "tx"
+            )
+      )
+
    return(cascade)
 }
 

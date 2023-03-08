@@ -28,6 +28,8 @@ load_harp <- function(params = NULL) {
          col_select = c(
             REC_ID,
             PATIENT_ID,
+            year,
+            month,
             idnum,
             firstname,
             middle,
@@ -61,7 +63,7 @@ load_harp <- function(params = NULL) {
          )
       ) %>%
       left_join(
-         y  = ohasis$get_data("harp_full", params$yr, params$mo) %>%
+         y  = hs_data("harp_full", "reg", params$yr, params$mo) %>%
             read_dta(
                col_select = c(
                   idnum,
@@ -73,7 +75,7 @@ load_harp <- function(params = NULL) {
          by = join_by(idnum)
       ) %>%
       left_join(
-         y  = read_dta("C:/data/harp_vl/20230130_vlnaive-dx_2022-12.dta"),
+         y  = read_dta(hs_data("harp_vl", "naive_dx", params$yr, params$mo)),
          by = join_by(idnum)
       ) %>%
       mutate_if(
@@ -130,7 +132,7 @@ load_harp <- function(params = NULL) {
                   baseline_cd4_result,
                )
             ),
-         by = "art_id"
+         by = join_by(art_id)
       ) %>%
       left_join(
          y  = hs_data("harp_tx", "outcome", params$prev_yr, params$prev_mo) %>%
@@ -145,10 +147,10 @@ load_harp <- function(params = NULL) {
                previous_next_pickup = latest_nextpickup,
                previous_outcome     = outcome
             ),
-         by = "art_id"
+         by = join_by(art_id)
       ) %>%
       left_join(
-         y  = read_dta("C:/data/harp_vl/20230130_vlnaive-tx_2022-12.dta"),
+         y  = read_dta(hs_data("harp_vl", "naive_tx", params$yr, params$mo)),
          by = join_by(art_id)
       ) %>%
       mutate_if(
@@ -157,6 +159,48 @@ load_harp <- function(params = NULL) {
             if_else(. == "", NA_character_, ., .)
       )
 
+   harp$prep <- hs_data("prep", "outcome", params$yr, params$mo) %>%
+      read_dta(
+         col_select = c(
+            REC_ID,
+            prep_id,
+            idnum,
+            latest_ffupdate,
+            latest_nextpickup,
+            latest_regimen,
+            faci,
+            branch,
+            sex,
+            curr_age,
+            onprep,
+            prepstart_date,
+            outcome
+         )
+      ) %>%
+      left_join(
+         y  = hs_data("prep", "reg", params$yr, params$mo) %>%
+            read_dta(
+               col_select = c(
+                  PATIENT_ID,
+                  prep_id,
+                  first,
+                  middle,
+                  last,
+                  suffix,
+                  birthdate,
+                  px_code,
+                  uic,
+                  philhealth_no,
+                  philsys_id,
+               )
+            ),
+         by = join_by(prep_id)
+      ) %>%
+      mutate_if(
+         .predicate = is.character,
+         ~str_squish(.) %>%
+            if_else(. == "", NA_character_, ., .)
+      )
 
    return(harp)
 }
@@ -166,10 +210,11 @@ get_oh <- function(harp) {
    oh <- list()
    .log_info("Getting OHASIS dx records.")
    lw_conn   <- ohasis$conn("lw")
+   dbname    <- "ohasis_warehouse"
    rec_ids   <- paste(collapse = "','", harp$dx$REC_ID)
    a         <- dbTable(
       lw_conn,
-      "ohasis_warehouse",
+      dbname,
       "form_a",
       cols      = c(
          "REC_ID",
@@ -183,7 +228,7 @@ get_oh <- function(harp) {
    )
    hts       <- dbTable(
       lw_conn,
-      "ohasis_warehouse",
+      dbname,
       "form_hts",
       cols      = c(
          "REC_ID",
@@ -208,13 +253,31 @@ FROM ohasis_warehouse.form_art_bc AS art
    )", "OHASIS tx")
    oh$id_reg <- dbTable(
       lw_conn,
-      "ohasis_warehouse",
+      dbname,
       "id_registry",
       cols = c(
          "CENTRAL_ID",
          "PATIENT_ID"
       )
    )
+
+   hts_where <- glue(r"(
+   (YEAR(RECORD_DATE) >= 2021) OR
+      (YEAR(DATE_CONFIRM) >= 2021) OR
+      (YEAR(T3_DATE) >= 2021) OR
+      (YEAR(T2_DATE) >= 2021) OR
+      (YEAR(T1_DATE) >= 2021) OR
+      (YEAR(T0_DATE) >= 2021)
+   )")
+   cbs_where <- glue(r"(
+   (YEAR(RECORD_DATE) >= 2021) OR
+      (YEAR(TEST_DATE) >= 2021)
+   )")
+
+   oh$forms           <- list()
+   oh$forms$form_hts  <- dbTable(lw_conn, dbname, "form_hts", where = hts_where, raw_where = TRUE)
+   oh$forms$form_a    <- dbTable(lw_conn, dbname, "form_a", where = hts_where, raw_where = TRUE)
+   oh$forms$form_cfbs <- dbTable(lw_conn, dbname, "form_cfbs", where = cbs_where, raw_where = TRUE)
    dbDisconnect(lw_conn)
 
    return(oh)

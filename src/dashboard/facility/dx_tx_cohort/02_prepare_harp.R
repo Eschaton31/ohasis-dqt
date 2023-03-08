@@ -103,7 +103,7 @@ get_faci_ids <- function(harp, oh) {
       # match facility ids using list consolidated with encoded dxlab_standard &
       # dx_address;
       left_join(
-         y  = read_sheet(as_id("1HuZWYG-Y926d8h3zoLKbr0I3qPP4VOZagyNAW3ht97k"), "Facility ID Matching") %>%
+         y  = read_sheet(as_id("1WiUiB7n5qkvyeARwGV1l1ipuCknDT8wZ6Pt7662J2ms"), "Sheet1") %>%
             rename(
                DX_FACI     = FACI_ID,
                DX_SUB_FACI = SUB_FACI_ID
@@ -123,7 +123,8 @@ get_faci_ids <- function(harp, oh) {
                   true      = FACI_ID,
                   false     = SERVICE_FACI
                ),
-            ),
+            ) %>%
+            distinct(REC_ID, .keep_all = TRUE),
          by = join_by(REC_ID)
       ) %>%
       mutate(
@@ -167,11 +168,14 @@ get_faci_ids <- function(harp, oh) {
             select(
                NHSSS_FACI     = FACI_ID,
                NHSSS_SUB_FACI = SUB_FACI_ID,
-               dxlab_standard = FACI_NAME_CLEAN
+               dxlab_standard = FACI_NAME_CLEAN,
+               dx_region      = FACI_NHSSS_REG,
+               dx_province    = FACI_NHSSS_PROV,
+               dx_muncity     = FACI_NHSSS_MUNC,
             ) %>%
-            arrange(desc(NHSSS_SUB_FACI), dxlab_standard) %>%
-            distinct(NHSSS_FACI, dxlab_standard, .keep_all = TRUE),
-         by = join_by(dxlab_standard)
+            arrange(desc(NHSSS_SUB_FACI), dx_region, dx_province, dx_muncity, dxlab_standard) %>%
+            distinct(dx_region, dx_province, dx_muncity, dxlab_standard, .keep_all = TRUE),
+         by = join_by(dx_region, dx_province, dx_muncity, dxlab_standard)
       ) %>%
       mutate(
          faci_src      = case_when(
@@ -206,7 +210,8 @@ get_faci_ids <- function(harp, oh) {
       mutate_at(
          .vars = vars(TX_FACI, REAL_FACI),
          ~if_else(. == "130000", NA_character_, ., .),
-      )
+      ) %>%
+      distinct(art_id, .keep_all = TRUE)
 
    return(data)
 }
@@ -244,15 +249,21 @@ add_faci_info <- function(data) {
 # attach address names
 add_addr_info <- function(data) {
    data$dx %<>%
+      mutate(
+         province = case_when(
+            region == "NCR" & muncity == "UNKNOWN" ~ "UNKNOWN",
+            TRUE ~ province
+         )
+      ) %>%
       left_join(
          y  = ohasis$ref_addr %>%
             mutate(
-               drop = if_else(
-                  condition = StrLeft(PSGC_MUNC, 4) == "1339" & PSGC_MUNC != "133900000",
-                  true      = 1,
-                  false     = 0,
-                  missing   = 0
-               )
+               drop = case_when(
+                  StrLeft(PSGC_PROV, 4) == "1339" & (PSGC_MUNC != "133900000" | is.na(PSGC_MUNC)) ~ 1,
+                  StrLeft(PSGC_REG, 4) == "1300" & PSGC_MUNC == "" ~ 1,
+                  stri_detect_fixed(NAME_PROV, "City") & NHSSS_MUNC == "UNKNOWN" ~ 1,
+                  TRUE ~ 0
+               ),
             ) %>%
             filter(drop == 0) %>%
             select(
@@ -266,7 +277,7 @@ add_addr_info <- function(data) {
                PERM_PSGC_PROV = PSGC_PROV,
                PERM_PSGC_MUNC = PSGC_MUNC
             ),
-         by = c("region", "province", "muncity")
+         by = join_by(region, province, muncity)
       )
 
    return(data)
@@ -400,14 +411,26 @@ gen_disagg <- function(data, params) {
 
          diff                  = floor(interval(previous_next_pickup, latest_ffupdate) / days(1)),
          iit                   = case_when(
-            outcome == "onart" & outcome != previous_outcome & diff < 90 ~ "IIT (ART <3 months)",
-            outcome == "onart" & outcome != previous_outcome & diff %in% seq(90, 179) ~ "IIT (ART 3-5 months)",
-            outcome == "onart" & outcome != previous_outcome & diff >= 180 ~ "IIT (ART >=6 months)",
+            outcome == "onart" &
+               outcome != previous_outcome &
+               diff < 90 ~ "IIT (ART <3 months)",
+            outcome == "onart" &
+               outcome != previous_outcome &
+               diff %in% seq(90, 179) ~ "IIT (ART 3-5 months)",
+            outcome == "onart" &
+               outcome != previous_outcome &
+               diff >= 180 ~ "IIT (ART >=6 months)",
          ),
-         iit_new                   = case_when(
-            outcome_new == "onart" & outcome != previous_outcome_new & diff < 90 ~ "IIT (ART <3 months)",
-            outcome_new == "onart" & outcome != previous_outcome_new & diff %in% seq(90, 179) ~ "IIT (ART 3-5 months)",
-            outcome_new == "onart" & outcome != previous_outcome_new & diff >= 180 ~ "IIT (ART >=6 months)",
+         iit_new               = case_when(
+            outcome_new == "onart" &
+               outcome != previous_outcome_new &
+               diff < 90 ~ "IIT (ART <3 months)",
+            outcome_new == "onart" &
+               outcome != previous_outcome_new &
+               diff %in% seq(90, 179) ~ "IIT (ART 3-5 months)",
+            outcome_new == "onart" &
+               outcome != previous_outcome_new &
+               diff >= 180 ~ "IIT (ART >=6 months)",
          ),
 
 
@@ -683,7 +706,7 @@ remove_cols <- function(data, oh) {
          ))
       ) %>%
       left_join(
-         y  = oh$tx %>%
+         y        = oh$tx %>%
             mutate(ORIG_FACI = FACI_ID) %>%
             ohasis$get_faci(
                list(HUB_NAME = c("FACI_ID", "SUB_FACI_ID")),
@@ -691,7 +714,8 @@ remove_cols <- function(data, oh) {
                c("HUB_REG", "HUB_PROV", "HUB_MUNC")
             ) %>%
             distinct(CENTRAL_ID, HUB_NAME, .keep_all = TRUE),
-         by = "CENTRAL_ID"
+         by       = join_by(CENTRAL_ID),
+         multiple = "all"
       ) %>%
       rename(
          FACI_ID      = ORIG_FACI,
@@ -699,18 +723,6 @@ remove_cols <- function(data, oh) {
          CURR_TX_REG  = REAL_REG,
          CURR_TX_PROV = REAL_PROV,
          CURR_TX_MUNC = REAL_MUNC
-         # ) %>%
-         # mutate(
-         #    outcome     = case_when(
-         #       FACI_ID != CURR_FACI & outcome == "onart" ~ "transout - other hub",
-         #       FACI_ID == CURR_FACI ~ outcome,
-         #       TRUE ~ outcome
-         #    ),
-         #    outcome_new = case_when(
-         #       FACI_ID != CURR_FACI & outcome_new == "onart" ~ "transout - other hub",
-         #       FACI_ID == CURR_FACI ~ outcome_new,
-         #       TRUE ~ outcome_new
-         #    )
       )
 
    return(data)
