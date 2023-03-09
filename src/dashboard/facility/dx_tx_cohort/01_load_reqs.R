@@ -251,6 +251,16 @@ SELECT DISTINCT COALESCE(id.CENTRAL_ID, art.PATIENT_ID) AS CENTRAL_ID,
 FROM ohasis_warehouse.form_art_bc AS art
          LEFT JOIN ohasis_warehouse.id_registry AS id ON art.PATIENT_ID = id.PATIENT_ID;
    )", "OHASIS tx")
+   oh$prep   <- tracked_select(lw_conn, r"(
+SELECT DISTINCT COALESCE(id.CENTRAL_ID, prep.PATIENT_ID) AS CENTRAL_ID,
+                CASE
+                    WHEN SERVICE_FACI = '130000' THEN FACI_ID
+                    WHEN SERVICE_FACI IS NULL THEN FACI_ID
+                    ELSE SERVICE_FACI END               AS FACI_ID,
+                SERVICE_SUB_FACI                        AS SUB_FACI_ID
+FROM ohasis_warehouse.form_prep AS prep
+         LEFT JOIN ohasis_warehouse.id_registry AS id ON art.PATIENT_ID = id.PATIENT_ID;
+   )", "OHASIS PrEP")
    oh$id_reg <- dbTable(
       lw_conn,
       dbname,

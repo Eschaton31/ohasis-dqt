@@ -382,10 +382,25 @@ generate_disagg <- function(data) {
 
    p$data$reach <- reach %>%
       arrange(desc(hts_date)) %>%
-      distinct(CENTRAL_ID, .keep_all = TRUE)
+      distinct(CENTRAL_ID, FACI_ID, .keep_all = TRUE)
 
    p$data$hts <- reach %>%
       filter(HTS_TST == 1) %>%
       arrange(desc(year(hts_date)), hts_priority) %>%
-      distinct(CENTRAL_ID, .keep_all = TRUE)
+      distinct(CENTRAL_ID, FACI_ID, .keep_all = TRUE)
+
+   p$data$nr <- reach %>%
+      filter(
+         HTS_TST == 1,
+         grepl("Non-reactive$", FINAL_TEST_RESULT) | grepl("Negative$", FINAL_TEST_RESULT),
+         is.na(idnum)
+      ) %>%
+      anti_join(
+         y  = reach %>%
+            filter(FINAL_TEST_RESULT == "Confirmed: Positive") %>%
+            select(CENTRAL_ID),
+         by = join_by(CENTRAL_ID)
+      ) %>%
+      arrange(desc(year(hts_date)), hts_priority) %>%
+      distinct(CENTRAL_ID, FACI_ID, .keep_all = TRUE)
 }
