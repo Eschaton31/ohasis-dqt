@@ -2,7 +2,7 @@ check_pii <- function(data, checklist, view_vars = everything()) {
    .log_info("Checking missing PIIs.")
    checklist[["missing_pii"]] <- data %>%
       filter(if_any(c("FIRST", "LAST", "SEX", "BIRTHDATE"), ~is.na(.))) %>%
-      select(view_vars)
+      select(any_of(view_vars))
 
    .log_info("Checking short names.")
    checklist[["short_name"]] <- data %>%
@@ -15,7 +15,7 @@ check_pii <- function(data, checklist, view_vars = everything()) {
       filter(
          n_name <= 10 | n_first <= 3 | n_last <= 3
       ) %>%
-      select(view_vars)
+      select(any_of(view_vars))
 
 
    .log_info("Checking possible wrong sex.")
@@ -35,7 +35,7 @@ check_pii <- function(data, checklist, view_vars = everything()) {
       ) %>%
       filter(SEX != PROBABLE_SEX) %>%
       relocate(PROBABLE_SEX, .after = SEX) %>%
-      select(view_vars, SEX, PROBABLE_SEX)
+      select(any_of(view_vars), SEX, PROBABLE_SEX)
 
    return(checklist)
 }
@@ -50,7 +50,7 @@ check_addr <- function(data, checklist, view_vars = everything(), addr_type) {
    .log_info("Checking incomplete address.")
    checklist[[addr_name]] <- data %>%
       filter(if_any(starts_with(addr_type, ignore.case = FALSE), ~is.na(.))) %>%
-      select(view_vars, starts_with(addr_type, ignore.case = FALSE))
+      select(any_of(view_vars), starts_with(addr_type, ignore.case = FALSE))
 
    return(checklist)
 }
@@ -67,7 +67,7 @@ check_dates <- function(data, checklist, view_vars = everything(), date_vars) {
                !!var <= -25567
          ) %>%
          select(
-            view_vars,
+            any_of(view_vars),
             !!var
          )
    }
@@ -84,7 +84,7 @@ check_nonnegotiables <- function(data, checklist, view_vars = everything(), nonn
             is.na(!!var)
          ) %>%
          select(
-            view_vars,
+            any_of(view_vars),
             !!var
          )
    }
@@ -101,7 +101,7 @@ check_preggy <- function(data, checklist, view_vars = everything()) {
          ~StrLeft(., 1) == "1"
       ) %>%
       select(
-         view_vars,
+         any_of(view_vars),
          any_of(c("IS_PREGNANT", "MED_IS_PREGNANT"))
       )
 
@@ -113,7 +113,7 @@ check_preggy <- function(data, checklist, view_vars = everything()) {
          ~StrLeft(., 1) == "1"
       ) %>%
       select(
-         view_vars,
+         any_of(view_vars),
          any_of(c("IS_PREGNANT", "MED_IS_PREGNANT"))
       )
 
@@ -135,7 +135,7 @@ check_age <- function(data, checklist, view_vars = everything()) {
          AGE != AGE_DTA
       ) %>%
       select(
-         view_vars,
+         any_of(view_vars),
          AGE,
          AGE_DTA
       )
