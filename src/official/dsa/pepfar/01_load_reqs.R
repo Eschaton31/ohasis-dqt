@@ -28,6 +28,13 @@ set_coverage <- function(report = NULL, yr = NULL, mo = NULl) {
    )
    coverage$max <- as.character(ceiling_date(as.Date(coverage$curr$date), unit = "month") - 1)
 
+   coverage$curr$fy <- case_when(
+      coverage$curr$mo %in% c("01", "02", "03") ~ stri_c("Q2 FY", as.numeric(StrRight(coverage$curr$yr, 2))),
+      coverage$curr$mo %in% c("04", "05", "06") ~ stri_c("Q3 FY", as.numeric(StrRight(coverage$curr$yr, 2))),
+      coverage$curr$mo %in% c("07", "08", "09") ~ stri_c("Q4 FY", as.numeric(StrRight(coverage$curr$yr, 2))),
+      coverage$curr$mo %in% c("10", "11", "12") ~ stri_c("Q1 FY", as.numeric(StrRight(coverage$curr$yr, 2)) + 1)
+   )
+
    ref_prev           <- strsplit(as.character(as.Date(coverage$min) - 1), "-")[[1]]
    coverage$prev      <- list()
    coverage$prev$mo   <- ref_prev[2]
@@ -247,7 +254,8 @@ load_harp <- function(coverage, id_reg) {
             PATIENT_ID,
             prep_id,
             sex,
-            birthdate
+            birthdate,
+            prep_first_screen
          )
       ) %>%
       left_join(
