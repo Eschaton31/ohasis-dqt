@@ -19,9 +19,9 @@ create_tables <- function(data) {
    tables <- list(
       dx_cohort     = list(data = data$dx, pk = "idnum"),
       tx_cohort     = list(data = data$tx, pk = c("art_id", "FACI_ID")),
-      dx_tx_cascade = list(data = cascade$dx_tx, pk = cascade_ids),
-      reach         = list(data = data$reach, pk = "CENTRAL_ID"),
-      hts           = list(data = data$hts, pk = "CENTRAL_ID")
+      dx_tx_cascade = list(data = cascade$dx_tx, pk = c(cascade_ids, "data_src")),
+      reach         = list(data = data$reach, pk = c("CENTRAL_ID", "FACI_ID")),
+      hts           = list(data = data$hts, pk = c("CENTRAL_ID", "FACI_ID"))
    )
    for (table in names(tables)) {
       table_space <- Id(schema = "db_faci", table = table)
