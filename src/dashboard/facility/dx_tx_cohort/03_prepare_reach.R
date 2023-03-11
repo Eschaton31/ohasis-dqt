@@ -100,8 +100,8 @@ clean_hts <- function(data, risk, coverage) {
 
          # old confirmed
          old_dx            = case_when(
-            confirm_date >= as.Date(coverage$min) ~ 0,
-            ref_report < as.Date(coverage$min) ~ 1,
+            confirm_date >= hts_date ~ 0,
+            confirm_date < hts_date ~ 1,
             TRUE ~ 0
          ),
 
@@ -168,8 +168,8 @@ tag_indicators <- function(data) {
          KP_PREV        = 1,
          HTS_TST        = if_else(
             condition = HTS_TST_RESULT != "(no data)",
-            true      = 0,
-            false     = 1,
+            true      = 1,
+            false     = 0,
             missing   = 0
          ),
          HTS_TST_POS    = if_else(
@@ -322,7 +322,17 @@ generate_disagg <- function(data) {
          REACH_VENUE,
          REFER_ART,
          REFER_CONFIRM,
-         REFER_RETEST,
+         REFER_RETEST, ,
+         SERVICE_HIV_101,
+         SERVICE_RISK_COUNSEL,
+         SERVICE_IEC_MATS,
+         SERVICE_CONDOMS,
+         SERVICE_LUBES,
+         SERVICE_PREP_REFER,
+         SERVICE_SSNT_OFFER,
+         SERVICE_SSNT_ACCEPT,
+         SERVICE_GIVEN_CONDOMS,
+         SERVICE_GIVEN_LUBES,
          hts_date,
          hts_result,
          hts_modality,
@@ -364,7 +374,7 @@ generate_disagg <- function(data) {
          ONLINE_APP,
       ) %>%
       mutate_at(
-         .vars = vars(starts_with("REACH"), starts_with("REFER")),
+         .vars = vars(starts_with("REACH"), starts_with("REFER"), starts_with("SERVICE")),
          ~as.integer(keep_code(.))
       )
 
