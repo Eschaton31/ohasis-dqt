@@ -216,11 +216,8 @@ dedup_group_ids <- function(data) {
 
       # tag duplicates based on grouping
       df <- data %>%
-         filter_at(
-            .vars           = vars(dedup_id),
-            .vars_predicate = all_vars(!is.na(.))
-         ) %>%
-         get_dupes(dedup_id) %>%
+         filter(if_all(any_of(dedup_id), ~!is.na(.))) %>%
+         get_dupes(all_of(dedup_id)) %>%
          filter(dupe_count > 0) %>%
          group_by(across(all_of(dedup_id))) %>%
          mutate(
