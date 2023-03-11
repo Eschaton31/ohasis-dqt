@@ -153,9 +153,9 @@ tag_indicators <- function(data) {
          # tag specific indicators
          KP_PREV        = 1,
          HTS_TST        = if_else(
-            condition = HTS_TST_RESULT == "(no data)",
-            true      = 0,
-            false     = 1,
+            condition = HTS_TST_RESULT != "(no data)",
+            true      = 1,
+            false     = 0,
             missing   = 0
          ),
          HTS_TST_POS    = if_else(
@@ -344,6 +344,13 @@ generate_disagg <- function(data) {
             grepl("MESSENGER", CBS_VENUE) ~ "FACEBOOK",
             grepl("\\bFB\\b", CBS_VENUE) ~ "FACEBOOK",
             grepl("\\bGR\\b", CBS_VENUE) ~ "GRINDR",
+         ),
+         REACH_ONLINE   = if_else(!is.na(ONLINE_APP), "1_Yes", REACH_ONLINE, REACH_ONLINE),
+         REACH_CLINICAL = if_else(
+            condition = if_all(starts_with("REACH_"), ~is.na(.)) & hts_modality == "FBT",
+            true      = "1_Yes",
+            false     = REACH_CLINICAL,
+            missing   = REACH_CLINICAL
          ),
          CONFIRM_LAB = if_else(
             CONFIRM_TYPE == "1_Central NRL",
