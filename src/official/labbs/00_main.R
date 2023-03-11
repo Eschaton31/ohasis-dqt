@@ -12,6 +12,7 @@ local(envir = labbs, {
    params$yr     <- stri_pad_left(params$yr, width = 4, pad = "0")
    params$ym     <- paste0(params$yr, ".", params$mo)
 })
+source(file.path(getwd(), "src", "official", "labbs", "00_functions.R"))
 
 ##  Set configurations and parameters for the files and reports ----------------
 
@@ -157,29 +158,121 @@ labbs$long <- lapply(labbs$data[2:10], function(data) {
       )
 })
 
-labbs$agg    <- list()
-labbs$agg$qr <- lapply(labbs$long, labbs_agg, c("faci_name", "region", "province", "qr"), labbs$config)
-labbs$agg$yr <- lapply(labbs$long, labbs_agg, c("faci_name", "region", "province"), labbs$config)
+labbs$agg       <- list()
+labbs$agg$month <- lapply(labbs$long, labbs_agg, c("faci_name", "region", "province", "qr", "month"), labbs$config)
+labbs$agg$qr    <- lapply(labbs$long, labbs_agg, c("faci_name", "region", "province", "qr"), labbs$config)
+labbs$agg$yr    <- lapply(labbs$long, labbs_agg, c("faci_name", "region", "province"), labbs$config)
 
-labbs$check$qr <- lapply(labbs$agg$qr, function(data) {
-   col_preg  <- data %>% get_names("_PREG$")
-   review_df <- data %>%
-      mutate(with_issue = 0)
+labbs$check$month <- lapply(labbs$agg$month, function(data) {
+
+   review                    <- list()
+   review[["preg > female"]] <- select(data, region, province, qr, month, faci_name)
+   review[["nr+r > total"]]  <- select(data, region, province, qr, month, faci_name)
+   review[["m+f > total"]]   <- select(data, region, province, qr, month, faci_name)
+
+   ##  Pregnant > Female -------------------------------------------------------
+   col_preg <- data %>% get_names("_PREG$")
 
    for (i in seq_along(col_preg)) {
       preg <- col_preg[i] %>% as.name()
       f    <- gsub("_PREG$", "_F", preg) %>% as.name()
 
-      review_df %<>%
-         mutate(
-            with_issue = case_when(
-               {{ preg }} > {{ f }} ~ 1,
-               TRUE ~ with_issue
-            )
+      review[["preg > female"]] %<>%
+         full_join(
+            y  = data %>%
+               select(region, province, qr, month, faci_name, {{preg}}, {{f}}) %>%
+               mutate(
+                  with_issue = if_else({{preg}} > {{f}}, 1, 0, 0)
+               ) %>%
+               filter(with_issue == 1) %>%
+               select(-with_issue),
+            by = join_by(region, province, qr, month, faci_name)
          )
    }
 
-   return(review_df %>% filter(with_issue == 1))
+   ##  NR + R > Total  ---------------------------------------------------------
+   col_total <- data %>% get_names("_ALL_DONE_TOTAL$")
+
+   for (i in seq_along(col_total)) {
+      total <- col_total[i] %>% as.name()
+      nr    <- gsub("_ALL_", "_NR_", total) %>% as.name()
+      r     <- gsub("_ALL_", "_R_", total) %>% as.name()
+
+      if (!(as.character(nr) %in% names(data))) data %<>% mutate({{nr}} := NA_integer_)
+      if (!(as.character(r) %in% names(data))) data %<>% mutate({{r}} := NA_integer_)
+
+      review[["nr+r > total"]] %<>%
+         full_join(
+            y  = data %>%
+               select(region, province, qr, month, faci_name, {{nr}}, {{r}}, {{total}}) %>%
+               mutate(
+                  with_issue = if_else(
+                     condition = (coalesce({{nr}}, 0) + coalesce({{r}}, 0)) > coalesce({{total}}, 0),
+                     true      = 1,
+                     false     = 0,
+                     missing   = 0
+                  )
+               ) %>%
+               filter(with_issue == 1) %>%
+               select(-with_issue),
+            by = join_by(region, province, qr, month, faci_name)
+         )
+   }
+
+   ##  M + F > Total  ----------------------------------------------------------
+   col_total <- data %>% get_names("_TOTAL$")
+
+   for (i in seq_along(col_total)) {
+      total <- col_total[i] %>% as.name()
+      m     <- gsub("_TOTAL$", "_M", total) %>% as.name()
+      f     <- gsub("_TOTAL$", "_F", total) %>% as.name()
+
+      if (!(as.character(m) %in% names(data))) data %<>% mutate({{m}} := NA_integer_)
+      if (!(as.character(f) %in% names(data))) data %<>% mutate({{f}} := NA_integer_)
+
+      review[["m+f > total"]] %<>%
+         full_join(
+            y  = data %>%
+               select(region, province, qr, month, faci_name, {{m}}, {{f}}, {{total}}) %>%
+               mutate(
+                  with_issue = if_else(
+                     condition = (coalesce({{m}}, 0) + coalesce({{f}}, 0)) > coalesce({{total}}, 0),
+                     true      = 1,
+                     false     = 0,
+                     missing   = 0
+                  )
+               ) %>%
+               filter(with_issue == 1) %>%
+               select(-with_issue),
+            by = join_by(region, province, month, qr, faci_name)
+         )
+   }
+
+   review <- lapply(review, function(data) {
+      data %<>%
+         remove_empty("cols")
+      final_cols <- names(select(data, -any_of(c("region", "province", "qr", "month", "faci_name"))))
+
+      if (length(final_cols) > 0) {
+         data %<>%
+            filter(if_any(final_cols, ~!is.na(.))) %>%
+            arrange(region, province, faci_name, qr, month) %>%
+            mutate(
+               month = as.numeric(month),
+               month = month.abb[month]
+            )
+      } else {
+         data %<>%
+            slice(0)
+      }
+
+      return(data)
+   })
+
+   return(review)
+})
+lapply(names(labbs$reports), function (disease) {
+   labbs_validation(labbs$check$month[[disease]], "2022.12", disease, "#sti-ghurls")
 })
 
 labbs_review <- bind_rows(labbs$long) %>%
