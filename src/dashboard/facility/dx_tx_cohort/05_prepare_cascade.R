@@ -17,8 +17,8 @@ gen_cascade <- function(data) {
          FACI_ID,
          dx_age_c1,
          dx_age_c2,
-         tx_age_c1,
-         tx_age_c2,
+         curr_age_c1,
+         curr_age_c2,
          kap_type,
          sex,
          mot,
@@ -83,8 +83,8 @@ gen_cascade <- function(data) {
          FACI_ID,
          dx_age_c1,
          dx_age_c2,
-         tx_age_c1,
-         tx_age_c2,
+         curr_age_c1,
+         curr_age_c2,
          kap_type,
          sex,
          mot,
@@ -126,6 +126,70 @@ gen_cascade <- function(data) {
          ),
          names_to  = "indicator",
          values_to = "total"
+      )
+
+   cascade$prep <- data$prep %>%
+      mutate(
+         linkage_facility = case_when(
+            FACI_ID == CURR_FACI ~ "same",
+            FACI_ID != CURR_FACI ~ "transfer",
+            is.na(CURR_FACI) ~ "(not enrolled)",
+            TRUE ~ "(no data)"
+         )
+      ) %>%
+      group_by(
+         FACI_ID,
+         curr_age_c1,
+         curr_age_c2,
+         kap_type,
+         sex,
+         linkage_facility,
+      ) %>%
+      summarise_at(
+         .vars = vars(
+            prep_screen,
+            prep_elig,
+            prep_ineligible
+         ),
+         ~sum(., na.rm = TRUE)
+      ) %>%
+      pivot_longer(
+         cols      = c(
+            prep_screen,
+            prep_elig,
+            prep_ineligible
+         ),
+         names_to  = "indicator",
+         values_to = "total"
+      ) %>%
+      bind_rows(
+         data$nr %>%
+            mutate(test_nr = 1) %>%
+            rename(
+               prep_offer = PREP_OFFER
+            ) %>%
+            group_by(
+               FACI_ID,
+               curr_age_c1,
+               curr_age_c2,
+               kap_type,
+               sex,
+            ) %>%
+            summarise_at(
+               .vars = vars(
+                  test_nr,
+                  prep_offer
+               ),
+               ~sum(., na.rm = TRUE)
+            ) %>%
+            pivot_longer(
+               cols      = c(
+                  test_nr,
+                  prep_offer
+               ),
+               names_to  = "indicator",
+               values_to = "total"
+            )
       )
 
    cascade$dx_tx <- cascade$dx %>%

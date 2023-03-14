@@ -353,8 +353,8 @@ gen_disagg <- function(data, params) {
    data$tx %<>%
       mutate(
          # dx age
-         tx_age_c1             = gen_agegrp(curr_age, "harp"),
-         tx_age_c2             = gen_agegrp(curr_age, "5yr"),
+         curr_age_c1           = gen_agegrp(curr_age, "harp"),
+         curr_age_c2           = gen_agegrp(curr_age, "5yr"),
 
          # sex
          sex                   = case_when(
@@ -549,8 +549,8 @@ attach_tx_to_dx <- function(data) {
             select(
                idnum,
                art_id,
-               tx_age_c1,
-               tx_age_c2,
+               curr_age_c1,
+               curr_age_c2,
                everonart,
                everonart_plhiv,
                onart,

@@ -259,6 +259,7 @@ generate_disagg <- function(data) {
             transmit == "IVDU" ~ "PWID",
             msm == 1 & tgw == 0 ~ "MSM",
             msm == 1 & tgw == 1 ~ "MSM-TGW",
+            hetero == 0 & pwid == 1 ~ "PWID",
             sex == "Male" ~ "Other Males",
             sex == "Female" & pregnant == 1 ~ "Pregnant WLHIV",
             sex == "Female" ~ "Other Females",
@@ -268,8 +269,8 @@ generate_disagg <- function(data) {
          # Age Band
          curr_age      = calc_age(coalesce(HARPDX_BIRTHDATE, BIRTHDATE), hts_date),
          curr_age      = floor(coalesce(curr_age, AGE)),
-         reeach_age_c1 = gen_agegrp(curr_age, "harp"),
-         reeach_age_c2 = gen_agegrp(curr_age, "5yr"),
+         curr_age_c1 = gen_agegrp(curr_age, "harp"),
+         curr_age_c2 = gen_agegrp(curr_age, "5yr"),
       ) %>%
       mutate(
          CONFIRM_RESULT = case_when(
@@ -312,7 +313,7 @@ generate_disagg <- function(data) {
          MIDDLE,
          LAST,
          SUFFIX,
-         SEX     = sex,
+         sex,
          SELF_IDENT,
          SELF_IDENT_OTHER,
          REACH_ONLINE,
@@ -369,8 +370,8 @@ generate_disagg <- function(data) {
          PREP_OFFER,
          kap_type,
          curr_age,
-         reeach_age_c1,
-         reeach_age_c2,
+         curr_age_c1,
+         curr_age_c2,
          ONLINE_APP,
       ) %>%
       mutate_at(
