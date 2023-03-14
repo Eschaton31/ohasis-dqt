@@ -5,8 +5,8 @@ create_tables <- function(data) {
       "FACI_ID",
       "dx_age_c1",
       "dx_age_c2",
-      "tx_age_c1",
-      "tx_age_c2",
+      "curr_age_c1",
+      "curr_age_c2",
       "kap_type",
       "sex",
       "mot",
@@ -17,11 +17,13 @@ create_tables <- function(data) {
    )
 
    tables <- list(
-      dx_cohort     = list(data = data$dx, pk = "idnum"),
-      tx_cohort     = list(data = data$tx, pk = c("art_id", "FACI_ID")),
-      dx_tx_cascade = list(data = cascade$dx_tx, pk = c(cascade_ids, "data_src")),
-      reach         = list(data = data$reach, pk = c("CENTRAL_ID", "FACI_ID")),
-      hts           = list(data = data$hts, pk = c("CENTRAL_ID", "FACI_ID"))
+      dx_cohort       = list(data = data$dx, pk = "idnum"),
+      tx_cohort       = list(data = data$tx, pk = c("art_id", "FACI_ID")),
+      prep_cohort     = list(data = data$prep, pk = c("prep_id", "FACI_ID")),
+      dx_tx_cascade   = list(data = cascade$dx_tx, pk = c(cascade_ids, "data_src")),
+      nr_prep_cascade = list(data = cascade$prep, pk = c("FACI_ID", "curr_age_c1", "curr_age_c2", "kap_type", "sex", "linkage_facility")),
+      reach           = list(data = data$reach, pk = c("CENTRAL_ID", "FACI_ID")),
+      hts             = list(data = data$hts, pk = c("CENTRAL_ID", "FACI_ID"))
    )
    for (table in names(tables)) {
       table_space <- Id(schema = "db_faci", table = table)
