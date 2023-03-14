@@ -174,7 +174,11 @@ load_harp <- function(params = NULL) {
             curr_age,
             onprep,
             prepstart_date,
-            outcome
+            outcome,
+            eligible,
+            self_identity,
+            starts_with("kp_"),
+            contains("risk")
          )
       ) %>%
       left_join(
@@ -200,6 +204,28 @@ load_harp <- function(params = NULL) {
          .predicate = is.character,
          ~str_squish(.) %>%
             if_else(. == "", NA_character_, ., .)
+      )
+
+
+   risk <- harp$prep %>%
+      select(
+         prep_id,
+         contains("risk", ignore.case = FALSE)
+      ) %>%
+      select(-ends_with("screen")) %>%
+      pivot_longer(
+         cols = contains("risk", ignore.case = FALSE)
+      ) %>%
+      group_by(prep_id) %>%
+      summarise(
+         risks = stri_c(collapse = ", ", unique(sort(value)))
+      ) %>%
+      ungroup()
+
+   harp$prep %<>%
+      left_join(
+         y  = risk,
+         by = join_by(prep_id)
       )
 
    return(harp)
