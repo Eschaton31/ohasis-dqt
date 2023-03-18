@@ -59,6 +59,14 @@ DB <- setRefClass(
          # subset of ref_faci
          .self$ref_faci_code <<- ref_faci %>%
             filter(!is.na(FACI_CODE)) %>%
+            mutate(
+               branch_priority = case_when(
+                  FACI_ID == "130001" ~ 1,
+                  FACI_ID == "130605" ~ 2,
+                  TRUE ~ 9999
+               )
+            ) %>%
+            arrange(branch_priority) %>%
             distinct(FACI_CODE, .keep_all = TRUE) %>%
             rename(
                SUB_FACI_CODE = FACI_CODE
