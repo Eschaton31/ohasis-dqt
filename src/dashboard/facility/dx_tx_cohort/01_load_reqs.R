@@ -177,6 +177,7 @@ load_harp <- function(params = NULL) {
             outcome,
             eligible,
             self_identity,
+            prep_type,
             starts_with("kp_"),
             contains("risk")
          )
@@ -268,22 +269,22 @@ get_oh <- function(harp) {
    )
    oh$dx     <- bind_rows(hts, a) %>% distinct_all()
    oh$tx     <- tracked_select(lw_conn, r"(
-SELECT DISTINCT COALESCE(id.CENTRAL_ID, art.PATIENT_ID) AS CENTRAL_ID,
+SELECT DISTINCT COALESCE(id.CENTRAL_ID, art.PATIENT_ID)                                    AS CENTRAL_ID,
                 CASE
                     WHEN SERVICE_FACI = '130000' THEN FACI_ID
                     WHEN SERVICE_FACI IS NULL THEN FACI_ID
-                    ELSE SERVICE_FACI END               AS FACI_ID,
-                SERVICE_SUB_FACI                        AS SUB_FACI_ID
+                    ELSE SERVICE_FACI END                                                  AS FACI_ID,
+                IF(SERVICE_FACI IN ("130001", "130605", "040200"), SERVICE_SUB_FACI, NULL) AS SUB_FACI_ID
 FROM ohasis_warehouse.form_art_bc AS art
          LEFT JOIN ohasis_warehouse.id_registry AS id ON art.PATIENT_ID = id.PATIENT_ID;
    )", "OHASIS tx")
    oh$prep   <- tracked_select(lw_conn, r"(
-SELECT DISTINCT COALESCE(id.CENTRAL_ID, prep.PATIENT_ID) AS CENTRAL_ID,
+SELECT DISTINCT COALESCE(id.CENTRAL_ID, prep.PATIENT_ID)                                    AS CENTRAL_ID,
                 CASE
                     WHEN SERVICE_FACI = '130000' THEN FACI_ID
                     WHEN SERVICE_FACI IS NULL THEN FACI_ID
-                    ELSE SERVICE_FACI END               AS FACI_ID,
-                SERVICE_SUB_FACI                        AS SUB_FACI_ID
+                    ELSE SERVICE_FACI END                                                  AS FACI_ID,
+                IF(SERVICE_FACI IN ("130001", "130605", "040200"), SERVICE_SUB_FACI, NULL) AS SUB_FACI_ID
 FROM ohasis_warehouse.form_prep AS prep
          LEFT JOIN ohasis_warehouse.id_registry AS id ON prep.PATIENT_ID = id.PATIENT_ID;
    )", "OHASIS PrEP")

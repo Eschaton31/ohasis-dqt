@@ -99,6 +99,9 @@ gen_disagg <- function(data, params) {
          plhiv            = if_else(mortality == 0, 1, 0, 0),
          everonprep       = if_else(!is.na(prepstart_date), 1, 0, 0),
          everonprep_plhiv = if_else(everonprep == 1 & mortality == 0, 1, 0, 0),
+
+
+         preplen_days     = floor(interval(prepstart_date, latest_nextpickup) / days(1)),
       )
 
    return(data)
@@ -141,8 +144,7 @@ remove_cols <- function(data, oh) {
             "previous_regimen",
             "art_reg",
             "PATIENT_ID",
-            "artlen_days",
-            "artlen_months",
+            "preplen_months",
             "diff",
             "startpickuplen_months",
             "ltfulen_month"

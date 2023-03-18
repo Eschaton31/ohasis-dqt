@@ -63,14 +63,6 @@ gen_cascade <- function(data) {
       )
 
    cascade$tx <- data$tx %>%
-      mutate(
-         linkage_facility = case_when(
-            FACI_ID == CURR_FACI ~ "same",
-            FACI_ID != CURR_FACI ~ "transfer",
-            is.na(CURR_FACI) ~ "(not enrolled)",
-            TRUE ~ "(no data)"
-         )
-      ) %>%
       mutate_at(
          .vars = vars(outcome, outcome_new),
          ~case_when(

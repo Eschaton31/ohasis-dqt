@@ -328,7 +328,7 @@ gen_disagg <- function(data, params) {
             msm == 1 & tgw == 0 ~ "MSM",
             msm == 1 & tgw == 1 ~ "MSM-TGW",
             sex == "Male" ~ "Other Males",
-            sex == "Female" & pregnant == 1 ~ "Pregnant WLHIV",
+            # sex == "Female" & pregnant == 1 ~ "Pregnant WLHIV",
             sex == "Female" ~ "Other Females",
             TRUE ~ "Other"
          ),
@@ -707,15 +707,37 @@ remove_cols <- function(data, oh) {
       ) %>%
       left_join(
          y        = oh$tx %>%
+            bind_rows(
+               data$tx %>%
+                  select(CENTRAL_ID, FACI_ID = CURR_FACI)
+            ) %>%
             mutate(ORIG_FACI = FACI_ID) %>%
+            distinct(CENTRAL_ID, FACI_ID, .keep_all = TRUE) %>%
             ohasis$get_faci(
                list(HUB_NAME = c("FACI_ID", "SUB_FACI_ID")),
                "name",
                c("HUB_REG", "HUB_PROV", "HUB_MUNC")
             ) %>%
-            distinct(CENTRAL_ID, HUB_NAME, .keep_all = TRUE),
+            distinct(CENTRAL_ID, HUB_NAME, .keep_all = TRUE) %>%
+            distinct(CENTRAL_ID, ORIG_FACI, .keep_all = TRUE),
          by       = join_by(CENTRAL_ID),
          multiple = "all"
+      ) %>%
+      left_join(
+         y  = data$tx %>%
+            select(CENTRAL_ID, CURR_FACI) %>%
+            mutate(
+               prime_record = 1,
+               ORIG_FACI    = CURR_FACI
+            ),
+         by = join_by(CENTRAL_ID, CURR_FACI, ORIG_FACI)
+      ) %>%
+      mutate(
+         linkage_facility = case_when(
+            prime_record == 1 ~ "same",
+            is.na(prime_record) ~ "transfer",
+            TRUE ~ "(no data)"
+         )
       ) %>%
       rename(
          FACI_ID      = ORIG_FACI,

@@ -21,7 +21,7 @@ create_tables <- function(data) {
       tx_cohort       = list(data = data$tx, pk = c("art_id", "FACI_ID")),
       prep_cohort     = list(data = data$prep, pk = c("prep_id", "FACI_ID")),
       dx_tx_cascade   = list(data = cascade$dx_tx, pk = c(cascade_ids, "data_src")),
-      nr_prep_cascade = list(data = cascade$prep, pk = c("FACI_ID", "curr_age_c1", "curr_age_c2", "kap_type", "sex", "linkage_facility")),
+      nr_prep_cascade = list(data = cascade$prep, pk = c("FACI_ID", "curr_age_c1", "curr_age_c2", "kap_type", "sex", "linkage_facility", "indicator")),
       reach           = list(data = data$reach, pk = c("CENTRAL_ID", "FACI_ID")),
       hts             = list(data = data$hts, pk = c("CENTRAL_ID", "FACI_ID"))
    )
