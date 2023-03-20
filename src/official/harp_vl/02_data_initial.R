@@ -144,7 +144,7 @@ data_forms <- data_forms %>%
 #       bind_rows(read_dta(ohasis$get_data("harp_vl-ml", vl_yr, "Q2")) %>% mutate(qr = glue("{vl_yr}-Q2"))) %>%
 #       bind_rows(read_dta(ohasis$get_data("harp_vl-ml", vl_yr, "Q1")) %>% mutate(qr = glue("{vl_yr}-Q1")))
 # }
-ml_files <- list.files(Sys.getenv("HARP_VL"), "*\\.dta", full.names = TRUE)
+ml_files <- list.files(Sys.getenv("HARP_VL"), "*vl_ml.*\\.dta", full.names = TRUE)
 data_ml  <- lapply(ml_files, function(ml) {
    qr <- substr(ml,
                 stri_locate_first_fixed(ml, "vl_ml_") + 6,
