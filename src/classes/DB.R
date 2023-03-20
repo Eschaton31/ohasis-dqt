@@ -247,7 +247,7 @@ DB <- setRefClass(
                   Mode == "numeric" & Class == "Date" ~ "DATE NULL DEFAULT NULL",
                   Mode == "numeric" & Class == "POSIXct" ~ "DATETIME NULL DEFAULT NULL",
                   Mode == "numeric" ~ "INT(11) NULL DEFAULT NULL",
-                  Mode == "character" ~ "TEXT NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
+                  Mode == "character" ~ "VARCHAR(255) NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
                   TRUE ~ NA_character_
                ),
                SQL  = paste0("`", Var1, "` ", Type),
@@ -327,7 +327,7 @@ DB <- setRefClass(
             # get start date of records  to be fetched
             if (!is.null(from)) {
                snapshot_old <- from
-            } else if (update_type == "refresh") {
+            } else if (update_type == "refresh" | !table_exists) {
                snapshot_old <- "1970-01-01 00:00:00"
 
                if (table_exists)
@@ -365,35 +365,39 @@ DB <- setRefClass(
                n_rows <- as.integer(n_rows)
 
                # get actual result set
-               .log_info("Number of records to fetch = {green(formatC(n_rows, big.mark = ','))}.")
-               rs <- dbSendQuery(db_conn, query_table, params = params)
+               if (!is.na(n_rows) && n_rows > 0) {
+                  continue <- 1
+                  .log_info("Number of records to fetch = {green(formatC(n_rows, big.mark = ','))}.")
+                  rs <- dbSendQuery(db_conn, query_table, params = params)
 
-               chunk_size <- 1000
-               if (!is.na(n_rows) && n_rows >= chunk_size) {
-                  # upload in chunks to monitor progress
-                  n_chunks <- ceiling(n_rows / chunk_size)
+                  chunk_size <- 1000
+                  if (n_rows >= chunk_size) {
+                     # upload in chunks to monitor progress
+                     n_chunks <- ceiling(n_rows / chunk_size)
 
-                  # get progress
-                  pb_name <- paste0(table_name, ": :current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed")
+                     # get progress
+                     pb_name <- paste0(table_name, ": :current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed")
 
-                  pb <- progress_bar$new(format = pb_name, total = n_chunks, width = 100, clear = FALSE)
-                  pb$tick(0)
+                     pb <- progress_bar$new(format = pb_name, total = n_chunks, width = 100, clear = FALSE)
+                     pb$tick(0)
 
-                  # fetch in chunks
-                  for (i in seq_len(n_chunks)) {
-                     chunk  <- dbFetch(rs, chunk_size)
-                     object <- bind_rows(object, chunk)
-                     pb$tick(1)
+                     # fetch in chunks
+                     for (i in seq_len(n_chunks)) {
+                        chunk  <- dbFetch(rs, chunk_size)
+                        object <- bind_rows(object, chunk)
+                        pb$tick(1)
+                     }
+                  } else {
+                     object <- dbFetch(rs)
                   }
-               } else {
-                  object <- dbFetch(rs)
-               }
-               dbClearResult(rs)
+                  dbClearResult(rs)
 
-               for_delete <- object %>%
-                  select({{id_col}}) %>%
-                  distinct_all()
-               continue   <- ifelse(nrow(object) == 0, 0, 1)
+                  for_delete <- object %>%
+                     select({{id_col}}) %>%
+                     distinct_all()
+               } else {
+                  continue <- 0
+               }
             } else {
                source(factory_file, local = TRUE)
             }
