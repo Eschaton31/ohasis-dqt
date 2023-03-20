@@ -184,18 +184,90 @@ dedup_old <- function(data) {
    return(dedup_old)
 }
 
+dedup_group_ids <- function(data) {
+   dedup_old <- list()
+   group_pii <- list(
+      "UIC.Base"            = "uic",
+      "UIC.Fixed"           = "UIC_SORT",
+      "ConfirmCode.Base"    = "CONFIRMATORY_CODE",
+      "ConfirmCode.Fixed"   = "CONFIRM_SIEVE",
+      "PxCode.Base"         = "PATIENT_CODE",
+      "PxCode.Fixed"        = "PXCODE_SIEVE",
+      "PxConfirm.Base"      = c("PATIENT_CODE", "CONFIRMATORY_CODE"),
+      "PxConfirm.Fixed"     = c("PXCODE_SIEVE", "CONFIRM_SIEVE"),
+      "ConfirmUIC.Base"     = c("CONFIRMATORY_CODE", "UIC"),
+      "ConfirmUIC.Fixed"    = c("CONFIRM_SIEVE", "UIC"),
+      "PxUIC.Base"          = c("PATIENT_CODE", "UIC"),
+      "PxUIC.Fixed"         = c("PXCODE_SIEVE", "UIC"),
+      "FirstUIC.Base"       = c("FIRST", "UIC"),
+      "FirstUIC.Fixed"      = c("FIRST_NY", "UIC"),
+      "PxBD.Base"           = c("PATIENT_CODE", "birthdate"),
+      "PxBD.Fixed"          = c("PXCODE_SIEVE", "birthdate"),
+      "Name.Base"           = c("FIRST", "LAST", "birthdate"),
+      "Name.Fixed"          = c("FIRST_NY", "LAST_NY", "birthdate"),
+      "Name.Partial"        = c("FIRST_A", "LAST_A", "birthdate"),
+      "YMName.Base"         = c("FIRST", "LAST", "BIRTH_YR", "BIRTH_MO"),
+      "YDName.Fixed"        = c("FIRST", "LAST", "BIRTH_YR", "BIRTH_DY"),
+      "MDName.Partial"      = c("FIRST", "LAST", "BIRTH_MO", "BIRTH_DY"),
+      "YMNameClean.Base"    = c("FIRST_NY", "LAST_NY", "BIRTH_YR", "BIRTH_MO"),
+      "YDNameClean.Fixed"   = c("FIRST_NY", "LAST_NY", "BIRTH_YR", "BIRTH_DY"),
+      "MDNameClean.Partial" = c("FIRST_NY", "LAST_NY", "BIRTH_MO", "BIRTH_DY")
+   )
+   for (i in seq_len(length(group_pii))) {
+      dedup_name <- names(group_pii)[[i]]
+      dedup_id   <- group_pii[[i]]
+
+      # tag duplicates based on grouping
+      df <- data %>%
+         filter(if_all(any_of(dedup_id), ~!is.na(.))) %>%
+         get_dupes(all_of(dedup_id)) %>%
+         filter(dupe_count > 0) %>%
+         group_by(across(all_of(dedup_id))) %>%
+         mutate(
+            # generate a group id to identify groups of duplicates
+            group_id = cur_group_id(),
+         ) %>%
+         ungroup() %>%
+         mutate(DUP_IDS = paste(collapse = ', ', dedup_id))
+
+      # if any found, include in list for review
+      dedup_old[[dedup_name]] <- df
+   }
+
+   return(dedup_old)
+}
+
 ##  Actual flow ----------------------------------------------------------------
 
 .init <- function() {
    p <- parent.env(environment())
    local(envir = p, {
-      old <- .GlobalEnv$nhsss$harp_dx$official$old
-      new <- read_rds(file.path(wd, "converted.RDS"))
+      old  <- .GlobalEnv$nhsss$harp_dx$official$old
+      new  <- read_rds(file.path(wd, "converted.RDS"))
+      full <- read_rds(file.path(wd, "final.RDS"))
+      data <- dedup_prep(
+         full %>%
+            zap_label %>%
+            zap_labels %>%
+            zap_formats %>%
+            relocate(idnum, .after = art_id) %>%
+            mutate(philsys_id = NA_character_),
+         firstname,
+         middle,
+         last,
+         name_suffix,
+         uic,
+         bdate,
+         labcode2,
+         pxcode,
+         philhealth,
+         philsys_id
+      )
 
-      data <- prep_data(old, new)
-      rm(old, new)
-
-      check <- dedup_old(data)
+      reclink <- prep_data(old, new)
+      check   <- dedup_old(reclink)
+      check   <- append(check, dedup_group_ids(data))
+      rm(old, new, data, reclink)
    })
 
    local(envir = .GlobalEnv, flow_validation(nhsss$harp_dx, "dedup_old", ohasis$ym))
