@@ -81,5 +81,7 @@ generate_final <- function(data) {
       tag_fordrop()
       subset_drops()
       .GlobalEnv$nhsss$harp_dx$official$new %<>% generate_final()
+
+      write_rds(.GlobalEnv$nhsss$harp_dx$official$new, file.path(wd, "final.RDS"))
    })
 }
