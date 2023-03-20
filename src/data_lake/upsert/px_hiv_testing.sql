@@ -34,6 +34,36 @@ SELECT rec.REC_ID,
        conf.DATE_RELEASE,
        conf.DATE_CONFIRM,
        conf.IDNUM,
+       CASE rtri.RT_AGREED
+           WHEN 1 THEN '1_Yes'
+           WHEN 0 THEN '0_No'
+           ELSE RT_AGREED END                                                                          AS RT_AGREED,
+       MAX(IF(test_hiv.TEST_TYPE = 60, test.DATE_PERFORM, NULL))                                       AS RT_DATE,
+       MAX(CASE
+               WHEN test_hiv.TEST_TYPE = 60 AND test_hiv.KIT_NAME = '1014' THEN 'Asante HIV-1 Rapid Recency Assay'
+               WHEN test_hiv.TEST_TYPE = 60 AND test_hiv.KIT_NAME IS NOT NULL THEN test_hiv.KIT_NAME
+           END)                                                                                        AS RT_KIT,
+       CASE
+           WHEN rtri.RT_RESULT LIKE 'Recent%' THEN '1_Recent'
+           WHEN rtri.RT_RESULT LIKE 'Long%' THEN '2_Long-term'
+           WHEN rtri.RT_RESULT LIKE 'Inconclusive%' THEN '3_Inconclusive'
+           WHEN rtri.RT_RESULT LIKE 'Invalid%' THEN '0_Invalid'
+           END                                                                                         AS RT_RESULT,
+       CASE rtri.VL_REQUESTED
+           WHEN 1 THEN '1_Yes'
+           WHEN 0 THEN '0_No'
+           ELSE VL_REQUESTED END                                                                       AS RT_VL_REQUESTED,
+       CASE rtri.VL_DONE
+           WHEN 1 THEN '1_Yes'
+           WHEN 0 THEN '0_No'
+           ELSE VL_DONE END                                                                            AS VL_DONE,
+       labs.LAB_DATE                                                                                   AS RT_VL_DATE,
+       labs.LAB_RESULT                                                                                 AS RT_VL_RESULT,
+       CASE
+           WHEN rtri.RT_RESULT = 'Recent Infection' AND labs.LAB_RESULT >= 1000 THEN '1_Recent'
+           WHEN rtri.RT_RESULT = 'Recent Infection' AND labs.LAB_RESULT < 1000 THEN '2_Long-term'
+           WHEN rtri.RT_RESULT = 'Recent Infection' AND labs.LAB_RESULT IS NULL THEN '4_Pending'
+           ELSE NULL END                                                                               AS RITA_RESULT,
        MAX(IF(test.TEST_TYPE = 10, test.DATE_PERFORM, NULL))                                           AS T0_DATE,
        MAX(CASE
                WHEN test.TEST_TYPE = 10 AND test.RESULT = 1 THEN '1_Reactive'
@@ -42,32 +72,35 @@ SELECT rec.REC_ID,
        MAX(IF(test_hiv.TEST_TYPE = 31, test.DATE_PERFORM, NULL))                                       AS T1_DATE,
        MAX(IF(test_hiv.TEST_TYPE = 31, test_hiv.KIT_NAME, NULL))                                       AS T1_KIT,
        MAX(CASE
-               WHEN test_hiv.TEST_TYPE = 31 AND test_hiv.RESULT LIKE '1%' THEN '1_Positive / Reactive'
-               WHEN test_hiv.TEST_TYPE = 31 AND test_hiv.RESULT LIKE '2%' THEN '2_Negative / Non-reactive'
-               WHEN test_hiv.TEST_TYPE = 31 AND test_hiv.RESULT LIKE '3%' THEN '3_Indeterminate / Inconclusive'
-               WHEN test_hiv.TEST_TYPE = 31 AND test_hiv.RESULT LIKE '0%' THEN '0_Invalid'
+               WHEN test_hiv.TEST_TYPE = 31 AND test_hiv.FINAL_RESULT LIKE '1%' THEN '1_Positive / Reactive'
+               WHEN test_hiv.TEST_TYPE = 31 AND test_hiv.FINAL_RESULT LIKE '2%' THEN '2_Negative / Non-reactive'
+               WHEN test_hiv.TEST_TYPE = 31 AND test_hiv.FINAL_RESULT LIKE '3%' THEN '3_Indeterminate / Inconclusive'
+               WHEN test_hiv.TEST_TYPE = 31 AND test_hiv.FINAL_RESULT LIKE '0%' THEN '0_Invalid'
                ELSE NULL END)                                                                          AS T1_RESULT,
        MAX(IF(test_hiv.TEST_TYPE = 32, test.DATE_PERFORM, NULL))                                       AS T2_DATE,
        MAX(IF(test_hiv.TEST_TYPE = 32, test_hiv.KIT_NAME, NULL))                                       AS T2_KIT,
        MAX(CASE
-               WHEN test_hiv.TEST_TYPE = 32 AND test_hiv.RESULT LIKE '1%' THEN '1_Positive / Reactive'
-               WHEN test_hiv.TEST_TYPE = 32 AND test_hiv.RESULT LIKE '2%' THEN '2_Negative / Non-reactive'
-               WHEN test_hiv.TEST_TYPE = 32 AND test_hiv.RESULT LIKE '3%' THEN '3_Indeterminate / Inconclusive'
-               WHEN test_hiv.TEST_TYPE = 32 AND test_hiv.RESULT LIKE '0%' THEN '0_Invalid'
+               WHEN test_hiv.TEST_TYPE = 32 AND test_hiv.FINAL_RESULT LIKE '1%' THEN '1_Positive / Reactive'
+               WHEN test_hiv.TEST_TYPE = 32 AND test_hiv.FINAL_RESULT LIKE '2%' THEN '2_Negative / Non-reactive'
+               WHEN test_hiv.TEST_TYPE = 32 AND test_hiv.FINAL_RESULT LIKE '3%' THEN '3_Indeterminate / Inconclusive'
+               WHEN test_hiv.TEST_TYPE = 32 AND test_hiv.FINAL_RESULT LIKE '0%' THEN '0_Invalid'
                ELSE NULL END)                                                                          AS T2_RESULT,
        MAX(IF(test_hiv.TEST_TYPE = 33, test.DATE_PERFORM, NULL))                                       AS T3_DATE,
        MAX(IF(test_hiv.TEST_TYPE = 33, test_hiv.KIT_NAME, NULL))                                       AS T3_KIT,
        MAX(CASE
-               WHEN test_hiv.TEST_TYPE = 33 AND test_hiv.RESULT LIKE '1%' THEN '1_Positive / Reactive'
-               WHEN test_hiv.TEST_TYPE = 33 AND test_hiv.RESULT LIKE '2%' THEN '2_Negative / Non-reactive'
-               WHEN test_hiv.TEST_TYPE = 33 AND test_hiv.RESULT LIKE '3%' THEN '3_Indeterminate / Inconclusive'
-               WHEN test_hiv.TEST_TYPE = 33 AND test_hiv.RESULT LIKE '0%' THEN '0_Invalid'
+               WHEN test_hiv.TEST_TYPE = 33 AND test_hiv.FINAL_RESULT LIKE '1%' THEN '1_Positive / Reactive'
+               WHEN test_hiv.TEST_TYPE = 33 AND test_hiv.FINAL_RESULT LIKE '2%' THEN '2_Negative / Non-reactive'
+               WHEN test_hiv.TEST_TYPE = 33 AND test_hiv.FINAL_RESULT LIKE '3%' THEN '3_Indeterminate / Inconclusive'
+               WHEN test_hiv.TEST_TYPE = 33 AND test_hiv.FINAL_RESULT LIKE '0%' THEN '0_Invalid'
                ELSE NULL END)                                                                          AS T3_RESULT
-FROM px_record AS rec
-         LEFT JOIN px_test AS test ON rec.REC_ID = test.REC_ID
-         LEFT JOIN px_confirm AS conf ON rec.REC_ID = conf.REC_ID
-         LEFT JOIN px_test_hiv AS test_hiv ON test.REC_ID = test_hiv.REC_ID AND test.TEST_TYPE = test_hiv.TEST_TYPE AND
-                                              test.TEST_NUM = test_hiv.TEST_NUM
+FROM ohasis_interim.px_record AS rec
+         LEFT JOIN ohasis_interim.px_test AS test ON rec.REC_ID = test.REC_ID
+         LEFT JOIN ohasis_interim.px_confirm AS conf ON rec.REC_ID = conf.REC_ID
+         LEFT JOIN ohasis_interim.px_rtri AS rtri ON rec.REC_ID = rtri.REC_ID
+         LEFT JOIN ohasis_interim.px_labs AS labs ON rec.REC_ID = labs.REC_ID AND labs.LAB_TEST = 4
+         LEFT JOIN ohasis_interim.px_test_hiv AS test_hiv
+                   ON test.REC_ID = test_hiv.REC_ID AND test.TEST_TYPE = test_hiv.TEST_TYPE AND
+                      test.TEST_NUM = test_hiv.TEST_NUM
 WHERE (test.RESULT <> 0 OR conf.FINAL_RESULT IS NOT NULL)
   AND ((rec.CREATED_AT BETWEEN ? AND ?) OR
        (rec.UPDATED_AT BETWEEN ? AND ?) OR

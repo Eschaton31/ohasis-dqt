@@ -13,8 +13,8 @@ SELECT rec.REC_ID,
            WHEN '1' THEN '1_<= 1 sex acts a week'
            WHEN '2' THEN '2_>= 2 sex acts a week'
            ELSE expose.WEEK_AVG_SEX END                                                                AS WEEK_AVG_SEX
-FROM px_record AS rec
-         JOIN px_expose_profile AS expose on rec.REC_ID = expose.REC_ID
+FROM ohasis_interim.px_record AS rec
+         JOIN ohasis_interim.px_expose_profile AS expose on rec.REC_ID = expose.REC_ID
 WHERE ((rec.CREATED_AT BETWEEN ? AND ?) OR
        (rec.UPDATED_AT BETWEEN ? AND ?) OR
        (rec.DELETED_AT BETWEEN ? AND ?));

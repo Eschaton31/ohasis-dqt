@@ -4,7 +4,7 @@ SELECT rec.REC_ID,
        rec.DELETED_AT,
        GREATEST(COALESCE(rec.DELETED_AT, 0), COALESCE(rec.UPDATED_AT, 0), COALESCE(rec.CREATED_AT, 0)) AS SNAPSHOT,
 
-       MAX(IF(med_profile.PROFILE = 1, IS_PROFILE, NULL))                                              AS MED_TB_TX,
+       MAX(IF(med_profile.PROFILE = 1, IS_PROFILE, NULL))                                              AS MED_TB_PX,
        MAX(IF(med_profile.PROFILE = 2, IS_PROFILE, NULL))                                              AS MED_IS_PREGNANT,
        MAX(IF(med_profile.PROFILE = 3, IS_PROFILE, NULL))                                              AS MED_HEP_B,
        MAX(IF(med_profile.PROFILE = 4, IS_PROFILE, NULL))                                              AS MED_HEP_C,

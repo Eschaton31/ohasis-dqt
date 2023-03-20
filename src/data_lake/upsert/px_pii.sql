@@ -42,10 +42,15 @@ SELECT rec.REC_ID,
        name.MIDDLE,
        name.LAST,
        name.SUFFIX,
+       mobile.CONTACT                                                                                  AS CLIENT_MOBILE,
+       email.CONTACT                                                                                   AS CLIENT_EMAIL,
        service.SERVICE_TYPE,
        profile.AGE,
        profile.AGE_MO,
-       profile.GENDER_AFFIRM_THERAPY,
+       CASE profile.GENDER_AFFIRM_THERAPY
+           WHEN 1 THEN '1_Yes'
+           WHEN 0 THEN '0_No'
+           END                                                                                         AS GENDER_AFFIRM_THERAPY,
        CASE
            WHEN (SELF_IDENT = 1) THEN '1_Male'
            WHEN (SELF_IDENT = 2) THEN '2_Female'
@@ -73,7 +78,11 @@ SELECT rec.REC_ID,
            WHEN (CIVIL_STATUS = 5) THEN '5_Divorced'
            ELSE NULL
            END                                                                                         AS CIVIL_STATUS,
-       profile.LIVING_WITH_PARTNER,
+       CASE profile.LIVING_WITH_PARTNER
+           WHEN 1 THEN '1_Yes'
+           WHEN 0 THEN '0_No'
+           ELSE NULL
+           END                                                                                         AS LIVING_WITH_PARTNER,
        profile.CHILDREN,
        curr.ADDR_REG                                                                                   AS CURR_PSGC_REG,
        curr.ADDR_PROV                                                                                  AS CURR_PSGC_PROV,
@@ -124,6 +133,8 @@ FROM ohasis_interim.px_record AS rec
          LEFT JOIN ohasis_interim.px_addr AS birth ON rec.REC_ID = birth.REC_ID AND birth.ADDR_TYPE = 3
          LEFT JOIN ohasis_interim.px_addr AS death ON rec.REC_ID = death.REC_ID AND death.ADDR_TYPE = 4
          LEFT JOIN ohasis_interim.px_addr AS location ON rec.REC_ID = location.REC_ID AND location.ADDR_TYPE = 5
+         LEFT JOIN ohasis_interim.px_contact AS mobile ON rec.REC_ID = mobile.REC_ID AND mobile.CONTACT_TYPE = 1
+         LEFT JOIN ohasis_interim.px_contact AS email ON rec.REC_ID = email.REC_ID AND email.CONTACT_TYPE = 2
 WHERE ((rec.CREATED_AT BETWEEN ? AND ?) OR
        (rec.UPDATED_AT BETWEEN ? AND ?) OR
        (rec.DELETED_AT BETWEEN ? AND ?)) ;

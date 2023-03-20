@@ -10,8 +10,8 @@ SELECT rec.REC_ID,
            ELSE ofw.OFW_STATION
            END                                                                                         AS OFW_STATION,
        ofw.OFW_COUNTRY
-FROM px_record AS rec
-         JOIN px_ofw AS ofw on rec.REC_ID = ofw.REC_ID
+FROM ohasis_interim.px_record AS rec
+         JOIN ohasis_interim.px_ofw AS ofw on rec.REC_ID = ofw.REC_ID
 WHERE ((rec.CREATED_AT BETWEEN ? AND ?) OR
        (rec.UPDATED_AT BETWEEN ? AND ?) OR
        (rec.DELETED_AT BETWEEN ? AND ?));

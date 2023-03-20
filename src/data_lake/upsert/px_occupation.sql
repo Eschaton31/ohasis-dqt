@@ -16,8 +16,8 @@ SELECT rec.REC_ID,
            WHEN 1 THEN '1_Yes'
            WHEN 0 THEN '0_No'
            ELSE work.IS_OFW END                                                                        AS IS_OFW
-FROM px_record AS rec
-         JOIN px_occupation AS work on rec.REC_ID = work.REC_ID
+FROM ohasis_interim.px_record AS rec
+         JOIN ohasis_interim.px_occupation AS work on rec.REC_ID = work.REC_ID
 WHERE ((rec.CREATED_AT BETWEEN ? AND ?) OR
        (rec.UPDATED_AT BETWEEN ? AND ?) OR
        (rec.DELETED_AT BETWEEN ? AND ?));
