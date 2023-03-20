@@ -203,6 +203,8 @@ dedup_group_ids <- function(data) {
       "ConfirmUIC.Fixed"    = c("CONFIRM_SIEVE", "UIC"),
       "PxUIC.Base"          = c("PATIENT_CODE", "UIC"),
       "PxUIC.Fixed"         = c("PXCODE_SIEVE", "UIC"),
+      "FirstUIC.Base"       = c("FIRST", "UIC"),
+      "FirstUIC.Fixed"      = c("FIRST_NY", "UIC"),
       "PxBD.Base"           = c("PATIENT_CODE", "birthdate"),
       "PxBD.Fixed"          = c("PXCODE_SIEVE", "birthdate"),
       "Name.Base"           = c("FIRST", "LAST", "birthdate"),
