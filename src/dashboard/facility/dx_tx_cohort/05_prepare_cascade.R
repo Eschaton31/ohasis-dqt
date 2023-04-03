@@ -136,6 +136,7 @@ gen_cascade <- function(data) {
          kap_type,
          sex,
          linkage_facility,
+         prep_type
       ) %>%
       summarise_at(
          .vars = vars(
