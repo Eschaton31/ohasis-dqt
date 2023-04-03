@@ -191,8 +191,6 @@ dedup_group_ids <- function(data) {
       "UIC.Fixed"           = "UIC_SORT",
       "ConfirmCode.Base"    = "CONFIRMATORY_CODE",
       "ConfirmCode.Fixed"   = "CONFIRM_SIEVE",
-      "PxCode.Base"         = "PATIENT_CODE",
-      "PxCode.Fixed"        = "PXCODE_SIEVE",
       "PxConfirm.Base"      = c("PATIENT_CODE", "CONFIRMATORY_CODE"),
       "PxConfirm.Fixed"     = c("PXCODE_SIEVE", "CONFIRM_SIEVE"),
       "ConfirmUIC.Base"     = c("CONFIRMATORY_CODE", "UIC"),
@@ -201,11 +199,11 @@ dedup_group_ids <- function(data) {
       "PxUIC.Fixed"         = c("PXCODE_SIEVE", "UIC"),
       "FirstUIC.Base"       = c("FIRST", "UIC"),
       "FirstUIC.Fixed"      = c("FIRST_NY", "UIC"),
-      "PxBD.Base"           = c("PATIENT_CODE", "birthdate"),
-      "PxBD.Fixed"          = c("PXCODE_SIEVE", "birthdate"),
-      "Name.Base"           = c("FIRST", "LAST", "birthdate"),
-      "Name.Fixed"          = c("FIRST_NY", "LAST_NY", "birthdate"),
-      "Name.Partial"        = c("FIRST_A", "LAST_A", "birthdate"),
+      "PxBD.Base"           = c("PATIENT_CODE", "bdate"),
+      "PxBD.Fixed"          = c("PXCODE_SIEVE", "bdate"),
+      "Name.Base"           = c("FIRST", "LAST", "bdate"),
+      "Name.Fixed"          = c("FIRST_NY", "LAST_NY", "bdate"),
+      "Name.Partial"        = c("FIRST_A", "LAST_A", "bdate"),
       "YMName.Base"         = c("FIRST", "LAST", "BIRTH_YR", "BIRTH_MO"),
       "YDName.Fixed"        = c("FIRST", "LAST", "BIRTH_YR", "BIRTH_DY"),
       "MDName.Partial"      = c("FIRST", "LAST", "BIRTH_MO", "BIRTH_DY"),
@@ -250,7 +248,6 @@ dedup_group_ids <- function(data) {
             zap_label %>%
             zap_labels %>%
             zap_formats %>%
-            relocate(idnum, .after = art_id) %>%
             mutate(philsys_id = NA_character_),
          firstname,
          middle,
