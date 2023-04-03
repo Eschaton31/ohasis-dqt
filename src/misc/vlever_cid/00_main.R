@@ -44,10 +44,10 @@ data_forms <- form_art_bc %>%
 
 ##  Get masterlist data from the past 4 quarters -------------------------------
 
-vl_yr    <- 2022
-prev_yr  <- 2021
+vl_yr    <- 2023
+prev_yr  <- 2022
 # calculate datasets needed
-ml_files <- list.files(Sys.getenv("HARP_VL"), "*\\.dta", full.names = TRUE)
+ml_files <- list.files(Sys.getenv("HARP_VL"), "*vl_ml.*\\.dta", full.names = TRUE)
 data_ml  <- lapply(ml_files, function(ml) {
    qr <- substr(ml,
                 stri_locate_first_fixed(ml, "vl_ml_") + 6,
@@ -440,7 +440,7 @@ vl_data %<>%
          )
    )
 
-end_vl      <- "2022-12-31"
+end_vl      <- "2023-02-28"
 vl_filtered <- vl_data %>%
    mutate(
       drop = case_when(
@@ -460,7 +460,7 @@ vl_first <- vl_filtered %>%
       vl_result_first = vl_result_2
    )
 vl_last  <- vl_filtered %>%
-   arrange(vl_date_2) %>%
+   arrange(desc(vl_date_2)) %>%
    distinct(CENTRAL_ID, .keep_all = TRUE) %>%
    select(
       CENTRAL_ID,
@@ -471,8 +471,8 @@ vl_last  <- vl_filtered %>%
 vl_final <- vl_first %>%
    full_join(vl_last)
 
-dx    <- read_dta("H:/_R/library/hiv_full/data/20230130_harp_2022-12_wVL.dta")
-tx    <- read_dta("H:/_R/library/hiv_tx/data/20230130_reg-art_2022-12_mod.dta")
+dx    <- read_dta(hs_data("harp_full", "reg", 2023, 2))
+tx    <- read_dta(hs_data("harp_tx", "reg", 2023, 2))
 vl_dx <- dx %>%
    select(-contains("CENTRAL_ID")) %>%
    # get latest central ids
@@ -515,6 +515,8 @@ vl_dx <- dx %>%
    ) %>%
    select(
       idnum,
+      # vl_date,
+      # vl_result,
       vl_naive,
       vl_date_first,
       vl_result_first,
@@ -526,7 +528,7 @@ vl_dx <- dx %>%
 vl_tx <- tx %>%
    select(-contains("CENTRAL_ID")) %>%
    left_join(
-      y  = read_dta("H:/_R/library/hiv_tx/data/20230130_onart-vl_2022-12_mod.dta", col_select = c(art_id, vl_date, vl_result)),
+      y  = read_dta(hs_data("harp_tx", "outcome", 2023, 2), col_select = c(art_id, vl_date, vl_result)),
       by = "art_id"
    ) %>%
    # get latest central ids
@@ -569,6 +571,8 @@ vl_tx <- tx %>%
    ) %>%
    select(
       art_id,
+      # vl_date,
+      # vl_result,
       vl_naive,
       vl_date_first,
       vl_result_first,
@@ -577,5 +581,5 @@ vl_tx <- tx %>%
    ) %>%
    distinct(art_id, .keep_all = TRUE)
 
-write_dta(vl_dx, "H:/_R/library/hiv_vl/20230130_vlnaive-dx_2022-12.dta")
-write_dta(vl_tx, "H:/_R/library/hiv_vl/20230130_vlnaive-tx_2022-12.dta")
+write_dta(vl_dx, file.path(Sys.getenv("HARP_VL"), stri_c( format(Sys.time(), "%Y%m%d_vlnaive-dx_"), "2023-02.dta")))
+write_dta(vl_tx, file.path(Sys.getenv("HARP_VL"), stri_c( format(Sys.time(), "%Y%m%d_vlnaive-tx_"), "2023-02.dta")))
