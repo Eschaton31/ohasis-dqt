@@ -391,14 +391,23 @@ generate_disagg <- function(data) {
       tag_indicators() %>%
       generate_disagg()
 
+   # p$data$reach <- reach %>%
+   #    arrange(desc(hts_date)) %>%
+   #    distinct(CENTRAL_ID, FACI_ID, .keep_all = TRUE)
+
    p$data$reach <- reach %>%
       arrange(desc(hts_date)) %>%
-      distinct(CENTRAL_ID, FACI_ID, .keep_all = TRUE)
+      distinct(CENTRAL_ID, REC_ID, .keep_all = TRUE)
+
+   # p$data$hts <- reach %>%
+   #    filter(HTS_TST == 1) %>%
+   #    arrange(desc(year(hts_date)), hts_priority) %>%
+   #    distinct(CENTRAL_ID, FACI_ID, .keep_all = TRUE)
 
    p$data$hts <- reach %>%
       filter(HTS_TST == 1) %>%
       arrange(desc(year(hts_date)), hts_priority) %>%
-      distinct(CENTRAL_ID, FACI_ID, .keep_all = TRUE)
+      distinct(CENTRAL_ID, REC_ID, .keep_all = TRUE)
 
    p$data$nr <- reach %>%
       filter(
