@@ -107,6 +107,7 @@ clean_hts <- function(data, risk) {
          FINAL_SUB_FACI    = case_when(
             use_record_faci == 1 & FACI_ID == "130000" ~ SPECIMEN_SUB_SOURCE,
             !(SERVICE_FACI %in% c("130001", "130605", "040200")) ~ NA_character_,
+            nchar(SERVICE_SUB_FACI) == 6 ~ NA_character_,
             TRUE ~ SERVICE_SUB_FACI
          ),
 
@@ -334,8 +335,8 @@ generate_disagg <- function(data) {
          "name"
       ) %>%
       mutate(
-         CBS_VENUE   = toupper(str_squish(HIV_SERVICE_ADDR)),
-         ONLINE_APP  = case_when(
+         CBS_VENUE      = toupper(str_squish(HIV_SERVICE_ADDR)),
+         ONLINE_APP     = case_when(
             grepl("GRINDR", CBS_VENUE) ~ "GRINDR",
             grepl("GRNDR", CBS_VENUE) ~ "GRINDR",
             grepl("GRINDER", CBS_VENUE) ~ "GRINDR",
@@ -352,7 +353,7 @@ generate_disagg <- function(data) {
             false     = REACH_CLINICAL,
             missing   = REACH_CLINICAL
          ),
-         CONFIRM_LAB = if_else(
+         CONFIRM_LAB    = if_else(
             CONFIRM_TYPE == "1_Central NRL",
             "NRL-SACCL",
             CONFIRM_LAB,
