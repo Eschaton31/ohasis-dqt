@@ -1,6 +1,6 @@
 ##  Generate pre-requisites and endpoints --------------------------------------
 
-set_coverage <- function(report = NULL, yr = NULL, mo = NULl) {
+set_coverage <- function(report = NULL, yr = NULL, mo = NULL) {
    rep_type      <- ifelse(
       !is.null(report),
       switch(report, HFR = "1", QR = "2", `1` = "1", `2` = "2"),
