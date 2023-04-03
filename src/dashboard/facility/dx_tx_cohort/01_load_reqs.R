@@ -43,6 +43,10 @@ load_harp <- function(params = NULL) {
             transmit,
             sexhow,
             confirmlab,
+            blood_extract_date,
+            visit_date,
+            test_date,
+            t0_date,
             confirm_date,
             self_identity,
             self_identity_other,
@@ -82,6 +86,13 @@ load_harp <- function(params = NULL) {
          .predicate = is.character,
          ~str_squish(.) %>%
             if_else(. == "", NA_character_, ., .)
+      ) %>%
+      mutate_at(
+         .vars = vars(blood_extract_date, visit_date, test_date, t0_date),
+         ~if_else(year(.) <= 2002, NA_Date_, as.Date(.), NA_Date_)
+      ) %>%
+      mutate(
+         reactive_date = coalesce(blood_extract_date, test_date, t0_date, visit_date, confirm_date) %>% as.Date()
       )
 
    harp$tx <- hs_data("harp_tx", "outcome", params$yr, params$mo) %>%
@@ -274,10 +285,13 @@ SELECT DISTINCT COALESCE(id.CENTRAL_ID, art.PATIENT_ID)                         
                     WHEN SERVICE_FACI = '130000' THEN FACI_ID
                     WHEN SERVICE_FACI IS NULL THEN FACI_ID
                     ELSE SERVICE_FACI END                                                  AS FACI_ID,
-                IF(SERVICE_FACI IN ("130001", "130605", "040200"), SERVICE_SUB_FACI, NULL) AS SUB_FACI_ID
+                IF(SERVICE_FACI IN ("130001", "130605", "040200"), SERVICE_SUB_FACI, NULL) AS SUB_FACI_ID,
+                VISIT_DATE
 FROM ohasis_warehouse.form_art_bc AS art
          LEFT JOIN ohasis_warehouse.id_registry AS id ON art.PATIENT_ID = id.PATIENT_ID;
-   )", "OHASIS tx")
+   )", "OHASIS tx") %>%
+      arrange(VISIT_DATE) %>%
+      distinct(CENTRAL_ID, FACI_ID, SUB_FACI_ID, .keep_all = TRUE)
    oh$prep   <- tracked_select(lw_conn, r"(
 SELECT DISTINCT COALESCE(id.CENTRAL_ID, prep.PATIENT_ID)                                    AS CENTRAL_ID,
                 CASE
