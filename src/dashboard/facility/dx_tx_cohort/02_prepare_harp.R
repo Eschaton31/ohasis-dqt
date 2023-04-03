@@ -153,8 +153,15 @@ get_faci_ids <- function(harp, oh) {
       ) %>%
       left_join(
          y  = read_sheet(as_id("1yxx1_VhomkBABJ72HgzjG7RNai5sJeZQdDZiiS0SJkU")) %>%
-            arrange(desc(SUB_FACI_ID), FACI_ID) %>%
-            distinct(FACI_ID, confirmlab, .keep_all = TRUE) %>%
+            mutate(
+               unique_intra = case_when(
+                  SUB_FACI_ID == '130023_001' ~ 1,
+                  SUB_FACI_ID == '130023_003' ~ 2,
+                  TRUE ~ 1
+               )
+            ) %>%
+            arrange(unique_intra, desc(SUB_FACI_ID), FACI_ID) %>%
+            distinct(FACI_ID, unique_intra, .keep_all = TRUE) %>%
             select(
                confirmlab,
                CONFIRM_FACI     = FACI_ID,
@@ -460,6 +467,14 @@ gen_disagg <- function(data, params) {
             0
          ),
          vlsuppress            = if_else(onart == 1 & baseline_vl == 0 & vlp12m == 1, 1, 0, 0),
+         vlsuppress            = if_else(
+            onart_new == 1 &
+               baseline_vl_new == 0 &
+               vlp12m == 1,
+            1,
+            0,
+            0
+         ),
          vlsuppress_50         = if_else(
             onart_new == 1 &
                baseline_vl_new == 0 &
@@ -568,6 +583,8 @@ attach_tx_to_dx <- function(data) {
                vlsuppress,
                vlsuppress_50,
                vlp12m,
+               vl_date,
+               vl_result,
                mmd,
                tld,
                tle,
@@ -589,12 +606,12 @@ attach_tx_to_dx <- function(data) {
       mutate(
          tat_confirm_art = floor(interval(confirm_date, artstart_date) / days(1)),
          tat_confirm_art = case_when(
-            tat_confirm_art < 0 ~ "0) Tx before dx",
+            tat_confirm_art < 0 ~ "0) Treatment before confirmatory",
             tat_confirm_art == 0 ~ "1) Same day",
-            tat_confirm_art >= 1 & tat_confirm_art <= 14 ~ "2) RAI (w/in 14 days)",
-            tat_confirm_art >= 15 & tat_confirm_art <= 30 ~ "3) W/in 30days",
+            tat_confirm_art >= 1 & tat_confirm_art <= 14 ~ "2) Within 7 days",
+            tat_confirm_art >= 15 & tat_confirm_art <= 30 ~ "3) Within 30 days",
             tat_confirm_art >= 31 ~ "4) More than 30 days",
-            is.na(confirm_date) & !is.na(idnum) ~ "5) More than 30 days",
+            is.na(confirm_date) & !is.na(idnum) ~ "4) More than 30 days",
             TRUE ~ "(not yet confirmed)",
          )
       )
@@ -707,17 +724,20 @@ remove_cols <- function(data, oh) {
       ) %>%
       left_join(
          y        = oh$tx %>%
+            rename(faci_enroll_date = VISIT_DATE) %>%
             bind_rows(
                data$tx %>%
-                  select(CENTRAL_ID, FACI_ID = CURR_FACI)
+                  select(CENTRAL_ID, FACI_ID = CURR_FACI, faci_enroll_date = artstart_date)
             ) %>%
             mutate(ORIG_FACI = FACI_ID) %>%
+            arrange(faci_enroll_date) %>%
             distinct(CENTRAL_ID, FACI_ID, .keep_all = TRUE) %>%
             ohasis$get_faci(
                list(HUB_NAME = c("FACI_ID", "SUB_FACI_ID")),
                "name",
                c("HUB_REG", "HUB_PROV", "HUB_MUNC")
             ) %>%
+            arrange(faci_enroll_date) %>%
             distinct(CENTRAL_ID, HUB_NAME, .keep_all = TRUE) %>%
             distinct(CENTRAL_ID, ORIG_FACI, .keep_all = TRUE),
          by       = join_by(CENTRAL_ID),
