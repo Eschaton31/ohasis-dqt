@@ -243,10 +243,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             recent_sexwithm <= 6 ~ "p06m",
             recent_sexwithm <= 12 ~ "p12m",
             YR_LAST_M == year(hts_date) ~ "p12m",
-            src == "cmbs2020" &
+            src == "cfbs2020" &
                (recent_sexwithm > 12 | is.na(recent_sexwithm)) &
                NUM_M_PARTNER > 0 ~ "p12m",
-            src != "cmbs2020" &
+            src != "cfbs2020" &
                (recent_sexwithm > 12 | is.na(recent_sexwithm)) &
                NUM_M_PARTNER > 0 ~ "beyond_p12m",
             recent_sexwithm > 12 ~ "beyond_p12m",
@@ -256,7 +256,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
          ),
          recent_sexwithm_nocdm = case_when(
             src == "hts2021" ~ floor(interval(EXPOSE_SEX_M_AV_NOCONDOM_DATE, RECORD_DATE) / months(1)),
-            src == "cmbs2020" ~ floor(interval(EXPOSE_CONDOMLESS_VAGINAL_DATE, RECORD_DATE) / months(1)),
+            src == "cfbs2020" ~ floor(interval(EXPOSE_CONDOMLESS_VAGINAL_DATE, RECORD_DATE) / months(1)),
          ),
          recent_sexwithm_nocdm = case_when(
             recent_sexwithm_nocdm <= 1 ~ "p01m",
