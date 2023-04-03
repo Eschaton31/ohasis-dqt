@@ -356,6 +356,7 @@ local(envir = vlml, {
             stri_replace_all_regex("COPIES/ ML$", "") %>%
             stri_replace_all_regex("COPIES /ML$", "") %>%
             stri_replace_all_regex("COPIES$", "") %>%
+            stri_replace_all_regex("COIES/ML$", "") %>%
             stri_replace_all_regex("CP/ML$", "") %>%
             stri_replace_all_regex("C/ML$", "") %>%
             stri_replace_all_regex("^HIV-", "HIV") %>%
@@ -367,6 +368,7 @@ local(envir = vlml, {
             stri_replace_all_regex("^HIV1 DETECETD,", "") %>%
             stri_replace_all_regex("^HIV1 DETECTED;", "") %>%
             stri_replace_all_regex("^HIV1 DETECETED,", "") %>%
+            stri_replace_all_regex("^HIV DETECTED", "") %>%
             stri_replace_all_regex("7.00 E03", "7.00E03") %>%
             str_squish()
       ) %>%
@@ -476,6 +478,7 @@ if (save == "1")
          select(
             -contains(" "),
             -contains("."),
+            -contains("\r\n"),
          ) %>%
          mutate(vlml2022 = 1) %>%
          format_stata() %>%
