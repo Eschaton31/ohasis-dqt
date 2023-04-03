@@ -63,6 +63,7 @@ DB <- setRefClass(
                branch_priority = case_when(
                   FACI_ID == "130001" ~ 1,
                   FACI_ID == "130605" ~ 2,
+                  FACI_ID == "130748" ~ 3,
                   TRUE ~ 9999
                )
             ) %>%
@@ -228,7 +229,7 @@ DB <- setRefClass(
                   Var1 %in% text_faci ~ "TEXT NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
                   Var1 %in% user_cols & !(Var1 %in% id_col) ~ "CHAR(10) NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
                   Var1 %in% user_cols & Var1 %in% id_col ~ "CHAR(10) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "FACI_CODE" ~ "VARCHAR(255) NULL COLLATE 'utf8_general_ci'",
+                  Var1 == "FACI_CODE" ~ "VARCHAR(100) NULL COLLATE 'utf8_general_ci'",
                   Var1 == "LONG" ~ "DECIMAL(10,7) NULL COLLATE 'utf8_general_ci'",
                   Var1 == "LAT" ~ "DECIMAL(9,7) NULL COLLATE 'utf8_general_ci'",
                   Var1 == "REC_ID" ~ "CHAR(25) NULL COLLATE 'utf8_general_ci'",
@@ -247,7 +248,7 @@ DB <- setRefClass(
                   Mode == "numeric" & Class == "Date" ~ "DATE NULL DEFAULT NULL",
                   Mode == "numeric" & Class == "POSIXct" ~ "DATETIME NULL DEFAULT NULL",
                   Mode == "numeric" ~ "INT(11) NULL DEFAULT NULL",
-                  Mode == "character" ~ "VARCHAR(255) NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
+                  Mode == "character" ~ "VARCHAR(100) NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
                   TRUE ~ NA_character_
                ),
                SQL  = paste0("`", Var1, "` ", Type),
