@@ -56,11 +56,10 @@ SELECT rec.REC_ID,
        MAX(IF(remarks.REMARK_TYPE = 3, remarks.REMARKS, NULL))                                         AS REPORT_NOTES,
        MAX(IF(remarks.REMARK_TYPE = 10, remarks.REMARKS, NULL))                                        AS STI_DIAGNOSIS
 FROM ohasis_interim.px_record AS rec
-         LEFT JOIN ohasis_interim.px_faci AS service on rec.REC_ID = service.REC_ID
+         LEFT JOIN ohasis_interim.px_faci AS service on rec.REC_ID = service.REC_ID AND service.SERVICE_TYPE <> '101102'
          LEFT JOIN ohasis_interim.px_remarks AS remarks on rec.REC_ID = remarks.REC_ID
 WHERE ((rec.CREATED_AT BETWEEN ? AND ?) OR
        (rec.UPDATED_AT BETWEEN ? AND ?) OR
        (rec.DELETED_AT BETWEEN ? AND ?))
-  AND service.SERVICE_TYPE <> '101102'
 GROUP BY rec.REC_ID;
 -- ID_COLS: REC_ID
