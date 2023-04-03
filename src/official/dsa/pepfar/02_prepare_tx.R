@@ -47,7 +47,7 @@ tag_indicators <- function(data, coverage) {
    data %<>%
       mutate(
          # tag based on pepfar Defintion
-         outcome28        = hiv_tx_outcome(outcome, latest_nextpickup, coverage$prev$date, 28),
+         outcome28        = hiv_tx_outcome(outcome, latest_nextpickup, coverage$max, 28),
          onart28          = if_else(
             condition = outcome28 == "alive on arv",
             true      = 1,
