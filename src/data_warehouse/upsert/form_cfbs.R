@@ -39,6 +39,7 @@ for_delete <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
 if ((object %>% count() %>% collect())$n > 0) {
    continue <- 1
    object   <- object %>%
+      select(-any_of(c("CLIENT_MOBILE", "CLIENT_EMAIL"))) %>%
       rename_at(
          .vars = vars(starts_with("SERVICE_")),
          ~paste0("HIV_", .)

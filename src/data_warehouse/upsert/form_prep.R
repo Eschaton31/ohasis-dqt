@@ -52,6 +52,7 @@ for_delete <- bind_rows(for_delete_1, for_delete_2)
 if ((object %>% count() %>% collect())$n > 0) {
    continue <- 1
    object   <- object %>%
+      select(-any_of(c("CLIENT_MOBILE", "CLIENT_EMAIL"))) %>%
       select(
          -starts_with("CURR_"),
          -starts_with("PERM_"),

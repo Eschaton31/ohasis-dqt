@@ -12,16 +12,19 @@ object   <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
       is.na(DELETED_BY)
    )
 
-for_delete <- tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
-   filter(
-      !is.na(DELETED_BY)
-   ) %>%
-   inner_join(
-      y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_d")),
-      by = "REC_ID"
-   ) %>%
-   select(REC_ID) %>%
-   collect()
+for_delete <- data.frame()
+if (dbExistsTable(lw_conn, Id(schema = "ohasis_warehouse", table = "form_d"))) {
+   tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "px_pii")) %>%
+      filter(
+         !is.na(DELETED_BY)
+      ) %>%
+      inner_join(
+         y  = tbl(lw_conn, dbplyr::in_schema("ohasis_warehouse", "form_d")),
+         by = "REC_ID"
+      ) %>%
+      select(REC_ID) %>%
+      collect()
+}
 
 # get number of affected rows
 if ((object %>% count() %>% collect())$n > 0) {
