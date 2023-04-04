@@ -236,7 +236,8 @@ dr$data$hts_tst_pos <- dr$harp$dx %>%
       "name",
       c("hts_tst_pos_reg", "hts_tst_pos_prov", "hts_tst_pos_munc")
    )
-reach               <- dr$data$hts_tst_pos %>%
+
+reach <- dr$data$hts_tst_pos %>%
    mutate(
       reach_clinical = if_else(modality == "FBT", 1, reach_clinical, reach_clinical)
    ) %>%
@@ -256,6 +257,170 @@ reach               <- dr$data$hts_tst_pos %>%
 dr$data$hts_tst_pos %<>%
    left_join(
       y = reach
+   )
+
+##  HTS_TST --------------------------------------------------------------------
+
+dr$data$hts_tst <- process_hts(dr$oh$hts, dr$oh$a, dr$oh$cfbs) %>%
+   mutate(
+      hts_tst = pepfar_fy(hts_date)
+   ) %>%
+   filter(
+      hts_tst > 201901
+   ) %>%
+   get_cid(dr$oh$id_reg, PATIENT_ID) %>%
+   mutate_if(
+      .predicate = is.POSIXct,
+      ~null_dates(., "POSIXct")
+   ) %>%
+   mutate_if(
+      .predicate = is.Date,
+      ~null_dates(., "Date")
+   ) %>%
+   mutate(
+      hts_priority = case_when(
+         CONFIRM_RESULT %in% c(1, 2, 3) ~ 1,
+         hts_result != "(no data)" & src %in% c("hts2021", "a2017") ~ 2,
+         hts_result != "(no data)" & hts_modality == "FBT" ~ 3,
+         hts_result != "(no data)" & hts_modality == "CBS" ~ 4,
+         hts_result != "(no data)" & hts_modality == "FBS" ~ 5,
+         hts_result != "(no data)" & hts_modality == "ST" ~ 6,
+         TRUE ~ 9999
+      )
+   ) %>%
+   left_join(
+      y  = dr$harp$dx %>%
+         get_cid(dr$oh$id_reg, PATIENT_ID) %>%
+         select(
+            CENTRAL_ID,
+            idnum,
+            transmit,
+            sexhow,
+            confirm_date,
+            ref_report,
+            HARPDX_BIRTHDATE  = bdate,
+            HARPDX_SEX        = sex,
+            HARPDX_SELF_IDENT = self_identity,
+            HARPDX_FACI,
+            HARPDX_SUB_FACI
+         ),
+      by = join_by(CENTRAL_ID)
+   )
+
+risk <- dr$data$hts_tst %>%
+   select(
+      REC_ID,
+      contains("risk", ignore.case = FALSE)
+   ) %>%
+   pivot_longer(
+      cols = contains("risk", ignore.case = FALSE)
+   ) %>%
+   group_by(REC_ID) %>%
+   summarise(
+      risks = stri_c(collapse = ", ", unique(sort(value)))
+   )
+
+dr$data$hts_tst %<>%
+   left_join(y = risk, by = join_by(REC_ID)) %>%
+   mutate(
+      # tag if central to be used
+      use_harpdx        = if_else(
+         condition = !is.na(idnum),
+         true      = 1,
+         false     = 0,
+         missing   = 0
+      ),
+
+      # old confirmed
+      old_dx            = case_when(
+         confirm_date >= hts_date ~ 0,
+         confirm_date < hts_date ~ 1,
+         TRUE ~ 0
+      ),
+
+      # tag those without form faci
+      use_record_faci   = if_else(
+         condition = is.na(SERVICE_FACI),
+         true      = 1,
+         false     = 0
+      ),
+
+      # tag which test to be used
+      FINAL_FACI        = if_else(
+         condition = use_record_faci == 1,
+         true      = FACI_ID,
+         false     = SERVICE_FACI
+      ),
+      FINAL_SUB_FACI    = case_when(
+         use_record_faci == 1 & FACI_ID == "130000" ~ SPECIMEN_SUB_SOURCE,
+         !(SERVICE_FACI %in% c("130001", "130605", "040200")) ~ NA_character_,
+         nchar(SERVICE_SUB_FACI) == 6 ~ NA_character_,
+         TRUE ~ SERVICE_SUB_FACI
+      ),
+
+      HTS_TST_RESULT    = case_when(
+         hts_result == "R" ~ "Reactive",
+         hts_result == "NR" ~ "Non-reactive",
+         hts_result == "IND" ~ "Indeterminate",
+         is.na(hts_result) ~ "(no data)",
+         TRUE ~ hts_result
+      ),
+
+      FINAL_TEST_RESULT = case_when(
+         old_dx == 1 & !is.na(idnum) ~ "Confirmed: Known Pos",
+         old_dx == 0 & !is.na(idnum) ~ "Confirmed: Positive",
+         CONFIRM_RESULT == 1 ~ "Confirmed: Positive",
+         CONFIRM_RESULT == 2 ~ "Confirmed: Negative",
+         CONFIRM_RESULT == 3 ~ "Confirmed: Indeterminate",
+         hts_modality == "FBT" ~ paste0("Tested: ", HTS_TST_RESULT),
+         hts_modality == "FBS" ~ paste0("Tested: ", HTS_TST_RESULT),
+         hts_modality == "CBS" ~ paste0("CBS: ", HTS_TST_RESULT),
+         hts_modality == "ST" ~ paste0("Self-Testing: ", HTS_TST_RESULT),
+      ),
+   )
+
+
+confirm_data <- dr$data$hts_tst %>%
+   mutate(
+      FINAL_CONFIRM_DATE = case_when(
+         old_dx == 0 & hts_priority == 1 ~ as.Date(coalesce(DATE_CONFIRM, T3_DATE, T2_DATE, T1_DATE)),
+         old_dx == 1 ~ confirm_date,
+         TRUE ~ NA_Date_
+      )
+   ) %>%
+   filter(!is.na(FINAL_CONFIRM_DATE)) %>%
+   select(CENTRAL_ID, FINAL_CONFIRM_DATE) %>%
+   distinct(CENTRAL_ID, .keep_all = TRUE)
+
+reach <- dr$data$hts_tst_pos %>%
+   mutate(
+      reach_clinical = if_else(modality == "FBT", 1, reach_clinical, reach_clinical)
+   ) %>%
+   select(
+      CENTRAL_ID,
+      starts_with("reach")
+   ) %>%
+   filter(if_any(starts_with("reach"), ~!is.na(.))) %>%
+   pivot_longer(starts_with("reach")) %>%
+   filter(!is.na(value)) %>%
+   arrange(CENTRAL_ID, name) %>%
+   mutate(name = stri_replace_all_fixed(name, "reach_", "")) %>%
+   group_by(CENTRAL_ID) %>%
+   summarise(reach = stri_c(collapse = ", ", name)) %>%
+   ungroup()
+
+dr$data$hts_tst %<>%
+   left_join(y = confirm_data, by = join_by(CENTRAL_ID)) %>%
+   filter(HTS_TST_RESULT != "(no data)") %>%
+   left_join(
+      y = reach
+   ) %>%
+   arrange(hts_date) %>%
+   distinct(CENTRAL_ID, hts_tst, .keep_all = TRUE) %>%
+   ohasis$get_faci(
+      list(`Site/Organization` = c("FINAL_FACI", "FINAL_SUB_FACI")),
+      "nhsss",
+      c("hts_reg", "hts_prov", "hts_munc")
    )
 
 ##  TX -------------------------------------------------------------------------
@@ -479,6 +644,28 @@ dr$flat$natl$hts <- agg_prep(dr$data, "hts_tst_pos", dx_region) %>%
    arrange(scope, qr) %>%
    pivot_wider(
       id_cols     = c(ind, scope, dx_region, modality, reach),
+      names_from  = qr,
+      values_from = total,
+   ) %>%
+   write_sheet(dr$ss, "HTS")
+
+dr$flat$natl$tst <- agg_prep(dr$data, "hts_tst", hts_reg) %>%
+   mutate(scope = "natl") %>%
+   bind_rows(
+      agg_prep(dr$data, "hts_tst", hts_reg, hts_modality, reach)
+   ) %>%
+   mutate(
+      scope        = case_when(
+         is.na(scope) & dx_region == "7" ~ "reg7",
+         is.na(scope) & dx_region == "6" ~ "reg6",
+         TRUE ~ scope
+      ),
+      hts_modality = coalesce(hts_modality, "all")
+   ) %>%
+   filter(!is.na(scope)) %>%
+   arrange(scope, qr) %>%
+   pivot_wider(
+      id_cols     = c(ind, scope, hts_reg, modality, reach),
       names_from  = qr,
       values_from = total,
    ) %>%
