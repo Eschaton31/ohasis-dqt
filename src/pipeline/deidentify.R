@@ -1,0 +1,39 @@
+remove_pii <- function (data) {
+   data %<>%
+      select(
+         -any_of(
+            c(
+               "UIC",
+               "uic",
+               "FIRST",
+               "first",
+               "firstname",
+               "MIDDLE",
+               "middle",
+               "LAST",
+               "last",
+               "SUFFIX",
+               "suffix",
+               "name_suffix",
+               "PATIENT_CODE",
+               "px_code",
+               "PHILHEALTH_NO",
+               "philhealth_no",
+               "PHILHEALTH",
+               "philhealth",
+               "PHILSYS_ID",
+               "philsys_id",
+               "PERM_ADDR",
+               "CURR_ADDR",
+               "BIRTH_ADDR",
+               "CLIENT_MOBILE",
+               "client_mobile",
+               "mobile",
+               "CLIENT_EMAIL",
+               "client_email",
+               "email"
+            )
+         )
+      )
+   return(data)
+}

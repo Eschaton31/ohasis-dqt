@@ -7,6 +7,7 @@ source("gender_identity.R")
 source("check.R")
 source("oh_data.R")
 source("facility_id.R")
+source("deidentify.R")
 
 # pipeline function -> call files based on structure
 pipeline <- function(system, parent, step = NULL, group = "official") {
