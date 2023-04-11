@@ -3,9 +3,9 @@
 output_dta <- function(official) {
    log_info("Checking output directory.")
    output_version      <- format(Sys.time(), "%Y%m%d")
-   output_name.reg     <- paste0(output_version, '_reg-art_', ohasis$yr, '-', ohasis$mo)
-   output_name.outcome <- paste0(output_version, '_onart_', ohasis$yr, '-', ohasis$mo)
-   output_dir          <- Sys.getenv("HARP_TX")
+   output_name.reg     <- paste0(output_version, '_reg-prep_', ohasis$yr, '-', ohasis$mo)
+   output_name.outcome <- paste0(output_version, '_onprep_', ohasis$yr, '-', ohasis$mo)
+   output_dir          <- Sys.getenv("PREP")
    output_file.reg     <- file.path(output_dir, paste0(output_name.reg, ".dta"))
    output_file.outcome <- file.path(output_dir, paste0(output_name.outcome, ".dta"))
    check_dir(output_dir)
@@ -33,6 +33,6 @@ output_dta <- function(official) {
 ##  Actual flow ----------------------------------------------------------------
 
 .init <- function() {
-   p <- .GlobalEnv$nhsss$harp_tx
+   p <- .GlobalEnv$nhsss$prep
    output_dta(p$official)
 }

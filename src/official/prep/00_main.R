@@ -46,7 +46,7 @@ complete <- input(
    default = "2"
 )
 if (complete == "1") {
-   source(file.path(nhsss$prep$wd, "14_output.R"))
+   source(file.path(nhsss$prep$wd, "08_output.R"))
 
    # TODO: Place these after pdf & ml conso
    source(file.path(nhsss$prep$wd, "15_archive.R"))

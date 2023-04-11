@@ -8,6 +8,7 @@ flow(
       "05" = "data_outcome.initial",
       "06" = "data_outcome.convert",
       "07" = "data_outcome.final",
+      "08" = "output",
       "x1" = "dedup_new",
       "x2" = "dedup_old",
       "x3" = "dedup_dx",

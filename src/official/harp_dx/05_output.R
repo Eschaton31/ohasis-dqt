@@ -3,7 +3,7 @@
 label_stata <- function(newdx, stata_labels) {
    labels <- split(stata_labels$lab_def, ~label_name)
    labels <- lapply(labels, function(data) {
-      final_labels <- ""
+      final_labels <- c()
       for (i in seq_len(nrow(data))) {
          value <- data[i, "value"] %>% as.integer()
          label <- data[i, "label"] %>% as.character()
@@ -60,9 +60,7 @@ output_dta <- function(official) {
 ##  Actual flow ----------------------------------------------------------------
 
 .init <- function() {
-   p <- parent.env(environment())
-   local(envir = p, {
-      p$official$new <- label_stata(p$official$new, p$corr)
-      output_dta(p$official)
-   })
+   p              <- .GlobalEnv$nhsss$harp_dx
+   p$official$new <- label_stata(p$official$new, p$corr$stata_labels)
+   output_dta(p$official)
 }
