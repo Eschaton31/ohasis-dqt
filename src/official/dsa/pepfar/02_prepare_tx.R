@@ -69,7 +69,7 @@ tag_indicators <- function(data, coverage) {
             missing   = 0
          ),
          TX_NEW           = if_else(
-            condition = newonart == 1,
+            condition = artstart_date %within% interval(coverage$min, coverage$max),
             true      = 1,
             false     = 0,
             missing   = 0
