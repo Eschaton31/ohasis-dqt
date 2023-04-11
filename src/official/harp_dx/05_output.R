@@ -1,104 +1,68 @@
-##  Output Stata Datasets ------------------------------------------------------
-
-# list of current vars for code cleanup
-currEnv <- ls()[ls() != "currEnv"]
-
-.log_info("Checking output directory.")
-output_version <- format(Sys.time(), "%Y%m%d")
-output_name    <- paste0(output_version, '_reg_', ohasis$yr, '-', ohasis$mo)
-output_dir     <- file.path("archive", ohasis$ym, ohasis$output_title, "harp_dx")
-output_dir     <- Sys.getenv("HARP_DX")
-
-nhsss$harp_dx$official$new_file <- file.path(output_dir, paste0(output_name, ".dta"))
-check_dir(output_dir)
-
-# write main file
-.log_info("Saving in Stata data format.")
-write_dta(
-   data = nhsss$harp_dx$official$new %>% select(-contains(".")),
-   path = nhsss$harp_dx$official$new_file
-)
-
-# write subsets if existing
-for (drop_var in c("dropped_notyet", "dropped_duplicates"))
-   if (nrow(nhsss$harp_dx$official[[drop_var]]) > 0) {
-      output_name <- paste0(output_version, "_", drop_var, "_", ohasis$yr, '-', ohasis$mo)
-      write_dta(
-         data = nhsss$harp_dx$official[[drop_var]],
-         path = file.path(output_dir, paste0(output_name, ".dta"))
-      )
-   }
-
 ##  Stata Labels ---------------------------------------------------------------
 
-.log_info("Creating `lab def` do-files.")
-# key->value pairs
-label_df   <- nhsss$harp_dx$corr$stata_labels$lab_def
-label_list <- unique(label_df$label_name)
-for (var in label_list) {
-   # initialize empty stata commands
-   label_name <- ""
+label_stata <- function(newdx, stata_labels) {
+   labels <- split(stata_labels$lab_def, ~label_name)
+   labels <- lapply(labels, function(data) {
+      final_labels <- ""
+      for (i in seq_len(nrow(data))) {
+         value <- data[i, "value"] %>% as.integer()
+         label <- data[i, "label"] %>% as.character()
 
-   # get value->label pairing
-   df <- label_df %>% filter(label_name == var)
-   for (i in seq_len(nrow(df))) {
-      value <- df[i, "value"] %>% as.integer()
-      label <- df[i, "label"] %>% as.character()
+         row_label        <- value
+         names(row_label) <- label
+         final_labels     <- c(final_labels, row_label)
+      }
 
-      label_name <- paste0(label_name, '
-lab def ', var, ' ', value, ' "', label, '", add')
+      return(final_labels[-1])
+   })
+
+   for (i in seq_len(nrow(stata_labels$lab_val))) {
+      var   <- stata_labels$lab_val[i,]$variable
+      label <- stata_labels$lab_val[i,]$label_name
+
+      if (var %in% names(newdx))
+         newdx[[var]] <- labelled(
+            newdx[[var]],
+            labels[[label]]
+         )
    }
 
-   # stata create label file
-   label_name <- paste0(label_name, '
-lab save ', var, ' using "', file.path(output_dir, paste0('Labels-', var, '.do')), '", replace')
-
-   # run command
-   stata(label_name)
+   return(newdx)
 }
 
-.log_info("Attaching labels to variables.")
-# variable->label pairs
-var_df <- nhsss$harp_dx$corr$stata_labels$lab_val
-for (file in list.files(output_dir, "*.dta", full.names = TRUE)) {
-   # initialize empty stata commands
-   stataCMD <- ""
+##  Output Stata Datasets ------------------------------------------------------
 
-   # use file
-   stataCMD <- glue(r"(u "{file}", clear)")
+output_dta <- function(official) {
+   log_info("Checking output directory.")
+   output_version <- format(Sys.time(), "%Y%m%d")
+   output_dir     <- Sys.getenv("HARP_DX")
+   output_name    <- paste0(output_version, '_reg_', ohasis$yr, '-', ohasis$mo)
+   output_file    <- file.path(output_dir, paste0(output_name, ".dta"))
+   check_dir(output_dir)
 
-   # run label do-files
-   for (do_file in list.files(output_dir, "*.do", full.names = TRUE))
-      stataCMD <- glue(paste0(stataCMD, "\n", r"(do "{do_file}")"))
+   # write main file
+   log_info("Saving in Stata data format.")
+   official$new %>%
+      format_stata() %>%
+      write_dta(output_file)
 
-   # label values
-   for (var in seq_len(nrow(var_df))) {
-      variable   <- var_df[var, "variable"] %>% as.character()
-      label_name <- var_df[var, "label_name"] %>% as.character()
-
-      stataCMD <- glue(paste0(stataCMD, "\n", r"(lab val {variable} {label_name})"))
-   }
-
-   # format and save file
-   stataCMD <- glue(paste0(stataCMD, "\n", r"(
-ds, has(type string)
-foreach var in `r(varlist)' {{
-   loc type : type `var'
-   loc len = substr("`type'", 4, 1000)
-
-   cap form `var' %-`len's
-}}
-
-form *date* %tdCCYY-NN-DD
-compress
-sa "{file}", replace
-   )"))
-
-   # run command
-   stata(stataCMD)
+   # write subsets if existing
+   for (drop_var in c("dropped_notyet", "dropped_duplicates"))
+      if (nrow(official[[drop_var]]) > 0) {
+         output_name <- paste0(output_version, "_", drop_var, "_", ohasis$yr, '-', ohasis$mo)
+         output_file <- file.path(output_dir, paste0(output_name, ".dta"))
+         official[[drop_var]] %>%
+            format_stata() %>%
+            write_dta(output_file)
+      }
 }
 
-.log_success("Done!")
+##  Actual flow ----------------------------------------------------------------
 
-# clean-up created objects
-rm(list = setdiff(ls(), currEnv))
+.init <- function() {
+   p <- parent.env(environment())
+   local(envir = p, {
+      p$official$new <- label_stata(p$official$new, p$corr)
+      output_dta(p$official)
+   })
+}
