@@ -33,8 +33,9 @@ update_warehouse <- function() {
 ##  get pdf results ------------------------------------------------------------
 
 get_rhivda_pdf <- function() {
+   .log_info("Loading list of rHIVda PDF Results.")
    rhivda <- dir_info(file.path(Sys.getenv("DRIVE_DROPBOX"), "File requests/rHIVda Submission/FORMS", ohasis$ym), recurse = TRUE)
-   rhivda %>%
+   rhivda %<>%
       filter(type == "file") %>%
       mutate(
          CONFIRM_CODE = str_extract(basename(path), "[A-Z][A-Z][A-Z][0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9][0-9]"),
