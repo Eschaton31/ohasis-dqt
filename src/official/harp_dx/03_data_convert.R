@@ -213,7 +213,7 @@ tag_mot <- function(data) {
       mutate(
          # for mot
          motherisi1 = case_when(
-            EXPOSE_HIV_MOTHER == 2 ~ 2,
+            EXPOSE_HIV_MOTHER > 0 ~ 1,
             TRUE ~ 0
          ),
          sexwithf   = case_when(
@@ -310,7 +310,7 @@ tag_mot <- function(data) {
 
          # vertical
          mot        = case_when(
-            mot == 0 & motherisi1 == 2 ~ 6,
+            mot == 0 & motherisi1 == 1 ~ 6,
             TRUE ~ mot
          ),
 
