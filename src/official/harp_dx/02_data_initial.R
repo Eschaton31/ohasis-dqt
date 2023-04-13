@@ -403,7 +403,9 @@ get_checks <- function(data, pdf_rhivda) {
          )
 
       # pdf results
+      .log_info("Checking missing rHIVda PDF.")
       check[["no_pdf_result"]] <- data %>%
+         filter(            StrLeft(CONFIRM_TYPE, 1) == "2") %>%
          anti_join(
             y  = pdf_rhivda$data %>% select(CONFIRM_CODE),
             by = join_by(CONFIRM_CODE)
