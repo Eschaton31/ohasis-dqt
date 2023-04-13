@@ -30,6 +30,21 @@ update_warehouse <- function() {
    }
 }
 
+##  get pdf results ------------------------------------------------------------
+
+get_rhivda_pdf <- function() {
+   rhivda <- dir_info(file.path(Sys.getenv("DRIVE_DROPBOX"), "File requests/rHIVda Submission/FORMS", ohasis$ym), recurse = TRUE)
+   rhivda %>%
+      filter(type == "file") %>%
+      mutate(
+         CONFIRM_CODE = str_extract(basename(path), "[A-Z][A-Z][A-Z][0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9][0-9]"),
+         .before      = 1
+      ) %>%
+      filter(!is.na(CONFIRM_CODE))
+
+   .GlobalEnv$nhsss$harp_dx$pdf_rhivda$data <- rhivda
+}
+
 ##  Get the previous report's HARP Registry ------------------------------------
 
 update_dataset <- function() {
@@ -69,4 +84,5 @@ define_params <- function() {
    update_warehouse()
    update_dataset()
    define_params()
+   get_rhivda_pdf()
 }
