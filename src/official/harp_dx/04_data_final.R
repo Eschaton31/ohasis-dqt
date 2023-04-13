@@ -17,7 +17,8 @@ append_data <- function(old, new) {
 
 tag_fordrop <- function() {
    for (drop_var in c("drop_notyet", "drop_duplicates"))
-      if (drop_var %in% names(nhsss$harp_dx$corr))
+      if (drop_var %in% names(nhsss$harp_dx$corr) & nrow(nhsss$harp_dx$corr[[drop_var]]) > 0) {
+         drop_var <- as.name(drop_var)
          nhsss$harp_dx$official$new %<>%
             left_join(
                y  = nhsss$harp_dx$corr[[drop_var]] %>%
@@ -26,14 +27,15 @@ tag_fordrop <- function() {
                by = "REC_ID"
             ) %>%
             mutate(
-               drop_var := if_else(
+               !!drop_var := if_else(
                   condition = drop == 1,
                   true      = 1,
-                  false     = !!as.symbol(drop_var),
-                  missing   = !!as.symbol(drop_var)
+                  false     = !!drop_var,
+                  missing   = !!drop_var
                )
             ) %>%
             select(-drop)
+      }
 }
 
 ##  Subsets for documentation --------------------------------------------------
