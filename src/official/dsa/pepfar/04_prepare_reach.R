@@ -3,7 +3,8 @@
 prepare_hts <- function(forms, harp, coverage) {
    data <- process_hts(forms$form_hts, forms$form_a, forms$form_cfbs) %>%
       filter(
-         hts_date %within% interval(coverage$min, coverage$max)
+         (DATE_CONFIRM %within% interval(coverage$min, coverage$max) & CONFIRM_RESULT %in% c(1, 2, 3)) |
+            hts_date %within% interval(coverage$min, coverage$max)
       ) %>%
       get_cid(forms$id_reg, PATIENT_ID) %>%
       mutate_if(
@@ -99,12 +100,13 @@ clean_hts <- function(data, risk) {
          ),
 
          # tag which test to be used
-         FINAL_FACI        = if_else(
-            condition = use_record_faci == 1,
-            true      = FACI_ID,
-            false     = SERVICE_FACI
+         FINAL_FACI        = case_when(
+            old_dx == 0 & !is.na(HARPDX_FACI) ~ HARPDX_FACI,
+            use_record_faci == 1 ~ FACI_ID,
+            TRUE ~ SERVICE_FACI
          ),
          FINAL_SUB_FACI    = case_when(
+            old_dx == 0 & !is.na(HARPDX_FACI) ~ HARPDX_SUB_FACI,
             use_record_faci == 1 & FACI_ID == "130000" ~ SPECIMEN_SUB_SOURCE,
             !(SERVICE_FACI %in% c("130001", "130605", "040200")) ~ NA_character_,
             nchar(SERVICE_SUB_FACI) == 6 ~ NA_character_,
