@@ -385,6 +385,20 @@ match_ohasis <- function(confirm_df) {
    var_pairs                                  <- var_pairs[-1]
    nhsss$harp_dx$steps$y1_pdf_saccl$var_pairs <- var_pairs
 
+   confirm_df %<>%
+      mutate(
+         FINAL_RESULT = case_when(
+            is.na(FINAL_RESULT) & REMARKS == "POSITIVE FOR HIV ANTIBODIES" ~ "Positive",
+            is.na(FINAL_RESULT) & REMARKS == "INDETERMINATE" ~ "Indeterminate",
+            is.na(FINAL_RESULT) & REMARKS == "Duplicate" ~ "Duplicate",
+            is.na(FINAL_RESULT) & grepl("Submit plasma sample for HIV", REMARKS) ~ "Duplicate",
+            is.na(FINAL_RESULT) & grepl(" NR.pdf", FILENAME) ~ "Negative",
+            is.na(FINAL_RESULT) & T2_RESULT == "the original confirmatory" ~ "Duplicate",
+            FORM == "LAB-F-331" & is.na(FINAL_RESULT) ~ "Negative",
+            FORM == "LAB-F-325" & is.na(FINAL_RESULT) ~ "Duplicate",
+            TRUE ~ FINAL_RESULT
+         )
+      )
    return(confirm_df)
 }
 

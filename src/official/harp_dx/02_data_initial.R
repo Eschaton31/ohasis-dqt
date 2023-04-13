@@ -251,7 +251,7 @@ attach_faci_names <- function(data) {
 
 ##  Flag data for validation ---------------------------------------------------
 
-get_checks <- function(data) {
+get_checks <- function(data, pdf_rhivda) {
    check  <- list()
    update <- input(
       prompt  = "Run `initial` validations?",
@@ -312,9 +312,9 @@ get_checks <- function(data) {
          "T3_DATE",
          "T3_RESULT"
       )
-      check <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
-      check <- check_preggy(data, check, view_vars)
-      check <- check_age(data, check, view_vars)
+      check          <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
+      check          <- check_preggy(data, check, view_vars)
+      check          <- check_age(data, check, view_vars)
 
       # special checks
       .log_info("Checking for mismatch facilities (source != test).")
@@ -402,6 +402,17 @@ get_checks <- function(data) {
             T3_KIT
          )
 
+      # pdf results
+      check[["no_pdf_result"]] <- data %>%
+         anti_join(
+            y  = pdf_rhivda$data %>% select(CONFIRM_CODE),
+            by = join_by(CONFIRM_CODE)
+         ) %>%
+         select(
+            any_of(view_vars),
+            T3_KIT
+         )
+
       # range-median
       tabstat <- c(
          "encoded_date",
@@ -439,7 +450,7 @@ get_checks <- function(data) {
 
       write_rds(data, file.path(wd, "initial.RDS"))
 
-      check <- get_checks(data)
+      check <- get_checks(data, pdf_rhivda)
    })
 
    local(envir = .GlobalEnv, flow_validation(nhsss$harp_dx, "initial", ohasis$ym))
