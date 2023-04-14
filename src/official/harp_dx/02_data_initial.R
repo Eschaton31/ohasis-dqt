@@ -274,10 +274,16 @@ get_checks <- function(data, pdf_rhivda) {
          "SUFFIX",
          "BIRTHDATE",
          "SEX",
-         "TEST_FACI_NAME",
+         "SOURCE_FACI",
          "CONFIRM_TYPE",
+         "TEST_FACI_NAME",
          "SPECIMEN_REFER_TYPE",
-         get_names(data, "risk_")
+         "hts_date",
+         "hts_modality",
+         "visit_date",
+         "blood_extract_date",
+         "specimen_receipt_date",
+         "confirm_date"
       )
       check     <- check_pii(data, check, view_vars)
       check     <- check_addr(data, check, view_vars, "curr")
@@ -285,7 +291,6 @@ get_checks <- function(data, pdf_rhivda) {
 
       # dates
       date_vars <- c(
-         "encoded_date",
          "report_date",
          "visit_date",
          "blood_extract_date",
@@ -405,7 +410,7 @@ get_checks <- function(data, pdf_rhivda) {
       # pdf results
       .log_info("Checking missing rHIVda PDF.")
       check[["no_pdf_result"]] <- data %>%
-         filter(            StrLeft(CONFIRM_TYPE, 1) == "2") %>%
+         filter(StrLeft(CONFIRM_TYPE, 1) == "2") %>%
          anti_join(
             y  = pdf_rhivda$data %>% select(CONFIRM_CODE),
             by = join_by(CONFIRM_CODE)
