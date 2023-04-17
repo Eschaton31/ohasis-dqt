@@ -191,24 +191,27 @@ dedup_old <- function(data) {
 dedup_group_ids <- function(data) {
    dedup_old <- list()
    group_pii <- list(
-      "UIC.Base"            = "uic",
-      "UIC.Fixed"           = "UIC_SORT",
-      "PxCode.Base"         = "PATIENT_CODE",
-      "PxCode.Fixed"        = "PXCODE_SIEVE",
-      "PxUIC.Base"          = c("PATIENT_CODE", "UIC"),
-      "PxUIC.Fixed"         = c("PXCODE_SIEVE", "UIC"),
-      "PxBD.Base"           = c("PATIENT_CODE", "birthdate"),
-      "PxBD.Fixed"          = c("PXCODE_SIEVE", "birthdate"),
-      "Email.Mobile"        = c("email", "mobile"),
-      "Name.Base"           = c("FIRST", "LAST", "birthdate"),
-      "Name.Fixed"          = c("FIRST_NY", "LAST_NY", "birthdate"),
-      "Name.Partial"        = c("FIRST_A", "LAST_A", "birthdate"),
-      "YMName.Base"         = c("FIRST", "LAST", "BIRTH_YR", "BIRTH_MO"),
-      "YDName.Fixed"        = c("FIRST", "LAST", "BIRTH_YR", "BIRTH_DY"),
-      "MDName.Partial"      = c("FIRST", "LAST", "BIRTH_MO", "BIRTH_DY"),
-      "YMNameClean.Base"    = c("FIRST_NY", "LAST_NY", "BIRTH_YR", "BIRTH_MO"),
-      "YDNameClean.Fixed"   = c("FIRST_NY", "LAST_NY", "BIRTH_YR", "BIRTH_DY"),
-      "MDNameClean.Partial" = c("FIRST_NY", "LAST_NY", "BIRTH_MO", "BIRTH_DY")
+      "UIC.Base"           = "uic",
+      "UIC.Fixed"          = "UIC_SORT",
+      "PxCode.Base"        = "PATIENT_CODE",
+      "PxCode.Fixed"       = "PXCODE_SIEVE",
+      "PxUIC.Base"         = c("PATIENT_CODE", "UIC"),
+      "PxUIC.Fixed"        = c("PXCODE_SIEVE", "UIC"),
+      "PxBD.Base"          = c("PATIENT_CODE", "birthdate"),
+      "PxBD.Fixed"         = c("PXCODE_SIEVE", "birthdate"),
+      "Email.Mobile"       = c("email", "mobile"),
+      "Name.Base"          = c("FIRST", "LAST", "birthdate"),
+      "Name.Fixed"         = c("FIRST_NY", "LAST_NY", "birthdate"),
+      "Name.Partial"       = c("FIRST_A", "LAST_A", "birthdate"),
+      "YM.BD-Name.Base"    = c("FIRST", "LAST", "BIRTH_YR", "BIRTH_MO"),
+      "YD.BD-Name.Base"    = c("FIRST", "LAST", "BIRTH_YR", "BIRTH_DY"),
+      "MD.BD-Name.Base"    = c("FIRST", "LAST", "BIRTH_MO", "BIRTH_DY"),
+      "YM.BD-Name.Fixed"   = c("FIRST_NY", "LAST_NY", "BIRTH_YR", "BIRTH_MO"),
+      "YD.BD-Name.Fixed"   = c("FIRST_NY", "LAST_NY", "BIRTH_YR", "BIRTH_DY"),
+      "MD.BD-Name.Fixed"   = c("FIRST_NY", "LAST_NY", "BIRTH_MO", "BIRTH_DY"),
+      "YM.BD-Name.Partial" = c("FIRST_A", "LAST_A", "BIRTH_YR", "BIRTH_MO"),
+      "YD.BD-Name.Partial" = c("FIRST_A", "LAST_A", "BIRTH_YR", "BIRTH_DY"),
+      "MD.BD-Name.Partial" = c("FIRST_A", "LAST_A", "BIRTH_MO", "BIRTH_DY")
    )
    for (i in seq_len(length(group_pii))) {
       dedup_name <- names(group_pii)[[i]]
