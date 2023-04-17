@@ -16,9 +16,9 @@ append_data <- function(old, new) {
 ##  Tag data to be reported later on and duplicates for dropping ---------------
 
 tag_fordrop <- function() {
-   for (drop_var in c("drop_notyet", "drop_duplicates"))
+   for (drop_var in c("drop_notyet", "anti_join"))
       if (drop_var %in% names(nhsss$harp_dx$corr) && nrow(nhsss$harp_dx$corr[[drop_var]]) > 0) {
-         drop_var <- as.name(drop_var)
+         drop_var <- ifelse(drop_var == "anti_join", as.name("drop_duplicates"), as.name(drop_var))
          nhsss$harp_dx$official$new %<>%
             left_join(
                y  = nhsss$harp_dx$corr[[drop_var]] %>%
