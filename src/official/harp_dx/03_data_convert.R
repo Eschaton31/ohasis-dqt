@@ -1076,6 +1076,8 @@ get_checks <- function(data) {
          "bdate",
          "sex",
          "gender_identity",
+         "curr_work",
+         "prev_work",
          "CONFIRM_FACI",
          "confirmlab",
          "TEST_FACI",

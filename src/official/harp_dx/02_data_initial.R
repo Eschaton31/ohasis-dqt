@@ -277,7 +277,7 @@ get_checks <- function(data, pdf_rhivda) {
          "SOURCE_FACI",
          "CONFIRM_TYPE",
          "TEST_FACI_NAME",
-         "SPECIMEN_SOURCE",
+         "SOURCE_FACI",
          "hts_date",
          "hts_modality",
          "visit_date",
