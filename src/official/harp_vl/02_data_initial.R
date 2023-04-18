@@ -539,9 +539,9 @@ vl_data %<>%
 
 ##  Merge w/ onart dataset -----------------------------------------------------
 
-onart_prev <- read_dta(hs_data("harp_tx", "reg", "2023", "01")) %>%
+onart_prev <- read_dta(hs_data("harp_tx", "reg", "2023", "02")) %>%
    left_join(
-      y  = read_dta(hs_data("harp_tx", "outcome", "2023", "01")) %>%
+      y  = read_dta(hs_data("harp_tx", "outcome", "2023", "02")) %>%
          select(
             art_id,
             vl_date,
@@ -570,7 +570,7 @@ onart_prev <- read_dta(hs_data("harp_tx", "reg", "2023", "01")) %>%
       ),
    )
 
-onart_vl <- hs_data("harp_tx", "reg", 2023, 2) %>%
+onart_vl <- hs_data("harp_tx", "reg", ohasis$yr, ohasis$mo) %>%
    read_dta() %>%
    get_cid(id_registry, PATIENT_ID) %>%
    left_join(
@@ -661,7 +661,7 @@ onart_vl <- hs_data("harp_tx", "reg", 2023, 2) %>%
       contains("vl")
    ) %>%
    right_join(
-      y  = hs_data("harp_tx", "outcome", 2023, 2) %>%
+      y  = hs_data("harp_tx", "outcome", ohasis$yr, ohasis$mo) %>%
          read_dta() %>%
          select(-contains("vl")),
       by = "art_id"
