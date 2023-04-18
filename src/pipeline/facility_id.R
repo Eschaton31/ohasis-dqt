@@ -29,6 +29,7 @@ faci_code_to_id <- function(data, ref_faci_code, faci_branch) {
       ) %>%
       left_join(
          y  = ref_faci_code %>%
+            distinct(FACI_CODE, SUB_FACI_CODE, .keep_all = TRUE) %>%
             mutate(
                main_faci   = if_else(FACI_CODE == "", NA_character_, FACI_CODE, FACI_CODE),
                branch_faci = if_else(SUB_FACI_CODE == "", NA_character_, SUB_FACI_CODE, SUB_FACI_CODE),
