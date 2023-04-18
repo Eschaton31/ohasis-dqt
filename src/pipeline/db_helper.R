@@ -538,3 +538,52 @@ dup_faci_id <- function(keep_faci, drop_faci, reason = NA_character_) {
              c("MAIN_FACI", "DUPE_FACI"))
    dbDisconnect(db_conn)
 }
+
+##  update medicine
+disp_bottle_to_pill <- function(rec_ids) {
+   where_recs <- str_c("('", stri_c(collapse = "', '", rec_ids), "')")
+   disp       <- list()
+   update     <- list()
+   db_conn    <- ohasis$conn("db")
+   db_name    <- "ohasis_interim"
+
+   # get records
+   disp$disepesing   <- dbTable(db_conn, db_name, "px_medicine", raw_where = TRUE, where = stri_c("REC_ID IN ", where_recs))
+   disp$transactions <- dbTable(db_conn, db_name, "inventory_transact", raw_where = TRUE, where = stri_c("TRANSACT_ID IN ", where_recs))
+
+   # update with new data
+   update$px_medicine <- disp$disepesing %>%
+      filter(UNIT_BASIS == 1) %>%
+      mutate(
+         UNIT_BASIS = 2,
+         NEXT_DATE  = DISP_DATE %m+% days(((DISP_TOTAL + coalesce(MEDICINE_LEFT, 0)) / PER_DAY))
+      ) %>%
+      select(REC_ID, MEDICINE, DISP_NUM, UNIT_BASIS, NEXT_DATE)
+
+   update$inventory_transact <- disp$transactions %>%
+      mutate(
+         UNIT_BASIS = 2,
+      ) %>%
+      select(TRANSACT_ID, TRANSACT_NUM, INVENTORY_ID, UNIT_BASIS)
+
+   # update live records
+   table_space <- Id(schema = db_name, table = "px_medicine")
+   dbxUpsert(
+      db_conn,
+      table_space,
+      update[["px_medicine"]],
+      c("REC_ID", "MEDICINE", "DISP_NUM")
+   )
+   table_space <- Id(schema = db_name, table = "inventory_transact")
+   dbxUpsert(
+      db_conn,
+      table_space,
+      update[["inventory_transact"]],
+      c("TRANSACT_ID", "TRANSACT_NUM", "INVENTORY_ID")
+   )
+   dbDisconnect(db_conn)
+
+   # update inventory to reflect changes
+   lapply(disp$transactions$INVENTORY_ID, update_inv)
+   update_credentials(rec_ids)
+}
