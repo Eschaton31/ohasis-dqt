@@ -4,20 +4,33 @@ if (!exists("ihbss"))
    ihbss <- new.env()
 
 ## Get ODK Configuartion
-ihbss$`2022`            <- new.env()
-ihbss$`2022`$wd         <- file.path(getwd(), "src", "official", "ihbss2022")
-ihbss$`2022`$odk$config <- read_sheet(
-   "1SNB43JjGOB-uEivT5n8bfGpxiTEKkhNM7izo-KCQKPY",
-   "forms"
-)
+ihbss$`2022` <- new.env()
+local(envir = ihbss$`2022`, {
+   wd <- file.path(getwd(), "src", "official", "ihbss2022")
+
+   odk             <- list()
+   odk$config      <- list()
+   odk$config$ss   <- as_id("1SNB43JjGOB-uEivT5n8bfGpxiTEKkhNM7izo-KCQKPY",)
+   odk$config$msm  <- read_sheet(odk$config$ss, "msm") %>% mutate(survey = "MSM", .before = 1)
+   odk$config$pwid <- read_sheet(odk$config$ss, "pwid") %>% mutate(survey = "PWID", .before = 1)
+   odk$config$fsw  <- read_sheet(odk$config$ss, "fsw") %>% mutate(survey = "FSW", .before = 1)
+})
 
 ihbss$`2022`$gdrive <- list(
-   "monitoring"         = "1QqwgW9eAEVFvSNHyp0twL0Ft4oV5jqKuEW8xy20IH64",
-   "monitoring_archive" = "1w8emNjKE562yE69OjbAlfhFpu-2O4qqe",
-   "data"               = "1xYi3thblJkhL4tajwFJB79wynOwUyZfi",
-   "data_archive"       = "106qbNfgxxR1cRe11JT1dUGL8-87gvL6e",
-   "submissions"        = "1J_qu2gnazPlUBUWKWYSSExyylH-f78Gv"
+   monitoring   = list(
+      msm     = "1QqwgW9eAEVFvSNHyp0twL0Ft4oV5jqKuEW8xy20IH64",
+      archive = "1w8emNjKE562yE69OjbAlfhFpu-2O4qqe"
+   ),
+   data_archive = list(
+      msm = "106qbNfgxxR1cRe11JT1dUGL8-87gvL6e"
+   ),
+   data         = list(
+      archive = "106qbNfgxxR1cRe11JT1dUGL8-87gvL6e",
+      main     = "1xYi3thblJkhL4tajwFJB79wynOwUyZfi"
+   ),
+   submissions  = "1J_qu2gnazPlUBUWKWYSSExyylH-f78Gv"
 )
+ihbss$`2022`$conso  <- list()
 
 ## Run Pipeline
 source(file.path(ihbss$`2022`$wd, "00_fns.R"))
