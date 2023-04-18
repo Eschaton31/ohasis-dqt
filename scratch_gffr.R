@@ -140,9 +140,18 @@ harp <- hs_data("harp_full", "reg", 2022, 12) %>%
       everonart          = if_else(everonart == 1, 1, 0, 0),
       everonart_plhiv    = if_else(everonart == 1 & outcome != "alive on arv", 1, 0, 0),
       ononart            = if_else(onart == 1, 1, 0, 0),
+
+
+      baseline_vl_new    = if_else(
+         condition = floor(interval(artstart_date, vl_date) / months(1)) < 6,
+         true      = 1,
+         false     = 0,
+         missing   = 0
+      ),
+
       vl_tested          = if_else(
          onart == 1 &
-            (is.na(baseline_vl) | baseline_vl == 0) &
+            (is.na(baseline_vl_new) | baseline_vl_new == 0) &
             !is.na(vlp12m),
          1,
          0,
@@ -150,7 +159,7 @@ harp <- hs_data("harp_full", "reg", 2022, 12) %>%
       ),
       vl_suppressed      = if_else(
          onart == 1 &
-            (is.na(baseline_vl) | baseline_vl == 0) &
+            (is.na(baseline_vl_new) | baseline_vl_new == 0) &
             vlp12m == 1,
          1,
          0,
@@ -250,6 +259,14 @@ art <- hs_data("harp_tx", "outcome", 2022, 12) %>%
             baseline_vl_new == 0 &
             vlp12m == 1 &
             vl_result < 50,
+         1,
+         0,
+         0
+      ),
+      vlsuppress_1000 = if_else(
+         onart_new == 1 &
+            baseline_vl_new == 0 &
+            vlp12m == 1,
          1,
          0,
          0
@@ -532,25 +549,25 @@ disagg <- harp %>%
                                             gf_rep_age_dx == "15+" &
                                             gf2426 == 1, 1, 0, 0),
             o12_total_ntl      = if_else(onart_new == 1 &
-                                            vlsuppress_50 == 1, 1, 0, 0),
+                                            vlsuppress_1000 == 1, 1, 0, 0),
             o12_total_gf       = if_else(onart_new == 1 &
-                                            vlsuppress_50 == 1 &
+                                            vlsuppress_1000 == 1 &
                                             gf2426 == 1, 1, 0, 0),
             o12_m15plus_ntl    = if_else(onart_new == 1 &
-                                            vlsuppress_50 == 1 &
+                                            vlsuppress_1000 == 1 &
                                             sex == "MALE" &
                                             gf_rep_age_dx == "15+", 1, 0, 0),
             o12_m15plus_gf     = if_else(onart_new == 1 &
-                                            vlsuppress_50 == 1 &
+                                            vlsuppress_1000 == 1 &
                                             sex == "MALE" &
                                             gf_rep_age_dx == "15+" &
                                             gf2426 == 1, 1, 0, 0),
             o12_f15plus_ntl    = if_else(onart_new == 1 &
-                                            vlsuppress_50 == 1 &
+                                            vlsuppress_1000 == 1 &
                                             sex == "FEMALE" &
                                             gf_rep_age_dx == "15+", 1, 0, 0),
             o12_f15plus_gf     = if_else(onart_new == 1 &
-                                            vlsuppress_50 == 1 &
+                                            vlsuppress_1000 == 1 &
                                             sex == "FEMALE" &
                                             gf_rep_age_dx == "15+" &
                                             gf2426 == 1, 1, 0, 0),
@@ -650,7 +667,7 @@ gf_disagg <- disagg %>%
    ) %>%
    arrange(var, gf_rep_age_dx)
 
-write_xlsx(gf_disagg, "C:/20230313_FR1545-PHL-H_PerformanceFramework_draft20230309 - Bene.xlsx")
+write_xlsx(gf_disagg, "H:/20230315_FR1545-PHL-H_PerformanceFramework_draft20230309 - Bene.xlsx")
 
 
 tx_ml <- art %>%
@@ -710,3 +727,28 @@ tx_ml %>%
    # tab(outcome30_2021, sex, gf_rep_age_dx)
    tab(gf_rep_age_dx, tx_ml)
 
+min       <- "2022-01-01"
+max       <- "2022-12-31"
+hts_where <- glue(r"(
+   (RECORD_DATE BETWEEN '{min}' AND '{max}') OR
+      (DATE(DATE_CONFIRM) BETWEEN '{min}' AND '{max}') OR
+      (DATE(T3_DATE) BETWEEN '{min}' AND '{max}') OR
+      (DATE(T2_DATE) BETWEEN '{min}' AND '{max}') OR
+      (DATE(T1_DATE) BETWEEN '{min}' AND '{max}') OR
+      (DATE(T0_DATE) BETWEEN '{min}' AND '{max}')
+   )")
+cbs_where <- glue(r"(
+   (RECORD_DATE BETWEEN '{min}' AND '{max}') OR
+      (DATE(TEST_DATE) BETWEEN '{min}' AND '{max}')
+   )")
+lw_conn   <- ohasis$conn("lw")
+dbname    <- "ohasis_warehouse"
+forms     <- list(
+   hts    = dbTable(lw_conn, dbname, "form_hts", raw_where = TRUE, where = hts_where),
+   a      = dbTable(lw_conn, dbname, "form_a", raw_where = TRUE, where = hts_where),
+   cfbs   = dbTable(lw_conn, dbname, "form_cfbs", raw_where = TRUE, where = cbs_where),
+   id_reg = dbTable(lw_conn, dbname, "id_registry", c("PATIENT_ID", "CENTRAL_ID"))
+)
+dbDisconnect(lw_conn)
+
+hts_data
