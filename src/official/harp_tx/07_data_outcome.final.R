@@ -146,36 +146,38 @@ finalize_faci <- function(data) {
             TRUE ~ realhub
          ),
       ) %>%
+      faci_code_to_id(
+         ohasis$ref_faci_code %>% distinct(FACI_CODE, SUB_FACI_CODE, .keep_all = TRUE),
+         c(FACI_ID = "hub", SUB_FACI_ID = "branch")
+      ) %>%
       left_join(
          y  = ohasis$ref_faci %>%
-            filter(SUB_FACI_ID == "", nchar(FACI_CODE) == 3) %>%
             select(
-               hub     = FACI_CODE,
+               FACI_ID,
+               SUB_FACI_ID,
                tx_reg  = FACI_NHSSS_REG,
                tx_prov = FACI_NHSSS_PROV,
                tx_munc = FACI_NHSSS_MUNC,
-            ) %>%
-            mutate(
-               hub = case_when(
-                  stri_detect_regex(hub, "^SAIL") ~ "SHP",
-                  stri_detect_regex(hub, "^TLY") ~ "TLY",
-                  TRUE ~ hub
-               ),
-            ) %>%
-            distinct(hub, .keep_all = TRUE),
-         by = "hub"
+            ),
+         by = join_by(FACI_ID, SUB_FACI_ID)
+      ) %>%
+      select(-FACI_ID, -SUB_FACI_ID) %>%
+      faci_code_to_id(
+         ohasis$ref_faci_code %>% distinct(FACI_CODE, SUB_FACI_CODE, .keep_all = TRUE),
+         c(FACI_ID = "realhub", SUB_FACI_ID = "realhub_branch")
       ) %>%
       left_join(
-         y  = ohasis$ref_faci_code %>%
+         y  = ohasis$ref_faci %>%
             select(
-               realhub        = FACI_CODE,
-               realhub_branch = SUB_FACI_CODE,
-               real_reg       = FACI_NHSSS_REG,
-               real_prov      = FACI_NHSSS_PROV,
-               real_munc      = FACI_NHSSS_MUNC,
+               FACI_ID,
+               SUB_FACI_ID,
+               real_reg  = FACI_NHSSS_REG,
+               real_prov = FACI_NHSSS_PROV,
+               real_munc = FACI_NHSSS_MUNC,
             ),
-         by = c("realhub", "realhub_branch")
+         by = join_by(FACI_ID, SUB_FACI_ID)
       ) %>%
+      select(-FACI_ID, -SUB_FACI_ID) %>%
       select(
          REC_ID,
          CENTRAL_ID,
@@ -215,6 +217,7 @@ finalize_faci <- function(data) {
       arrange(art_id, desc(latest_nextpickup)) %>%
       distinct(art_id, .keep_all = TRUE) %>%
       mutate(central_id = CENTRAL_ID)
+
    return(data)
 }
 
