@@ -106,29 +106,30 @@ flow_validation <- function(data_env = NULL,
    data_validation <- as_id("1JOCJPjIsdrys_uaFPI3AIElfkMHzrayh")
    surv_name       <- strsplit(deparse(substitute(data_env)), "\\$")[[1]]
    surv_name       <- surv_name[length(surv_name)]
-   check           <- input(
-      prompt  = glue("Re-upload gsheet validations for {green(surv_name)}-{green(process_step)}?"),
-      options = c("1" = "yes", "2" = "no"),
-      default = "2"
-   )
-   if (check == "1") {
-      empty_sheets <- ""
-      corr_status  <- "old"
 
-      data_env     <- data_env$steps
-      process_name <- names(data_env)
-      process_step <- gsub("converted", "convert", process_step)
-      if (!grepl("dedup", process_step) & !grepl("pdf", process_step))
-         process_name <- process_name[grepl(paste0("data_", process_step), process_name)]
-      else
-         process_name <- process_name[grepl(process_step, process_name)]
+   data_env     <- data_env$steps
+   process_name <- names(data_env)
+   process_step <- gsub("converted", "convert", process_step)
+   if (!grepl("dedup", process_step) & !grepl("pdf", process_step))
+      process_name <- process_name[grepl(paste0("data_", process_step), process_name)]
+   else
+      process_name <- process_name[grepl(process_step, process_name)]
 
-      if (is.null(list_name))
-         corr_list <- data_env[[process_name]]
-      else
-         corr_list <- data_env[[process_name]][[list_name]]
+   if (is.null(list_name))
+      corr_list <- data_env[[process_name]]
+   else
+      corr_list <- data_env[[process_name]][[list_name]]
 
-      if (length(corr_list) > 0) {
+   if (length(corr_list) > 0) {
+      check <- input(
+         prompt  = glue("Re-upload gsheet validations for {green(surv_name)}-{green(process_step)}?"),
+         options = c("1" = "yes", "2" = "no"),
+         default = "2"
+      )
+      if (check == "1") {
+         empty_sheets <- ""
+         corr_status  <- "old"
+
          # get period data
          periods   <- drive_ls(data_validation)
          valid_now <- as_id(periods[periods$name == report_period,]$id)
