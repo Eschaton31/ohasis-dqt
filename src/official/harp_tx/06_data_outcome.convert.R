@@ -334,17 +334,58 @@ get_checks <- function(data) {
    update <- substr(toupper(update), 1, 1)
    if (update == "1") {
       # initialize checking layer
-      view_vars <- get_names(data)
+      view_vars <- c(
+         "REC_ID",
+         "CENTRAL_ID",
+         "art_id",
+         "idnum",
+         "prep_id",
+         "mort_id",
+         "year",
+         "month",
+         "confirmatory_code",
+         "px_code",
+         "uic",
+         "first",
+         "middle",
+         "last",
+         "suffix",
+         "birthdate",
+         "sex",
+         "initials",
+         "philsys_id",
+         "philhealth_no",
+         "use_db",
+         "artstart_date",
+         "oh_artstart",
+         "oh_artstart_rec",
+         "prev_hub",
+         "prev_realhub",
+         "prev_realhub_branch",
+         "curr_hub",
+         "curr_realhub",
+         "curr_realhub_branch",
+         "prev_class",
+         "prev_ffup",
+         "prev_pickup",
+         "prev_regimen",
+         "prev_outcome",
+         "curr_ffup",
+         "curr_pickup",
+         "curr_regimen",
+         "curr_outcome",
+         "ref_death_date"
+      )
 
       # non-negotiable variables
-      nonnegotiables  <- c(
+      nonnegotiables <- c(
          "curr_age",
          "curr_hub",
          "curr_class",
          "curr_outcome",
          "curr_line"
       )
-      check <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
+      check          <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
 
       vars <- c(
          "curr_regimen",
@@ -361,7 +402,7 @@ get_checks <- function(data) {
                is.na(!!var),
                !(art_id %in% c(21673, 21582, 3124, 539, 3534, 140, 654, 663, 3229, 8906, 10913, 15817, 25716, 3124, 539, 3534, 140, 654, 663, 3229, 8906, 10913, 15817, 25716))
             ) %>%
-            arrange(curr_hub)
+            arrange(curr_realhub)
       }
 
       # duplicate id variables
@@ -374,6 +415,9 @@ get_checks <- function(data) {
       for (var in vars) {
          var                                        <- as.symbol(var)
          check[[paste0("dup_", as.character(var))]] <- data %>%
+            select(
+               any_of(view_vars),
+            ) %>%
             filter(
                !is.na(!!var),
             ) %>%
@@ -395,6 +439,12 @@ get_checks <- function(data) {
                !!var %in% c("UNKNOWN", "OTHERS", NA_character_),
                !(art_id %in% c(21673, 21582, 3124, 539, 3534, 140, 654, 663, 3229, 8906, 10913, 15817, 25716, 3124, 539, 3534, 140, 654, 663, 3229, 8906, 10913, 15817, 25716))
             ) %>%
+            select(
+               any_of(view_vars),
+               tx_reg,
+               tx_prov,
+               tx_munc,
+            ) %>%
             arrange(curr_hub)
       }
 
@@ -407,6 +457,10 @@ get_checks <- function(data) {
          filter(
             months_to_pickup >= 7
          ) %>%
+         select(
+            any_of(view_vars),
+            months_to_pickup
+         ) %>%
          arrange(curr_hub)
 
       .log_info("Checking for extreme dispensing.")
@@ -415,12 +469,21 @@ get_checks <- function(data) {
             prev_ffup == curr_ffup,
             curr_hub != prev_hub
          ) %>%
+         select(
+            any_of(view_vars),
+         ) %>%
          arrange(curr_hub)
 
       .log_info("Checking for resurrected clients.")
       check[["resurrect"]] <- data %>%
          filter(
-            (prev_outcome == "dead" & (curr_outcome != "dead" | is.na(curr_outcome))) | (use_db == 1 & prev_outcome == "dead")
+            (prev_outcome == "dead" & (curr_outcome != "dead" | is.na(curr_outcome))) |
+               (use_db == 1 &
+                  prev_outcome == "dead" &
+                  prev_outcome != curr_outcome)
+         ) %>%
+         select(
+            any_of(view_vars),
          ) %>%
          arrange(curr_hub)
 
@@ -433,10 +496,18 @@ get_checks <- function(data) {
             start_visit_diffdy = abs(floor(interval(artstart_date, oh_artstart) / days(1))),
             start_visit_diffmo = abs(floor(interval(artstart_date, oh_artstart) / months(1)))
          ) %>%
+         select(
+            any_of(view_vars),
+            start_visit_diffdy,
+            start_visit_diffmo
+         ) %>%
          arrange(curr_hub)
 
       .log_info("Checking new mortalities.")
       check[["new_mort"]] <- data %>%
+         select(
+            any_of(view_vars),
+         ) %>%
          filter(
             curr_outcome == "dead" & (prev_outcome != "dead" | is.na(prev_outcome))
          ) %>%
