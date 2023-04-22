@@ -65,7 +65,7 @@ faci_code_to_id <- function(data, ref_faci_code, faci_branch) {
    return(data)
 }
 
-dxlab_to_id <- function(data, facility_ids, dx_lab_cols = NULL) {
+dxlab_to_id <- function(data, facility_ids, dx_lab_cols = NULL, ref_faci = NULL) {
    faci_id     <- facility_ids[1]
    sub_faci_id <- facility_ids[2]
 
@@ -75,17 +75,52 @@ dxlab_to_id <- function(data, facility_ids, dx_lab_cols = NULL) {
    dx_lab  <- dx_lab_cols[4]
 
    data %<>%
+      mutate_at(
+         .vars = vars({{dx_reg}}, {{dx_prov}}, {{dx_munc}}, {{dx_lab}}),
+         ~str_squish(stri_replace_all_fixed(., "\n", ""))
+      ) %>%
       left_join(
          y = read_sheet("1WiUiB7n5qkvyeARwGV1l1ipuCknDT8wZ6Pt7662J2ms", "Sheet1") %>%
             select(
-               {{dx_reg}}      := dx_region,
-               {{dx_prov}}     := dx_province,
-               {{dx_munc}}     := dx_muncity,
-               {{dx_lab}}      := dxlab_standard,
-               {{faci_id}}     := FACI_ID,
-               {{sub_faci_id}} := SUB_FACI_ID
+               {{dx_reg}}     := dx_region,
+               {{dx_prov}}    := dx_province,
+               {{dx_munc}}    := dx_muncity,
+               {{dx_lab}}     := dxlab_standard,
+               MATCH_FACI     = FACI_ID,
+               MATCH_SUB_FACI = SUB_FACI_ID
             )
+      ) %>%
+      mutate(
+         OH_FACI     = NA_character_,
+         OH_SUB_FACI = NA_character_,
       )
+
+   if (!is.null(ref_faci)) {
+      data %<>%
+         select(-OH_FACI, -OH_SUB_FACI) %>%
+         left_join(
+            y  = ref_faci %>%
+               filter(!is.na(FACI_NAME_CLEAN)) %>%
+               select(
+                  {{dx_lab}}  := FACI_NAME_CLEAN,
+                  {{dx_reg}}  := FACI_NHSSS_REG,
+                  {{dx_prov}} := FACI_NHSSS_PROV,
+                  {{dx_munc}} := FACI_NHSSS_MUNC,
+                  OH_FACI     = FACI_ID,
+                  OH_SUB_FACI = SUB_FACI_ID
+               ) %>%
+               arrange(desc(OH_SUB_FACI), dx_region, dx_province, dx_muncity, dxlab_standard) %>%
+               distinct(dx_region, dx_province, dx_muncity, dxlab_standard, .keep_all = TRUE),
+         )
+   }
+
+   # finalize
+   data %<>%
+      mutate(
+         {{faci_id}}     := coalesce(MATCH_FACI, OH_FACI),
+         {{sub_faci_id}} := coalesce(MATCH_SUB_FACI, OH_SUB_FACI)
+      ) %>%
+      select(-MATCH_FACI, -MATCH_SUB_FACI, -OH_FACI, -OH_SUB_FACI)
 
    return(data)
 }
