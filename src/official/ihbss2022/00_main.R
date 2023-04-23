@@ -8,12 +8,13 @@ ihbss$`2022` <- new.env()
 local(envir = ihbss$`2022`, {
    wd <- file.path(getwd(), "src", "official", "ihbss2022")
 
-   odk             <- list()
-   odk$config      <- list()
-   odk$config$ss   <- as_id("1SNB43JjGOB-uEivT5n8bfGpxiTEKkhNM7izo-KCQKPY",)
-   odk$config$msm  <- read_sheet(odk$config$ss, "msm") %>% mutate(survey = "MSM", .before = 1)
-   odk$config$pwid <- read_sheet(odk$config$ss, "pwid") %>% mutate(survey = "PWID", .before = 1)
-   odk$config$fsw  <- read_sheet(odk$config$ss, "fsw") %>% mutate(survey = "FSW", .before = 1)
+   odk                <- list()
+   odk$config         <- list()
+   odk$config$ss      <- as_id("1SNB43JjGOB-uEivT5n8bfGpxiTEKkhNM7izo-KCQKPY",)
+   odk$config$msm     <- read_sheet(odk$config$ss, "msm") %>% mutate(survey = "MSM", .before = 1)
+   odk$config$pwid    <- read_sheet(odk$config$ss, "pwid") %>% mutate(survey = "PWID", .before = 1)
+   odk$config$fsw     <- read_sheet(odk$config$ss, "fsw") %>% mutate(survey = "FSW", .before = 1)
+   odk$config$medtech <- read_sheet(odk$config$ss, "medtech") %>% mutate(survey = "Med Tech", .before = 1)
 })
 
 ihbss$`2022`$gdrive <- list(
@@ -26,7 +27,7 @@ ihbss$`2022`$gdrive <- list(
    ),
    data         = list(
       archive = "106qbNfgxxR1cRe11JT1dUGL8-87gvL6e",
-      main     = "1xYi3thblJkhL4tajwFJB79wynOwUyZfi"
+      main    = "1xYi3thblJkhL4tajwFJB79wynOwUyZfi"
    ),
    submissions  = "1J_qu2gnazPlUBUWKWYSSExyylH-f78Gv"
 )

@@ -28,10 +28,42 @@ ihbss_mos <- function(data, col, varname) {
       )
 }
 
-ihbss_rename <- function(data, survey) {
+ihbss_rename <- function(data, survey, medtech = NULL) {
+   if (survey %in% c("fsw", "pwid"))
+      data %<>%
+         left_join(
+            y = medtech %>%
+               select(
+                  sq_1_rid,
+                  sq_1_rid_001,
+                  int_2_name_interviewer,
+                  int_ihbss_site,
+                  int_type_of_kp,
+                  sq_1_rid,
+                  sq_1_rid_001,
+                  n_1_hiv,
+                  n_2_syph,
+                  n_3_hepb,
+                  n_3_hepb_001,
+                  n_4_hepc,
+                  n_casette,
+                  n_note_end2,
+                  n_casette,
+                  odata_casette = odata_context
+               ),
+            by = join_by(sq_1_received_coupon == sq_1_rid)
+         )
+
    data %<>%
       rename_all(
          ~stri_replace_first_regex(., "_([0-9])", "$1")
+      ) %>%
+      rename_all(
+         ~case_when(
+            survey == "msm" & . == "sq1_rid" ~ "sq1_rid",
+            survey == "fsw" & . == "sq1_coupon_number_001" ~ "sq1_rid",
+            TRUE ~ .
+         )
       ) %>%
       rowwise() %>%
       mutate(
@@ -60,6 +92,7 @@ ihbss_rename <- function(data, survey) {
       mutate(
          .after       = int1_ihbss_site,
          site_decoded = case_when(
+            int1_ihbss_site == "4_NCR" ~ "National Capital Region",
             int1_ihbss_site == "100" ~ "National Capital Region",
             int1_ihbss_site == "101" ~ "Angeles City",
             int1_ihbss_site == "102" ~ "Baguio City",

@@ -68,7 +68,8 @@ local(envir = ihbss$`2022`, {
                City,
                recruiter = cn,
                recruiter_exist
-            ),
+            )%>%
+            distinct_all(),
          by = join_by(City, recruiter)
       ) %>%
       mutate(
@@ -90,6 +91,7 @@ local(envir = ihbss$`2022`, {
             sq1_rid == "M-100-19" ~ "SEED",
             sq1_rid == "M-100-20" ~ "SEED",
             StrLeft(StrRight(sq1_rid, 2), 1) == "-" ~ "SEED",
+            recruiter == "" ~ "N",
             recruiter_exist == "Y" ~ "Y",
             TRUE ~ "N"
          )
@@ -213,4 +215,148 @@ local(envir = ihbss$`2022`, {
       )
 
    rm(drive_cst, path_cst)
+})
+
+##  Med Tech Data for FSW & PWID -----------------------------------------------
+local(envir = ihbss$`2022`, {
+   odk$data$medtech      <- list()
+   odk$data$medtech$data <- apply(odk$config$medtech, 1, function(config) {
+      config <- as.list(config)
+
+      ruODK::ru_setup(svc = config$OData, tz = "Asia/Hong_Kong", verbose = FALSE)
+
+      data <- data.frame()
+      tryCatch({
+         log_info("Downloading data for {green(config$Sites)}.")
+         data <- odata_submission_get(download = FALSE) %>%
+            mutate(
+               Language = config$Language,
+            )
+      },
+         error = function(e) .log_warn("No data yet for {red(config$Sites)}.")
+      )
+      return(data)
+   })
+   odk$data$medtech$subs <- apply(odk$config$medtech, 1, function(config) {
+      config <- as.list(config)
+
+      ruODK::ru_setup(svc = config$OData, tz = "Asia/Hong_Kong", verbose = FALSE)
+
+      subs <- data.frame()
+      tryCatch({
+         log_info("Downloading submission list for {green(config$Sites)}.")
+         subs <- ruODK::submission_list()
+      },
+         error = function(e) .log_warn("No submissions yet for {red(config$Sites)}.")
+      )
+      return(subs)
+   })
+   odk$data$medtech      <- bind_rows(odk$data$medtech$data) %>%
+      left_join(
+         y = bind_rows(odk$data$medtech$subs) %>%
+            select(
+               id               = instance_id,
+               submitter_name   = submitter_display_name,
+               submitter_device = device_id,
+               review_state
+            )
+      ) %>%
+      mutate_if(
+         .predicate = is.character,
+         ~str_squish(.)
+      )
+
+})
+
+
+##  FSW ------------------------------------------------------------------------
+local(envir = ihbss$`2022`, {
+   odk$data$fsw      <- list()
+   odk$data$fsw$data <- apply(odk$config$fsw, 1, function(config) {
+      config <- as.list(config)
+      form   <- paste(sep = " - ", config$Usage, config$Language)
+
+      ruODK::ru_setup(svc = config$OData, tz = "Asia/Hong_Kong", verbose = FALSE)
+
+      data <- data.frame()
+      tryCatch({
+         log_info("Downloading data for {green(form)}.")
+         data <- odata_submission_get(download = FALSE) %>%
+            mutate(
+               Language = config$Language,
+            )
+      },
+         error = function(e) .log_warn("No data yet for {red(form)}.")
+      )
+      return(data)
+   })
+   odk$data$fsw$subs <- apply(odk$config$fsw, 1, function(config) {
+      config <- as.list(config)
+      form   <- paste(sep = " - ", config$Usage, config$Language)
+
+      ruODK::ru_setup(svc = config$OData, tz = "Asia/Hong_Kong", verbose = FALSE)
+
+      subs <- data.frame()
+      tryCatch({
+         log_info("Downloading submission list for {green(form)}.")
+         subs <- ruODK::submission_list()
+      },
+         error = function(e) .log_warn("No submissions yet for {red(form)}.")
+      )
+      return(subs)
+   })
+
+   odk$data$fsw <- bind_rows(odk$data$fsw$data) %>%
+      left_join(
+         y = bind_rows(odk$data$fsw$subs) %>%
+            select(
+               id               = instance_id,
+               submitter_name   = submitter_display_name,
+               submitter_device = device_id,
+               review_state
+            )
+      ) %>%
+      mutate_if(
+         .predicate = is.character,
+         ~str_squish(.)
+      ) %>%
+      ihbss_rename("fsw", odk$data$medtech) %>%
+      mutate(
+         City = site_decoded
+      ) %>%
+      relocate(City, Language, sq1_rid, review_state, .before = 1)
+})
+
+# tag recruiter
+local(envir = ihbss$`2022`, {
+   odk$data$fsw %<>%
+      left_join(
+         y          = odk$data$fsw %>%
+            mutate(
+               recruiter_exist = "Y"
+            ) %>%
+            select(
+               City,
+               recruiter = cn,
+               recruiter_exist
+            ) %>%
+            distinct_all(),
+         by         = join_by(City, recruiter),
+         na_matches = "never"
+      ) %>%
+      mutate(
+         recruiter_exist = case_when(
+            sq1_rid == "F-100-1" ~ "SEED",
+            sq1_rid == "F-100-2" ~ "SEED",
+            sq1_rid == "F-100-3" ~ "SEED",
+            sq1_rid == "F-100-4" ~ "SEED",
+            sq1_rid == "F-100-5" ~ "SEED",
+            StrLeft(StrRight(sq1_rid, 2), 1) == "-" ~ "SEED",
+            recruiter == "" ~ "N",
+            recruiter_exist == "Y" ~ "Y",
+            TRUE ~ "N"
+         )
+      ) %>%
+      relocate(recruiter_exist, .after = recruiter) %>%
+      distinct(id, .keep_all = TRUE)
 })
