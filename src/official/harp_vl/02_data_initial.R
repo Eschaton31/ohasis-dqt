@@ -33,7 +33,7 @@ dbDisconnect(lw_conn)
 ##  Get HARP datasets ----------------------------------------------------------
 
 .log_info("Loading HARP Tx Data.")
-nhsss$harp_tx$official$new_reg     <- ohasis$get_data("harp_tx-reg", ohasis$yr, ohasis$mo) %>%
+nhsss$harp_tx$official$new_reg     <- hs_data("harp_tx", "reg", ohasis$yr, ohasis$mo) %>%
    read_dta() %>%
    # convert Stata string missing data to NAs
    mutate_if(
@@ -52,7 +52,7 @@ nhsss$harp_tx$official$new_reg     <- ohasis$get_data("harp_tx-reg", ohasis$yr, 
          false     = CENTRAL_ID
       )
    )
-nhsss$harp_tx$official$new_outcome <- ohasis$get_data("harp_tx-outcome", ohasis$yr, ohasis$mo) %>%
+nhsss$harp_tx$official$new_outcome <- hs_data("harp_tx", "outcome", ohasis$yr, ohasis$mo) %>%
    read_dta() %>%
    # convert Stata string missing data to NAs
    select(-starts_with("CENTRAL_ID")) %>%
@@ -66,7 +66,7 @@ nhsss$harp_tx$official$new_outcome <- ohasis$get_data("harp_tx-outcome", ohasis$
    )
 
 .log_info("Loading HARP Dx Data.")
-nhsss$harp_dx$official$new <- ohasis$get_data("harp_dx", ohasis$yr, ohasis$mo) %>%
+nhsss$harp_dx$official$new <- hs_data("harp_dx", "reg", ohasis$yr, ohasis$mo) %>%
    read_dta() %>%
    # convert Stata string missing data to NAs
    mutate_if(
@@ -257,10 +257,7 @@ data_ml %<>%
          !stri_detect_fixed(vl_date, ",") & month_abb == 1 ~ as.Date(vl_date, "%B %d %Y"),
       ),
    ) %>%
-   left_join(
-      y  = id_registry,
-      by = "PATIENT_ID"
-   )
+   get_cid(id_registry, PATIENT_ID)
 
 data_ml <- .cleaning_list(data_ml, nhsss$harp_vl$corr$vl_ml, "PX_HUB", "character")
 
@@ -605,17 +602,17 @@ onart_vl <- hs_data("harp_tx", "reg", ohasis$yr, ohasis$mo) %>%
 
       # tag baseline data
       baseline_vl   = if_else(
-         condition = difftime(vl_date_2, artstart_date, units = "days") <= 92,
+         condition = difftime(vl_date_2, artstart_date, units = "days") <= 82,
          true      = as.integer(1),
          false     = NA_integer_,
          missing   = NA_integer_
       ),
-      baseline_vl   = if_else(
-         condition = difftime(vl_date_2, artstart_date, units = "days") <= 180,
-         true      = as.integer(1),
-         false     = NA_integer_,
-         missing   = NA_integer_
-      ),
+      # baseline_vl   = if_else(
+      #    condition = difftime(vl_date_2, artstart_date, units = "days") <= 180,
+      #    true      = as.integer(1),
+      #    false     = NA_integer_,
+      #    missing   = NA_integer_
+      # ),
 
       # tag if suppressed
       vl_suppressed = if_else(
