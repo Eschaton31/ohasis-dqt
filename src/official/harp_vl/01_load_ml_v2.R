@@ -467,7 +467,11 @@ if (save == "1")
             -vl_result,
             -vl_result_nomeasure,
             -starts_with("vl_result_eo"),
-            -any_of(c("Last Name", "First Name", "Middle Name", "Name Ext.", "Latest Regimen"))
+            -any_of(c("Last Name", "First Name", "Middle Name", "Name Ext.", "Latest Regimen")),
+            -contains("."),
+            -contains("-"),
+            -contains("/"),
+            -matches("^[0-9]")
          ) %>%
          rename(vl_result = vl_result_2) %>%
          rename(vl_date = vl_date_2) %>%
