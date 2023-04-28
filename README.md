@@ -3,7 +3,6 @@ NHS-DF
 ---
 
 The National HIV-STI Data Factory (NHS-DF) serves as the framework for the data pipelines used to generate the various datasets used by the National HIV/AIDS-STI Surveillance & Strategic Information Unit (NHSSS) of the Department of Health's Epidemiology Bureau (DOH-EB).
-NHS
 
 Author/s:
 
@@ -11,13 +10,15 @@ Author/s:
 
 Team Members:
 
-- [Palo, John Benedict](https://www.facebook.com/Bene.Palo/) _(Database Specialist)_
-- [Asilo, Kathrina Michaela](https://www.facebook.com/kathrinamichaela/) _(Surveillance Officer)_
-- [Rendon, Maeghan](https://www.facebook.com/megannnss/) _(Surveillance Officer)_
+- [Palo, John Benedict](https://www.facebook.com/Bene.Palo/) _(Data Specialist)_
+- [Haynes, Ruela](https://www.facebook.com/ruela.haynes/) _(Surveillance Officer)_
+- [Yap, Frances Giul](https://www.facebook.com/omggiul/) _(Surveillance Officer)_
+- Saplagio, Niel Gabriel _(Surveillance Officer)_
 
 Data:
 
 - [HIV/AIDS & ART Registry of the Philippines](https://doh.gov.ph/statistics)
+- Integrated HIV Behavioral & Serologic Survey 
 
 ---
 
@@ -29,7 +30,9 @@ Project Dependencies
 - R
 - [Raidrive](https://www.raidrive.com/download)
 - [git](https://git-scm.com/download/win)
+- [Java SRE](https://www.oracle.com/ph/java/technologies/javase/javase8-archive-downloads.html)
 - [PyCharm Community](https://www.jetbrains.com/pycharm/download/#section=windows)
+- [Path Copy Copy](https://pathcopycopy.github.io/)
 - PyCharm plugins:
     - `R Language for IntelliJ`
 
