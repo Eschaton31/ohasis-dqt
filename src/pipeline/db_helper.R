@@ -87,7 +87,7 @@ change_px_id <- function(recid, old_pid, new_pid) {
 update_credentials <- function(rec_ids) {
    db_conn <- ohasis$conn("db")
 
-   upd_by <- "1300000001"
+   upd_by <- Sys.getenv("OH_USER_ID")
    upd_at <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
    dbExecute(
       db_conn,
@@ -586,4 +586,107 @@ disp_bottle_to_pill <- function(rec_ids) {
    # update inventory to reflect changes
    lapply(disp$transactions$INVENTORY_ID, update_inv)
    update_credentials(rec_ids)
+}
+
+# changing rhivda lot_no
+change_rhivda_test <- function(rec_id, test_num, new_lot_no) {
+   log_info("Opening connections.")
+   conn   <- ohasis$conn("db")
+   dbname <- "ohasis_interim"
+
+   log_info("Constructing filters.")
+   num_test_hiv   <- switch(test_num, `1` = "31", `2` = "32", `3` = "33")
+   num_transact   <- switch(test_num, `1` = "HIV RDT #1", `2` = "HIV RDT #2", `3` = "HIV RDT #3")
+   where_record   <- stri_c("REC_ID = '", rec_id, "' AND TEST_TYPE = '", num_test_hiv, "' AND FINAL_RESULT <> 0")
+   where_transact <- stri_c("TRANSACT_ID = '", rec_id, "' AND TRANSACT_REMARKS = '", num_transact, "'")
+
+   # live data
+   log_info("Getting live test and transaction data.")
+   px_test_hiv  <- dbTable(conn, dbname, "px_test_hiv", raw_where = TRUE, where = where_record)
+   transactions <- dbTable(conn, dbname, "inventory_transact", raw_where = TRUE, where = where_transact)
+
+   # get inventory data
+   log_info("Getting live inventory data.")
+   faci_id         <- px_test_hiv[1,]$FACI_ID
+   where_inventory <- stri_c("FACI_ID = '", faci_id, "' AND BATCH_NUM = '", new_lot_no, "' AND ITEM_CURR > 0")
+   inventory       <- dbTable(conn, dbname, "inventory", raw_where = TRUE, where = where_inventory)
+
+   # get item name
+   log_info("Getting products data.")
+   item_id    <- inventory[1,]$ITEM_ID
+   where_item <- stri_c("ITEM = '", item_id, "'")
+   items      <- dbTable(conn, dbname, "inventory_product", raw_where = TRUE, where = where_item)
+
+   # update tables
+   log_info("Updating relevant records.")
+   item_name  <- items[1,]$NAME
+   inv_id_old <- transactions[1,]$INVENTORY_ID
+   inv_id_new <- inventory[1,]$INVENTORY_ID
+   dbExecute(conn, stri_c("UPDATE ohasis_interim.inventory_transact SET BATCH_NUM = ?, INVENTORY_ID = ?, TRANSACT_NUM = 1 WHERE ", where_transact), params = list(new_lot_no, inv_id_new))
+   dbExecute(conn, stri_c("UPDATE ohasis_interim.px_test_hiv SET LOT_NO = ?, KIT_NAME = ? WHERE ", where_record), params = list(new_lot_no, item_name))
+   update_inv(inv_id_old)
+   update_inv(inv_id_new)
+   update_credentials(rec_id)
+
+   dbDisconnect(conn)
+   log_success("Done.")
+}
+
+# update error rhivda codes
+change_rhivda_code <- function(rec_id) {
+   # queries
+   query_rec <- r"(
+   SELECT test_hiv.REC_ID,
+          test_hiv.DATE_COLLECT,
+          test_hiv.DATE_RECEIVE,
+          conf.CONFIRM_CODE
+   FROM ohasis_interim.px_test_hiv AS test_hiv
+            JOIN ohasis_interim.px_confirm AS conf ON test_hiv.REC_ID = conf.REC_ID
+   WHERE test_hiv.REC_ID = ?
+     AND test_hiv.TEST_TYPE = 31
+     AND test_hiv.TEST_NUM = 1
+     AND DATE_COLLECT IS NOT NULL
+   )"
+   query_ref <- r"(
+   SELECT RIGHT(CONFIRM_CODE, 5) AS CTRL_NUM
+   FROM ohasis_interim.px_confirm
+   WHERE CONFIRM_CODE REGEXP ?
+   )"
+
+   # get reference data
+   log_info("Opening connections.")
+   conn <- ohasis$conn("db")
+
+   log_info("Getting reference data.")
+   data_rec     <- dbGetQuery(conn, query_rec, params = rec_id)
+   faci_code    <- StrLeft(data_rec[1,]$CONFIRM_CODE, 3)
+   date_receive <- data_rec[1,]$DATE_RECEIVE
+   code_year    <- stri_c(faci_code, format(date_receive, "%y"))
+   code_month   <- format(date_receive, "%m")
+
+   log_info("Constructing new code.")
+   data_ref           <- dbGetQuery(conn, query_ref, params = code_year)
+   ctrl_num_curr      <- as.integer(data_ref[[1]])
+   ctrl_num_seq       <- seq(min(ctrl_num_curr), max(ctrl_num_curr))
+   ctrl_num_available <- setdiff(ctrl_num_seq, ctrl_num_curr)
+
+   if (length(ctrl_num_available) == 0) {
+      log_warn("Unused control number/s available.")
+      ctrl_num_ref <- max(ctrl_num_curr) + 1
+   } else {
+      log_info("No unused control numbers found.")
+      ctrl_num_ref <- min(ctrl_num_available)
+   }
+   log_info("Using next in sequence.")
+   ctrl_num_new <- stri_pad_left(ctrl_num_ref + 1, 5, "0")
+
+   confirm_code <- stri_c(sep = "-", code_year, code_month, ctrl_num_new)
+   log_success("New Confirmatory Code: {green(confirm_code)}.")
+
+   log_info("Updating relevant tables.")
+   dbExecute(conn, r"(UPDATE ohasis_interim.px_confirm SET CONFIRM_CODE = ? WHERE REC_ID = ?)", params = list(confirm_code, rec_id))
+   dbExecute(conn, r"(UPDATE ohasis_interim.px_info SET CONFIRMATORY_CODE = ? WHERE REC_ID = ?)", params = list(confirm_code, rec_id))
+   update_credentials(rec_id)
+   dbDisconnect(conn)
+   log_success("Done.")
 }
