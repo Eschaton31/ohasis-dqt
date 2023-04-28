@@ -50,3 +50,4 @@ quarto
 kwb.nextcloud
 arrow
 envnames
+docstring
