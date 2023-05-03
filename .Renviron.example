@@ -7,14 +7,18 @@ HARP_DX="H:/_R/library/hiv_dx/data"
 HARP_TX="H:/_R/library/hiv_tx/data"
 HARP_VL="H:/_R/library/hiv_vl/data"
 HARP_DEAD="H:/_R/library/hiv_dead/data"
+HARP_FULL="H:/_R/library/hiv_full"
 PREP="H:/_R/library/prep/data"
+PMTCT="H:/_R/library/hiv_pmtct"
+IHBSS_2022_LOCAL="G:/.shortcut-targets-by-id/1of-fq1pVocs0Lce3wcJHzr-tYolHubw4/DQT/Data Factory/IHBSS - 2022/Submissions"
+IHBSS_2022_DRIVE="G:/My Drive/DQT/Data Factory/IHBSS - 2022/Submissions"
+LABBS="H:/_R/library/labbs"
+DSA="H:/Data Sharing"
 
 # ! database
 DB_NAME="ohasis_interim"
 DB_USER=""
 DB_PASS=""
-#DB_HOST="202.90.151.142"
-#DB_HOST="122.53.181.142"
 DB_HOST="192.168.193.232"
 DB_PORT="3307"
 
@@ -23,7 +27,7 @@ LW_NAME="ohasis_lake"
 LW_USER=""
 LW_PASS=""
 LW_HOST="130.105.75.3"
-#LW_HOST="192.168.193.228"
+#LW_HOST="192.168.193.131"
 LW_PORT="3307"
 
 # ! slack
@@ -54,3 +58,18 @@ GMAIL_MOBILE=""
 GMAIL_ALT=""
 GMAIL_KEY=""
 GMAIL_SECRET=""
+
+# ! odk
+ODKC_UN=""
+ODKC_PW=""
+ODKC_URL="https://doh-eb-nhsss.tplinkdns.com"
+
+# ! drive letters
+DRIVE_DROPBOX="R:"
+DRIVE_GOOGLE="G:"
+DRIVE_CLOUD="N:"
+
+# ! ohasis credentials
+OH_USER_ID="1300000001"
+
+DEDUP_PII="H:/Software/OHASIS/DQT/data/dedup_pii.rds"
