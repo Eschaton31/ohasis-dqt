@@ -5,6 +5,7 @@ select rec.REC_ID,
        rec.CREATED_AT,
        rec.UPDATED_AT,
        rec.UPDATED_BY,
+       rec.RECORD_DATE                                                                                 AS VISIT_DATE,
        greatest(coalesce(rec.DELETED_AT, 0), coalesce(rec.UPDATED_AT, 0), coalesce(rec.CREATED_AT, 0)) as SNAPSHOT,
        conf.FACI_ID                                                                                    as CONFIRM_FACI,
        conf.SUB_FACI_ID                                                                                as CONFIRM_SUB_FACI,
@@ -108,12 +109,14 @@ from ohasis_interim.px_record as rec
                    on test.REC_ID = test_hiv.REC_ID and test.TEST_TYPE = test_hiv.TEST_TYPE and
                       test.TEST_NUM = test_hiv.TEST_NUM
          left join ohasis_interim.registry as reg on rec.PATIENT_ID = reg.PATIENT_ID
-where rtri.RT_AGREED = 1
-  and (conf.SOURCE in
-       ('070010', '070078', '070013', '070003', '070004', '070002', '070019', '070009', '070008', '070045', '070108',
-        '070111', '060007', '060001', '060003', '060008', '060037', '060077', '060237', '060232', '060023', '060004',
-        '060069', '060049', '130577', '130411', '130342', '130581', '130299', '130657', '130015', '130182', '130022') or
-       conf.SOURCE is null)
-  and conf.FACI_ID in ('070010', '060007','060001','060008', '130023')
+where (conf.SOURCE in
+       '070010', '070078', '070013', '070003', '070004', '070002', '070019', '070009', '070008', '070045', '070108',
+       '070111', '060007', '060001', '060003', '060008', '060037', '060077', '060237', '060232', '060023', '060004',
+       '060069', '060049', '130411', '130342', '130581', '130299', '130657', '130015', '130182', '130022', '130554'
+       '130026')
+   or conf.SOURCE is null)
+  and (conf.FACI_ID in ('070010', '060007', '060001', '060008', '060003') OR
+       (conf.FACI_ID = '130023' AND conf.SUB_FACI_ID = '130023_001'))
   and conf.FINAL_RESULT REGEXP 'Positive'
+  and rec.RECORD_DATE >= '2023-03-01'
 group by rec.REC_ID;

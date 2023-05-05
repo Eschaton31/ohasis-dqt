@@ -10,7 +10,19 @@ rt$download_forms <- function(wd) {
 
    log_info("Preparing select.")
    rt_where  <- read_file(file.path(wd, "rt.sql"))
-   hts_where <- "REC_ID IN (SELECT REC_ID FROM ohasis_lake.px_hiv_testing WHERE RT_RESULT IS NOT NULL)"
+   hts_where <- r"(
+  REC_ID IN (
+  SELECT REC_ID FROM ohasis_lake.px_hiv_testing where (SPECIMEN_SOURCE in
+       ('070010', '070078', '070013', '070003', '070004', '070002', '070019', '070009', '070008', '070045', '070108',
+        '070111', '060007', '060001', '060003', '060008', '060037', '060077', '060237', '060232', '060023', '060004',
+        '060069', '060049', '130577', '130411', '130342', '130581', '130299', '130657', '130015', '130182', '130022') or
+       SPECIMEN_SOURCE is null)
+  and (CONFIRM_FACI in ('070010', '060007','060001','060008') OR (CONFIRM_FACI = '130023' AND CONFIRM_SUB_FACI = '130023_001'))
+  and CONFIRM_RESULT REGEXP 'Positive'
+  ) AND REC_ID IN (
+  SELECT REC_ID FROM ohasis_lake.px_pii WHERE RECORD_DATE >= '2023-03-01'
+  )
+  )"
 
    log_info("Downloading lake.")
    lw_conn    <- ohasis$conn("lw")
@@ -64,7 +76,8 @@ rt$rt_initial <- function(forms) {
             true      = "1_Yes",
             false     = REACH_CLINICAL,
             missing   = REACH_CLINICAL
-         )
+         ),
+         hts_date       = coalesce(hts_date, VISIT_DATE),
       ) %>%
       rename(
          CREATED = CREATED_BY,
@@ -81,6 +94,8 @@ rt$rt_initial <- function(forms) {
             RT_VL_RESULT >= 1000 ~ "1_Recent",
             RT_VL_RESULT < 1000 ~ "2_Long-term",
          ),
+         RT_FACI      = coalesce(SPECIMEN_SOURCE, CONFIRM_FACI),
+         RT_SUB_FACI  = coalesce(SPECIMEN_SUB_SOURCE, CONFIRM_SUB_FACI),
          .after       = RT_VL_RESULT,
       ) %>%
       select(
@@ -152,9 +167,83 @@ rt$rt_initial <- function(forms) {
    return(rt_raw)
 }
 
+rt$export_excel <- function(data, file) {
+   xlsx                <- list()
+   xlsx$wb             <- createWorkbook()
+   xlsx$style          <- list()
+   xlsx$style$header   <- createStyle(
+      fontName       = "Calibri",
+      fontSize       = 11,
+      halign         = "center",
+      valign         = "center",
+      textDecoration = "bold",
+      fgFill         = "#ffe699"
+   )
+   xlsx$style$cells    <- createStyle(
+      fontName = "Calibri",
+      fontSize = 11,
+      numFmt   = openxlsx_getOp("numFmt", "COMMA")
+   )
+   xlsx$style$datetime <- createStyle(
+      fontName = "Calibri",
+      fontSize = 11,
+      numFmt   = "yyyy-mm-dd hh:mm:ss"
+   )
+   xlsx$style$date     <- createStyle(
+      fontName = "Calibri",
+      fontSize = 11,
+      numFmt   = "yyyy-mm-dd"
+   )
+
+   ## Sheet 1
+   addWorksheet(xlsx$wb, "Sheet1")
+   writeData(xlsx$wb, sheet = 1, x = data)
+
+   style_cols <- seq_len(ncol(data))
+   style_rows <- 2:(nrow(data) + 1)
+   addStyle(xlsx$wb, sheet = 1, xlsx$style$header, rows = 1, cols = style_cols, gridExpand = TRUE)
+
+   # format date/time
+   all_cols <- names(data)
+   cols     <- names(data %>% select_if(is.POSIXct))
+   indices  <- c()
+   for (col in cols) {
+      index   <- grep(col, all_cols)
+      indices <- c(indices, index)
+   }
+   addStyle(xlsx$wb, sheet = 1, xlsx$style$datetime, rows = style_rows, cols = indices, gridExpand = TRUE)
+
+   cols    <- names(data %>% select_if(is.Date))
+   indices <- c()
+   for (col in cols) {
+      index   <- grep(col, all_cols)
+      indices <- c(indices, index)
+   }
+   addStyle(xlsx$wb, sheet = 1, xlsx$style$date, rows = style_rows, cols = indices, gridExpand = TRUE)
+
+   setColWidths(xlsx$wb, 1, cols = style_cols, widths = rep("auto", ncol(data)))
+   setRowHeights(xlsx$wb, 1, rows = seq_len(nrow(data) + 1), heights = 14)
+   freezePane(xlsx$wb, 1, firstRow = TRUE)
+
+   saveWorkbook(xlsx$wb, file, overwrite = TRUE)
+}
+
 rt$forms        <- rt$download_forms(rt$wd)
 rt$data$initial <- rt$rt_initial(rt$forms)
 rt$data$final   <- rt$data$initial %>%
+   mutate_at(
+      .vars = vars(contains("_SUB_", FALSE)),
+      ~if_else(
+         StrLeft(., 6) %in% c("130001", "130605", "040200", "130023"),
+         .,
+         NA_character_,
+         NA_character_
+      )
+   ) %>%
+   mutate(
+      RT_FACI_ID = RT_FACI,
+      .before    = RT_FACI
+   ) %>%
    ohasis$get_faci(
       list(HTS_FACI = c("SERVICE_FACI", "SERVICE_SUB_FACI")),
       "name"
@@ -165,6 +254,10 @@ rt$data$final   <- rt$data$initial %>%
    ) %>%
    ohasis$get_faci(
       list(CONFIRM_LAB = c("CONFIRM_FACI", "CONFIRM_SUB_FACI")),
+      "name"
+   ) %>%
+   ohasis$get_faci(
+      list(RT_LAB = c("RT_FACI", "RT_SUB_FACI")),
       "name"
    ) %>%
    ohasis$get_addr(
@@ -239,14 +332,15 @@ rt$data$json$`OHASIS-FacilityIDs`         <- list(
    )
 )
 
-write_xlsx(rt$data$initial, file_initial)
-write_xlsx(rt$data$final, file_final)
-write_xlsx(ohasis$ref_faci, file_faci)
+rt$export_excel(rt$data$initial, file_initial)
+rt$export_excel(rt$data$final, file_final)
+rt$export_excel(ohasis$ref_faci, file_faci)
 jsonlite::write_json(rt$data$json, file_json, pretty = TRUE, auto_unbox = TRUE)
+
 slackr_save(rt, file = "recency-testing", title = stri_c("Recency Testing Data as of ", ohasis$timestamp))
 
-
 ##  MER ------------------------------------------------------------------------
+
 oh_ts <- format(
    as.POSIXct(
       paste0(
