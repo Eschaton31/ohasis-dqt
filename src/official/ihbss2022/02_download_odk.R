@@ -74,24 +74,21 @@ ihbss_rename <- function(data, survey, medtech = NULL) {
          left_join(
             y  = medtech %>%
                select(
-                  sq_1_rid,
-                  sq_1_rid_001,
-                  int_2_name_interviewer,
-                  int_ihbss_site,
+                  sq1_rid,
+                  sq1_rid_001,
+                  int2_name_interviewer,
                   int_type_of_kp,
-                  sq_1_rid,
-                  sq_1_rid_001,
-                  n_1_hiv,
-                  n_2_syph,
-                  n_3_hepb,
-                  n_3_hepb_001,
-                  n_4_hepc,
+                  n1_hiv,
+                  n2_syph,
+                  n3_hepb,
+                  n3_hepb_001,
+                  n4_hepc,
                   n_casette,
                   n_note_end2,
                   odata_cassette,
                   uuid_cassette
                ),
-            by = join_by(sq_1_coupon_number_001 == sq_1_rid)
+            by = join_by(sq_1_coupon_number_001 == sq1_rid)
          ) %>%
          mutate(
             odata_signature = odata_context,
@@ -103,24 +100,21 @@ ihbss_rename <- function(data, survey, medtech = NULL) {
          left_join(
             y  = medtech %>%
                select(
-                  sq_1_rid,
-                  sq_1_rid_001,
-                  int_2_name_interviewer,
-                  int_ihbss_site,
+                  sq1_rid,
+                  sq1_rid_001,
+                  int2_name_interviewer,
                   int_type_of_kp,
-                  sq_1_rid,
-                  sq_1_rid_001,
-                  n_1_hiv,
-                  n_2_syph,
-                  n_3_hepb,
-                  n_3_hepb_001,
-                  n_4_hepc,
+                  n1_hiv,
+                  n2_syph,
+                  n3_hepb,
+                  n3_hepb_001,
+                  n4_hepc,
                   n_casette,
                   n_note_end2,
                   odata_cassette,
                   uuid_cassette
                ),
-            by = join_by(sq_sq1_1_rid == sq_1_rid)
+            by = join_by(sq_sq1_1_rid == sq1_rid)
          ) %>%
          mutate(
             odata_signature = odata_context,
@@ -135,24 +129,21 @@ ihbss_rename <- function(data, survey, medtech = NULL) {
          left_join(
             y  = medtech %>%
                select(
-                  sq_1_rid,
-                  sq_1_rid_001,
-                  int_2_name_interviewer,
-                  int_ihbss_site,
+                  sq1_rid,
+                  sq1_rid_001,
+                  int2_name_interviewer,
                   int_type_of_kp,
-                  sq_1_rid,
-                  sq_1_rid_001,
-                  n_1_hiv,
-                  n_2_syph,
-                  n_3_hepb,
-                  n_3_hepb_001,
-                  n_4_hepc,
+                  n1_hiv,
+                  n2_syph,
+                  n3_hepb,
+                  n3_hepb_001,
+                  n4_hepc,
                   n_casette,
                   n_note_end2,
                   odata_cassette,
                   uuid_cassette
                ),
-            by = join_by(sq_1_coupon_number == sq_1_rid)
+            by = join_by(sq_1_coupon_number == sq1_rid)
          ) %>%
          mutate(
             odata_signature = odata_context,
@@ -359,6 +350,12 @@ ihbss_recruiter <- function(data) {
 
 ihbss_odk_attachments <- function(data, survey) {
    survey <- toupper(survey)
+   data %<>%
+      mutate_if(
+         .predicate = is.labelled,
+         ~as_factor(.)
+      )
+
    log_info("Downloading attachments for the {green(survey)} survey.")
    # get list of files that are already uploaded
    drive_curr <- Sys.getenv("IHBSS_2022_LOCAL") %>%
@@ -468,6 +465,11 @@ ihbss_odk_attachments <- function(data, survey) {
 
 ihbss_drive_cassettes <- function(data, survey, ss) {
    survey <- toupper(survey)
+   data %<>%
+      mutate_if(
+         .predicate = is.labelled,
+         ~as_factor(.)
+      )
 
    log_info("Getting city sub-directories.")
    drive_cities <- drive_ls(as_id(ss), pattern = survey)

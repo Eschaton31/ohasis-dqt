@@ -7,7 +7,11 @@ ihbss$`2022`$steps$`02_download_odk`$.init(envir = ihbss$`2022`, survey = "medte
 ihbss$`2022`$steps$`02_download_odk`$.init(envir = ihbss$`2022`, survey = "fsw")
 ihbss$`2022`$steps$`02_download_odk`$.init(envir = ihbss$`2022`, survey = "pwid_m")
 ihbss$`2022`$steps$`02_download_odk`$.init(envir = ihbss$`2022`, survey = "pwid_f")
+ihbss$`2022`$steps$`03_flag_monitoring`$.init(envir = ihbss$`2022`, survey = "msm")
 ihbss$`2022`$steps$`03_flag_monitoring`$.init(envir = ihbss$`2022`, survey = "medtech")
+ihbss$`2022`$steps$`03_flag_monitoring`$.init(envir = ihbss$`2022`, survey = "fsw")
+ihbss$`2022`$steps$`03_flag_monitoring`$.init(envir = ihbss$`2022`, survey = "pwid_m")
+ihbss$`2022`$steps$`03_flag_monitoring`$.init(envir = ihbss$`2022`, survey = "pwid_f")
 
 ## Run Pipeline
 source(file.path(ihbss$`2022`$wd, "00_fns.R"))
