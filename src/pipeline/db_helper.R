@@ -678,7 +678,7 @@ change_rhivda_code <- function(rec_id) {
       ctrl_num_ref <- min(ctrl_num_available)
    }
    log_info("Using next in sequence.")
-   ctrl_num_new <- stri_pad_left(ctrl_num_ref + 1, 5, "0")
+   ctrl_num_new <- stri_pad_left(ctrl_num_ref, 5, "0")
 
    confirm_code <- stri_c(sep = "-", code_year, code_month, ctrl_num_new)
    log_success("New Confirmatory Code: {green(confirm_code)}.")
