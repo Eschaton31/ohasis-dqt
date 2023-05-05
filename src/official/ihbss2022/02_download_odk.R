@@ -247,21 +247,12 @@ ihbss_rename <- function(data, survey, medtech = NULL) {
          ungroup() %>%
          relocate(n_casette, sq2_current_age, .after = sq1_rid) %>%
          mutate(
-            .after          = cn,
-            cn              = if_else(!is.na(cn), cn, "", ""),
-            c1              = paste0(cn, "1"),
-            c2              = paste0(cn, "2"),
-            c3              = paste0(cn, "3"),
-            recruiter       = StrLeft(cn, nchar(cn) - 1),
-            sq2_current_age = floor(sq2_current_age),
-            Age_Band        = case_when(
-               sq2_current_age < 15 ~ "<15>",
-               sq2_current_age %in% seq(15, 17) ~ "15-17",
-               sq2_current_age %in% seq(18, 24) ~ "18-24",
-               sq2_current_age %in% seq(25, 35) ~ "25-35",
-               sq2_current_age > 35 ~ "35+",
-               TRUE ~ "(no data)"
-            ),
+            .after    = cn,
+            cn        = if_else(!is.na(cn), cn, "", ""),
+            c1        = paste0(cn, "1"),
+            c2        = paste0(cn, "2"),
+            c3        = paste0(cn, "3"),
+            recruiter = StrLeft(cn, nchar(cn) - 1),
          ) %>%
          # time start
          mutate(
@@ -274,6 +265,17 @@ ihbss_rename <- function(data, survey, medtech = NULL) {
             .after   = end,
             end_date = format(end, "%Y-%m-%d"),
             end_time = format(end, "%H:%M:%S"),
+         ) %>%
+         mutate(
+            sq2_current_age = floor(sq2_current_age),
+            Age_Band        = case_when(
+               sq2_current_age < 15 ~ "<15>",
+               sq2_current_age %in% seq(15, 17) ~ "15-17",
+               sq2_current_age %in% seq(18, 24) ~ "18-24",
+               sq2_current_age %in% seq(25, 35) ~ "25-35",
+               sq2_current_age > 35 ~ "35+",
+               TRUE ~ "(no data)"
+            )
          )
    }
 
