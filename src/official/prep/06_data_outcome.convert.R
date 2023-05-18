@@ -90,7 +90,7 @@ tag_curr_data <- function(data, prev_outcome, prepdisp_first, params) {
             !is.na(mort_id) ~ "dead",
             PREP_STATUS == 0 ~ "refused",
             PREP_CONTINUED == 0 ~ "discontinued",
-            LATEST_NEXT_DATE < params$cutoff_date ~ "ltfu",
+            LATEST_NEXT_DATE >= -25567 & LATEST_NEXT_DATE < params$cutoff_date ~ "ltfu",
             PREP_START_DATE == VISIT_DATE & is.na(MEDICINE_SUMMARY) ~ "for initiation",
             !is.na(PREP_START_DATE) & is.na(MEDICINE_SUMMARY) ~ "no dispense",
             PREP_START_DATE == VISIT_DATE ~ "enrollment",
