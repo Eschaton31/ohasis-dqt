@@ -92,19 +92,19 @@ read_pdf <- function() {
          as_tibble() %>%
          slice(-1, -2) %>%
          select(
-            SPECIMEN_RECEIPT_DATE = V3,
-            LABCODE               = V4,
-            FULLNAME              = V5,
-            BDATE                 = V6,
-            AGE                   = V7,
-            SEX                   = V8,
-            SOURCE                = V9,
+            SPECIMEN_RECEIPT_DATE = V2,
+            LABCODE               = V3,
+            FULLNAME              = V4,
+            BDATE                 = V5,
+            AGE                   = V6,
+            SEX                   = V7,
+            SOURCE                = V8,
             RAPID                 = V10,
-            SYSMEX                = V11,
-            VIDAS                 = V14,
-            GEENIUS               = V15,
-            REMARKS               = V16,
-            DATE_CONFIRM          = V17
+            SYSMEX                = V14,
+            VIDAS                 = V17,
+            GEENIUS               = V18,
+            REMARKS               = V19,
+            DATE_CONFIRM          = V20
          )
 
       return(data)
@@ -337,5 +337,5 @@ upload_pdf <- function(confirm_df) {
       check <- get_checks(confirm_pdf)
    })
 
-   local(envir = .GlobalEnv, flow_validation(nhsss$harp_dx, "logsheet_saccl", ohasis$ym))
+   local(envir = .GlobalEnv, flow_validation(nhsss$harp_dx, "y1_logsheet_saccl_pdf", ohasis$ym))
 }
