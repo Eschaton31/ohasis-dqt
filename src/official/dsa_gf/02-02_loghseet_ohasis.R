@@ -355,7 +355,7 @@ gf$logsheet$ohasis <- reach %>%
          #    is.na(MODALITY) &
          #    GF_FACI != "130605" ~ "Facility/Clinic (by MedTech)",
          hts_modality == "REACH" ~ "Not Tested",
-         is.na(TEST_DATE) ~ "Not Tested",
+         is.na(hts_date) ~ "Not Tested",
          TRUE ~ MODALITY
       ),
       EVERONPREP       = if_else(!is.na(prepstart_date), "N", "Y"),
