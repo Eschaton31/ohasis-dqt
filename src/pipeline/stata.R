@@ -18,7 +18,7 @@ format_stata <- function(data) {
    # format strings
    vars <- colnames(select_if(data, .predicate = is.character))
    for (var in vars) {
-      char_fmt                             <- max(nchar(data[[var]]), na.rm = TRUE)
+      char_fmt                             <- suppress_warnings(max(nchar(data[[var]]), na.rm = TRUE), "returning [\\-]*Inf")
       attributes(data[[var]])$format.stata <- paste0("%-", char_fmt, "s")
    }
 
