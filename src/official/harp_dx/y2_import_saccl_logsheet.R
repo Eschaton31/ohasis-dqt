@@ -113,7 +113,7 @@ local(envir = import, {
          filter(!is.na(REC_ID), nchar(REC_ID) == 25) %>%
          mutate(
             UPDATED_AT = TIMESTAMP,
-            UPDATED_BY = "1300000001",
+            UPDATED_BY = Sys.getenv("OH_USER_ID"),
          )
 
       return(import)
@@ -127,7 +127,7 @@ local(envir = import, {
             SUB_FACI_ID  = "130023_001",
             CONFIRM_TYPE = "1",
             CREATED_AT   = UPDATED_AT,
-            CREATED_BY   = "1300000001",
+            CREATED_BY   = Sys.getenv("OH_USER_ID"),
             # REMARKS      = case_when(
             #    REMARKS == "Duplicate" ~ "Client already has a previous confirmatory record.",
             #    FINAL_RESULT == "Negative" ~ "Laboratory evidence suggests no presence of HIV Antibodies at the time of testing.",
@@ -161,7 +161,7 @@ local(envir = import, {
             FACI_ID     = "130023",
             SUB_FACI_ID = "130023_001",
             CREATED_AT  = UPDATED_AT,
-            CREATED_BY  = "1300000001",
+            CREATED_BY  = Sys.getenv("OH_USER_ID"),
             RESULT      = substr(FINAL_RESULT_31, 1, 1)
          ) %>%
          select(
@@ -184,7 +184,7 @@ local(envir = import, {
                   FACI_ID     = "130023",
                   SUB_FACI_ID = "130023_001",
                   CREATED_AT  = UPDATED_AT,
-                  CREATED_BY  = "1300000001",
+                  CREATED_BY  = Sys.getenv("OH_USER_ID"),
                   RESULT      = substr(FINAL_RESULT_32, 1, 1)
                ) %>%
                select(
@@ -208,7 +208,7 @@ local(envir = import, {
                   FACI_ID     = "130023",
                   SUB_FACI_ID = "130023_001",
                   CREATED_AT  = UPDATED_AT,
-                  CREATED_BY  = "1300000001",
+                  CREATED_BY  = Sys.getenv("OH_USER_ID"),
                   RESULT      = substr(FINAL_RESULT_33, 1, 1)
                ) %>%
                select(
@@ -232,7 +232,7 @@ local(envir = import, {
             FACI_ID     = "130023",
             SUB_FACI_ID = "130023_001",
             CREATED_AT  = UPDATED_AT,
-            CREATED_BY  = "1300000001",
+            CREATED_BY  = Sys.getenv("OH_USER_ID"),
          ) %>%
          select(
             REC_ID,
@@ -254,7 +254,7 @@ local(envir = import, {
                   FACI_ID     = "130023",
                   SUB_FACI_ID = "130023_001",
                   CREATED_AT  = UPDATED_AT,
-                  CREATED_BY  = "1300000001",
+                  CREATED_BY  = Sys.getenv("OH_USER_ID"),
                ) %>%
                select(
                   REC_ID,
@@ -276,7 +276,7 @@ local(envir = import, {
                   FACI_ID     = "130023",
                   SUB_FACI_ID = "130023_001",
                   CREATED_AT  = UPDATED_AT,
-                  CREATED_BY  = "1300000001",
+                  CREATED_BY  = Sys.getenv("OH_USER_ID"),
                ) %>%
                select(
                   REC_ID,

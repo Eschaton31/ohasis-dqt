@@ -153,7 +153,7 @@ local(envir = import, {
          filter(!is.na(REC_ID), nchar(REC_ID) == 25) %>%
          mutate(
             UPDATED_AT = TIMESTAMP,
-            UPDATED_BY = "1300000001",
+            UPDATED_BY = Sys.getenv("OH_USER_ID"),
          )
 
       return(import)
@@ -167,7 +167,7 @@ local(envir = import, {
             SUB_FACI_ID  = "130023_001",
             CONFIRM_TYPE = "1",
             CREATED_AT   = UPDATED_AT,
-            CREATED_BY   = "1300000001",
+            CREATED_BY   = Sys.getenv("OH_USER_ID"),
             FINAL_RESULT = case_when(
                FORM == "*Computer" ~ "Duplicate",
                REMARKS == "Duplicate" ~ "Duplicate",
@@ -210,7 +210,7 @@ local(envir = import, {
             FACI_ID       = "130023",
             SUB_FACI_ID   = "130023_001",
             CREATED_AT    = UPDATED_AT,
-            CREATED_BY    = "1300000001",
+            CREATED_BY    = Sys.getenv("OH_USER_ID"),
             SPECIMEN_TYPE = case_when(
                SPECIMEN_TYPE == "SERUM" ~ "1"
             ),
@@ -236,7 +236,7 @@ local(envir = import, {
                   FACI_ID       = "130023",
                   SUB_FACI_ID   = "130023_001",
                   CREATED_AT    = UPDATED_AT,
-                  CREATED_BY    = "1300000001",
+                  CREATED_BY    = Sys.getenv("OH_USER_ID"),
                   SPECIMEN_TYPE = case_when(
                      SPECIMEN_TYPE == "SERUM" ~ "1"
                   ),
@@ -263,7 +263,7 @@ local(envir = import, {
                   FACI_ID       = "130023",
                   SUB_FACI_ID   = "130023_001",
                   CREATED_AT    = UPDATED_AT,
-                  CREATED_BY    = "1300000001",
+                  CREATED_BY    = Sys.getenv("OH_USER_ID"),
                   SPECIMEN_TYPE = case_when(
                      SPECIMEN_TYPE == "SERUM" ~ "1"
                   ),
@@ -290,7 +290,7 @@ local(envir = import, {
             FACI_ID       = "130023",
             SUB_FACI_ID   = "130023_001",
             CREATED_AT    = UPDATED_AT,
-            CREATED_BY    = "1300000001",
+            CREATED_BY    = Sys.getenv("OH_USER_ID"),
             SPECIMEN_TYPE = case_when(
                SPECIMEN_TYPE == "SERUM" ~ "1"
             ),
@@ -317,7 +317,7 @@ local(envir = import, {
                   FACI_ID       = "130023",
                   SUB_FACI_ID   = "130023_001",
                   CREATED_AT    = UPDATED_AT,
-                  CREATED_BY    = "1300000001",
+                  CREATED_BY    = Sys.getenv("OH_USER_ID"),
                   SPECIMEN_TYPE = case_when(
                      SPECIMEN_TYPE == "SERUM" ~ "1"
                   ),
@@ -345,7 +345,7 @@ local(envir = import, {
                   FACI_ID       = "130023",
                   SUB_FACI_ID   = "130023_001",
                   CREATED_AT    = UPDATED_AT,
-                  CREATED_BY    = "1300000001",
+                  CREATED_BY    = Sys.getenv("OH_USER_ID"),
                   SPECIMEN_TYPE = case_when(
                      SPECIMEN_TYPE == "SERUM" ~ "1"
                   ),
