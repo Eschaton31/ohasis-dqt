@@ -26,6 +26,7 @@ local(envir = dr$aem20230418, {
                'saccl_code',
                'saccl',
                'artstart_date',
+               'latest_regimen',
                'latest_ffupdate',
                'latest_nextpickup',
                'death_transout_date',
@@ -187,21 +188,24 @@ local(envir = dr$aem20230418, {
 
 base <- dr$aem20230418$harp$tx$`2022` %>%
    rename(
+      regimen_2022     = latest_regimen,
       outcome30dy_2022 = outcome30dy,
       outcome3mos_2022 = outcome3mos,
    )
 
 for (yr in seq(2015, 2021)) {
+   name_arv  <- stri_c("regimen_", yr)
    name_30dy <- stri_c("outcome30dy_", yr)
    name_3mos <- stri_c("outcome3mos_", yr)
    base %<>%
       left_join(
          y = dr$aem20230418$harp$tx[[as.character(yr)]] %>%
             mutate(
-               sacclcode = if(yr <= 2016) saccl_code else sacclcode
+               sacclcode = if (yr <= 2016) saccl_code else sacclcode
             ) %>%
             select(
                sacclcode,
+               {{name_arv}}  := latest_regimen,
                {{name_30dy}} := outcome30dy,
                {{name_3mos}} := outcome3mos,
             )
@@ -210,4 +214,4 @@ for (yr in seq(2015, 2021)) {
 
 base %>%
    format_stata() %>%
-   write_dta("H:/20230418_onart_2015-2022_forAEM.dta")
+   write_dta("H:/20230512_onart_2015-2022_forAEM.dta")
