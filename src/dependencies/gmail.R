@@ -43,7 +43,6 @@ gmail$nhsss$ss    <- c(
    "kapamittan@doh.gov.ph"
 )
 gmail$nhsss$dqt   <- c(
-   "mcrendon@doh.gov.ph",
    "nesaplagio@doh.gov.ph",
    "fqyap@doh.gov.ph",
    "rphaynes@doh.gov.ph"
