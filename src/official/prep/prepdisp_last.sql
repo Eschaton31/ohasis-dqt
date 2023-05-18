@@ -11,6 +11,6 @@ FROM (SELECT data.CENTRAL_ID,
                       rec.*
                FROM ohasis_warehouse.form_prep rec
                         LEFT JOIN ohasis_warehouse.id_registry reg ON rec.PATIENT_ID = reg.PATIENT_ID
-               WHERE PREP_RECORD = 'PrEP' AND VISIT_DATE < ?
+               WHERE PREP_RECORD = 'PrEP' AND VISIT_DATE < ? AND MEDICINE_SUMMARY IS NOT NULL
            ) AS data) AS prepstart
 WHERE VISIT_NUM = 1;
