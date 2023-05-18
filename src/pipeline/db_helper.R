@@ -39,7 +39,7 @@ tracked_select <- function(conn, query, name, params = NULL) {
 change_rec_id <- function(pid, old_recid, new_recid) {
    db_conn <- ohasis$conn("db")
 
-   upd_by <- "1300000001"
+   upd_by <- Sys.getenv("OH_USER_ID")
    upd_at <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
    dbExecute(
       db_conn,
@@ -63,7 +63,7 @@ change_rec_id <- function(pid, old_recid, new_recid) {
 change_px_id <- function(recid, old_pid, new_pid) {
    db_conn <- ohasis$conn("db")
 
-   upd_by <- "1300000001"
+   upd_by <- Sys.getenv("OH_USER_ID")
    upd_at <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
    dbExecute(
       db_conn,
@@ -555,8 +555,10 @@ disp_bottle_to_pill <- function(rec_ids) {
    update$px_medicine <- disp$disepesing %>%
       filter(UNIT_BASIS == 1) %>%
       mutate(
-         UNIT_BASIS = 2,
-         NEXT_DATE  = DISP_DATE %m+% days(((DISP_TOTAL + coalesce(MEDICINE_LEFT, 0)) / PER_DAY))
+         UNIT_BASIS  = 2,
+         TOTAL_PILLS = DISP_TOTAL + MEDICINE_LEFT,
+         TOTAL_DAYS  = TOTAL_PILLS / PER_DAY,
+         NEXT_DATE   = DISP_DATE %m+% days(as.integer(TOTAL_DAYS))
       ) %>%
       select(REC_ID, MEDICINE, DISP_NUM, UNIT_BASIS, NEXT_DATE)
 
