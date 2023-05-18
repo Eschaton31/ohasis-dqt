@@ -9,7 +9,7 @@ flow(
       "x1" = "dedup_new",
       "x2" = "dedup_old",
       "y1" = "pdf_saccl",
-      "y1" = "logsheet_saccl"
+      "y1" = "logsheet_saccl_pdf"
    ),
    file.path(getwd(), "src", "official", "harp_dx"),
    nhsss
