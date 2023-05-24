@@ -19,6 +19,7 @@ ihbss_odk_submissions <- function(odk_config, survey) {
             )
 
          age_vars <- get_names(data, "_age_")
+         age_vars <- age_vars[age_vars != "f_3_age_first_sex_with_m"]
          if (length(age_vars) != 0)
             data %<>%
                mutate_at(
@@ -549,13 +550,20 @@ ihbss_drive_cassettes <- function(data, survey, ss) {
          envir$odk$data$medtech <- ihbss_odk_submissions(envir$odk$config$medtech, "medtech")
 
       survey_data %<>%
-         ihbss_rename(survey, envir$odk$data$medtech) %>%
-         relocate(Survey, City, Language, sq1_rid, review_state, .before = 1)
+         ihbss_rename(survey, envir$odk$data$medtech)
    } else {
       survey_data %<>%
-         ihbss_rename(survey) %>%
-         relocate(Survey, City, Language, sq1_rid, review_state, .before = 1)
+         ihbss_rename(survey)
    }
+   survey_data %<>%
+      relocate(Survey, City, Language, sq1_rid, review_state, .before = 1) %>%
+      relocate(
+         any_of(c(
+            "sq1_rid",
+            "cn",
+            "sq2_current_age"
+         ))
+      )
 
    survey_data <- switch(
       survey,
