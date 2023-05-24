@@ -8,3 +8,4 @@
 .httr-oauth
 .secrets
 **/**/**/**/*.RDS
+~/.boxr-oauth
