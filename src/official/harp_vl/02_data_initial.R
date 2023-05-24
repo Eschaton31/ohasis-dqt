@@ -15,7 +15,7 @@ vl_yr     <- vl_yr %>% stri_pad_left(width = 4, pad = "0")
 vl_report <- glue("{vl_yr}-{vl_mo}")
 
 # reference dates
-end_vl   <- as.character(ceiling_date(as.Date(glue("{ohasis$yr}-{ohasis$mo}-01")), "months") - 1)
+end_vl   <- as.character(ceiling_date(as.Date(glue("{vl_yr}-{vl_mo}-01")), "months") - 1)
 start_vl <- ceiling_date(as.Date(end_vl), "months") %m-% months(12) %>% as.character()
 
 # ohasis ids
@@ -101,7 +101,7 @@ data_forms <- dbTable(
 (LAB_VIRAL_DATE IS NOT NULL OR LAB_VIRAL_RESULT IS NOT NULL) AND
   (VISIT_DATE >= '{start_vl}' OR LAB_VIRAL_DATE >= '{start_vl}')
 )"),
-   cols      = c("PATIENT_ID", "VISIT_DATE", "LAB_VIRAL_DATE", "LAB_VIRAL_RESULT")
+   cols      = c("PATIENT_ID", "VISIT_DATE", "LAB_VIRAL_DATE", "LAB_VIRAL_RESULT", "FACI_ID", "SUB_FACI_ID", "SERVICE_FACI", "SERVICE_SUB_FACI")
 )
 dbDisconnect(lw_conn)
 
@@ -110,6 +110,11 @@ data_forms <- data_forms %>%
    get_cid(id_registry, PATIENT_ID) %>%
    select(
       CENTRAL_ID,
+      FACI_ID,
+      SUB_FACI_ID,
+      SERVICE_FACI,
+      SERVICE_SUB_FACI,
+      VISIT_DATE,
       vl_date_2 = LAB_VIRAL_DATE,
       vl_result = LAB_VIRAL_RESULT
    )
@@ -178,6 +183,14 @@ data_ml %<>%
       any_of("vlml2022"),
       starts_with("vl_result"),
       starts_with("vl_date")
+   ) %>%
+   mutate(
+      hub    = toupper(hub),
+      branch = NA_character_
+   ) %>%
+   faci_code_to_id(
+      ohasis$ref_faci_code,
+      c(FACI_ID = "hub", SUB_FACI_ID = "branch")
    )
 
 ##  Process masterlist data ----------------------------------------------------
@@ -270,6 +283,9 @@ vl_data <- data_forms %>%
       data_ml %>%
          select(
             CENTRAL_ID,
+            hub,
+            FACI_ID,
+            SUB_FACI_ID,
             vl_date_2,
             vl_result,
             vl_result_alt,
@@ -517,6 +533,20 @@ vl_data %<>%
    ) %>%
    bind_rows(
       read_dta(file.path(Sys.getenv("HARP_VL"), "20220510_vl_ml_ever.dta")) %>%
+         mutate(
+            hub    = toupper(hub),
+            hub    = case_when(
+               hub == "AHD" ~ "ADH",
+               hub == "P7S" ~ "PR7",
+               hub == "PATH" ~ "PAT",
+               TRUE ~ hub
+            ),
+            branch = NA_character_
+         ) %>%
+         faci_code_to_id(
+            ohasis$ref_faci_code,
+            c(FACI_ID = "hub", SUB_FACI_ID = "branch")
+         ) %>%
          filter(PATIENT_ID != "") %>%
          mutate_if(
             .predicate = is.character,
@@ -528,11 +558,49 @@ vl_data %<>%
          ) %>%
          select(
             CENTRAL_ID,
+            hub,
+            FACI_ID,
+            SUB_FACI_ID,
             vl_date_2,
             vl_result_2,
             res_tag
          )
    )
+
+vl_data %>%
+   select(-hub) %>%
+   mutate(
+      FACI_ID_2     = FACI_ID,
+      SUB_FACI_ID_2 = SUB_FACI_ID,
+   ) %>%
+   ohasis$get_faci(
+      list("facility_name" = c("FACI_ID_2", "SUB_FACI_ID_2")),
+      "name"
+   ) %>%
+   ohasis$get_faci(
+      list("hub" = c("FACI_ID", "SUB_FACI_ID")),
+      "code"
+   ) %>%
+   mutate(
+      res_tag = labelled(
+         res_tag,
+         c(
+            `ml`    = 1,
+            `forms` = 2
+         )
+      )
+   ) %>%
+   select(
+      CENTRAL_ID,
+      hub,
+      facility_name,
+      res_tag,
+      vl_date           = vl_date_2,
+      vl_result_encoded = vl_result,
+      vl_result_clean   = vl_result_2
+   ) %>%
+   format_stata() %>%
+   write_dta("H:/20230504_vldata_2023-04.dta")
 
 ##  Merge w/ onart dataset -----------------------------------------------------
 
