@@ -43,8 +43,8 @@ epic$mail$for_checking <- gm_mime() %>%
          )"
       )
    ) %>%
-   gm_attach_file(file.path(epic$xlsx$dir, "EpiC HFR Indicators (2022.11).xlsx")) %>%
-   gm_attach_file(file.path(epic$xlsx$dir, "EpiC HFR Indicators (2022.10).xlsx"))
+   gm_attach_file("H:/Data Sharing/EpiC/HFR/2023.03/EpiC HFR Indicators (2023.03).xlsx") %>%
+   gm_attach_file("H:/Data Sharing/EpiC/HFR/2023.02/EpiC HFR Indicators (2023.02).xlsx")
 
 epic$mail$for_approval <- gm_mime() %>%
    gm_to(gmail$nhsss$head) %>%
@@ -69,8 +69,7 @@ epic$mail$for_approval <- gm_mime() %>%
          )"
       )
    ) %>%
-   gm_attach_file(file.path(epic$xlsx$dir, "EpiC HFR Indicators (2022.11).xlsx")) %>%
-   gm_attach_file(file.path(epic$xlsx$dir, "EpiC HFR Indicators (2022.10).xlsx"))
+   gm_attach_file("H:/Data Sharing/EpiC/HFR/2023.04/EpiC HFR Indicators (2023.04).xlsx")
 
 epic$mail$for_release <- gm_mime() %>%
    gm_to(
@@ -98,5 +97,5 @@ epic$mail$for_release <- gm_mime() %>%
          )"
       )
    ) %>%
-   gm_attach_file(file.path(epic$xlsx$dir, "EpiC HFR Indicators (2022.11).xlsx")) %>%
-   gm_attach_file(file.path(epic$xlsx$dir, "EpiC HFR Indicators (2022.10).xlsx"))
+   gm_attach_file("H:/Data Sharing/EpiC/HFR/2023.03/EpiC HFR Indicators (2023.03).xlsx") %>%
+   gm_attach_file("H:/Data Sharing/EpiC/HFR/2023.02/EpiC HFR Indicators (2023.02).xlsx")
