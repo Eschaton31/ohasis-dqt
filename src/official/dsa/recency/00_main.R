@@ -45,12 +45,28 @@ rt$rt_initial <- function(forms) {
    hts_data         <- process_hts(forms$hts, forms$a, forms$cfbs)
    hts_names_remove <- intersect(names(forms$rt), names(hts_data))
    hts_names_remove <- hts_names_remove[hts_names_remove != "REC_ID"]
+   hts_risk         <- hts_data %>%
+      select(
+         REC_ID,
+         contains("risk", ignore.case = FALSE)
+      ) %>%
+      pivot_longer(
+         cols = contains("risk", ignore.case = FALSE)
+      ) %>%
+      group_by(REC_ID) %>%
+      summarise(
+         risks = stri_c(collapse = ", ", unique(sort(value)))
+      )
 
    rt_raw <- forms$rt %>%
       left_join(
          y  = hts_data %>%
             select(-any_of(hts_names_remove)) %>%
             distinct(REC_ID, .keep_all = TRUE),
+         by = join_by(REC_ID)
+      ) %>%
+      left_join(
+         y  = hts_risk,
          by = join_by(REC_ID)
       ) %>%
       remove_pii() %>%
@@ -79,6 +95,40 @@ rt$rt_initial <- function(forms) {
          ),
          hts_date       = coalesce(hts_date, VISIT_DATE),
       ) %>%
+      mutate(
+         SEXUAL_RISK = case_when(
+            str_detect(risk_sexwithm, "yes") & str_detect(risk_sexwithf, "yes") ~ "M+F",
+            str_detect(risk_sexwithm, "yes") & !str_detect(risk_sexwithf, "yes") ~ "M",
+            !str_detect(risk_sexwithm, "yes") & str_detect(risk_sexwithf, "yes") ~ "F",
+         ),
+         KAP_TYPE    = case_when(
+            risks == "(no data)" | is.na(risks) ~ "(no data)",
+            risks == "none" ~ "No apparent risk",
+            risks == "(no data), no, none" ~ "No apparent risk",
+            SEX == "MALE" &
+               SEXUAL_RISK %in% c("M", "M+F") &
+               str_detect(risk_injectdrug, "yes") ~ "MSM-PWID",
+            SEX == "MALE" &
+               SEXUAL_RISK == "F" &
+               str_detect(risk_injectdrug, "yes") ~ "Hetero Male-PWID",
+            SEX == "FEMALE" &
+               !is.na(SEXUAL_RISK) &
+               str_detect(risk_injectdrug, "yes") ~ "Hetero Female-PWID",
+            SEX == "MALE" &
+               SEXUAL_RISK %in% c("M", "M+F") &
+               !str_detect(risk_injectdrug, "yes") ~ "MSM",
+            SEX == "MALE" &
+               SEXUAL_RISK == "F" &
+               !str_detect(risk_injectdrug, "yes") ~ "Hetero Male",
+            SEX == "FEMALE" &
+               !is.na(SEXUAL_RISK) &
+               !str_detect(risk_injectdrug, "yes") ~ "Hetero Female",
+            str_detect(risk_injectdrug, "yes") ~ "PWID",
+            str_detect(risk_needlestick, "yes") ~ "Occupational (Needlestick)",
+            str_detect(risk_bloodtransfuse, "yes") ~ "Blood transfusion",
+            TRUE ~ "(unclassified)"
+         )
+      ) %>%
       rename(
          CREATED = CREATED_BY,
          UPDATED = UPDATED_BY,
@@ -94,8 +144,8 @@ rt$rt_initial <- function(forms) {
             RT_VL_RESULT >= 1000 ~ "1_Recent",
             RT_VL_RESULT < 1000 ~ "2_Long-term",
          ),
-         RT_FACI      = coalesce(SPECIMEN_SOURCE, CONFIRM_FACI),
-         RT_SUB_FACI  = coalesce(SPECIMEN_SUB_SOURCE, CONFIRM_SUB_FACI),
+         RT_FACI      = coalesce(SPECIMEN_SOURCE, SERVICE_FACI, CONFIRM_FACI),
+         RT_SUB_FACI  = coalesce(SPECIMEN_SUB_SOURCE, SERVICE_SUB_FACI, CONFIRM_SUB_FACI),
          .after       = RT_VL_RESULT,
       ) %>%
       select(
@@ -229,7 +279,9 @@ rt$export_excel <- function(data, file) {
 }
 
 rt$forms        <- rt$download_forms(rt$wd)
-rt$data$initial <- rt$rt_initial(rt$forms)
+rt$data$initial <- rt$rt_initial(rt$forms) %>%
+   left_join(rt$sites %>% select(FACI_ID, rt_activation_date), join_by(RT_FACI == FACI_ID)) %>%
+   filter(is.na(rt_activation_date) | rt_activation_date <= hts_date)
 rt$data$final   <- rt$data$initial %>%
    mutate_at(
       .vars = vars(contains("_SUB_", FALSE)),
@@ -300,6 +352,7 @@ rt$data$final   <- rt$data$initial %>%
    ohasis$get_staff(c(NOTED_BY = "SIGNATORY_3"))
 
 oh_dir       <- file.path("O:/My Drive/Data Sharing/ICAP")
+oh_dir       <- file.path("C:/Users/johnb/Box/TRACE Philippines")
 file_initial <- file.path(oh_dir, "RecencyTesting-PreProcess.xlsx")
 file_final   <- file.path(oh_dir, "RecencyTesting-PostProcess.xlsx")
 file_faci    <- file.path(oh_dir, "OHASIS-FacilityIDs.xlsx")
@@ -332,6 +385,8 @@ rt$data$json$`OHASIS-FacilityIDs`         <- list(
    )
 )
 
+p_load(boxr)
+tmp <- tempfile(fileext = ".xlsx")
 rt$export_excel(rt$data$initial, file_initial)
 rt$export_excel(rt$data$final, file_final)
 rt$export_excel(ohasis$ref_faci, file_faci)
