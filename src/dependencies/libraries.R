@@ -2,10 +2,10 @@
 
 # easy loader for libraries
 if (!require(pacman))
-   install.packages("pacman")
+   install.packages("pacman", lib = Sys.getenv("R_LIBS"))
 
 # load libraries
-library(pacman)
+library(pacman, lib.loc =  Sys.getenv("R_LIBS"))
 
 load_packages <- function(path_to_file) {
 
@@ -29,16 +29,11 @@ load_packages <- function(path_to_file) {
 
 load_packages("requirements.txt")
 p_load_gh(
-   "hrbrmstr/speedtest",
-   "ropensci/tabulizerjars",
-   "ropensci/tabulizer",
    "lmullen/genderdata",
-   "SymbolixAU/googlePolylines",
-   "SymbolixAU/googleway",
    "schardtbc/DBIExt"
 )
 
 # nhsss unique functions
 p_unload("nhsss")
-remotes::install_git("http://130.105.75.3:3000/jrpalo.doh/nhsss.git", upgrade = "never", quiet = TRUE)
+remotes::install_git("http://192.168.193.228:3000/jrpalo.doh/nhsss.git", upgrade = "never", quiet = TRUE)
 require(nhsss)

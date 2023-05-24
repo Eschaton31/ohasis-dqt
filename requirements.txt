@@ -51,3 +51,4 @@ kwb.nextcloud
 arrow
 envnames
 docstring
+tabulizer
