@@ -1,5 +1,39 @@
 ##  HARP Tx Linkage Controller -------------------------------------------------
 
+flow_register()
+nhsss$tbhiv$steps$`01_load_reqs`$.init(yr = 2023, mo = 3, envir = nhsss$tbhiv)
+nhsss$tbhiv$steps$`02_process_visits`$.init(envir = nhsss$tbhiv)
+
+dir      <- "H:/System/HARP/TB-HIV/2023-1stQr"
+filename <- stri_c(format(Sys.time(), "%Y%m%d_tbhiv_"), nhsss$tbhiv$coverage$yr, "-")
+nhsss$tbhiv$data$qr %>%
+   format_stata %>%
+   rename(
+      ART_FACI_NAME     = TX_HUB,
+      ART_FACI_REGION   = TX_REG,
+      ART_FACI_PROVINCE = TX_PROV,
+      ART_FACI_MUNCITY  = TX_MUNC
+   ) %>%
+   write_dta(file.path(dir, stri_c(filename, "Q1.dta")))
+nhsss$tbhiv$data$sy %>%
+   format_stata %>%
+   rename(
+      ART_FACI_NAME     = TX_HUB,
+      ART_FACI_REGION   = TX_REG,
+      ART_FACI_PROVINCE = TX_PROV,
+      ART_FACI_MUNCITY  = TX_MUNC
+   ) %>%
+   write_dta(file.path(dir, stri_c(filename, "S1.dta")))
+nhsss$tbhiv$data$yr %>%
+   format_stata %>%
+   rename(
+      ART_FACI_NAME     = TX_HUB,
+      ART_FACI_REGION   = TX_REG,
+      ART_FACI_PROVINCE = TX_PROV,
+      ART_FACI_MUNCITY  = TX_MUNC
+   ) %>%
+   write_dta(file.path(dir, stri_c(filename, "YR.dta")))
+
 # define datasets
 if (!exists("nhsss"))
    nhsss <- list()
@@ -8,10 +42,10 @@ if (!("tbhiv" %in% names(nhsss)))
    nhsss$tbhiv <- new.env()
 
 nhsss$tbhiv$wd               <- file.path(getwd(), "src", "official", "tbhiv")
-nhsss$tbhiv$coverage$curr_yr <- "2022"
-nhsss$tbhiv$coverage$curr_mo <- "12"
+nhsss$tbhiv$coverage$curr_yr <- "2023"
+nhsss$tbhiv$coverage$curr_mo <- "02"
 nhsss$tbhiv$coverage$prev_yr <- "2022"
-nhsss$tbhiv$coverage$prev_mo <- "09"
+nhsss$tbhiv$coverage$prev_mo <- "12"
 
 ##  Begin linkage of art registry ----------------------------------------------
 
