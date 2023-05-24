@@ -3,7 +3,7 @@
 options(
    gargle_oauth_cache = ".secrets",
    gargle_oauth_email = "nhsss@doh.gov.ph",
-   gargle_oob_default = TRUE
+   gargle_oob_default = FALSE
 )
 options(browser = Sys.getenv("BROWSER"))
 drive_auth(cache = ".secrets")
