@@ -7,8 +7,7 @@ local(envir = nhsss$harp_linked, {
    date_linked <- format(Sys.time(), "%Y%m%d")
 
    dir         <- list()
-   dir$output  <- "E:/_R/library/hiv_full/data"
-   dir$linkage <- glue("E:/System/HARP/_Cascade/{ym}")
+   dir$output  <- Sys.getenv("HARP_FULL")
 
    if (mo %in% c("03", "06", "09", "12"))
       file <- file.path(dir$output, glue("{date_linked}_harp_{ym}_wVL.dta"))
