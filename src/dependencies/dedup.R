@@ -1,5 +1,89 @@
 ##  Deduplication functions used in processing data ----------------------------
 
+dedup_prep2 <- function(
+   data = NULL,
+   name_f = NULL,
+   name_m = NULL,
+   name_l = NULL,
+   name_s = NULL,
+   uic = NULL,
+   birthdate = NULL,
+   code_confirm = NULL,
+   code_px = NULL,
+   phic = NULL,
+   philsys = NULL
+) {
+   upper_utc <- function(x) stri_trans_general(stri_trans_toupper(x), "latin-ascii")
+   dedup_new <- as.data.table(data)
+
+   # derpase if provided as name
+   name_f       <- deparse(substitute(name_f))
+   name_m       <- deparse(substitute(name_m))
+   name_l       <- deparse(substitute(name_l))
+   name_s       <- deparse(substitute(name_s))
+   uic          <- deparse(substitute(uic))
+   birthdate    <- deparse(substitute(birthdate))
+   code_confirm <- deparse(substitute(code_confirm))
+   code_px      <- deparse(substitute(code_px))
+   phic         <- deparse(substitute(phic))
+   philsys      <- deparse(substitute(philsys))
+
+   dedup_new[, LAST := lapply(.SD, upper_utc), .SDcols = name_l]
+   dedup_new[, MIDDLE := lapply(.SD, upper_utc), .SDcols = name_m]
+   dedup_new[, FIRST := lapply(.SD, upper_utc), .SDcols = name_f]
+   dedup_new[, SUFFIX := lapply(.SD, upper_utc), .SDcols = name_s]
+   dedup_new[, UIC := lapply(.SD, upper_utc), .SDcols = uic]
+   dedup_new[, CONFIRMATORY_CODE := lapply(.SD, upper_utc), .SDcols = code_confirm]
+   dedup_new[, PATIENT_CODE := lapply(.SD, upper_utc), .SDcols = code_px]
+
+   # get components of birthdate
+   dedup_new[, c("BIRTH_YR", "BIRTH_MO", "BIRTH_DY") := tstrsplit(get(birthdate), "-", fixed = TRUE)]
+   dedup_new[, c("BIRTH_YR", "BIRTH_MO", "BIRTH_DY") := lapply(.SD, as.numeric), .SDcols = c("BIRTH_YR", "BIRTH_MO", "BIRTH_DY")]
+
+   # extract parent info from uic
+   dedup_new[, UIC_MOM := fifelse(!is.na(UIC), substr(UIC, 1, 2), NA_character_)]
+   dedup_new[, UIC_DAD := fifelse(!is.na(UIC), substr(UIC, 3, 4), NA_character_)]
+   dedup_new[, UIC_ORDER := fifelse(!is.na(UIC), substr(UIC, 5, 6), NA_character_)]
+
+   # variables for first 3 letters of names
+   dedup_new[, FIRST_A := fifelse(!is.na(FIRST), substr(FIRST, 1, 3), NA_character_)]
+   dedup_new[, MIDDLE_A := fifelse(!is.na(MIDDLE), substr(MIDDLE, 1, 3), NA_character_)]
+   dedup_new[, LAST_A := fifelse(!is.na(LAST), substr(LAST, 1, 3), NA_character_)]
+
+   dedup_new[, LAST := if_else(is.na(LAST), MIDDLE, LAST)]
+   dedup_new[, MIDDLE := if_else(is.na(MIDDLE), LAST, MIDDLE)]
+
+   # clean ids
+   dedup_new[, CONFIRM_SIEVE := fifelse(!is.na(get(code_confirm)), str_replace_all(get(code_confirm), "[^[:alnum:]]", ""), NA_character_)]
+   dedup_new[, PXCODE_SIEVE := fifelse(!is.na(get(code_px)), str_replace_all(get(code_px), "[^[:alnum:]]", ""), NA_character_)]
+   dedup_new[, FIRST_S := fifelse(!is.na(FIRST), str_replace_all(FIRST, "[^[:alnum:]]", ""), NA_character_)]
+   dedup_new[, MIDDLE_S := fifelse(!is.na(MIDDLE), str_replace_all(MIDDLE, "[^[:alnum:]]", ""), NA_character_)]
+   dedup_new[, LAST_S := fifelse(!is.na(LAST), str_replace_all(LAST, "[^[:alnum:]]", ""), NA_character_)]
+   dedup_new[, PHIC := fifelse(!is.na(get(phic)), str_replace_all(get(phic), "[^[:alnum:]]", ""), NA_character_)]
+   dedup_new[, PHILSYS := fifelse(!is.na(get(philsys)), str_replace_all(get(philsys), "[^[:alnum:]]", ""), NA_character_)]
+
+   # code standard names
+   dedup_new[, FIRST_NY := suppress_warnings(fifelse(!is.na(FIRST_S), nysiis(FIRST_S, stri_length(FIRST_S)), NA_character_), "unknown characters")]
+   dedup_new[, MIDDLE_NY := suppress_warnings(fifelse(!is.na(MIDDLE_S), nysiis(MIDDLE_S, stri_length(MIDDLE_S)), NA_character_), "unknown characters")]
+   dedup_new[, LAST_NY := suppress_warnings(fifelse(!is.na(LAST_S), nysiis(LAST_S, stri_length(LAST_S)), NA_character_), "unknown characters")]
+
+
+   # genearte UIC w/o 1 parent, 2 combinations
+   dedup_new_uic <- dedup_new[!is.na(UIC), c("CENTRAL_ID", "UIC_MOM", "UIC_DAD"), with = FALSE]
+   dedup_new_uic <- unique(dedup_new_uic, by = c("CENTRAL_ID", "UIC_MOM", "UIC_DAD"))
+   dedup_new_uic <- melt(dedup_new_uic, id.vars = "CENTRAL_ID", measure.vars = c("UIC_MOM", "UIC_DAD"))
+   dedup_new_uic <- dedup_new_uic[order(CENTRAL_ID, value)]
+   dedup_new_uic[, FIRST_TWO := rowid(CENTRAL_ID)]
+   dedup_new_uic <- dcast(dedup_new_uic, CENTRAL_ID ~ FIRST_TWO, value.var = "value")
+   setnames(dedup_new_uic, "1", "UIC_1")
+   setnames(dedup_new_uic, "2", "UIC_2")
+
+   dedup_new <- dedup_new[dedup_new_uic, on = "CENTRAL_ID"]
+   dedup_new[, UIC_SORT := fifelse(!is.na(UIC), stri_c(UIC_1, UIC_2, substr(UIC, 5, 14)), NA_character_)]
+
+   return(as_tibble(dedup_new))
+}
+
 dedup_prep <- function(
    data = NULL,
    name_f = NULL,
@@ -141,7 +225,7 @@ upload_dupes <- function(data) {
          dbExecute(
             db_conn,
             "INSERT IGNORE INTO registry (CENTRAL_ID, PATIENT_ID, CREATED_BY, CREATED_AT) VALUES (?, ?, ?, ?);",
-            params = list(cid, cid, "1300000001", ts)
+            params = list(cid, cid, Sys.getenv("OH_USER_ID"), ts)
          )
       }
 
@@ -149,13 +233,13 @@ upload_dupes <- function(data) {
          dbExecute(
             db_conn,
             "INSERT IGNORE INTO registry (CENTRAL_ID, PATIENT_ID, CREATED_BY, CREATED_AT) VALUES (?, ?, ?, ?);",
-            params = list(cid, pid, "1300000001", ts)
+            params = list(cid, pid, Sys.getenv("OH_USER_ID"), ts)
          )
       } else {
          dbExecute(
             db_conn,
             "UPDATE registry SET CENTRAL_ID = ?, UPDATED_BY = ?, UPDATED_AT = ? WHERE PATIENT_ID = ?;",
-            params = list(cid, "1300000001", ts, pid)
+            params = list(cid, Sys.getenv("OH_USER_ID"), ts, pid)
          )
       }
 
@@ -163,7 +247,7 @@ upload_dupes <- function(data) {
          dbExecute(
             db_conn,
             "UPDATE registry SET CENTRAL_ID = ?, UPDATED_BY = ?, UPDATED_AT = ? WHERE CENTRAL_ID = ?;",
-            params = list(cid, "1300000001", ts, pid)
+            params = list(cid, Sys.getenv("OH_USER_ID"), ts, pid)
          )
       }
 
