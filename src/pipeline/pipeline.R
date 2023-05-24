@@ -160,12 +160,12 @@ flow_validation <- function(data_env = NULL,
          }
 
          # archive current
-         drive_cp(
-            gd_step,
-            gd_archive,
-            paste0(format(Sys.time(), "%Y.%m.%d"), "_", process_step),
-            overwrite = TRUE
-         )
+         # drive_cp(
+         #    gd_step,
+         #    gd_archive,
+         #    paste0(format(Sys.time(), "%Y.%m.%d"), "_", process_step),
+         #    overwrite = TRUE
+         # )
 
          .log_info("Uploading to GSheets..")
 

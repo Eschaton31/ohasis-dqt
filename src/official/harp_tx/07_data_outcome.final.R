@@ -491,13 +491,10 @@ get_reg_order <- function(data, col) {
       ungroup()
 
    data %<>%
+      select(-!!regimen_col) %>%
       left_join(
          y  = arvs,
          by = join_by(art_id)
-      ) %>%
-      select(-!!regimen_col) %>%
-      rename(
-         !!regimen_col := arv_reg
       )
 
    return(data)
