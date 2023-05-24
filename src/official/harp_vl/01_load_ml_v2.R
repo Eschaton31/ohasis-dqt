@@ -196,6 +196,7 @@ local(envir = vlml, {
                . == "Latest VL Date" ~ "vl_date",
                . == "Viral load date" ~ "vl_date",
                . == "Viral Load Date" ~ "vl_date",
+               . == "VIRAL LOAD DATE TESTED" ~ "vl_date",
                . == "Viral load result" ~ "vl_result",
                . == "Viral Load Result" ~ "vl_result",
                . == "Viral.load.result" ~ "vl_result",
@@ -355,10 +356,13 @@ local(envir = vlml, {
             stri_replace_all_regex("COPIES/MLN$", "") %>%
             stri_replace_all_regex("COPIES/ ML$", "") %>%
             stri_replace_all_regex("COPIES /ML$", "") %>%
+            stri_replace_all_regex("COPIES / ML$", "") %>%
+            stri_replace_all_regex("COPIES/ML \\(SHIFTED\\)$", "") %>%
             stri_replace_all_regex("COPIES$", "") %>%
             stri_replace_all_regex("COIES/ML$", "") %>%
             stri_replace_all_regex("CP/ML$", "") %>%
             stri_replace_all_regex("C/ML$", "") %>%
+            stri_replace_all_regex("C/ML`$", "") %>%
             stri_replace_all_regex("^HIV-", "HIV") %>%
             stri_replace_all_regex("^HIV -", "HIV") %>%
             stri_replace_all_regex("^HIV 1", "HIV1") %>%
@@ -417,6 +421,8 @@ local(envir = vlml, {
             vl_result_nomeasure == "NOT DETECTED" ~ "0",
             vl_result_nomeasure == "NOT DTECTED" ~ "0",
             vl_result_nomeasure == "ND" ~ "0",
+            vl_result_nomeasure == "HIV NOT DETEDCTD" ~ "0",
+            vl_result_nomeasure == "HIV NOT DTECTED" ~ "0",
             vl_result_nomeasure == "HIV1 UNDETECTED" ~ "0",
             vl_result_nomeasure == "HIV NOT DETECTED" ~ "0",
             vl_result_nomeasure == "HIV1 NOT DETECTED" ~ "0",
@@ -426,6 +432,7 @@ local(envir = vlml, {
             vl_result_nomeasure == "HIV1, NOT DETECTED" ~ "0",
             vl_result_nomeasure == "HIV UNDETECTED" ~ "0",
             vl_result_nomeasure == "HIV ILUNDETECTED" ~ "0",
+            vl_result_nomeasure == "UNDETECTABLE" ~ "0",
             vl_result_nomeasure == "UD" ~ "0",
             vl_result_nomeasure == "2.00" ~ "2",
             vl_result_nomeasure == "AWAITING RESULT" ~ NA_character_,
