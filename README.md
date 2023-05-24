@@ -44,9 +44,9 @@ Installation Instructions
 1. Install PyCharm
 2. Add VCS
 3. Manage Remotes (origin = http://130.105.75.3:3000/nhsss_admin/ohasis-dqt.git)
-4.
-5. Make your own branch (initials, lastname, .doh) jrpalo.doh
-6. Pull
+4. `git init`
+5. `git fetch origin`
+6. `git checkout origin/jrpalo.doh`
 
 [To be added.]
 
