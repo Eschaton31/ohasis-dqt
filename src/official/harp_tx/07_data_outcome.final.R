@@ -367,7 +367,7 @@ get_reg_disagg <- function(data, col) {
       # retag regimen
       select(-art_reg, -line) %>%
       mutate(
-         arv_reg = stri_trans_tolower(latest_regimen),
+         arv_reg = stri_trans_tolower(!!as.name(col)),
          azt1    = if_else(stri_detect_fixed(arv_reg, "azt"), "azt", NA_character_),
          tdf1    = if_else(stri_detect_fixed(arv_reg, "tdf"), "tdf", NA_character_),
          d4t1    = if_else(stri_detect_fixed(arv_reg, "d4t"), "d4t", NA_character_),
@@ -445,6 +445,61 @@ get_reg_disagg <- function(data, col) {
          ),
       ) %>%
       select(-central_id)
+   return(data)
+}
+
+get_reg_order <- function(data, col) {
+   regimen_col <- as.name(col)
+
+   arvs <- data %>%
+      select(art_id, arv_reg = !!regimen_col) %>%
+      mutate(
+         arv_order = case_when(
+            arv_reg == "TDF/3TC/EFV" ~ 1,
+            arv_reg == "TDF/3TC/DTG" ~ 2,
+            arv_reg == "AZT/3TC/NVP" ~ 3,
+            arv_reg == "AZT/3TC" ~ 4,
+            arv_reg == "TDF/3TC" ~ 5,
+            arv_reg == "TDF/FTC" ~ 6,
+            arv_reg == "3TC/d4T" ~ 7,
+            arv_reg == "AZT" ~ 8,
+            arv_reg == "AZTsyr" ~ 9,
+            arv_reg == "TDF" ~ 10,
+            arv_reg == "TDFsyr" ~ 11,
+            arv_reg == "3TC" ~ 12,
+            arv_reg == "3TCsyr" ~ 13,
+            arv_reg == "FTC" ~ 14,
+            arv_reg == "EFV" ~ 15,
+            arv_reg == "EFVsyr" ~ 16,
+            arv_reg == "DTG" ~ 17,
+            arv_reg == "NVP" ~ 18,
+            arv_reg == "NVPsyr" ~ 19,
+            arv_reg == "LPV/r" ~ 20,
+            arv_reg == "LPV/rsyr" ~ 21,
+            arv_reg == "IND" ~ 22,
+            arv_reg == "RAL" ~ 23,
+            arv_reg == "ABC" ~ 24,
+            arv_reg == "ABCsyr" ~ 25,
+            arv_reg == "RIL" ~ 26,
+            arv_reg == "TAF" ~ 27,
+            TRUE ~ 9999
+         )
+      ) %>%
+      arrange(arv_order) %>%
+      group_by(art_id) %>%
+      summarise(latest_regimen = stri_c(arv_reg, collapse = "+")) %>%
+      ungroup()
+
+   data %<>%
+      left_join(
+         y  = arvs,
+         by = join_by(art_id)
+      ) %>%
+      select(-!!regimen_col) %>%
+      rename(
+         !!regimen_col := arv_reg
+      )
+
    return(data)
 }
 
@@ -542,7 +597,8 @@ get_checks <- function(data) {
       data <- read_rds(file.path(wd, "outcome.converted.RDS"))
       data <- finalize_outcomes(data) %>%
          finalize_faci() %>%
-         get_reg_disagg()
+         get_reg_disagg("latest_regimen") %>%
+         get_reg_order("latest_regimen")
 
       data <- reg_disagg(data, "latest_regimen", "regimen", "reg_line")
       data <- reg_disagg(data, "latest_regimen", "latest_regdisagg", "latest_regline")
