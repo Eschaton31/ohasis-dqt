@@ -351,13 +351,18 @@ rt$data$final   <- rt$data$initial %>%
    ohasis$get_staff(c(REVIEWED_BY = "SIGNATORY_2")) %>%
    ohasis$get_staff(c(NOTED_BY = "SIGNATORY_3"))
 
-oh_dir       <- file.path("O:/My Drive/Data Sharing/ICAP")
 oh_dir       <- file.path("C:/Users/johnb/Box/TRACE Philippines")
 file_initial <- file.path(oh_dir, "RecencyTesting-PreProcess.xlsx")
 file_final   <- file.path(oh_dir, "RecencyTesting-PostProcess.xlsx")
 file_faci    <- file.path(oh_dir, "OHASIS-FacilityIDs.xlsx")
 file_json    <- file.path(oh_dir, "DataStatus.json")
 rt$data$json <- jsonlite::read_json(file_json)
+
+oh_dir       <- file.path("O:/My Drive/Data Sharing/ICAP")
+file_initial <- file.path(oh_dir, "RecencyTesting-PreProcess.xlsx")
+file_final   <- file.path(oh_dir, "RecencyTesting-PostProcess.xlsx")
+file_faci    <- file.path(oh_dir, "OHASIS-FacilityIDs.xlsx")
+file_json    <- file.path(oh_dir, "DataStatus.json")
 
 rt$data$json$`RecencyTesting-PreProcess`  <- list(
    upload_date  = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
