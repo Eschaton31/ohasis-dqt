@@ -180,7 +180,8 @@ local(envir = import, {
             y          = encoded$ref_faci %>%
                select(
                   TX_FACI = FACI_CODE,
-                  FACI_ID
+                  FACI_ID,
+                  SUB_FACI_ID
                ) %>%
                distinct_all(),
             by         = "TX_FACI",
