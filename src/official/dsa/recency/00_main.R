@@ -138,15 +138,15 @@ rt$rt_initial <- function(forms) {
          HTS_PROVIDER_TYPE       = PROVIDER_TYPE,
          HTS_PROVIDER_TYPE_OTHER = PROVIDER_TYPE_OTHER,
       ) %>%
+      process_vl("RT_VL_RESULT", "RT_VL_RESULT_CLEAN") %>%
       mutate(
-         RT_VL_RESULT = as.integer(stri_replace_all_fixed(RT_VL_RESULT, ",", "")),
-         RITA_RESULT  = case_when(
-            RT_VL_RESULT >= 1000 ~ "1_Recent",
-            RT_VL_RESULT < 1000 ~ "2_Long-term",
+         RITA_RESULT = case_when(
+            RT_VL_RESULT_CLEAN >= 1000 ~ "1_Recent",
+            RT_VL_RESULT_CLEAN < 1000 ~ "2_Long-term",
          ),
-         RT_FACI      = coalesce(SPECIMEN_SOURCE, SERVICE_FACI, CONFIRM_FACI),
-         RT_SUB_FACI  = coalesce(SPECIMEN_SUB_SOURCE, SERVICE_SUB_FACI, CONFIRM_SUB_FACI),
-         .after       = RT_VL_RESULT,
+         RT_FACI            = coalesce(SPECIMEN_SOURCE, SERVICE_FACI, CONFIRM_FACI),
+         RT_SUB_FACI        = coalesce(SPECIMEN_SUB_SOURCE, SERVICE_SUB_FACI, CONFIRM_SUB_FACI),
+         .after             = RT_VL_RESULT,
       ) %>%
       select(
          -any_of(
@@ -351,7 +351,7 @@ rt$data$final   <- rt$data$initial %>%
    ohasis$get_staff(c(REVIEWED_BY = "SIGNATORY_2")) %>%
    ohasis$get_staff(c(NOTED_BY = "SIGNATORY_3"))
 
-oh_dir       <- file.path("C:/Users/johnb/Box/TRACE Philippines")
+oh_dir       <- file.path("C:/Users/Administrator/Box/TRACE Philippines")
 file_initial <- file.path(oh_dir, "RecencyTesting-PreProcess.xlsx")
 file_final   <- file.path(oh_dir, "RecencyTesting-PostProcess.xlsx")
 file_faci    <- file.path(oh_dir, "OHASIS-FacilityIDs.xlsx")
@@ -390,7 +390,7 @@ rt$data$json$`OHASIS-FacilityIDs`         <- list(
    )
 )
 
-p_load(boxr)
+# p_load(boxr)
 tmp <- tempfile(fileext = ".xlsx")
 rt$export_excel(rt$data$initial, file_initial)
 rt$export_excel(rt$data$final, file_final)
