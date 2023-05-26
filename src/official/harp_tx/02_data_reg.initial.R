@@ -76,6 +76,8 @@ clean_data <- function(art_first, old_reg) {
             SERVICE_FACI == "040211" ~ 1,
             FACI_ID == "130748" ~ 1,
             SERVICE_FACI == "130748" ~ 1,
+            FACI_ID == "130814" ~ 1,
+            SERVICE_FACI == "130814" ~ 1,
             TRUE ~ 0
          ),
 
@@ -385,6 +387,8 @@ get_checks <- function(data) {
          select(
             any_of(view_vars),
             MEDICINE_SUMMARY,
+            AGE,
+            AGE_DTA
          )
 
       .log_info("Checking for possible PrEP clients.")

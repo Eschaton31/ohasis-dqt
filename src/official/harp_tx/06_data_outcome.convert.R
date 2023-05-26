@@ -1,8 +1,8 @@
 ##  Generate subset variables --------------------------------------------------
 
 # updated outcomes
-tag_curr_data <- function(data, prev_outcome, art_first, params) {
-   dead <- ohasis$get_data("harp_dead", ohasis$yr, ohasis$mo) %>%
+tag_curr_data <- function(data, prev_outcome, art_first, last_disp, params) {
+   dead <- hs_data("harp_dead", "reg", ohasis$yr, ohasis$mo) %>%
       read_dta(
          col_select = c(
             PATIENT_ID,
@@ -33,6 +33,158 @@ tag_curr_data <- function(data, prev_outcome, art_first, params) {
             true      = proxy_death_date,
             false     = date_of_death
          )
+      )
+
+   last_disp %<>%
+      arrange(desc(LATEST_NEXT_DATE)) %>%
+      filter(VISIT_DATE <= ohasis$next_date) %>%
+      mutate(LATEST_VISIT = VISIT_DATE) %>%
+      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      mutate(
+         # tag those without ART_FACI
+         use_record_faci    = if_else(
+            condition = is.na(SERVICE_FACI),
+            true      = 1,
+            false     = 0
+         ),
+         SERVICE_FACI       = if_else(
+            condition = use_record_faci == 1,
+            true      = FACI_ID,
+            false     = SERVICE_FACI
+         ),
+
+         # tag sail clinics as ship
+         sail_clinic        = case_when(
+            FACI_ID == "040200" ~ 1,
+            SERVICE_FACI == "040200" ~ 1,
+            FACI_ID == "040211" ~ 1,
+            SERVICE_FACI == "040211" ~ 1,
+            FACI_ID == "130748" ~ 1,
+            SERVICE_FACI == "130748" ~ 1,
+            FACI_ID == "130814" ~ 1,
+            SERVICE_FACI == "130814" ~ 1,
+            TRUE ~ 0
+         ),
+
+         # tag tly clinic
+         tly_clinic         = case_when(
+            FACI_ID == "070021" ~ 1,
+            FACI_ID == "040198" ~ 1,
+            FACI_ID == "070021" ~ 1,
+            FACI_ID == "130173" ~ 1,
+            FACI_ID == "130707" ~ 1,
+            FACI_ID == "130708" ~ 1,
+            FACI_ID == "130749" ~ 1,
+            FACI_ID == "130751" ~ 1,
+            FACI_ID == "130001" ~ 1,
+            SERVICE_FACI == "070021" ~ 1,
+            SERVICE_FACI == "040198" ~ 1,
+            SERVICE_FACI == "070021" ~ 1,
+            SERVICE_FACI == "130173" ~ 1,
+            SERVICE_FACI == "130707" ~ 1,
+            SERVICE_FACI == "130708" ~ 1,
+            SERVICE_FACI == "130749" ~ 1,
+            SERVICE_FACI == "130751" ~ 1,
+            SERVICE_FACI == "130001" ~ 1,
+            TRUE ~ 0
+         ),
+
+         # convert to HARP facility
+         ACTUAL_FACI        = SERVICE_FACI,
+         ACTUAL_SUB_FACI    = SERVICE_SUB_FACI,
+         SERVICE_FACI       = case_when(
+            tly_clinic == 1 ~ "130001",
+            sail_clinic == 1 ~ "130025",
+            TRUE ~ SERVICE_FACI
+         ),
+
+         # satellite
+         SATELLITE_FACI     = if_else(
+            condition = StrLeft(CLIENT_TYPE, 1) == "5",
+            true      = FACI_DISP,
+            false     = NA_character_
+         ),
+         SATELLITE_SUB_FACI = if_else(
+            condition = StrLeft(CLIENT_TYPE, 1) == "5",
+            true      = SUB_FACI_DISP,
+            false     = NA_character_
+         ),
+
+         # transient
+         TRANSIENT_FACI     = if_else(
+            condition = StrLeft(CLIENT_TYPE, 1) == "6",
+            true      = FACI_DISP,
+            false     = NA_character_
+         ),
+         TRANSIENT_SUB_FACI = if_else(
+            condition = StrLeft(CLIENT_TYPE, 1) == "6",
+            true      = SUB_FACI_DISP,
+            false     = NA_character_
+         ),
+      ) %>%
+      ohasis$get_faci(
+         list(ART_FACI_CODE = c("SERVICE_FACI", "SERVICE_SUB_FACI")),
+         "code"
+      ) %>%
+      ohasis$get_faci(
+         list(ACTUAL_FACI_CODE = c("ACTUAL_FACI", "ACTUAL_SUB_FACI")),
+         "code",
+      ) %>%
+      mutate(
+         ART_BRANCH = if_else(
+            condition = nchar(ART_FACI_CODE) > 3,
+            true      = ART_FACI_CODE,
+            false     = NA_character_
+         ),
+         .after     = ART_FACI_CODE
+      ) %>%
+      mutate(
+         ACTUAL_BRANCH = if_else(
+            condition = nchar(ACTUAL_FACI_CODE) > 3,
+            true      = ACTUAL_FACI_CODE,
+            false     = NA_character_
+         ),
+         .after        = ACTUAL_FACI_CODE
+      ) %>%
+      mutate(
+         ART_BRANCH    = case_when(
+            ART_FACI_CODE == "TLY" & is.na(ART_BRANCH) ~ "TLY-ANGLO",
+            TRUE ~ ART_BRANCH
+         ),
+         ACTUAL_BRANCH = case_when(
+            ACTUAL_FACI_CODE == "TLY" & is.na(ACTUAL_BRANCH) ~ "TLY-ANGLO",
+            TRUE ~ ACTUAL_BRANCH
+         ),
+      ) %>%
+      mutate_at(
+         .vars = vars(ACTUAL_FACI_CODE, ART_FACI_CODE),
+         ~case_when(
+            stri_detect_regex(., "^SAIL") ~ "SAIL",
+            stri_detect_regex(., "^TLY") ~ "TLY",
+            TRUE ~ .
+         )
+      ) %>%
+      mutate(
+         ART_BRANCH = case_when(
+            sail_clinic == 1 ~ ACTUAL_BRANCH,
+            tly_clinic == 1 & is.na(ACTUAL_BRANCH) ~ "TLY-ANGLO",
+            tly_clinic == 1 & ACTUAL_BRANCH == "TLY" ~ "TLY-ANGLO",
+            tly_clinic == 1 & ACTUAL_BRANCH != "TLY" ~ ACTUAL_BRANCH,
+            TRUE ~ ART_BRANCH
+         ),
+      ) %>%
+      arrange(ART_FACI_CODE, VISIT_DATE, LATEST_NEXT_DATE) %>%
+      mutate(
+         ART_BRANCH    = case_when(
+            ART_FACI_CODE == "SHP" & is.na(ART_BRANCH) ~ "SHIP-MAKATI",
+            ART_FACI_CODE == "TLY" & is.na(ART_BRANCH) ~ "TLY-ANGLO",
+            TRUE ~ ART_BRANCH
+         ),
+         ACTUAL_BRANCH = case_when(
+            ACTUAL_FACI_CODE == "SHP" & is.na(ACTUAL_BRANCH) ~ "SHIP-MAKATI",
+            ACTUAL_FACI_CODE == "TLY" & is.na(ACTUAL_BRANCH) ~ "TLY-ANGLO",
+            TRUE ~ ACTUAL_BRANCH
+         ),
       )
 
    data <- data %>%
@@ -77,6 +229,23 @@ tag_curr_data <- function(data, prev_outcome, art_first, params) {
             distinct(CENTRAL_ID, .keep_all = TRUE),
          by = "CENTRAL_ID"
       ) %>%
+      # get ohasis latest dispense
+      left_join(
+         y  = last_disp %>%
+            select(
+               CENTRAL_ID,
+               LASTDISP_HUB           = ART_FACI_CODE,
+               LASTDISP_BRANCH        = ART_BRANCH,
+               LASTDISP_ACTUAL_HUB    = ACTUAL_FACI_CODE,
+               LASTDISP_ACTUAL_BRANCH = ACTUAL_BRANCH,
+               LASTDISP_REC           = REC_ID,
+               LASTDISP_VISIT         = VISIT_DATE,
+               LASTDISP_NEXT_DATE     = LATEST_NEXT_DATE,
+               LASTDISP_ARV           = MEDICINE_SUMMARY
+            ) %>%
+            distinct(CENTRAL_ID, .keep_all = TRUE),
+         by = "CENTRAL_ID"
+      ) %>%
       mutate(
          # fix date formats
          LATEST_NEXT_DATE    = as.Date(LATEST_NEXT_DATE),
@@ -112,12 +281,21 @@ tag_curr_data <- function(data, prev_outcome, art_first, params) {
             is.na(prev_outcome) &
                !is.na(MEDICINE_SUMMARY) &
                !is.na(LATEST_NEXT_DATE) ~ 1,
+            is.na(prev_outcome) &
+               !is.na(LASTDISP_ARV) &
+               !is.na(LASTDISP_NEXT_DATE) ~ 2,
             LATEST_VISIT > prev_ffup &
                !is.na(MEDICINE_SUMMARY) &
                !is.na(LATEST_NEXT_DATE) ~ 1,
             LATEST_NEXT_DATE > prev_pickup &
                !is.na(MEDICINE_SUMMARY) &
                !is.na(LATEST_NEXT_DATE) ~ 1,
+            LASTDISP_VISIT > prev_ffup &
+               !is.na(LASTDISP_ARV) &
+               !is.na(LATEST_NEXT_DATE) ~ 2,
+            LASTDISP_NEXT_DATE > prev_pickup &
+               !is.na(LASTDISP_ARV) &
+               !is.na(LASTDISP_NEXT_DATE) ~ 2,
             TRUE ~ 0
          ),
 
@@ -126,6 +304,9 @@ tag_curr_data <- function(data, prev_outcome, art_first, params) {
             !is.na(birthdate) & use_db == 1 ~ abs(as.numeric(difftime(LATEST_VISIT, birthdate, units = "days")) / 365.25),
             is.na(birthdate) & use_db == 1 & !is.na(age) ~ age + (year(LATEST_VISIT) - year(artstart_date)),
             is.na(birthdate) & use_db == 1 & is.na(age) ~ prev_age + (year(LATEST_VISIT) - year(prev_ffup)),
+            !is.na(birthdate) & use_db == 2 ~ abs(as.numeric(difftime(LASTDISP_VISIT, birthdate, units = "days")) / 365.25),
+            is.na(birthdate) & use_db == 2 & !is.na(age) ~ age + (year(LASTDISP_VISIT) - year(artstart_date)),
+            is.na(birthdate) & use_db == 2 & is.na(age) ~ prev_age + (year(LASTDISP_VISIT) - year(prev_ffup)),
             !is.na(birthdate) & use_db == 0 ~ abs(as.numeric(difftime(prev_ffup, birthdate, units = "days")) / 365.25),
             is.na(birthdate) & use_db == 0 & !is.na(age) ~ age + (year(prev_ffup) - year(artstart_date)),
             is.na(birthdate) & use_db == 0 & is.na(age) ~ prev_age + (year(prev_ffup) - year(artstart_date)),
@@ -140,6 +321,9 @@ tag_curr_data <- function(data, prev_outcome, art_first, params) {
             use_db == 1 & (LATEST_VISIT <= ref_death_date) ~ "dead",
             use_db == 1 & LATEST_NEXT_DATE >= params$cutoff_date ~ "alive on arv",
             use_db == 1 & LATEST_NEXT_DATE < params$cutoff_date ~ "lost to follow up",
+            use_db == 2 & (LASTDISP_VISIT <= ref_death_date) ~ "dead",
+            use_db == 2 & LASTDISP_NEXT_DATE >= params$cutoff_date ~ "alive on arv",
+            use_db == 2 & LASTDISP_NEXT_DATE < params$cutoff_date ~ "lost to follow up",
             use_db == 0 & prev_ffup <= ref_death_date ~ "dead",
             use_db == 0 &
                stri_detect_fixed(prev_outcome, "dead") &
@@ -166,6 +350,7 @@ tag_curr_data <- function(data, prev_outcome, art_first, params) {
          # check for multi-month clients
          days_to_pickup      = case_when(
             use_db == 1 ~ abs(as.numeric(difftime(LATEST_NEXT_DATE, LATEST_VISIT, units = "days"))),
+            use_db == 2 ~ abs(as.numeric(difftime(LASTDISP_NEXT_DATE, LASTDISP_VISIT, units = "days"))),
             use_db == 0 ~ abs(as.numeric(difftime(prev_pickup, prev_ffup, units = "days"))),
          ),
          arv_worth           = case_when(
@@ -294,7 +479,15 @@ final_conversion <- function(data) {
          curr_line,
          curr_ffup           = LATEST_VISIT,
          curr_pickup         = LATEST_NEXT_DATE,
-         curr_regimen        = MEDICINE_SUMMARY, ,
+         curr_regimen        = MEDICINE_SUMMARY,
+         lastdisp_hub        = LASTDISP_HUB,
+         lastdisp_branch     = LASTDISP_BRANCH,
+         lastdisp_realhub    = LASTDISP_ACTUAL_HUB,
+         lastdisp_realbranch = LASTDISP_ACTUAL_BRANCH,
+         lastdisp_ffup       = LASTDISP_VISIT,
+         lastdisp_pickup     = LASTDISP_NEXT_DATE,
+         lastdisp_regimen    = LASTDISP_ARV,
+         lastdisp_rec        = LASTDISP_REC,
          curr_artreg         = art_reg1,
          curr_num_drugs,
          tx_reg,
@@ -373,6 +566,11 @@ get_checks <- function(data) {
          "curr_ffup",
          "curr_pickup",
          "curr_regimen",
+         "lastdisp_hub",
+         "lastdisp_ffup",
+         "lastdisp_pickup",
+         "lastdisp_regimen",
+         "lastdisp_rec",
          "curr_outcome",
          "ref_death_date"
       )
@@ -542,6 +740,7 @@ get_checks <- function(data) {
       data <- tag_curr_data(data,
                             .GlobalEnv$nhsss$harp_tx$official$old_outcome,
                             .GlobalEnv$nhsss$harp_tx$forms$art_first,
+                            .GlobalEnv$nhsss$harp_tx$forms$art_lastdisp,
                             .GlobalEnv$nhsss$harp_tx$params) %>%
          final_conversion()
 

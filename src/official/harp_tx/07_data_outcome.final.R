@@ -4,15 +4,15 @@ finalize_outcomes <- function(data) {
    data <- data %>%
       arrange(art_id) %>%
       mutate(
-         hub               = if_else(
-            condition = use_db == 1,
-            true      = curr_hub,
-            false     = prev_hub,
+         hub               = case_when(
+            use_db == 1 ~ curr_hub,
+            use_db == 2 ~ lastdisp_hub,
+            TRUE ~ prev_hub
          ),
-         branch            = if_else(
-            condition = use_db == 1,
-            true      = curr_branch,
-            false     = prev_branch,
+         branch            = case_when(
+            use_db == 1 ~ curr_branch,
+            use_db == 2 ~ lastdisp_branch,
+            TRUE ~ prev_branch
          ),
          sathub            = if_else(
             condition = use_db == 1,
@@ -24,40 +24,30 @@ finalize_outcomes <- function(data) {
             true      = curr_transhub,
             false     = prev_transhub,
          ),
-         realhub           = if_else(
-            condition = use_db == 1,
-            true      = curr_realhub,
-            false     = prev_realhub,
+         realhub           = case_when(
+            use_db == 1 ~ curr_realhub,
+            use_db == 2 ~ lastdisp_realhub,
+            TRUE ~ prev_realhub
          ),
-         realhub_branch    = if_else(
-            condition = use_db == 1,
-            true      = curr_realhub_branch,
-            false     = prev_realhub_branch,
+         realhub_branch    = case_when(
+            use_db == 1 ~ curr_realhub_branch,
+            use_db == 2 ~ lastdisp_realbranch,
+            TRUE ~ prev_realhub_branch
          ),
-         latest_ffupdate   = if_else(
-            condition = use_db == 1,
-            true      = curr_ffup,
-            false     = prev_ffup,
+         latest_ffupdate   = case_when(
+            use_db == 1 ~ curr_ffup,
+            use_db == 2 ~ lastdisp_ffup,
+            TRUE ~ prev_ffup
          ),
-         latest_nextpickup = if_else(
-            condition = use_db == 1,
-            true      = curr_pickup,
-            false     = prev_pickup,
+         latest_nextpickup = case_when(
+            use_db == 1 ~ curr_pickup,
+            use_db == 2 ~ lastdisp_pickup,
+            TRUE ~ prev_pickup
          ),
-         latest_regimen    = if_else(
-            condition = use_db == 1,
-            true      = curr_regimen,
-            false     = prev_regimen,
-         ),
-         art_reg           = if_else(
-            condition = use_db == 1,
-            true      = curr_artreg,
-            false     = prev_artreg,
-         ),
-         line              = if_else(
-            condition = use_db == 1,
-            true      = curr_line,
-            false     = prev_line,
+         latest_regimen    = case_when(
+            use_db == 1 ~ curr_regimen,
+            use_db == 2 ~ lastdisp_regimen,
+            TRUE ~ prev_regimen
          ),
          curr_outcome      = case_when(
             prev_outcome == "dead" ~ "dead",
@@ -208,15 +198,17 @@ finalize_faci <- function(data) {
          previous_ffupdate   = prev_ffup,
          previous_nextpickup = prev_pickup,
          previous_regimen    = prev_regimen,
-         art_reg,
-         line,
          newonart,
          onart
       ) %>%
       distinct_all() %>%
       arrange(art_id, desc(latest_nextpickup)) %>%
       distinct(art_id, .keep_all = TRUE) %>%
-      mutate(central_id = CENTRAL_ID)
+      mutate(central_id = CENTRAL_ID) %>%
+      mutate_at(
+         .vars = vars(ends_with("_ffupdate"), ends_with("_nextpickup")),
+         ~as.Date(.)
+      )
 
    return(data)
 }
@@ -365,7 +357,6 @@ reg_disagg <- function(data, regimen_col, reg_disagg_col, reg_line_col) {
 get_reg_disagg <- function(data, col) {
    data %<>%
       # retag regimen
-      select(-art_reg, -line) %>%
       mutate(
          arv_reg = stri_trans_tolower(!!as.name(col)),
          azt1    = if_else(stri_detect_fixed(arv_reg, "azt"), "azt", NA_character_),
@@ -453,6 +444,11 @@ get_reg_order <- function(data, col) {
 
    arvs <- data %>%
       select(art_id, arv_reg = !!regimen_col) %>%
+      separate_longer_delim(
+         cols  = arv_reg,
+         delim = "+"
+      ) %>%
+      distinct(art_id, arv_reg) %>%
       mutate(
          arv_order = case_when(
             arv_reg == "TDF/3TC/EFV" ~ 1,
@@ -462,10 +458,10 @@ get_reg_order <- function(data, col) {
             arv_reg == "TDF/3TC" ~ 5,
             arv_reg == "TDF/FTC" ~ 6,
             arv_reg == "3TC/d4T" ~ 7,
-            arv_reg == "AZT" ~ 8,
-            arv_reg == "AZTsyr" ~ 9,
-            arv_reg == "TDF" ~ 10,
-            arv_reg == "TDFsyr" ~ 11,
+            arv_reg == "TDF" ~ 8,
+            arv_reg == "TDFsyr" ~ 9,
+            arv_reg == "AZT" ~ 10,
+            arv_reg == "AZTsyr" ~ 11,
             arv_reg == "3TC" ~ 12,
             arv_reg == "3TCsyr" ~ 13,
             arv_reg == "FTC" ~ 14,
@@ -485,9 +481,10 @@ get_reg_order <- function(data, col) {
             TRUE ~ 9999
          )
       ) %>%
+      filter(arv_reg != "NA") %>%
       arrange(arv_order) %>%
       group_by(art_id) %>%
-      summarise(latest_regimen = stri_c(arv_reg, collapse = "+")) %>%
+      summarise(!!regimen_col := stri_c(arv_reg, collapse = "+")) %>%
       ungroup()
 
    data %<>%
@@ -594,8 +591,9 @@ get_checks <- function(data) {
       data <- read_rds(file.path(wd, "outcome.converted.RDS"))
       data <- finalize_outcomes(data) %>%
          finalize_faci() %>%
-         get_reg_disagg("latest_regimen") %>%
-         get_reg_order("latest_regimen")
+         get_reg_order("latest_regimen") %>%
+         get_reg_order("previous_regimen") %>%
+         get_reg_disagg("latest_regimen")
 
       data <- reg_disagg(data, "latest_regimen", "regimen", "reg_line")
       data <- reg_disagg(data, "latest_regimen", "latest_regdisagg", "latest_regline")

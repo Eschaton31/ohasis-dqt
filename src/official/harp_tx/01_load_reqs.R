@@ -45,7 +45,7 @@ update_first_last_art <- function() {
       db_name <- "ohasis_warehouse"
 
       # download the data
-      for (scope in c("art_first", "art_last")) {
+      for (scope in c("art_first", "art_last", "art_lastdisp")) {
          name <- case_when(
             scope == "art_first" ~ "ART Start Dates",
             scope == "art_last" ~ "ART Latest Visits",
@@ -54,16 +54,18 @@ update_first_last_art <- function() {
          log_info("Processing {green(name)}.")
 
          # update lake
-         table_space <- Id(schema = db_name, table = scope)
+         table_space  <- Id(schema = db_name, table = scope)
+         table_schema <- dbplyr::in_schema(db_name, scope)
          if (dbExistsTable(lw_conn, table_space))
-            dbxDelete(lw_conn, table_space, batch_size = 1000)
+            dbRemoveTable(lw_conn, table_space)
 
          dbExecute(
             lw_conn,
-            glue(r"(INSERT INTO {db_name}.{scope}
-         )", read_file(file.path(nhsss$harp_tx$wd, glue("{scope}.sql")))),
+            glue(r"(CREATE TABLE {db_name}.{scope} AS )",
+                 read_file(file.path(nhsss$harp_tx$wd, glue("{scope}.sql")))),
             params = as.character(ohasis$next_date)
          )
+         # db_create_index(lw_conn, table_schema, "CENTRAL_ID")
       }
       log_success("Done!")
       dbDisconnect(lw_conn)
@@ -180,7 +182,7 @@ download_tables <- function() {
             left_join(forms$form_art_bc)
 
          log_info("Downloading {green('Latest ART Dispensing')}.")
-         forms$art_last <- lw_conn %>%
+         forms$art_lastdisp <- lw_conn %>%
             dbTable(
                "ohasis_warehouse",
                "art_lastdisp",
