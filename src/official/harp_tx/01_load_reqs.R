@@ -7,7 +7,7 @@ download_corrections <- function() {
       default = "2"
    )
    if (check == "1") {
-      .log_info("Downloading corrections list.")
+      log_info("Downloading corrections list.")
       nhsss <- gdrive_correct2(nhsss, ohasis$ym, "harp_tx")
    }
 }
@@ -20,7 +20,7 @@ update_warehouse <- function() {
       default = "2"
    )
    if (check == "1") {
-      .log_info("Updating data lake and data warehouse.")
+      log_info("Updating data lake and data warehouse.")
       local(envir = nhsss$harp_tx, invisible({
          tables           <- list()
          tables$warehouse <- c("form_art_bc", "id_registry")
@@ -49,8 +49,9 @@ update_first_last_art <- function() {
          name <- case_when(
             scope == "art_first" ~ "ART Start Dates",
             scope == "art_last" ~ "ART Latest Visits",
+            scope == "art_lastdisp" ~ "ART Latest Dispense",
          )
-         .log_info("Processing {green(name)}.")
+         log_info("Processing {green(name)}.")
 
          # update lake
          table_space <- Id(schema = db_name, table = scope)
@@ -64,7 +65,7 @@ update_first_last_art <- function() {
             params = as.character(ohasis$next_date)
          )
       }
-      .log_success("Done!")
+      log_success("Done!")
       dbDisconnect(lw_conn)
       rm(db_name, lw_conn, table_space, name, scope)
    }
@@ -89,7 +90,7 @@ download_tables <- function() {
          min <- as.character(min)
          max <- as.character(max)
 
-         .log_info("Downloading {green('Central IDs')}.")
+         log_info("Downloading {green('Central IDs')}.")
          forms$id_registry <- dbTable(
             lw_conn,
             "ohasis_warehouse",
@@ -102,7 +103,7 @@ download_tables <- function() {
             raw_where = TRUE
          )
 
-         .log_info("Downloading {green('ART Visits w/in the scope')}.")
+         log_info("Downloading {green('ART Visits w/in the scope')}.")
          forms$form_art_bc <- dbTable(
             lw_conn,
             "ohasis_warehouse",
@@ -160,7 +161,7 @@ download_tables <- function() {
             raw_where = TRUE
          )
 
-         .log_info("Downloading {green('Earliest ART Visits')}.")
+         log_info("Downloading {green('Earliest ART Visits')}.")
          forms$art_first <- lw_conn %>%
             dbTable(
                "ohasis_warehouse",
@@ -169,7 +170,7 @@ download_tables <- function() {
             ) %>%
             left_join(forms$form_art_bc)
 
-         .log_info("Downloading {green('Latest ART Visits')}.")
+         log_info("Downloading {green('Latest ART Visits')}.")
          forms$art_last <- lw_conn %>%
             dbTable(
                "ohasis_warehouse",
@@ -178,7 +179,16 @@ download_tables <- function() {
             ) %>%
             left_join(forms$form_art_bc)
 
-         .log_info("Downloading {green('ARVs Disepensed w/in the scope')}.")
+         log_info("Downloading {green('Latest ART Dispensing')}.")
+         forms$art_last <- lw_conn %>%
+            dbTable(
+               "ohasis_warehouse",
+               "art_lastdisp",
+               cols = c("CENTRAL_ID", "REC_ID")
+            ) %>%
+            left_join(forms$form_art_bc)
+
+         log_info("Downloading {green('ARVs Disepensed w/in the scope')}.")
          forms$disp_meds <- dbTable(
             lw_conn,
             "ohasis_lake",
@@ -187,7 +197,7 @@ download_tables <- function() {
             raw_where = TRUE
          )
 
-         .log_info("Downloading {green('CD4 Data')}.")
+         log_info("Downloading {green('CD4 Data')}.")
          forms$lab_cd4 <- dbTable(
             lw_conn,
             "ohasis_lake",
@@ -212,7 +222,7 @@ download_tables <- function() {
             ) %>%
             relocate(CENTRAL_ID, .before = 1)
 
-         .log_success("Done.")
+         log_success("Done.")
          dbDisconnect(lw_conn)
          rm(min, max, lw_conn)
       })
@@ -228,7 +238,7 @@ update_dataset <- function() {
       default = "2"
    )
    if (check == "1") {
-      .log_info("Getting previous datasets.")
+      log_info("Getting previous datasets.")
       local(envir = nhsss$harp_tx, {
          official         <- list()
          official$old_reg <- ohasis$load_old_dta(
@@ -252,7 +262,7 @@ update_dataset <- function() {
 
          # clean if any for cleaning found
          if (!is.null(corr$old_outcome)) {
-            .log_info("Performing cleaning on the outcome dataset.")
+            log_info("Performing cleaning on the outcome dataset.")
             official$old_outcome <- .cleaning_list(official$old_outcome, corr$old_outcome, "ART_ID", "integer")
          }
       })
