@@ -204,6 +204,7 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, params) {
             mutate(hub = toupper(hub)) %>%
             select(
                art_id,
+               prev_rec            = REC_ID,
                prev_class          = class,
                prev_outcome        = outcome,
                prev_ffup           = latest_ffupdate,
@@ -234,6 +235,7 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, params) {
          y  = last_disp %>%
             select(
                CENTRAL_ID,
+               LASTDISP_REC           = REC_ID,
                LASTDISP_HUB           = ART_FACI_CODE,
                LASTDISP_BRANCH        = ART_BRANCH,
                LASTDISP_ACTUAL_HUB    = ACTUAL_FACI_CODE,
@@ -455,6 +457,7 @@ final_conversion <- function(data) {
          artstart_date,
          oh_artstart_rec     = EARLIEST_REC,
          oh_artstart         = EARLIEST_VISIT,
+         prev_rec,
          prev_hub,
          prev_branch,
          prev_sathub,
@@ -480,6 +483,7 @@ final_conversion <- function(data) {
          curr_ffup           = LATEST_VISIT,
          curr_pickup         = LATEST_NEXT_DATE,
          curr_regimen        = MEDICINE_SUMMARY,
+         lastdisp_rec        = LASTDISP_REC,
          lastdisp_hub        = LASTDISP_HUB,
          lastdisp_branch     = LASTDISP_BRANCH,
          lastdisp_realhub    = LASTDISP_ACTUAL_HUB,
