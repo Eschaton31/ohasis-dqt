@@ -124,7 +124,7 @@ download_tables <- function() {
             dbTable(
                "ohasis_warehouse",
                "art_first",
-               cols = c("CENTRAL_ID", "REC_ID")
+               cols = c("CENTRAL_ID", "REC_ID", "VISIT_DATE")
             ) %>%
             left_join(forms$form_art_bc)
 
@@ -133,7 +133,7 @@ download_tables <- function() {
             dbTable(
                "ohasis_warehouse",
                "art_last",
-               cols = c("CENTRAL_ID", "REC_ID")
+               cols = c("CENTRAL_ID", "REC_ID", "VISIT_DATE")
             ) %>%
             left_join(forms$form_art_bc)
 
@@ -142,7 +142,7 @@ download_tables <- function() {
             dbTable(
                "ohasis_warehouse",
                "art_lastdisp",
-               cols = c("CENTRAL_ID", "REC_ID")
+               cols = c("CENTRAL_ID", "REC_ID", "VISIT_DATE")
             ) %>%
             left_join(forms$form_art_bc)
 
