@@ -454,9 +454,9 @@ get_reg_order <- function(data, col) {
             arv_reg == "TDF/3TC/EFV" ~ 1,
             arv_reg == "TDF/3TC/DTG" ~ 2,
             arv_reg == "AZT/3TC/NVP" ~ 3,
-            arv_reg == "AZT/3TC" ~ 4,
-            arv_reg == "TDF/3TC" ~ 5,
-            arv_reg == "TDF/FTC" ~ 6,
+            arv_reg == "TDF/3TC" ~ 4,
+            arv_reg == "TDF/FTC" ~ 5,
+            arv_reg == "AZT/3TC" ~ 6,
             arv_reg == "3TC/d4T" ~ 7,
             arv_reg == "TDF" ~ 8,
             arv_reg == "TDFsyr" ~ 9,
@@ -496,6 +496,67 @@ get_reg_order <- function(data, col) {
 
    return(data)
 }
+
+##  Attach additional data from forms ------------------------------------------
+
+get_form_data <- function(data, forms) {
+   data %<>%
+      select(
+         -any_of(c(
+            "tb_status",
+            "oi_syph",
+            "oi_hepb",
+            "oi_hepc",
+            "oi_pcp",
+            "oi_cmv",
+            "oi_orocand",
+            "oi_herpes",
+            "oi_other",
+            "who_staging"
+         ))
+      ) %>%
+      left_join(
+         y  = forms %>%
+            select(
+               REC_ID,
+               who_staging = WHO_CLASS,
+               tb_status   = TB_STATUS,
+               oi_syph     = OI_SYPH_PRESENT,
+               oi_hepb     = OI_HEPB_PRESENT,
+               oi_hepc     = OI_HEPC_PRESENT,
+               oi_pcp      = OI_PCP_PRESENT,
+               oi_cmv      = OI_CMV_PRESENT,
+               oi_orocand  = OI_OROCAND_PRESENT,
+               oi_herpes   = OI_HERPES_PRESENT,
+               oi_other    = OI_OTHER_TEXT
+            ),
+         by = join_by(REC_ID)
+      ) %>%
+      mutate_at(
+         .vars = vars(
+            oi_syph,
+            oi_hepb,
+            oi_hepc,
+            oi_pcp,
+            oi_cmv,
+            oi_orocand,
+            oi_herpes
+         ),
+         ~as.integer(keep_code(.))
+      ) %>%
+      mutate(
+         tb_status   = remove_code(tolower(tb_status)),
+         who_staging = case_when(
+            who_staging %in% c("1_I", "I") ~ 1,
+            who_staging %in% c("2_II", "II") ~ 2,
+            who_staging %in% c("3_III", "III") ~ 3,
+            who_staging %in% c("4_IV", "IV") ~ 4,
+         )
+      )
+
+   return(data)
+}
+
 
 ##  Flag data for validation ---------------------------------------------------
 
@@ -598,6 +659,8 @@ get_checks <- function(data) {
       data <- reg_disagg(data, "latest_regimen", "regimen", "reg_line")
       data <- reg_disagg(data, "latest_regimen", "latest_regdisagg", "latest_regline")
       data <- reg_disagg(data, "previous_regimen", "previous_regdisagg", "previous_regline")
+
+      data <- get_form_data(data, .GlobalEnv$nhsss$harp_tx$forms$form_art_bc)
 
       .GlobalEnv$nhsss$harp_tx$official$new_outcome <- data
 
