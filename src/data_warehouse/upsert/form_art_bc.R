@@ -569,7 +569,40 @@ if ((object %>% count() %>% collect())$n > 0) {
                   collect(),
                by = "MEDICINE"
             ) %>%
-            arrange(REC_ID, DISP_NUM) %>%
+            mutate(
+               arv_order = case_when(
+                  SHORT == "TDF/3TC/EFV" ~ 1,
+                  SHORT == "TDF/3TC/DTG" ~ 2,
+                  SHORT == "AZT/3TC/NVP" ~ 3,
+                  SHORT == "TDF/3TC" ~ 4,
+                  SHORT == "TDF/FTC" ~ 5,
+                  SHORT == "AZT/3TC" ~ 6,
+                  SHORT == "3TC/d4T" ~ 7,
+                  SHORT == "TDF" ~ 8,
+                  SHORT == "TDFsyr" ~ 9,
+                  SHORT == "AZT" ~ 10,
+                  SHORT == "AZTsyr" ~ 11,
+                  SHORT == "3TC" ~ 12,
+                  SHORT == "3TCsyr" ~ 13,
+                  SHORT == "FTC" ~ 14,
+                  SHORT == "EFV" ~ 15,
+                  SHORT == "EFVsyr" ~ 16,
+                  SHORT == "DTG" ~ 17,
+                  SHORT == "NVP" ~ 18,
+                  SHORT == "NVPsyr" ~ 19,
+                  SHORT == "LPV/r" ~ 20,
+                  SHORT == "LPV/rsyr" ~ 21,
+                  SHORT == "IND" ~ 22,
+                  SHORT == "RAL" ~ 23,
+                  SHORT == "ABC" ~ 24,
+                  SHORT == "ABCsyr" ~ 25,
+                  SHORT == "RIL" ~ 26,
+                  SHORT == "TAF" ~ 27,
+                  TRUE ~ 9999
+               )
+            ) %>%
+            filter(!is.na(SHORT)) %>%
+            arrange(REC_ID, arv_order) %>%
             group_by(REC_ID, REC_ID_GRP) %>%
             summarise(
                FACI_DISP        = first(FACI_ID),
