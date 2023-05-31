@@ -182,6 +182,7 @@ local(envir = vlml, {
                . == "SACCL CODE" ~ "confirmatory_code",
                . == "SACCL Code" ~ "confirmatory_code",
                . == "Full Name" ~ "name",
+               . == "Full name" ~ "name",
                . == "Full.Name" ~ "name",
                . == "UIC" ~ "uic",
                . == "Sex" ~ "sex",
@@ -206,6 +207,8 @@ local(envir = vlml, {
                . == "If.baseline.viral.load.test..put.Y" ~ "baseline_vl",
                . == "Remarks" ~ "remarks",
                . == "REMARKS" ~ "remarks",
+               . == "Birth date" ~ "birthdate",
+               . == "Birth Date" ~ "birthdate",
                TRUE ~ .
             )
          )
@@ -274,7 +277,7 @@ local(envir = vlml, {
       ) %>%
       relocate(hub, px_code, confirmatory_code, name, uic, .before = 1)
 
-   for (var in c("latest_ffupdate", "artstart_date", "vl_date_2")) {
+   for (var in c("latest_ffupdate", "artstart_date", "vl_date_2", "birthdate")) {
       conso %<>%
          mutate(
             date_num = as.numeric(!!as.name(var))
@@ -305,6 +308,9 @@ local(envir = vlml, {
       .log_warn("Records w/ unconverted dates still exist.")
       check$date_format <- filter(conso, is.na(vl_date_2), !is.na(vl_date))
    }
+
+   if ("birthdate" %in% names(conso))
+      conso %<>% mutate(birthdate = as.character(birthdate))
 
    for (i in seq_len(length(px_id))) {
       merge_ids <- names(px_id[[i]])
@@ -360,6 +366,9 @@ local(envir = vlml, {
             stri_replace_all_regex("COPIES/ML \\(SHIFTED\\)$", "") %>%
             stri_replace_all_regex("COPIES$", "") %>%
             stri_replace_all_regex("COIES/ML$", "") %>%
+            stri_replace_all_regex("COPES/ML$", "") %>%
+            stri_replace_all_regex("COPIEZ/ML$", "") %>%
+            stri_replace_all_regex("COPPIES/ML$", "") %>%
             stri_replace_all_regex("CP/ML$", "") %>%
             stri_replace_all_regex("C/ML$", "") %>%
             stri_replace_all_regex("C/ML`$", "") %>%
@@ -378,29 +387,44 @@ local(envir = vlml, {
       ) %>%
       mutate(
          drop                    = case_when(
-            grepl("^ERROR", vl_result_nomeasure) ~ 1,
+            grepl("ERROR", vl_result_nomeasure) ~ 1,
+            grepl("^INVALID", vl_result_nomeasure) ~ 1,
+            grepl("^INALID", vl_result_nomeasure) ~ 1,
+            grepl("^INCOMPLETE", vl_result_nomeasure) ~ 1,
+            grepl("^REJECT", vl_result_nomeasure) ~ 1,
+            grepl("^ABORTED", vl_result_nomeasure) ~ 1,
+            grepl("^DEFECTIVE", vl_result_nomeasure) ~ 1,
+            grepl("^HEMOLYZED", vl_result_nomeasure) ~ 1,
+            grepl("^QNS", vl_result_nomeasure) ~ 1,
+            grepl("^SALANO", vl_result_nomeasure) ~ 1,
             vl_result_nomeasure == "AWAITING RESULT" ~ 1,
             vl_result_nomeasure == "N/A" ~ 1,
             vl_result_nomeasure == "INVALID" ~ 1,
             vl_result_nomeasure == "DETECTED" ~ 1,
+            vl_result_nomeasure == "-" ~ 1,
+            vl_result_nomeasure == "B" ~ 1,
             TRUE ~ 0
          ),
-         vl_result_eo_num        = if_else(
-            stri_detect_regex(vl_result_nomeasure, "[:digit:]E"),
-            substr(vl_result_nomeasure, 1, stri_locate_first_regex(vl_result_nomeasure, "[:digit:]E") - 1),
-            NA_character_
+         vl_result_eo_num        = case_when(
+            stri_detect_regex(vl_result_nomeasure, "[:digit:]E") ~ substr(vl_result_nomeasure, 1, stri_locate_first_regex(vl_result_nomeasure, "[:digit:]E") - 1),
+            str_detect(vl_result_nomeasure, " X 10") ~ str_extract(vl_result_nomeasure, "(.*) X 10.*", 1),
+            str_detect(vl_result_nomeasure, "X10") ~ str_extract(vl_result_nomeasure, "(.*)X10", 1),
+            TRUE ~ NA_character_
          ),
-         vl_result_eo_multiplier = if_else(
-            stri_detect_regex(vl_result_nomeasure, "[:digit:]E"),
-            substr(vl_result_nomeasure, stri_locate_first_regex(vl_result_nomeasure, "[:digit:]E") + 2, nchar(vl_result_nomeasure)),
-            NA_character_
+         vl_result_eo_multiplier = case_when(
+            stri_detect_regex(vl_result_nomeasure, "[:digit:]E") ~ substr(vl_result_nomeasure, stri_locate_first_regex(vl_result_nomeasure, "[:digit:]E") + 2, nchar(vl_result_nomeasure)),
+            str_detect(vl_result_nomeasure, " X 10") ~ str_extract(vl_result_nomeasure, " X 10(.*)", 1),
+            str_detect(vl_result_nomeasure, "X10") ~ str_extract(vl_result_nomeasure, "X10(.*)", 1),
+            TRUE ~ NA_character_
          ),
+         vl_result_eo_multiplier = str_replace(vl_result_eo_multiplier, "^\\^", ""),
          vl_result_eo_final      = as.numeric(vl_result_eo_num) * (10^as.numeric(vl_result_eo_multiplier)),
          vl_result_2             = case_when(
             !grepl("[^[:digit:]]", gsub(" ", "", vl_result_nomeasure)) ~ gsub(" ", "", vl_result_nomeasure),
             !grepl("[^[:digit:]]", gsub(" *, *", "", vl_result_nomeasure)) ~ gsub(" *, *", "", vl_result_nomeasure),
-            !is.na(vl_result_eo_num) & !is.na(vl_result_eo_multiplier) ~ as.character(vl_result_eo_final),
             grepl("LESS THAN 40", vl_result_nomeasure) ~ "39",
+            grepl("< 20", vl_result_nomeasure) ~ "19",
+            grepl("< 34", vl_result_nomeasure) ~ "33",
             grepl("< 40", vl_result_nomeasure) ~ "39",
             grepl("< 47", vl_result_nomeasure) ~ "46",
             grepl("< 800", vl_result_nomeasure) ~ "799",
@@ -416,6 +440,7 @@ local(envir = vlml, {
             grepl("\\b<49", vl_result_nomeasure) | grepl("<49\\b", vl_result_nomeasure) ~ "48",
             grepl("\\b<52", vl_result_nomeasure) | grepl("<52\\b", vl_result_nomeasure) ~ "51",
             grepl("\\b<800", vl_result_nomeasure) | grepl("<800\\b", vl_result_nomeasure) ~ "799",
+            !is.na(vl_result_eo_num) & !is.na(vl_result_eo_multiplier) ~ as.character(vl_result_eo_final),
             vl_result_nomeasure == "LESS THAN 40" ~ "39",
             vl_result_nomeasure == "HIV1 RNA NOT DETECTED" ~ "0",
             vl_result_nomeasure == "NOT DETECTED" ~ "0",
@@ -429,6 +454,7 @@ local(envir = vlml, {
             vl_result_nomeasure == "HIV1-NOT DETECTED" ~ "0",
             vl_result_nomeasure == "HIV1NOT DETECTED" ~ "0",
             vl_result_nomeasure == "HIVNOT DETECTED" ~ "0",
+            vl_result_nomeasure == "NOT DTETCTED" ~ "0",
             vl_result_nomeasure == "HIV1, NOT DETECTED" ~ "0",
             vl_result_nomeasure == "HIV UNDETECTED" ~ "0",
             vl_result_nomeasure == "HIV ILUNDETECTED" ~ "0",
