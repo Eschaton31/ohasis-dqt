@@ -1,9 +1,20 @@
 ##  Append w/ old Registry -----------------------------------------------------
 
 finalize_outcomes <- function(data) {
+   ref_artmax <- stri_c(sep = "-", ohasis$yr, ohasis$mo, "01") %>%
+      as.Date() %>%
+      ceiling_date(unit = "month") %m-%
+      days(1) %>%
+      as.character()
+
    data <- data %>%
       arrange(art_id) %>%
       mutate(
+         REC_ID = case_when(
+            use_db == 1 ~ REC_ID,
+            use_db == 2 ~ lastdisp_rec,
+            TRUE ~ prev_rec
+         ),
          hub               = case_when(
             use_db == 1 ~ curr_hub,
             use_db == 2 ~ lastdisp_hub,
@@ -60,18 +71,22 @@ finalize_outcomes <- function(data) {
             false     = 0,
             missing   = 0
          ),
-         onart             = if_else(
-            condition = curr_outcome == "alive on arv",
-            true      = 1,
-            false     = 0,
-            missing   = 0
-         ),
          curr_class        = if_else(
             condition = is.na(curr_class),
             true      = prev_class,
             false     = curr_class
          ),
+      ) %>%
+      mutate(
+         outcome = hiv_tx_outcome(prev_outcome, latest_nextpickup, ref_artmax, 30),
+         onart   = if_else(
+            condition = outcome == "alive on arv",
+            true      = 1,
+            false     = 0,
+            missing   = 0
+         ),
       )
+
    return(data)
 }
 
@@ -191,7 +206,7 @@ finalize_faci <- function(data) {
          real_munc,
          artstart_date,
          class               = curr_class,
-         outcome             = curr_outcome,
+         outcome,
          latest_ffupdate,
          latest_nextpickup,
          latest_regimen,
@@ -529,7 +544,8 @@ get_form_data <- function(data, forms) {
                oi_orocand  = OI_OROCAND_PRESENT,
                oi_herpes   = OI_HERPES_PRESENT,
                oi_other    = OI_OTHER_TEXT
-            ),
+            ) %>%
+            distinct_all(),
          by = join_by(REC_ID)
       ) %>%
       mutate_at(

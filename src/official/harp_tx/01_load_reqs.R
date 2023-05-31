@@ -112,6 +112,7 @@ download_tables <- function() {
             "form_art_bc",
             cols      = c(
                "REC_ID",
+               "REC_ID_GRP",
                "CREATED_AT",
                "PATIENT_ID",
                "FORM_VERSION",

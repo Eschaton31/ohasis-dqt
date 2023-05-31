@@ -70,7 +70,7 @@ remove_drops <- function(data) {
 ##  Merge w/ Dx Registry -------------------------------------------------------
 
 merge_dx <- function(data) {
-   dx <- ohasis$get_data("harp_dx", ohasis$yr, ohasis$mo) %>%
+   dx <- hs_data("harp_dx", "reg", ohasis$yr, ohasis$mo) %>%
       read_dta(
          col_select = c(
             PATIENT_ID,
