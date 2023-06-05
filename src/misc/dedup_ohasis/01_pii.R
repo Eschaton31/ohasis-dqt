@@ -58,32 +58,34 @@ dedup_download <- function() {
    )
    if (download == "1") {
       .log_info("Downloading {green('pii')}.")
-      new_data  <- dbTable(
+      new_data <- tracked_select(
          lw_conn,
-         "ohasis_lake",
-         "px_pii",
-         cols      = c(
-            "REC_ID",
-            "PATIENT_ID",
-            "FIRST",
-            "MIDDLE",
-            "LAST",
-            "UIC",
-            "CONFIRMATORY_CODE",
-            "PATIENT_CODE",
-            "BIRTHDATE",
-            "PHILSYS_ID",
-            "PHILHEALTH_NO",
-            "SEX",
-            "DELETED_AT",
-            "SNAPSHOT"
-         ),
-         where     = glue("
-      px_pii.DELETED_AT IS NULL
-         AND (SNAPSHOT BETWEEN '{min}' AND '{max}')
-      "),
-         raw_where = TRUE
+         r"(
+SELECT pii.REC_ID,
+       COALESCE(serv.SERVICE_FACI, pii.FACI_ID)         AS FACI_ID,
+       COALESCE(serv.SERVICE_SUB_FACI, pii.SUB_FACI_ID) AS SUB_FACI_ID,
+       pii.PATIENT_ID,
+       pii.FIRST,
+       pii.MIDDLE,
+       pii.LAST,
+       pii.UIC,
+       pii.CONFIRMATORY_CODE,
+       pii.PATIENT_CODE,
+       pii.BIRTHDATE,
+       pii.PHILSYS_ID,
+       pii.PHILHEALTH_NO,
+       pii.SEX,
+       pii.DELETED_AT,
+       pii.SNAPSHOT
+FROM ohasis_lake.px_pii AS pii
+         LEFT JOIN ohasis_lake.px_faci_info AS serv ON pii.REC_ID = serv.REC_ID
+WHERE pii.DELETED_AT IS NULL
+  AND (pii.SNAPSHOT BETWEEN ? AND ?)
+      )",
+         "PII Data",
+         list(min, max)
       )
+
       # finalize data
       dedup$pii <- dedup$pii %>%
          # remove old version of record
