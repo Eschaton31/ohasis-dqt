@@ -4,21 +4,26 @@ download_data <- function(path_to_sql) {
    lw_conn <- ohasis$conn("lw")
 
    # read queries
-   sql           <- list()
-   sql$form_a    <- read_file(file.path(path_to_sql, "form_a.sql"))
-   sql$form_hts  <- read_file(file.path(path_to_sql, "form_hts.sql"))
-   sql$form_cfbs <- read_file(file.path(path_to_sql, "form_cfbs.sql"))
+   sql              <- list()
+   sql$form_a       <- read_file(file.path(path_to_sql, "form_a.sql"))
+   sql$form_hts     <- read_file(file.path(path_to_sql, "form_hts.sql"))
+   sql$form_cfbs    <- read_file(file.path(path_to_sql, "form_cfbs.sql"))
+   sql$px_confirmed <- read_file(file.path(path_to_sql, "px_confirmed.sql"))
 
    # read data
-   data           <- list()
-   data$form_a    <- tracked_select(lw_conn, sql$form_a, "New Form A")
-   data$form_hts  <- tracked_select(lw_conn, sql$form_hts, "New HTS Form")
-   data$form_cfbs <- tracked_select(lw_conn, sql$form_cfbs, "New CFBS Form")
+   data              <- list()
+   data$form_a       <- tracked_select(lw_conn, sql$form_a, "New Form A")
+   data$form_hts     <- tracked_select(lw_conn, sql$form_hts, "New HTS Form")
+   data$form_cfbs    <- tracked_select(lw_conn, sql$form_cfbs, "New CFBS Form")
+   data$px_confirmed <- tracked_select(lw_conn, sql$px_confirmed, "New Confirmed w/ no Form")
 
    dbDisconnect(lw_conn)
 
    # standardize hts form
-   hts_data <- process_hts(data$form_hts, data$form_a, data$form_cfbs)
+   hts_data <- process_hts(data$form_hts, data$form_a, data$form_cfbs) %>%
+      bind_rows(data$px_confirmed %>% mutate(SNAPSHOT = as.POSIXct(SNAPSHOT))) %>%
+      distinct(REC_ID, .keep_all = TRUE)
+
    return(hts_data)
 }
 
