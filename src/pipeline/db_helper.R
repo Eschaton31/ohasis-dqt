@@ -451,6 +451,33 @@ oh_px_id <- function(db_conn = NULL, faci_id = NULL) {
    return(patient_id)
 }
 
+# ohasis rec_id
+oh_rec_id <- function(db_conn = NULL, user_id = NULL) {
+   letter <- substr(stri_rand_shuffle(paste(collapse = "", LETTERS[seq_len(130)])), 1, 1)
+   number <- substr(stri_rand_shuffle(strrep("0123456789", 5)), 1, 2)
+
+   randomized <- stri_rand_shuffle(paste0(letter, number))
+   record_id  <- paste0(format(Sys.time(), "%Y%m%d%H%M"), randomized, user_id)
+
+   rid_query <- dbSendQuery(db_conn, glue("SELECT REC_ID FROM `ohasis_interim`.`px_record` WHERE REC_ID = '{record_id}'"))
+   rid_count <- dbFetch(rid_query)
+   dbClearResult(rid_query)
+
+   while (nrow(rid_count) > 0) {
+      letter <- substr(stri_rand_shuffle(strrep(LETTERS, 5)), 1, 1)
+      number <- substr(stri_rand_shuffle(strrep("0123456789", 5)), 1, 3)
+
+      randomized <- stri_rand_shuffle(paste0(letter, number))
+      record_id  <- paste0(format(Sys.time(), "%Y%m%d%H%M"), randomized, user_id)
+
+      rid_query <- dbSendQuery(db_conn, glue("SELECT PATIENT_ID FROM `ohasis_interim`.`px_record` WHERE REC_ID = '{patient_id}'"))
+      rid_count <- dbFetch(rid_query)
+      dbClearResult(rid_query)
+   }
+
+   return(record_id)
+}
+
 dup_faci_id <- function(keep_faci, drop_faci, reason = NA_character_) {
    # get dupes
    dupes <- ohasis$ref_faci %>%
