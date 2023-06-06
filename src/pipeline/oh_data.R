@@ -149,3 +149,40 @@ null_dates <- function(date, type = "POSIXct") {
 
    return(new_date)
 }
+
+fullname_to_components <- function(data, name_col) {
+   data %<>%
+      mutate(
+         MUTATE_NAME = toupper(str_squish({{name_col}})),
+         MUTATE_NAME = str_replace(MUTATE_NAME, " ,", ","),
+         MUTATE_NAME = str_replace(MUTATE_NAME, "\\s(?=[^,]+,)", "|_"),
+         MUTATE_NAME = str_replace(MUTATE_NAME, "(?:\\(.*)", ""),
+      ) %>%
+      # extract name components
+      mutate(
+         NAME_1 = str_extract(MUTATE_NAME, "([^ ]+) (.*)", 1),
+         NAME_2 = str_extract(MUTATE_NAME, "([^ ]+) (.*)", 2),
+      ) %>%
+      mutate_at(
+         .vars = vars(NAME_1, NAME_2),
+         ~str_squish(str_replace(., "\\|_", " "))
+      ) %>%
+      mutate(
+         .after     = NAME_2,
+         LastName   = if_else(str_detect(NAME_1, ",$"), NAME_1, NAME_2, NAME_2),
+         FirstName  = if_else(str_detect(NAME_1, ",$"), NAME_2, NAME_1, NAME_1),
+         MiddleName = if_else(str_detect(FirstName, "\\.$"), str_extract(FirstName, " ([:alnum:]*\\.)$"), NA_character_)
+      ) %>%
+      mutate(
+         LastName   = str_replace(LastName, ",$", ""),
+         FirstName  = if_else(!is.na(MiddleName), stri_replace_all_fixed(FirstName, MiddleName, ""), FirstName, FirstName),
+         MiddleName = str_squish(MiddleName)
+      ) %>%
+      select(
+         -NAME_1,
+         -NAME_2,
+         -MUTATE_NAME,
+      )
+
+   return(data)
+}
