@@ -139,14 +139,15 @@ rt$rt_initial <- function(forms) {
          HTS_PROVIDER_TYPE_OTHER = PROVIDER_TYPE_OTHER,
       ) %>%
       process_vl("RT_VL_RESULT", "RT_VL_RESULT_CLEAN") %>%
+      relocate(RT_VL_RESULT_CLEAN, .after = RT_VL_RESULT) %>%
       mutate(
          RITA_RESULT = case_when(
             RT_VL_RESULT_CLEAN >= 1000 ~ "1_Recent",
             RT_VL_RESULT_CLEAN < 1000 ~ "2_Long-term",
          ),
-         RT_FACI            = coalesce(SPECIMEN_SOURCE, SERVICE_FACI, CONFIRM_FACI),
-         RT_SUB_FACI        = coalesce(SPECIMEN_SUB_SOURCE, SERVICE_SUB_FACI, CONFIRM_SUB_FACI),
-         .after             = RT_VL_RESULT,
+         RT_FACI     = coalesce(SPECIMEN_SOURCE, SERVICE_FACI, CONFIRM_FACI),
+         RT_SUB_FACI = coalesce(SPECIMEN_SUB_SOURCE, SERVICE_SUB_FACI, CONFIRM_SUB_FACI),
+         .after      = RT_VL_RESULT,
       ) %>%
       select(
          -any_of(
@@ -310,7 +311,8 @@ rt$data$final   <- rt$data$initial %>%
    ) %>%
    ohasis$get_faci(
       list(RT_LAB = c("RT_FACI", "RT_SUB_FACI")),
-      "name"
+      "name",
+      c("RT_REG", "RT_PROV", "RT_MUNC")
    ) %>%
    ohasis$get_addr(
       c(
