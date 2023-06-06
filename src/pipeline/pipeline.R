@@ -108,13 +108,14 @@ flow_validation <- function(data_env = NULL,
    surv_name       <- strsplit(deparse(substitute(data_env)), "\\$")[[1]]
    surv_name       <- surv_name[length(surv_name)]
 
-   data_env     <- data_env$steps
-   process_name <- names(data_env)
-   process_step <- gsub("converted", "convert", process_step)
+   data_env      <- data_env$steps
+   process_names <- names(data_env)
+   process_step  <- gsub("converted", "convert", process_step)
    if (!grepl("dedup", process_step) & !grepl("pdf", process_step))
-      process_name <- process_name[grepl(paste0("data_", process_step), process_name)]
-   else
-      process_name <- process_name[grepl(process_step, process_name)]
+      process_name <- process_names[grepl(paste0("data_", process_step), process_names)]
+
+   if (length(process_name) == 0)
+      process_name <- process_names[grepl(process_step, process_names)]
 
    if (is.null(list_name))
       corr_list <- data_env[[process_name]]
