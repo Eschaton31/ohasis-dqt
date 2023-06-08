@@ -138,4 +138,4 @@ FROM ohasis_interim.px_record AS rec
 WHERE ((rec.CREATED_AT BETWEEN ? AND ?) OR
        (rec.UPDATED_AT BETWEEN ? AND ?) OR
        (rec.DELETED_AT BETWEEN ? AND ?)) ;
--- ID_COLS: REC_ID
+-- ID_COLS: REC_ID;
