@@ -23,7 +23,26 @@ update_warehouse <- function() {
       .log_info("Updating data lake and data warehouse.")
       local(envir = nhsss$harp_dx, invisible({
          tables           <- list()
-         tables$lake      <- "px_hiv_testing"
+         tables$lake      <- c(
+            "px_pii",
+            "px_faci_info",
+            "px_ob",
+            "px_hiv_testing",
+            "px_consent",
+            "px_occupation",
+            "px_ofw",
+            "px_risk",
+            "px_expose_profile",
+            "px_test_reason",
+            "px_test_refuse",
+            "px_test_previous",
+            "px_med_profile",
+            "px_staging",
+            "px_cfbs",
+            "px_reach",
+            "px_linkage",
+            "px_other_service"
+         )
          tables$warehouse <- c("form_a", "form_hts", "id_registry")
 
          lapply(tables$lake, function(table) ohasis$data_factory("lake", table, "upsert", TRUE))
