@@ -1,8 +1,3 @@
-##  Download SACCL Results from Dropbox ----------------------------------------
-
-# check if directories exist
-.log_info("Checking drive/cloud directories.")
-
 ##  Read data from the pdf file ------------------------------------------------
 
 get_pdf_data <- function(file = NULL) {
@@ -267,5 +262,5 @@ import_data <- function(tables) {
    p$import  <- prepare_import(p$results)
    p$tables  <- generate_tables(p$import)
 
-   local(envir = .GlobalEnv, flow_validation(nhsss$harp_dx, "logsheet_saccl_pdf", ohasis$ym))
+   local(envir = .GlobalEnv, flow_validation(nhsss$harp_dx, "import_saccl_recency", ohasis$ym))
 }
