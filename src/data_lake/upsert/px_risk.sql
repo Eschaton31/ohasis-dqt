@@ -143,4 +143,5 @@ FROM (SELECT rec.REC_ID,
              (rec.UPDATED_AT BETWEEN ? AND ?) OR
              (rec.DELETED_AT BETWEEN ? AND ?))) AS exp_data
 GROUP BY exp_data.REC_ID;
--- ID_COLS: REC_ID
+-- ID_COLS: REC_ID;
+-- DELETED: DELETED_AT IS NOT NULL;

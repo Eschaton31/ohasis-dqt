@@ -69,6 +69,8 @@ SELECT rec.REC_ID,
                WHEN test.TEST_TYPE = 10 AND test.RESULT = 1 THEN '1_Reactive'
                WHEN test.TEST_TYPE = 10 AND test.RESULT = 2 THEN '2_Non-reactive'
                ELSE NULL END)                                                                          AS T0_RESULT,
+       MAX(IF(test_hiv.TEST_TYPE = 31, test_hiv.DATE_COLLECT, NULL))                                   AS DATE_COLLECT,
+       MAX(IF(test_hiv.TEST_TYPE = 31, test_hiv.DATE_RECEIVE, NULL))                                   AS DATE_RECEIVE,
        MAX(IF(test_hiv.TEST_TYPE = 31, test.DATE_PERFORM, NULL))                                       AS T1_DATE,
        MAX(IF(test_hiv.TEST_TYPE = 31, test_hiv.KIT_NAME, NULL))                                       AS T1_KIT,
        MAX(CASE
@@ -106,4 +108,5 @@ WHERE (test.RESULT <> 0 OR conf.FINAL_RESULT IS NOT NULL)
        (rec.UPDATED_AT BETWEEN ? AND ?) OR
        (rec.DELETED_AT BETWEEN ? AND ?))
 GROUP BY rec.REC_ID;
--- ID_COLS: REC_ID
+-- ID_COLS: REC_ID;
+-- DELETE: DELETED_AT IS NOT NULL;
