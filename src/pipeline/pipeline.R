@@ -104,6 +104,9 @@ flow_validation <- function(data_env = NULL,
                             channels = NULL,
                             list_name = "check") {
    # re-intiialize
+   local_drive_quiet()
+   local_gs4_quiet()
+
    data_validation <- as_id("1JOCJPjIsdrys_uaFPI3AIElfkMHzrayh")
    surv_name       <- strsplit(deparse(substitute(data_env)), "\\$")[[1]]
    surv_name       <- surv_name[length(surv_name)]
@@ -118,10 +121,11 @@ flow_validation <- function(data_env = NULL,
    if (length(process_name) == 0)
       process_name <- process_names[grepl(process_step, process_names)]
 
-   if (is.null(list_name))
+   if (is.null(list_name)) {
       corr_list <- data_env[[process_name]]
-   else
+   } else {
       corr_list <- data_env[[process_name]][[list_name]]
+   }
 
    if (length(corr_list) > 0) {
       check <- input(
@@ -130,26 +134,23 @@ flow_validation <- function(data_env = NULL,
          default = "2"
       )
       if (check == "1") {
-         empty_sheets <- ""
-         corr_status  <- "old"
+         log_info("Loading endpoints.")
+         corr_status <- "old"
 
          # get period data
-         periods   <- drive_ls(data_validation)
-         valid_now <- as_id(periods[periods$name == report_period,]$id)
+         valid_now <- as_id((drive_ls(data_validation, pattern = report_period))$id)
          if (length(valid_now) == 0) {
             valid_now <- as_id(drive_mkdir(report_period, data_validation)$id)
          }
 
          # get surveillance endpoints
-         surveillances <- drive_ls(valid_now)
-         gd_surv       <- as_id(surveillances[surveillances$name == surv_name,]$id)
+         gd_surv <- as_id((drive_ls(valid_now, pattern = surv_name))$id)
          if (length(gd_surv) == 0) {
             gd_surv <- as_id(drive_mkdir(surv_name, valid_now)$id)
          }
 
          # get steps & write data
-         steps   <- drive_ls(gd_surv)
-         gd_step <- as_id(steps[steps$name == process_step,]$id)
+         gd_step <- as_id((drive_ls(gd_surv, pattern = process_step))$id)
          if (length(gd_step) == 0) {
             # create as new if not existing
             corr_status <- "new"
@@ -157,7 +158,7 @@ flow_validation <- function(data_env = NULL,
             gd_step <- as_id(gs4_create(process_step, sheets = corr_list))
             drive_mv(gd_step, gd_surv, overwrite = TRUE)
          }
-         gd_archive <- as_id(steps[steps$name == "Archive",]$id)
+         gd_archive <- as_id((drive_ls(gd_surv, pattern = "Archive"))$id)
          if (length(gd_archive) == 0) {
             gd_archive <- as_id(drive_mkdir("Archive", gd_surv)$id)
          }
@@ -170,8 +171,6 @@ flow_validation <- function(data_env = NULL,
          #    overwrite = TRUE
          # )
 
-         .log_info("Uploading to GSheets..")
-
          # list of validations
          issues_list <- names(corr_list)
          sheets_list <- sheet_names(gd_step)
@@ -181,6 +180,7 @@ flow_validation <- function(data_env = NULL,
          drive_link <- paste0("https://docs.google.com/spreadsheets/d/", gd_step, "/|GSheets Link: ", process_step)
          slack_msg  <- glue(">*{surv_name}*\n>Conso validation sheets for `{process_step}` have been updated by <@{slack_by}>.\n><{drive_link}>")
          for (issue in issues_list) {
+            log_info("Uploadinng {green(issue)}.")
             # add issue
             if (nrow(corr_list[[issue]]) > 0) {
                if (corr_status == "old")
@@ -190,18 +190,19 @@ flow_validation <- function(data_env = NULL,
             }
          }
 
-         # delete list of empty dataframes from sheet
-         .log_info("Deleting empty sheets.")
-         for (issue in issues_list)
-            if (nrow(corr_list[[issue]]) == 0 & issue %in% sheets_list)
-               empty_sheets <- append(empty_sheets, issue)
-         for (issue in sheets_list)
-            if (!(issue %in% issues_list))
-               empty_sheets <- append(empty_sheets, issue)
+         log_info("Deleting empty sheets.")
+         empty_sheets <- names(corr_list[sapply(corr_list, nrow) == 0])
+         empty_sheets <- append(empty_sheets, setdiff(sheets_list, issues_list))
+         empty_sheets <- intersect(sheets_list, empty_sheets)
 
          # delete if existing sheet no longer has values in new run
-         if (length(empty_sheets[-1]) > 0)
-            sheet_delete(gd_step, empty_sheets[-1])
+         if (length(empty_sheets) > 0) {
+            if (length(setdiff(sheet_list, empty_sheets)) == 0) {
+               sheet_write(tibble(MSG = "Validations empty."), gd_step, "Validations done")
+            } else {
+               sheet_delete(gd_step, empty_sheets)
+            }
+         }
 
          # log in slack
          if (is.null(channels)) {
