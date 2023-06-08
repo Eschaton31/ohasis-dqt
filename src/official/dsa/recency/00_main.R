@@ -147,7 +147,7 @@ rt$rt_initial <- function(forms) {
          ),
          RT_FACI     = coalesce(SPECIMEN_SOURCE, SERVICE_FACI, CONFIRM_FACI),
          RT_SUB_FACI = coalesce(SPECIMEN_SUB_SOURCE, SERVICE_SUB_FACI, CONFIRM_SUB_FACI),
-         .after      = RT_VL_RESULT,
+         .after      = RT_VL_RESULT_CLEAN,
       ) %>%
       select(
          -any_of(
