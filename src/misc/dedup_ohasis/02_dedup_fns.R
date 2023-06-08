@@ -1,39 +1,26 @@
-ohasis_dupes <- function(group_ids) {
+ohasis_dupes <- function(...) {
    # tag duplicates based on grouping
    Dup.Duplicates <- dedup$standard %>%
-      filter_at(
-         .vars           = vars({{group_ids}}),
-         .vars_predicate = all_vars(!is.na(.))
+      select(row_id, ...) %>%
+      filter(if_all(c(...), ~!is.na(.))) %>%
+      group_by(...) %>%
+      mutate(
+         # generate a group id to identify groups of duplicates
+         group_id   = cur_group_id(),
+         dupe_count = n(),
       ) %>%
-      get_dupes({{group_ids}}) %>%
-      filter(dupe_count > 0) %>%
-      left_join(
-         # * merge w/ registry to see which Central ID to keep for those matched
-         y  = dedup$dx %>%
-            select(
-               CENTRAL_ID,
-               idnum
-            ),
-         by = 'CENTRAL_ID'
-      ) %>%
-      left_join(
-         y  = dedup$id_registry %>%
-            group_by(CENTRAL_ID) %>%
-            summarise(
-               NUM_LINKED = n()
-            ) %>%
-            ungroup(),
-         by = 'CENTRAL_ID'
-      ) %>%
+      ungroup() %>%
+      filter(dupe_count > 1) %>%
+      inner_join(dedup$standard %>% select(-c(...)), by = join_by(row_id)) %>%
+      # merge w/ registry to see which Central ID to keep for those matched
+      left_join(dedup$dx %>% select(CENTRAL_ID, idnum), join_by(CENTRAL_ID)) %>%
+      left_join(dedup$num_linked, join_by(CENTRAL_ID)) %>%
       mutate(
          # tag those in registry
          harp_registry = if_else(!is.na(idnum), 1, 0)
       ) %>%
-      group_by(across({{group_ids}})) %>%
+      group_by(group_id) %>%
       mutate(
-         # generate a group id to identify groups of duplicates
-         group_id    = cur_group_id(),
-
          # tag groups who do and do not have registry central ids in the dup group
          harpgrp_tag = max(harp_registry),
          notgrp_tag  = min(harp_registry),
@@ -42,7 +29,8 @@ ohasis_dupes <- function(group_ids) {
       mutate(
          reg_tag = harpgrp_tag + notgrp_tag,
       ) %>%
-      arrange(group_id, idnum)
+      arrange(group_id, idnum) %>%
+      relocate(CENTRAL_ID, group_id, row_id, .before = 1)
 
    Dup.Duplicates.Registry <- Dup.Duplicates %>% filter(reg_tag == 1)
    Dup.Duplicates.Within   <- Dup.Duplicates %>% filter(reg_tag == 2)
@@ -108,8 +96,8 @@ ohasis_dupes <- function(group_ids) {
       Dup.Duplicates.Normal.Final.Conso <- bind_rows(Dup.Duplicates.Normal.Final.Conso)
    }
 
-   reg_pairs  <- n_groups(Dup.Duplicates.Registry %>% group_by(across({{group_ids}})))
-   norm_pairs <- n_groups(Dup.Duplicates.Normal %>% group_by(across({{group_ids}})))
+   reg_pairs  <- n_groups(Dup.Duplicates.Registry %>% group_by(group_id))
+   norm_pairs <- n_groups(Dup.Duplicates.Normal %>% group_by(group_id))
    cat(
       crayon::blue("Remaining Unmatched:"),
       crayon::underline(crayon::magenta(
