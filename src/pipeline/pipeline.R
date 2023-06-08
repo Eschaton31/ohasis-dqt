@@ -109,6 +109,7 @@ flow_validation <- function(data_env = NULL,
    surv_name       <- surv_name[length(surv_name)]
 
    data_env      <- data_env$steps
+   process_name  <- c()
    process_names <- names(data_env)
    process_step  <- gsub("converted", "convert", process_step)
    if (!grepl("dedup", process_step) & !grepl("pdf", process_step))
