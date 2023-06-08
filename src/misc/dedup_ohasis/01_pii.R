@@ -31,7 +31,7 @@ dedup_download <- function() {
       min <- format(max(dedup$pii$SNAPSHOT, na.rm = TRUE), "%Y-%m-%d %H:%M:%S")
 
    # central id reference
-   .log_info("Downloading {green('id_registry')}.")
+   log_info("Downloading {green('id_registry')}.")
    dedup$id_registry <- dbTable(
       lw_conn,
       "ohasis_warehouse",
@@ -40,7 +40,7 @@ dedup_download <- function() {
    )
 
    # deleted records reference
-   .log_info("Downloading {green('deleted')}.")
+   log_info("Downloading {green('deleted')}.")
    dedup$deleted <- dbTable(
       db_conn,
       "ohasis_interim",
@@ -57,7 +57,7 @@ dedup_download <- function() {
       default = "1"
    )
    if (download == "1") {
-      .log_info("Downloading {green('pii')}.")
+      log_info("Downloading {green('pii')}.")
       new_data <- tracked_select(
          lw_conn,
          r"(
@@ -126,18 +126,7 @@ dedup_linelist <- function(dedup) {
    # arrange descendingly based on latest record
    dedup$pii %<>%
       ungroup() %>%
-      select(-any_of("CENTRAL_ID")) %>%
-      left_join(
-         y  = dedup$id_registry,
-         by = "PATIENT_ID"
-      ) %>%
-      mutate(
-         CENTRAL_ID = if_else(
-            condition = is.na(CENTRAL_ID),
-            true      = PATIENT_ID,
-            false     = CENTRAL_ID
-         )
-      ) %>%
+      get_cid(dedup$id_registry, PATIENT_ID) %>%
       arrange(desc(SNAPSHOT))
 
    # get latest non-missing data from column
@@ -200,22 +189,12 @@ dedup_linelist <- function(dedup) {
       )
 
    # load harp diagnosis
-   .log_info("Reloading HARP dataset.")
+   log_info("Reloading HARP dataset.")
    dedup$dx <- hs_data("harp_dx", "reg", ohasis$yr, ohasis$mo) %>%
       read_dta(col_select = c(idnum, PATIENT_ID, labcode2)) %>%
-      left_join(
-         y  = dedup$id_registry,
-         by = "PATIENT_ID"
-      ) %>%
-      mutate(
-         CENTRAL_ID = if_else(
-            condition = is.na(CENTRAL_ID),
-            true      = PATIENT_ID,
-            false     = CENTRAL_ID
-         ),
-      )
+      get_cid(dedup$id_registry, PATIENT_ID)
 
-   .log_info("Loading confirmatory data.")
+   log_info("Loading confirmatory data.")
    dedup$linelist %<>%
       left_join(
          y  = dedup$dx %>%
@@ -226,22 +205,31 @@ dedup_linelist <- function(dedup) {
          by = "CENTRAL_ID"
       ) %>%
       mutate(
-         CONFIRMATORY_CODE = if_else(
-            condition = !is.na(labcode2),
-            true      = labcode2,
-            false     = CONFIRMATORY_CODE,
-            missing   = CONFIRMATORY_CODE
-         )
+         CONFIRMATORY_CODE = coalesce(labcode2, CONFIRMATORY_CODE),
+         SUFFIX            = NA_character_,
+         BIRTHDATE         = if_else(!is.na(BIRTHDATE), as.Date(BIRTHDATE), NA_Date_)
       )
 
    # standardize for deduplication
-   .log_info("Dataset cleaning and preparation.")
+   log_info("Dataset cleaning and preparation.")
+   # profvis({
+   # dedup$standard <- dedup_prep2(
+   #    data         = dedup$linelist,
+   #    name_f       = FIRST,
+   #    name_m       = MIDDLE,
+   #    name_l       = LAST,
+   #    name_s       = SUFFIX,
+   #    uic          = UIC,
+   #    birthdate    = BIRTHDATE,
+   #    code_confirm = CONFIRMATORY_CODE,
+   #    code_px      = PATIENT_CODE,
+   #    phic         = PHILHEALTH_NO,
+   #    philsys      = PHILSYS_ID
+   # )
+   # })
+   # profvis({
    dedup$standard <- dedup_prep(
-      data         = dedup$linelist %>%
-         mutate(
-            SUFFIX    = NA_character_,
-            BIRTHDATE = if_else(!is.na(BIRTHDATE), as.Date(BIRTHDATE), NA_Date_)
-         ),
+      data         = dedup$linelist,
       name_f       = FIRST,
       name_m       = MIDDLE,
       name_l       = LAST,
@@ -252,7 +240,16 @@ dedup_linelist <- function(dedup) {
       code_px      = PATIENT_CODE,
       phic         = PHILHEALTH_NO,
       philsys      = PHILSYS_ID
-   )
+   ) %>%
+      mutate(row_id = row_number())
+
+   dedup$num_linked <- dedup$id_registry %>%
+      group_by(CENTRAL_ID) %>%
+      summarise(
+         NUM_LINKED = n()
+      ) %>%
+      ungroup()
+   # })
 
    return(dedup)
 }
