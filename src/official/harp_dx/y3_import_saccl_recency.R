@@ -198,7 +198,7 @@ generate_tables <- function(import) {
       name = "px_test_hiv",
       pk   = c("REC_ID", "TEST_TYPE", "TEST_NUM"),
       data = import %>%
-         filter(EXIST_CONFIRM == 0) %>%
+         filter(EXIST_TEST == 0) %>%
          mutate(
             TEST_TYPE   = 60,
             TEST_NUM    = 1,
