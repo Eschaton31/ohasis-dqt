@@ -192,13 +192,14 @@ flow_validation <- function(data_env = NULL,
 
          log_info("Deleting empty sheets.")
          empty_sheets <- names(corr_list[sapply(corr_list, nrow) == 0])
-         empty_sheets <- append(empty_sheets, setdiff(sheets_list, issues_list))
-         empty_sheets <- intersect(sheets_list, empty_sheets)
+         empty_sheets <- append(intersect(sheets_list, empty_sheets), setdiff(sheets_list, issues_list))
+         empty_sheets <- empty_sheets[empty_sheets != "Validations done"]
 
          # delete if existing sheet no longer has values in new run
          if (length(empty_sheets) > 0) {
             if (length(setdiff(sheets_list, empty_sheets)) == 0) {
                sheet_write(tibble(MSG = "Validations empty."), gd_step, "Validations done")
+               sheet_delete(gd_step, empty_sheets)
             } else {
                sheet_delete(gd_step, empty_sheets)
             }
