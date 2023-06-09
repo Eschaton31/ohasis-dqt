@@ -197,7 +197,7 @@ flow_validation <- function(data_env = NULL,
 
          # delete if existing sheet no longer has values in new run
          if (length(empty_sheets) > 0) {
-            if (length(setdiff(sheet_list, empty_sheets)) == 0) {
+            if (length(setdiff(sheets_list, empty_sheets)) == 0) {
                sheet_write(tibble(MSG = "Validations empty."), gd_step, "Validations done")
             } else {
                sheet_delete(gd_step, empty_sheets)
