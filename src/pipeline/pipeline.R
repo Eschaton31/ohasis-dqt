@@ -180,9 +180,9 @@ flow_validation <- function(data_env = NULL,
          drive_link <- paste0("https://docs.google.com/spreadsheets/d/", gd_step, "/|GSheets Link: ", process_step)
          slack_msg  <- glue(">*{surv_name}*\n>Conso validation sheets for `{process_step}` have been updated by <@{slack_by}>.\n><{drive_link}>")
          for (issue in issues_list) {
-            log_info("Uploadinng {green(issue)}.")
             # add issue
             if (nrow(corr_list[[issue]]) > 0) {
+               log_info("Uploadinng {green(issue)}.")
                if (corr_status == "old")
                   sheet_write(corr_list[[issue]], gd_step, issue)
                else
