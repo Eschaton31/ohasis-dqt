@@ -321,7 +321,9 @@ DB <- setRefClass(
                query_nrow     <- stri_c("SELECT COUNT(*) AS nrow ", sql_tables)
                query_delete   <- stri_c("DELETE FROM ", db_name, ".", table_name, " WHERE ", sql_delete)
                query_affected <- ifelse(
-                  str_detect(sql_id, "REC_ID") & table_name != "px_pii" & table_exists,
+                  str_detect(sql_id, "REC_ID") &
+                     table_name != "px_pii" &
+                     table_exists,
                   stri_c("SELECT ", stri_c(collapse = ", ", stri_c(table_name, ".", id_col)), " FROM ohasis_lake.px_pii JOIN ", db_name, ".", table_name, " ON px_pii.REC_ID = ", table_name, ".REC_ID WHERE px_pii.SNAPSHOT BETWEEN ? AND ?"),
                   stri_c("SELECT ", sql_id, " FROM ", db_name, ".", table_name, " WHERE SNAPSHOT BETWEEN ? AND ?")
                )
@@ -866,9 +868,12 @@ DB <- setRefClass(
 
             # drop clients
             if (!is.null(remove_rows)) {
+               col         <- as.name(names(id_col))
                old_dataset <- old_dataset %>%
+                  mutate({{col}} := eval(parse(text = glue("as.{id_col}({names(id_col)})")))) %>%
                   anti_join(
-                     y  = remove_rows,
+                     y  = remove_rows %>%
+                        mutate({{col}} := eval(parse(text = glue("as.{id_col}({names(id_col)})")))),
                      by = names(id_col)
                   )
             }
