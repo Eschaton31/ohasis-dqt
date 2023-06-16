@@ -1,4 +1,84 @@
-dsa <- new.env()
+pacman::p_load(
+   dplyr,
+   sf,
+   viridis,
+   leaflet,
+   leaflegend,
+   RColorBrewer,
+   mapview,
+   webshot2,
+   nngeo
+)
+dsa    <- new.env()
+epictr <- new.env()
+
+# set params
+dsa$dirs      <- list()
+dsa$dirs$refs <- file.path(getwd(), "src", "official", "hivepicenter")
+dsa$dirs$wd   <- file.path(getwd(), "src", "official", "harp_maps")
+
+# get references
+source(file.path(dsa$dirs$refs, "00_refs.R"))
+source(file.path(dsa$dirs$refs, "02_estimates.R"))
+
+# read gis files
+dsa$spdf            <- list()
+dsa$spdf$raw        <- read_sf(Sys.getenv("GEOJSON_PH"))
+dsa$spdf$merged_mla <- dsa$spdf$raw %>%
+   # merge manila geometry into one
+   mutate(
+      ADM2_EN    = case_when(
+         ADM3_PCODE == "PH129804000" ~ "Cotabato",
+         TRUE ~ ADM2_EN
+      ),
+      ADM2_PCODE = case_when(
+         ADM3_PCODE == "PH129804000" ~ "PH124700000",
+         TRUE ~ ADM2_PCODE
+      ),
+      ADM3_EN    = case_when(
+         ADM2_PCODE == "PH133900000" ~ ADM2_EN,
+         TRUE ~ ADM3_EN
+      ),
+      ADM3_PCODE = case_when(
+         ADM2_PCODE == "PH133900000" ~ ADM2_PCODE,
+         TRUE ~ ADM3_PCODE
+      ),
+   ) %>%
+   group_by(ADM1_PCODE, ADM1_EN, ADM2_PCODE, ADM2_EN, ADM3_PCODE, ADM3_EN) %>%
+   summarize(
+      geometry = st_union(st_make_valid(geometry))
+   ) %>%
+   ungroup() %>%
+   mutate_at(
+      .vars = vars(starts_with("ADM")),
+      ~gsub("^PH", "", .)
+   ) %>%
+   rename(
+      NAME_REG  = ADM1_EN,
+      PSGC_REG  = ADM1_PCODE,
+      NAME_PROV = ADM2_EN,
+      PSGC_PROV = ADM2_PCODE,
+      NAME_MUNC = ADM3_EN,
+      PSGC_MUNC = ADM3_PCODE,
+   )
+
+dsa$spdf$aem <- dsa$spdf$merged_mla %>%
+   left_join(
+      y = epictr$ref_addr %>%
+         select(
+            PSGC_REG,
+            PSGC_PROV,
+            PSGC_MUNC,
+            PSGC_AEM,
+            NAME_AEM
+         )
+   ) %>%
+   group_by(PSGC_REG, NAME_REG, PSGC_PROV, NAME_PROV, PSGC_AEM, NAME_AEM) %>%
+   summarize(
+      geometry = st_union(st_make_valid(geometry))
+   ) %>%
+   ungroup()
+
 
 ##  OHASIS Data ----------------------------------------------------------------
 
@@ -30,7 +110,25 @@ rm(lw_conn, hts_where, cbs_where, min, max, dbname)
 ##  HARP Data ------------------------------------------------------------------
 
 dsa$harp <- list(
-   dx = read_dta(hs_data("harp_dx", "reg", 2023, 3))
+   dx  = read_dta(hs_data("harp_dx", "reg", 2023, 3)),
+   est = epictr$estimates$cata_rotp %>%
+      select(
+         PSGC_REG,
+         PSGC_PROV,
+         PSGC_AEM,
+         report_yr,
+         est,
+      ) %>%
+      pivot_wider(
+         id_cols      = c(PSGC_REG, PSGC_PROV, PSGC_AEM),
+         names_from   = report_yr,
+         names_prefix = "est",
+         values_from  = est
+      ) %>%
+      mutate_at(
+         .vars = vars(starts_with("PSGC")),
+         ~gsub("^PH", "", .)
+      )
 )
 dsa$harp <- lapply(dsa$harp, function(data) data %<>% get_cid(dsa$oh$id_reg, PATIENT_ID))
 
@@ -47,7 +145,41 @@ dsa$sites <- read_sheet("1qunK5aO5-TDj7mAz7rQzCpN1plLGS3kSJArptcFtfsw") %>%
 
 dsa$gis$data    <- list()
 dsa$gis$data$dx <- dsa$harp$dx %>%
+   mutate(
+      overseas_addr = case_when(
+         muncity == "OUT OF COUNTRY" ~ 1,
+         TRUE ~ 0
+      ),
+
+      muncity       = case_when(
+         muncity == "PINAMUNGAHAN" & province == "CEBU" ~ "PINAMUNGAJAN",
+         muncity == "SAN JUAN" & province == "BULACAN" ~ "MALOLOS",
+         overseas_addr == 1 ~ "OVERSEAS",
+         TRUE ~ muncity
+      ),
+      province      = case_when(
+         muncity == "UNKNOWN" & province == "NCR" ~ "UNKNOWN",
+         province == "COMPOSTELA VALLEY" ~ "DAVAO DE ORO",
+         overseas_addr == 1 ~ "OVERSEAS",
+         TRUE ~ province
+      ),
+      region        = case_when(
+         overseas_addr == 1 ~ "OVERSEAS",
+         TRUE ~ region
+      ),
+   ) %>%
    select(-contains("PSGC")) %>%
+   left_join(
+      y  = epictr$ref_addr %>%
+         select(
+            region      = NHSSS_REG,
+            province    = NHSSS_PROV,
+            muncity     = NHSSS_MUNC,
+            PSGC_AEM,
+            MUNCITY_AEM = NAME_AEM
+         ),
+      by = join_by(region, province, muncity)
+   ) %>%
    dxlab_to_id(
       c("HARPDX_FACI", "HARPDX_SUB_FACI"),
       c("dx_region", "dx_province", "dx_muncity", "dxlab_standard")
@@ -168,9 +300,11 @@ dsa$gis$data$dx <- dsa$harp$dx %>%
       PSGC_REG  = PERM_PSGC_REG,
       PSGC_PROV = PERM_PSGC_PROV,
       PSGC_MUNC = PERM_PSGC_MUNC,
+      PSGC_AEM,
       REGION,
       PROVINCE,
       MUNCITY,
+      MUNCITY_AEM,
       AGE_GROUP,
       KP,
       SEX,
@@ -186,7 +320,6 @@ dsa$gis$data$dx <- dsa$harp$dx %>%
    left_join(dsa$sites, join_by(FACILITY_CODE == FACI_ID))
 
 ##  GIS Data Table 7 -----------------------------------------------------------
-
 
 dsa$oh$hts_all <- process_hts(dsa$oh$hts, dsa$oh$a, dsa$oh$cfbs) %>%
    get_cid(dsa$oh$id_reg, PATIENT_ID) %>%
@@ -240,6 +373,64 @@ dsa$oh$hts_all <- process_hts(dsa$oh$hts, dsa$oh$a, dsa$oh$cfbs) %>%
          confirm_date < hts_date ~ 1,
          TRUE ~ 0
       ),
+   ) %>%
+   mutate(
+      PERM_PSGC_REG  = case_when(
+         is.na(PERM_PSGC_REG) & !is.na(PERM_PSGC_PROV) ~ stri_pad_right(StrLeft(PERM_PSGC_PROV, 2), 9, "0"),
+         is.na(PERM_PSGC_REG) & !is.na(PERM_PSGC_MUNC) ~ stri_pad_right(StrLeft(PERM_PSGC_MUNC, 2), 9, "0"),
+         TRUE ~ PERM_PSGC_REG
+      ),
+      PERM_PSGC_PROV = case_when(
+         is.na(PERM_PSGC_PROV) & !is.na(PERM_PSGC_MUNC) ~ stri_pad_right(StrLeft(PERM_PSGC_MUNC, 4), 9, "0"),
+         TRUE ~ PERM_PSGC_PROV
+      ),
+      CURR_PSGC_REG  = case_when(
+         is.na(CURR_PSGC_REG) & !is.na(CURR_PSGC_PROV) ~ stri_pad_right(StrLeft(CURR_PSGC_PROV, 2), 9, "0"),
+         is.na(CURR_PSGC_REG) & !is.na(CURR_PSGC_MUNC) ~ stri_pad_right(StrLeft(CURR_PSGC_MUNC, 2), 9, "0"),
+         TRUE ~ CURR_PSGC_REG
+      ),
+      CURR_PSGC_PROV = case_when(
+         is.na(CURR_PSGC_PROV) & !is.na(CURR_PSGC_MUNC) ~ stri_pad_right(StrLeft(CURR_PSGC_MUNC, 4), 9, "0"),
+         TRUE ~ CURR_PSGC_PROV
+      ),
+
+      use_curr       = if_else(
+         condition = (is.na(PERM_PSGC_MUNC) & !is.na(CURR_PSGC_MUNC)) | StrLeft(PERM_PSGC_MUNC, 2) == '99',
+         true      = 1,
+         false     = 0
+      ),
+      PERM_PSGC_REG  = if_else(
+         condition = use_curr == 1,
+         true      = CURR_PSGC_REG,
+         false     = PERM_PSGC_REG
+      ),
+      PERM_PSGC_PROV = if_else(
+         condition = use_curr == 1,
+         true      = CURR_PSGC_PROV,
+         false     = PERM_PSGC_PROV
+      ),
+      PERM_PSGC_MUNC = if_else(
+         condition = use_curr == 1,
+         true      = CURR_PSGC_MUNC,
+         false     = PERM_PSGC_MUNC
+      ),
+
+      PERM_PSGC_REG  = if_else(!is.na(PERM_PSGC_REG), stri_pad_right(StrLeft(PERM_PSGC_REG, 2), 9, "0"), NA_character_, NA_character_),
+      PERM_PSGC_PROV = if_else(!is.na(PERM_PSGC_PROV), stri_pad_right(StrLeft(PERM_PSGC_PROV, 4), 9, "0"), NA_character_, NA_character_),
+      PERM_PSGC_PROV = if_else(PERM_PSGC_MUNC == "129804000", "124700000", PERM_PSGC_PROV, PERM_PSGC_PROV),
+      PERM_PSGC_MUNC = coalesce(PERM_PSGC_MUNC, ""),
+      PERM_PSGC_MUNC = if_else(PERM_PSGC_PROV == "133900000", "133900000", PERM_PSGC_MUNC, PERM_PSGC_MUNC)
+   ) %>%
+   left_join(
+      y  = epictr$ref_addr %>%
+         select(
+            PERM_PSGC_REG  = PSGC_REG,
+            PERM_PSGC_PROV = PSGC_PROV,
+            PERM_PSGC_MUNC = PSGC_MUNC,
+            PSGC_AEM,
+            MUNCITY_AEM    = NAME_AEM
+         ),
+      by = join_by(PERM_PSGC_REG, PERM_PSGC_PROV, PERM_PSGC_MUNC)
    )
 
 confirm_data <- dsa$oh$hts_all %>%
@@ -302,11 +493,6 @@ dsa$oh$hts_all %<>%
    )
 
 dsa$gis$data$hts <- dsa$oh$hts_all %>%
-   mutate(
-      PERM_PSGC_REG  = coalesce(PERM_PSGC_REG, CURR_PSGC_REG),
-      PERM_PSGC_PROV = coalesce(PERM_PSGC_PROV, CURR_PSGC_PROV),
-      PERM_PSGC_MUNC = coalesce(PERM_PSGC_MUNC, CURR_PSGC_MUNC),
-   ) %>%
    mutate(
       TEMP_REG  = PERM_PSGC_REG,
       TEMP_PROV = PERM_PSGC_PROV,
@@ -487,9 +673,11 @@ dsa$gis$data$hts <- dsa$oh$hts_all %>%
       PSGC_REG  = PERM_PSGC_REG,
       PSGC_PROV = PERM_PSGC_PROV,
       PSGC_MUNC = PERM_PSGC_MUNC,
+      PSGC_AEM,
       REGION,
       PROVINCE,
       MUNCITY,
+      MUNCITY_AEM,
       AGE_GROUP,
       KP,
       SEX,
@@ -508,9 +696,30 @@ dsa$gis$data$hts <- dsa$oh$hts_all %>%
    left_join(dsa$sites, join_by(FACILITY_CODE == FACI_ID))
 
 dsa$gis$random <- lapply(dsa$gis$data, function(df) as.data.frame(lapply(df, sample), stringsAsFactors = F))
+dsa$gis$subset <- lapply(dsa$gis$data, function(df) {
+   n_rows   <- nrow(df)
+   perc     <- floor(n_rows * .25)
+   df$order <- runif(n_rows, 1, n_rows)
+   df %<>%
+      arrange(order) %>%
+      slice(1:perc) %>%
+      select(-order)
+})
 
-
+dsa$dirs$output <- "O:/My Drive/Data Sharing/GIS Analysis"
 write_rds(
    dsa$gis$random,
-   "O:/My Drive/Data Sharing/GIS Analysis/20230614_tab6-7_randomized.rds"
+   file.path(dsa$dirs$output, "20230614_tab6-7_randomized.rds")
+)
+write_rds(
+   dsa$gis$subset,
+   file.path(dsa$dirs$output, "20230614_tab6-7_subset25.rds")
+)
+write_rds(
+   dsa$spdf,
+   file.path(dsa$dirs$output, "20230614_shape_object-merged_mla-aem.rds")
+)
+write_rds(
+   dsa$harp$est,
+   file.path(dsa$dirs$output, "20230614_plhiv_estimates-as_of_Oct2022.rds")
 )
