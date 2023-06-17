@@ -106,40 +106,47 @@ dedup_prep <- function(
          UIC               = stri_trans_general(stri_trans_toupper({{uic}}), "latin-ascii"),
          CONFIRMATORY_CODE = stri_trans_general(stri_trans_toupper({{code_confirm}}), "latin-ascii"),
          PATIENT_CODE      = stri_trans_general(stri_trans_toupper({{code_px}}), "latin-ascii"),
-
+         PHILHEALTH_NO     = stri_trans_general(stri_trans_toupper({{phic}}), "latin-ascii"),
+         PHILSYS_ID        = stri_trans_general(stri_trans_toupper({{philsys}}), "latin-ascii"),
+      ) %>%
+      mutate(
          # get components of birthdate
-         BIRTH_YR          = year({{birthdate}}),
-         BIRTH_MO          = month({{birthdate}}),
-         BIRTH_DY          = day({{birthdate}}),
+         BIRTH_YR      = year({{birthdate}}),
+         BIRTH_MO      = month({{birthdate}}),
+         BIRTH_DY      = day({{birthdate}}),
 
          # extract parent info from uic
-         UIC_MOM           = if_else(!is.na(UIC), substr(UIC, 1, 2), NA_character_),
-         UIC_DAD           = if_else(!is.na(UIC), substr(UIC, 3, 4), NA_character_),
-         UIC_ORDER         = if_else(!is.na(UIC), substr(UIC, 5, 6), NA_character_),
+         UIC_MOM       = substr(UIC, 1, 2),
+         UIC_DAD       = substr(UIC, 3, 4),
+         UIC_ORDER     = substr(UIC, 5, 6),
 
          # variables for first 3 letters of names
-         FIRST_A           = if_else(!is.na(FIRST), substr(FIRST, 1, 3), NA_character_),
-         MIDDLE_A          = if_else(!is.na(MIDDLE), substr(MIDDLE, 1, 3), NA_character_),
-         LAST_A            = if_else(!is.na(LAST), substr(LAST, 1, 3), NA_character_),
+         FIRST_A       = substr(FIRST, 1, 3),
+         MIDDLE_A      = substr(MIDDLE, 1, 3),
+         LAST_A        = substr(LAST, 1, 3),
 
-         LAST              = if_else(is.na(LAST), MIDDLE, LAST),
-         MIDDLE            = if_else(is.na(MIDDLE), LAST, MIDDLE),
+         LAST          = coalesce(LAST, MIDDLE),
+         MIDDLE        = coalesce(MIDDLE, LAST),
 
          # clean ids
-         CONFIRM_SIEVE     = if_else(!is.na(CONFIRMATORY_CODE), str_replace_all(CONFIRMATORY_CODE, "[^[:alnum:]]", ""), NA_character_),
-         PXCODE_SIEVE      = if_else(!is.na(PATIENT_CODE), str_replace_all(PATIENT_CODE, "[^[:alnum:]]", ""), NA_character_),
-         FIRST_S           = if_else(!is.na(FIRST), str_replace_all(FIRST, "[^[:alnum:]]", ""), NA_character_),
-         MIDDLE_S          = if_else(!is.na(MIDDLE), str_replace_all(MIDDLE, "[^[:alnum:]]", ""), NA_character_),
-         LAST_S            = if_else(!is.na(LAST), str_replace_all(LAST, "[^[:alnum:]]", ""), NA_character_),
-         PHIC              = if_else(!is.na({{phic}}), str_replace_all({{phic}}, "[^[:alnum:]]", ""), NA_character_),
-         PHILSYS           = if_else(!is.na({{philsys}}), str_replace_all({{philsys}}, "[^[:alnum:]]", ""), NA_character_),
-
+         CONFIRM_SIEVE = str_replace_all(CONFIRMATORY_CODE, "[^[:alnum:]]", ""),
+         PXCODE_SIEVE  = str_replace_all(PATIENT_CODE, "[^[:alnum:]]", ""),
+         FIRST_SIEVE   = str_replace_all(FIRST, "[^[:alnum:]]", ""),
+         MIDDLE_SIEVE  = str_replace_all(MIDDLE, "[^[:alnum:]]", ""),
+         LAST_SIEVE    = str_replace_all(LAST, "[^[:alnum:]]", ""),
+         PHIC          = str_replace_all(PHILHEALTH_NO, "[^[:alnum:]]", ""),
+         PHILSYS       = str_replace_all(PHILSYS_ID, "[^[:alnum:]]", ""),
+      ) %>%
+      mutate_at(
+         .vars = vars(ends_with("_SIEVE", ignore.case = TRUE), PHIC, PHILSYS),
+         ~str_replace_all(., "([[:alnum:]])\\1+", "\\1")
+      ) %>%
+      mutate(
          # code standard names
-         FIRST_NY          = suppress_warnings(if_else(!is.na(FIRST_S), nysiis(FIRST_S, stri_length(FIRST_S)), NA_character_), "unknown characters"),
-         MIDDLE_NY         = suppress_warnings(if_else(!is.na(MIDDLE_S), nysiis(MIDDLE_S, stri_length(MIDDLE_S)), NA_character_), "unknown characters"),
-         LAST_NY           = suppress_warnings(if_else(!is.na(LAST_S), nysiis(LAST_S, stri_length(LAST_S)), NA_character_), "unknown characters"),
+         FIRST_NY  = suppress_warnings(nysiis(FIRST_SIEVE, stri_length(FIRST_SIEVE)), "unknown characters"),
+         MIDDLE_NY = suppress_warnings(nysiis(MIDDLE_SIEVE, stri_length(MIDDLE_SIEVE)), "unknown characters"),
+         LAST_NY   = suppress_warnings(nysiis(LAST_SIEVE, stri_length(LAST_SIEVE)), "unknown characters"),
       )
-
 
    # genearte UIC w/o 1 parent, 2 combinations
    dedup_new_uic <- dedup_new %>%
@@ -171,11 +178,7 @@ dedup_prep <- function(
          by = 'CENTRAL_ID'
       ) %>%
       mutate(
-         UIC_SORT = if_else(
-            condition = !is.na(UIC),
-            true      = paste0(UIC_1, UIC_2, substr(UIC, 5, 14)),
-            false     = NA_character_
-         )
+         UIC_SORT = stri_c(UIC_1, UIC_2, substr(UIC, 5, 14))
       )
 
    return(dedup_new)
@@ -202,21 +205,21 @@ upload_dupes <- function(data) {
       num_pid  <- nrow(
          dbGetQuery(
             db_conn,
-            "SELECT * FROM registry WHERE PATIENT_ID = ?",
+            "SELECT * FROM ohasis_interim.registry WHERE PATIENT_ID = ?",
             params = pid
          )
       )
       num_cid  <- nrow(
          dbGetQuery(
             db_conn,
-            "SELECT * FROM registry WHERE CENTRAL_ID = ?",
+            "SELECT * FROM ohasis_interim.registry WHERE CENTRAL_ID = ?",
             params = pid
          )
       )
       num_pcid <- nrow(
          dbGetQuery(
             db_conn,
-            "SELECT * FROM registry WHERE PATIENT_ID = ?",
+            "SELECT * FROM ohasis_interim.registry WHERE PATIENT_ID = ?",
             params = cid
          )
       )
@@ -224,7 +227,7 @@ upload_dupes <- function(data) {
       if (num_pcid == 0) {
          dbExecute(
             db_conn,
-            "INSERT IGNORE INTO registry (CENTRAL_ID, PATIENT_ID, CREATED_BY, CREATED_AT) VALUES (?, ?, ?, ?);",
+            "INSERT IGNORE INTO ohasis_interim.registry (CENTRAL_ID, PATIENT_ID, CREATED_BY, CREATED_AT) VALUES (?, ?, ?, ?);",
             params = list(cid, cid, Sys.getenv("OH_USER_ID"), ts)
          )
       }
@@ -232,13 +235,13 @@ upload_dupes <- function(data) {
       if (num_pid == 0) {
          dbExecute(
             db_conn,
-            "INSERT IGNORE INTO registry (CENTRAL_ID, PATIENT_ID, CREATED_BY, CREATED_AT) VALUES (?, ?, ?, ?);",
+            "INSERT IGNORE INTO ohasis_interim.registry (CENTRAL_ID, PATIENT_ID, CREATED_BY, CREATED_AT) VALUES (?, ?, ?, ?);",
             params = list(cid, pid, Sys.getenv("OH_USER_ID"), ts)
          )
       } else {
          dbExecute(
             db_conn,
-            "UPDATE registry SET CENTRAL_ID = ?, UPDATED_BY = ?, UPDATED_AT = ? WHERE PATIENT_ID = ?;",
+            "UPDATE ohasis_interim.registry SET CENTRAL_ID = ?, UPDATED_BY = ?, UPDATED_AT = ? WHERE PATIENT_ID = ?;",
             params = list(cid, Sys.getenv("OH_USER_ID"), ts, pid)
          )
       }
@@ -246,7 +249,7 @@ upload_dupes <- function(data) {
       if (num_cid > 0) {
          dbExecute(
             db_conn,
-            "UPDATE registry SET CENTRAL_ID = ?, UPDATED_BY = ?, UPDATED_AT = ? WHERE CENTRAL_ID = ?;",
+            "UPDATE ohasis_interim.registry SET CENTRAL_ID = ?, UPDATED_BY = ?, UPDATED_AT = ? WHERE CENTRAL_ID = ?;",
             params = list(cid, Sys.getenv("OH_USER_ID"), ts, pid)
          )
       }
