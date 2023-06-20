@@ -1,8 +1,8 @@
 ##  Generate subset variables --------------------------------------------------
 
 # updated outcomes
-tag_curr_data <- function(data, prev_outcome, prepdisp_first, params) {
-   dead <- ohasis$get_data("harp_dead", ohasis$yr, ohasis$mo) %>%
+tag_curr_data <- function(data, prev_outcome, prepdisp_first, prep_last, disc, params) {
+   dead <- hs_data("harp_dead", "reg", ohasis$yr, ohasis$mo) %>%
       read_dta(
          col_select = c(
             PATIENT_ID,
@@ -33,6 +33,86 @@ tag_curr_data <- function(data, prev_outcome, prepdisp_first, params) {
             true      = proxy_death_date,
             false     = date_of_death
          )
+      )
+
+   prep_last %<>%
+      arrange(desc(LATEST_NEXT_DATE)) %>%
+      filter(VISIT_DATE <= ohasis$next_date) %>%
+      mutate(LATEST_VISIT = VISIT_DATE) %>%
+      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      ohasis$get_faci(
+         list(PREP_FACI_CODE = c("SERVICE_FACI", "SERVICE_SUB_FACI")),
+         "code"
+      ) %>%
+      mutate(
+         PREP_BRANCH = if_else(
+            condition = nchar(PREP_FACI_CODE) > 3,
+            true      = PREP_FACI_CODE,
+            false     = NA_character_
+         ),
+         .after      = PREP_FACI_CODE
+      ) %>%
+      mutate(
+         PREP_BRANCH = case_when(
+            PREP_FACI_CODE == "TLY" & is.na(PREP_BRANCH) ~ "TLY-ANGLO",
+            TRUE ~ PREP_BRANCH
+         ),
+      ) %>%
+      mutate_at(
+         .vars = vars(PREP_FACI_CODE),
+         ~case_when(
+            stri_detect_regex(., "^SAIL") ~ "SAIL",
+            stri_detect_regex(., "^TLY") ~ "TLY",
+            TRUE ~ .
+         )
+      ) %>%
+      arrange(PREP_FACI_CODE, VISIT_DATE, LATEST_NEXT_DATE) %>%
+      mutate(
+         PREP_BRANCH = case_when(
+            PREP_FACI_CODE == "SHP" & is.na(PREP_BRANCH) ~ "SHIP-MAKATI",
+            PREP_FACI_CODE == "TLY" & is.na(PREP_BRANCH) ~ "TLY-ANGLO",
+            TRUE ~ PREP_BRANCH
+         ),
+      )
+
+   disc %<>%
+      arrange(desc(LATEST_NEXT_DATE)) %>%
+      filter(VISIT_DATE <= ohasis$next_date) %>%
+      mutate(LATEST_VISIT = VISIT_DATE) %>%
+      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      ohasis$get_faci(
+         list(PREP_FACI_CODE = c("SERVICE_FACI", "SERVICE_SUB_FACI")),
+         "code"
+      ) %>%
+      mutate(
+         PREP_BRANCH = if_else(
+            condition = nchar(PREP_FACI_CODE) > 3,
+            true      = PREP_FACI_CODE,
+            false     = NA_character_
+         ),
+         .after      = PREP_FACI_CODE
+      ) %>%
+      mutate(
+         PREP_BRANCH = case_when(
+            PREP_FACI_CODE == "TLY" & is.na(PREP_BRANCH) ~ "TLY-ANGLO",
+            TRUE ~ PREP_BRANCH
+         ),
+      ) %>%
+      mutate_at(
+         .vars = vars(PREP_FACI_CODE),
+         ~case_when(
+            stri_detect_regex(., "^SAIL") ~ "SAIL",
+            stri_detect_regex(., "^TLY") ~ "TLY",
+            TRUE ~ .
+         )
+      ) %>%
+      arrange(PREP_FACI_CODE, VISIT_DATE, LATEST_NEXT_DATE) %>%
+      mutate(
+         PREP_BRANCH = case_when(
+            PREP_FACI_CODE == "SHP" & is.na(PREP_BRANCH) ~ "SHIP-MAKATI",
+            PREP_FACI_CODE == "TLY" & is.na(PREP_BRANCH) ~ "TLY-ANGLO",
+            TRUE ~ PREP_BRANCH
+         ),
       )
 
    data %<>%
@@ -84,12 +164,41 @@ tag_curr_data <- function(data, prev_outcome, prepdisp_first, params) {
             ),
          by = "mort_id"
       ) %>%
+      # get ohasis latest dispense
+      left_join(
+         y  = prep_last %>%
+            select(
+               CENTRAL_ID,
+               LASTDISP_REC    = REC_ID,
+               LASTDISP_HUB    = PREP_FACI_CODE,
+               LASTDISP_BRANCH = PREP_BRANCH,
+               LASTDISP_REC    = REC_ID,
+               LASTDISP_VISIT  = VISIT_DATE,
+            ) %>%
+            distinct(CENTRAL_ID, .keep_all = TRUE),
+         by = "CENTRAL_ID"
+      ) %>%
+      # get ohasis latest discontinue
+      left_join(
+         y  = disc %>%
+            select(
+               CENTRAL_ID,
+               LASTDISC_REC    = REC_ID,
+               LASTDISC_HUB    = PREP_FACI_CODE,
+               LASTDISC_BRANCH = PREP_BRANCH,
+               LASTDISC_REC    = REC_ID,
+               LASTDISC_VISIT  = VISIT_DATE,
+            ) %>%
+            distinct(CENTRAL_ID, .keep_all = TRUE),
+         by = "CENTRAL_ID"
+      ) %>%
       mutate(
          # status as of current report
          prep_status = case_when(
             !is.na(mort_id) ~ "dead",
             PREP_STATUS == 0 ~ "refused",
             PREP_CONTINUED == 0 ~ "discontinued",
+            LASTDISC_VISIT > VISIT_DATE ~ "discontinued",
             LATEST_NEXT_DATE >= -25567 & LATEST_NEXT_DATE < params$cutoff_date ~ "ltfu",
             PREP_START_DATE == VISIT_DATE & is.na(MEDICINE_SUMMARY) ~ "for initiation",
             !is.na(PREP_START_DATE) & is.na(MEDICINE_SUMMARY) ~ "no dispense",
@@ -109,6 +218,14 @@ tag_curr_data <- function(data, prev_outcome, prepdisp_first, params) {
                prev_outcome = outcome,
             ),
          by = "prep_id"
+      ) %>%
+      # get ohasis earliest visits
+      left_join(
+         y  = prepdisp_first %>%
+            select(CENTRAL_ID, EARLIEST_REC = REC_ID, EARLIEST_VISIT = VISIT_DATE) %>%
+            arrange(EARLIEST_VISIT) %>%
+            distinct(CENTRAL_ID, .keep_all = TRUE),
+         by = "CENTRAL_ID"
       ) %>%
       mutate(
          use_db         = 1,
@@ -188,10 +305,10 @@ final_conversion <- function(data) {
          self_identity,
          self_identity_other,
          gender_identity,
-         mobile          = CLIENT_MOBILE,
-         email           = CLIENT_EMAIL,
-         weight          = WEIGHT,
-         body_temp       = FEVER,
+         mobile           = CLIENT_MOBILE,
+         email            = CLIENT_EMAIL,
+         weight           = WEIGHT,
+         body_temp        = FEVER,
          risk_screen,
          ars_screen,
          sti_screen,
@@ -206,19 +323,31 @@ final_conversion <- function(data) {
          hts_modality,
          hts_result,
          hts_date,
-         prep_hts_date   = PREP_HIV_DATE,
+         prep_hts_date    = PREP_HIV_DATE,
          contains("risk_", ignore.case = FALSE),
          starts_with("kp_", ignore.case = FALSE),
-         prepstart_date  = PREP_START_DATE,
+         prepstart_date   = PREP_START_DATE,
+         oh_prepstart_rec = EARLIEST_REC,
+         oh_prepstart     = EARLIEST_VISIT,
          prep_reinit_date,
          starts_with("prev_", ignore.case = FALSE),
-         curr_faci       = PREP_FACI_CODE,
-         curr_branch     = PREP_BRANCH,
-         prep_first_time = FIRST_TIME,
+         curr_faci        = PREP_FACI_CODE,
+         curr_branch      = PREP_BRANCH,
+         prep_first_time  = FIRST_TIME,
          starts_with("curr_", ignore.case = FALSE),
-         curr_ffup       = LATEST_VISIT,
-         curr_pickup     = LATEST_NEXT_DATE,
-         curr_regimen    = MEDICINE_SUMMARY,
+         curr_ffup        = LATEST_VISIT,
+         curr_pickup      = LATEST_NEXT_DATE,
+         curr_regimen     = MEDICINE_SUMMARY,
+         lastdisp_rec     = LASTDISP_REC,
+         lastdisp_faci    = LASTDISP_HUB,
+         lastdisp_branch  = LASTDISP_BRANCH,
+         lastdisp_ffup    = LASTDISP_VISIT,
+         lastdisp_rec     = LASTDISP_REC,
+         lastdisc_rec     = LASTDISC_REC,
+         lastdisc_faci    = LASTDISC_HUB,
+         lastdisc_branch  = LASTDISC_BRANCH,
+         lastdisc_ffup    = LASTDISC_VISIT,
+         lastdisc_rec     = LASTDISC_REC,
          prep_reg,
          prep_prov,
          prep_munc,
@@ -315,7 +444,7 @@ get_checks <- function(data) {
       .log_info("Checking for no prep plan.")
       check[["no_plan"]] <- data %>%
          filter(
-            !(StrLeft(curr_outcome, 1) %in% c("0", "3")),
+            !(StrLeft(curr_outcome, 1) %in% c("0", "3")) | !is.na(prepstart_date),
             curr_prep_plan == "(no data)"
          ) %>%
          arrange(curr_faci)
@@ -323,7 +452,7 @@ get_checks <- function(data) {
       .log_info("Checking for no prep type.")
       check[["no_type"]] <- data %>%
          filter(
-            !(StrLeft(curr_outcome, 1) %in% c("0", "3")),
+            !(StrLeft(curr_outcome, 1) %in% c("0", "3")) | !is.na(prepstart_date),
             curr_prep_type == "(no data)"
          ) %>%
          arrange(curr_faci)
@@ -336,7 +465,7 @@ get_checks <- function(data) {
          ) %>%
          arrange(curr_faci)
 
-      .log_info("Checking for possible ART.")
+      .log_info("Checking for updated outcomes.")
       check[["updated_outcome"]] <- data %>%
          filter(
             prev_outcome != curr_outcome
@@ -347,6 +476,46 @@ get_checks <- function(data) {
       check[["possible_art"]] <- data %>%
          filter(
             !stri_detect_fixed(curr_regimen, "TDF/FTC")
+         ) %>%
+         arrange(curr_faci)
+
+      .log_info("Checking for mismatch prepstart dates.")
+      check[["oh_earlier_start"]] <- data %>%
+         filter(
+            prepstart_date > oh_prepstart
+         ) %>%
+         mutate(
+            start_visit_diffdy = abs(floor(interval(prepstart_date, oh_prepstart) / days(1))),
+            start_visit_diffmo = abs(floor(interval(prepstart_date, oh_prepstart) / months(1)))
+         ) %>%
+         select(
+            any_of(view_vars),
+            start_visit_diffdy,
+            start_visit_diffmo
+         ) %>%
+         arrange(curr_faci)
+
+      check[["oh_later_start"]] <- data %>%
+         filter(
+            prepstart_date < oh_prepstart
+         ) %>%
+         mutate(
+            start_visit_diffdy = abs(floor(interval(prepstart_date, oh_prepstart) / days(1))),
+            start_visit_diffmo = abs(floor(interval(prepstart_date, oh_prepstart) / months(1)))
+         ) %>%
+         select(
+            any_of(view_vars),
+            start_visit_diffdy,
+            start_visit_diffmo
+         ) %>%
+         arrange(curr_faci)
+
+      check[["oh_never_prep"]] <- data %>%
+         filter(
+            !is.na(prepstart_date) & is.na(oh_prepstart)
+         ) %>%
+         select(
+            any_of(view_vars),
          ) %>%
          arrange(curr_faci)
 
@@ -371,7 +540,9 @@ get_checks <- function(data) {
       data <- read_rds(file.path(wd, "outcome.initial.RDS"))
       data <- tag_curr_data(data,
                             .GlobalEnv$nhsss$prep$official$old_outcome,
-                            .GlobalEnv$nhsss$prep$forms$art_first,
+                            .GlobalEnv$nhsss$prep$forms$prepdisp_first,
+                            .GlobalEnv$nhsss$prep$forms$prep_last,
+                            .GlobalEnv$nhsss$prep$forms$prepdisc_last,
                             .GlobalEnv$nhsss$prep$params) %>%
          final_conversion()
 
