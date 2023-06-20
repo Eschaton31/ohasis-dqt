@@ -1,6 +1,15 @@
 ##  Append to the previous art registry ----------------------------------------
 
 clean_data <- function(forms, new_reg) {
+   last_visit <- forms$prepdisp_last %>%
+      bind_rows(
+         forms$prep_last %>%
+            anti_join(
+               y  = select(forms$prepdisp_last, CENTRAL_ID),
+               by = join_by(CENTRAL_ID)
+            )
+      )
+
    # get forms and relevant dates
    data <- new_reg %>%
       select(
@@ -35,7 +44,7 @@ clean_data <- function(forms, new_reg) {
          by = "CENTRAL_ID"
       ) %>%
       left_join(
-         y  = forms$prep_last,
+         y  = last_visit,
          by = "CENTRAL_ID"
       ) %>%
       mutate(
