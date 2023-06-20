@@ -315,9 +315,11 @@ local(envir = vlml, {
    for (i in seq_len(length(px_id))) {
       merge_ids <- names(px_id[[i]])
       merge_ids <- merge_ids[merge_ids != "PATIENT_ID"]
+      merge_ids <- intersect(merge_ids, names(conso))
+      log_info("Merge IDs: {green(stri_c(collapse = ', ', merge_ids))}")
       curr_pass <- as.symbol(glue("id_pass_{i}"))
 
-      if (length(setdiff(merge_ids, names(conso))) == 0)
+      if (length(merge_ids) > 0)
          conso %<>%
             left_join(
                y  = px_id[[i]] %>%
@@ -329,12 +331,7 @@ local(envir = vlml, {
                by = merge_ids
             ) %>%
             mutate(
-               PATIENT_ID = if_else(
-                  condition = !is.na(!!curr_pass) & is.na(PATIENT_ID),
-                  true      = !!curr_pass,
-                  false     = PATIENT_ID,
-                  missing   = PATIENT_ID
-               )
+               PATIENT_ID = coalesce(PATIENT_ID, !!curr_pass)
             ) %>%
             select(-starts_with("id_pass"))
    }
