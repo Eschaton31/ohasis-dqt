@@ -596,7 +596,7 @@ get_checks <- function(data) {
          "artstart_date",
          "oh_artstart"
       )
-      .log_info("Checking if ffup variables are missing.")
+      log_info("Checking if ffup variables are missing.")
       for (var in vars) {
          var          <- as.symbol(var)
          check[[var]] <- data %>%
@@ -613,7 +613,7 @@ get_checks <- function(data) {
          "idnum",
          "CENTRAL_ID"
       )
-      .log_info("Checking if id variables are duplicated.")
+      log_info("Checking if id variables are duplicated.")
       for (var in vars) {
          var                                        <- as.symbol(var)
          check[[paste0("dup_", as.character(var))]] <- data %>%
@@ -633,7 +633,7 @@ get_checks <- function(data) {
          "tx_prov",
          "tx_munc"
       )
-      .log_info("Checking if required variables have UNKNOWN data or unpaired NHSSS versions.")
+      log_info("Checking if required variables have UNKNOWN data or unpaired NHSSS versions.")
       for (var in vars) {
          var          <- as.symbol(var)
          check[[var]] <- data %>%
@@ -651,7 +651,7 @@ get_checks <- function(data) {
       }
 
       # special checks
-      .log_info("Checking for extreme dispensing.")
+      log_info("Checking for extreme dispensing.")
       check[["mmd"]] <- data %>%
          mutate(
             months_to_pickup = floor(days_to_pickup / 30)
@@ -665,7 +665,7 @@ get_checks <- function(data) {
          ) %>%
          arrange(curr_hub)
 
-      .log_info("Checking for extreme dispensing.")
+      log_info("Checking for extreme dispensing.")
       check[["mismatch_faci"]] <- data %>%
          filter(
             prev_ffup == curr_ffup,
@@ -676,7 +676,7 @@ get_checks <- function(data) {
          ) %>%
          arrange(curr_hub)
 
-      .log_info("Checking for resurrected clients.")
+      log_info("Checking for resurrected clients.")
       check[["resurrect"]] <- data %>%
          filter(
             (prev_outcome == "dead" & (curr_outcome != "dead" | is.na(curr_outcome))) |
@@ -689,7 +689,7 @@ get_checks <- function(data) {
          ) %>%
          arrange(curr_hub)
 
-      .log_info("Checking for mismatch artstart dates.")
+      log_info("Checking for mismatch artstart dates.")
       check[["oh_earlier_start"]] <- data %>%
          filter(
             artstart_date > oh_artstart
@@ -704,8 +704,23 @@ get_checks <- function(data) {
             start_visit_diffmo
          ) %>%
          arrange(curr_hub)
+      
+      check[["oh_later_start"]]   <- data %>%
+         filter(
+            artstart_date < oh_artstart
+         ) %>%
+         mutate(
+            start_visit_diffdy = abs(floor(interval(artstart_date, oh_artstart) / days(1))),
+            start_visit_diffmo = abs(floor(interval(artstart_date, oh_artstart) / months(1)))
+         ) %>%
+         select(
+            any_of(view_vars),
+            start_visit_diffdy,
+            start_visit_diffmo
+         ) %>%
+         arrange(curr_hub)
 
-      .log_info("Checking new mortalities.")
+      log_info("Checking new mortalities.")
       check[["new_mort"]] <- data %>%
          select(
             any_of(view_vars),
