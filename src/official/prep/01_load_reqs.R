@@ -274,10 +274,9 @@ download_tables <- function() {
                "ohasis_warehouse",
                "form_prep",
                where     = glue("
-            (VISIT_DATE BETWEEN '{min}' AND '{max}') OR
-               (DATE(CREATED_AT) BETWEEN '{min}' AND '{max}') OR
-               (DATE(UPDATED_AT) BETWEEN '{min}' AND '{max}') OR
-               (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.prep_first)) OR
+            (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.prep_first)) OR
+               (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.prepdisp_first)) OR
+               (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.prepdisp_last)) OR
                (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.prep_last))"),
                raw_where = TRUE
             ) %>%
