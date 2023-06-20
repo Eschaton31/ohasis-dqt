@@ -7,7 +7,7 @@ download_corrections <- function() {
       default = "2"
    )
    if (check == "1") {
-      .log_info("Downloading corrections list.")
+      log_info("Downloading corrections list.")
       nhsss <- gdrive_correct2(nhsss, ohasis$ym, "prep")
    }
 }
@@ -20,7 +20,7 @@ update_warehouse <- function() {
       default = "2"
    )
    if (check == "1") {
-      .log_info("Updating data lake and data warehouse.")
+      log_info("Updating data lake and data warehouse.")
       local(envir = nhsss$harp_tx, invisible({
          tables           <- list()
          tables$warehouse <- c("form_prep", "id_registry", "rec_link", "form_hts", "form_a", "form_cfbs")
@@ -45,14 +45,15 @@ update_first_last_prep <- function() {
       db_name <- "ohasis_warehouse"
 
       # download the data
-      for (scope in c("prep_first", "prepdisp_first", "prep_last", "prepdisp_last")) {
+      for (scope in c("prep_first", "prepdisp_first", "prep_last", "prepdisp_last", "prepdisc_last")) {
          name <- case_when(
             scope == "prep_first" ~ "PrEP Earliest Visits",
             scope == "prepdisp_first" ~ "PrEP Enrollment",
             scope == "prep_last" ~ "PrEP Latest Visits",
             scope == "prepdisp_last" ~ "PrEP Latest Dispensing",
+            scope == "prepdisc_last" ~ "PrEP Latest Discontinue",
          )
-         .log_info("Processing {green(name)}.")
+         log_info("Processing {green(name)}.")
 
          # update lake
          table_space <- Id(schema = db_name, table = scope)
@@ -67,7 +68,7 @@ update_first_last_prep <- function() {
             params = as.character(ohasis$next_date)
          )
       }
-      .log_success("Done!")
+      log_success("Done!")
       dbDisconnect(lw_conn)
       rm(db_name, lw_conn, table_space, name, scope)
    }
@@ -86,7 +87,7 @@ update_prep_rec_link <- function() {
       lw_conn <- ohasis$conn("lw")
       sql     <- read_file(file.path(nhsss$prep$wd, "prep_link.sql"))
 
-      .log_info("Downloading data.")
+      log_info("Downloading data.")
       data <- dbGetQuery(lw_conn, sql)
       dbDisconnect(lw_conn)
 
@@ -110,7 +111,7 @@ update_prep_rec_link <- function() {
          )
 
       if (nrow(df) > 0) {
-         .log_info("Uploading to OHASIS.")
+         log_info("Uploading to OHASIS.")
          db_conn <- ohasis$conn("db")
          dbxUpsert(
             db_conn,
@@ -120,7 +121,7 @@ update_prep_rec_link <- function() {
          )
          dbDisconnect(db_conn)
       }
-      .log_info(r"(Total New Linkage: {green(nrow(df))} rows)")
+      log_info(r"(Total New Linkage: {green(nrow(df))} rows)")
    }
 }
 
@@ -134,7 +135,7 @@ initiation_dates <- function() {
    )
    if (update == "1") {
       # coverage of checking for prep reinitiation date is past 12months
-      .log_info("Getting PrEP records for the past year.")
+      log_info("Getting PrEP records for the past year.")
       lw_conn <- ohasis$conn("lw")
       # define params
       min     <- ohasis$next_date %m-% months(13)
@@ -145,7 +146,7 @@ initiation_dates <- function() {
       data <- dbGetQuery(lw_conn, sql, params = list(min, max))
       dbDisconnect(lw_conn)
 
-      .log_info("Getting time diff between visits.")
+      log_info("Getting time diff between visits.")
       disp_p12m <- data %>%
          arrange(VISIT_DATE, desc(LATEST_NEXT_DATE)) %>%
          distinct(CENTRAL_ID, VISIT_DATE, .keep_all = TRUE) %>%
@@ -161,7 +162,7 @@ initiation_dates <- function() {
             DIFF_AFTER  = interval(VISIT_DATE, DATE_AFTER) %/% months(1),
          )
 
-      .log_info("Getting initiation dates.")
+      log_info("Getting initiation dates.")
       df_latest_start <- disp_p12m %>%
          filter(DIFF_BEFORE >= 4 | is.na(DIFF_BEFORE)) %>%
          arrange(CENTRAL_ID, desc(VISIT_DATE)) %>%
@@ -209,7 +210,7 @@ download_tables <- function() {
          min <- as.character(min)
          max <- as.character(max)
 
-         .log_info("Downloading {green('Central IDs')}.")
+         log_info("Downloading {green('Central IDs')}.")
          forms$id_registry <- lw_conn %>%
             dbTable(
                "ohasis_warehouse",
@@ -222,7 +223,7 @@ download_tables <- function() {
                raw_where = TRUE
             )
 
-         .log_info("Downloading {green('Form A')}.")
+         log_info("Downloading {green('Form A')}.")
          hts_where    <- r"(REC_ID IN (SELECT SOURCE_REC FROM ohasis_warehouse.rec_link))"
          forms$form_a <- lw_conn %>%
             dbTable(
@@ -232,7 +233,7 @@ download_tables <- function() {
                raw_where = TRUE
             )
 
-         .log_info("Downloading {green('HTS Form')}.")
+         log_info("Downloading {green('HTS Form')}.")
          forms$form_hts <- lw_conn %>%
             dbTable(
                "ohasis_warehouse",
@@ -241,7 +242,7 @@ download_tables <- function() {
                raw_where = TRUE
             )
 
-         .log_info("Downloading {green('CFBS Form')}.")
+         log_info("Downloading {green('CFBS Form')}.")
          forms$form_cfbs <- lw_conn %>%
             dbTable(
                "ohasis_warehouse",
@@ -250,10 +251,10 @@ download_tables <- function() {
                raw_where = TRUE
             )
 
-         .log_info("Processing {green('HTS Data')}.")
+         log_info("Processing {green('HTS Data')}.")
          forms$hts_data <- process_hts(forms$form_hts, forms$form_a, forms$form_cfbs)
 
-         .log_info("Downloading {green('Record Links')}.")
+         log_info("Downloading {green('Record Links')}.")
          forms$rec_link <- lw_conn %>%
             dbTable(
                "ohasis_warehouse",
@@ -268,7 +269,7 @@ download_tables <- function() {
                )"
             )
 
-         .log_info("Downloading {green('PrEP Visits w/in the scope')}.")
+         log_info("Downloading {green('PrEP Visits w/in the scope')}.")
          forms$form_prep <- lw_conn %>%
             dbTable(
                "ohasis_warehouse",
@@ -277,12 +278,13 @@ download_tables <- function() {
             (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.prep_first)) OR
                (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.prepdisp_first)) OR
                (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.prepdisp_last)) OR
+               (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.prepdisc_last)) OR
                (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.prep_last))"),
                raw_where = TRUE
             ) %>%
             process_prep(forms$hts_data, forms$rec_link)
 
-         .log_info("Downloading {green('PrEP Earliest Screenings')}.")
+         log_info("Downloading {green('PrEP Earliest Screenings')}.")
          forms$prep_first <- lw_conn %>%
             dbTable(
                "ohasis_warehouse",
@@ -291,7 +293,7 @@ download_tables <- function() {
             ) %>%
             left_join(forms$form_prep)
 
-         .log_info("Downloading {green('PrEP Enrollment')}.")
+         log_info("Downloading {green('PrEP Enrollment')}.")
          forms$prepdisp_first <- lw_conn %>%
             dbTable(
 
@@ -301,7 +303,7 @@ download_tables <- function() {
             ) %>%
             left_join(forms$form_prep)
 
-         .log_info("Downloading {green('Latest PrEP Visits')}.")
+         log_info("Downloading {green('Latest PrEP Visits')}.")
          forms$prep_last <- lw_conn %>%
             dbTable(
                "ohasis_warehouse",
@@ -310,7 +312,7 @@ download_tables <- function() {
             ) %>%
             left_join(forms$form_prep)
 
-         .log_info("Downloading {green('Latest PrEP Dispensing')}.")
+         log_info("Downloading {green('Latest PrEP Dispensing')}.")
          forms$prepdisp_last <- lw_conn %>%
             dbTable(
                "ohasis_warehouse",
@@ -319,7 +321,7 @@ download_tables <- function() {
             ) %>%
             left_join(forms$form_prep)
 
-         .log_info("Downloading {green('Latest PrEP Initiation')}.")
+         log_info("Downloading {green('Latest PrEP Initiation')}.")
          forms$prep_init_p12m <- lw_conn %>%
             dbTable(
                "ohasis_warehouse",
@@ -328,17 +330,17 @@ download_tables <- function() {
             ) %>%
             left_join(forms$form_prep)
 
-         .log_info("Downloading {green('ARVs Disepensed w/in the scope')}.")
-         forms$disp_meds <- lw_conn %>%
+         log_info("Downloading {green('Latest PrEP Discontinuation')}.")
+         forms$prep_init_p12m <- lw_conn %>%
             dbTable(
-               "ohasis_lake",
-               "disp_meds",
-               where     = glue("(DATE(DISP_DATE) >= '{min}' AND DATE(DISP_DATE) <= '{max}') OR (DATE(CREATED_AT) >= '{min}' AND DATE(CREATED_AT) <= '{max}') OR (DATE(UPDATED_AT) >= '{min}' AND DATE(UPDATED_AT) <= '{max}')"),
-               raw_where = TRUE
-            )
+               "ohasis_warehouse",
+               "prepdisc_last",
+               cols = c("CENTRAL_ID", "REC_ID")
+            ) %>%
+            left_join(forms$form_prep)
 
          dbDisconnect(lw_conn)
-         .log_success("Done.")
+         log_success("Done.")
 
          rm(min, max, lw_conn, hts_where)
       })
@@ -354,7 +356,7 @@ update_dataset <- function() {
       default = "2"
    )
    if (check == "1") {
-      .log_info("Getting previous datasets.")
+      log_info("Getting previous datasets.")
       local(envir = nhsss$prep, {
          official         <- list()
          official$old_reg <- ohasis$load_old_dta(
@@ -377,7 +379,7 @@ update_dataset <- function() {
 
          # clean if any for cleaning found
          if (!is.null(corr$old_outcome)) {
-            .log_info("Performing cleaning on the outcome dataset.")
+            log_info("Performing cleaning on the outcome dataset.")
             official$old_outcome <- .cleaning_list(official$old_outcome, corr$old_outcome, "ART_ID", "integer")
          }
       })
