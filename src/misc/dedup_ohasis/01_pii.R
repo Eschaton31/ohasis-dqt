@@ -112,6 +112,31 @@ WHERE pii.DELETED_AT IS NULL
    dbDisconnect(lw_conn)
    dbDisconnect(db_conn)
 
+   dedup$pii %<>%
+      ohasis$get_addr(
+         c(
+            PERM_REG  = "PERM_PSGC_REG",
+            PERM_PROV = "PERM_PSGC_PROV",
+            PERM_MUNC = "PERM_PSGC_MUNC"
+         ),
+         "nhsss"
+      ) %>%
+      ohasis$get_addr(
+         c(
+            CURR_REG  = "CURR_PSGC_REG",
+            CURR_PROV = "CURR_PSGC_PROV",
+            CURR_MUNC = "CURR_PSGC_MUNC"
+         ),
+         "nhsss"
+      ) %>%
+      mutate_at(
+         .vars = vars(ends_with("_REG"), ends_with("_PROV"), ends_with("_MUNC")),
+         ~if_else(. == "UNKNOWN", NA_character_, ., .)
+      ) %>%
+      mutate(
+         CLIENT_MOBILE = str_replace_all(CLIENT_MOBILE, "[^[:digit:]]", "")
+      )
+
    return(dedup)
 }
 
@@ -122,13 +147,18 @@ dedup_linelist <- function(dedup) {
       "FIRST",
       "MIDDLE",
       "LAST",
+      "SUFFIX",
       "UIC",
       "CONFIRMATORY_CODE",
       "PATIENT_CODE",
       "BIRTHDATE",
       "PHILSYS_ID",
       "PHILHEALTH_NO",
-      "SEX"
+      "CLIENT_EMAIL",
+      "CLIENT_MOBILE",
+      "SEX",
+      get_names(dedup$pii, "PERM_"),
+      get_names(dedup$pii, "CURR_")
    )
 
    # arrange descendingly based on latest record
@@ -143,7 +173,7 @@ dedup_linelist <- function(dedup) {
       col_name <- as.name(col)
 
       # remove values denoting missing data
-      if (col %in% c("FIRST", "LAST"))
+      if (col %in% c("FIRST", "LAST", "CLIENT_EMAIL"))
          dedup$vars[[col]] <- dedup$pii %>%
             select(
                CENTRAL_ID,
@@ -156,6 +186,7 @@ dedup_linelist <- function(dedup) {
                   !!col_name == "N/A" ~ NA_character_,
                   !!col_name == "NA" ~ NA_character_,
                   !!col_name == "NULL" ~ NA_character_,
+                  !!col_name == "NONE" ~ NA_character_,
                   nchar(!!col_name) == 1 ~ NA_character_,
                   TRUE ~ !!col_name
                )
