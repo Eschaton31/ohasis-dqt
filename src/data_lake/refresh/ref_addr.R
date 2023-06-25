@@ -113,6 +113,9 @@ object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_reg")) %>%
          true      = paste0(substr(PSGC_MUNC, 1, 6), "_", NAME_MUNC),
          false     = NA_character_
       ),
+      NHSSS_REG  = coalesce(NHSSS_REG, toupper(NAME_REG)),
+      NHSSS_PROV = coalesce(NHSSS_PROV, toupper(NAME_PROV)),
+      NHSSS_MUNC = coalesce(NHSSS_MUNC, toupper(NAME_MUNC)),
    ) %>%
    filter(
       CREATED_AT >= snapshot_old,
