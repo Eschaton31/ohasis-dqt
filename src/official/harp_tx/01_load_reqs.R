@@ -206,15 +206,6 @@ download_tables <- function() {
             ) %>%
             left_join(forms$form_art_bc)
 
-         log_info("Downloading {green('ARVs Disepensed w/in the scope')}.")
-         forms$disp_meds <- dbTable(
-            lw_conn,
-            "ohasis_lake",
-            "disp_meds",
-            where     = glue("(DATE(DISP_DATE) >= '{min}' AND DATE(DISP_DATE) <= '{max}') OR (DATE(CREATED_AT) >= '{min}' AND DATE(CREATED_AT) <= '{max}') OR (DATE(UPDATED_AT) >= '{min}' AND DATE(UPDATED_AT) <= '{max}')"),
-            raw_where = TRUE
-         )
-
          log_info("Downloading {green('CD4 Data')}.")
          forms$lab_cd4 <- dbTable(
             lw_conn,
