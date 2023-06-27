@@ -551,8 +551,6 @@ if ((object %>% count() %>% collect())$n > 0) {
                by = "REC_ID"
             ) %>%
             collect() %>%
-            arrange(REC_ID, DISP_NUM) %>%
-            group_by(REC_ID, REC_ID_GRP) %>%
             left_join(
                y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "inventory_product")) %>%
                   select(
@@ -562,12 +560,15 @@ if ((object %>% count() %>% collect())$n > 0) {
                   collect(),
                by = "MEDICINE"
             ) %>%
+            arrange(REC_ID, DISP_NUM) %>%
+            group_by(REC_ID, REC_ID_GRP) %>%
             summarise(
                FACI_DISP        = first(FACI_ID, na.rm = TRUE),
                SUB_FACI_DISP    = first(SUB_FACI_ID, na.rm = TRUE),
                MEDICINE_SUMMARY = paste0(unique(SHORT), collapse = "+"),
                DISP_DATE        = suppress_warnings(max(DISP_DATE, na.rm = TRUE), "returning [\\-]*Inf"),
                LATEST_NEXT_DATE = suppress_warnings(max(NEXT_DATE, na.rm = TRUE), "returning [\\-]*Inf"),
+               DISP_TOTAL       = suppress_warnings(sum(DISP_TOTAL, na.rm = TRUE), "returning [\\-]*Inf")
             ),
          by = "REC_ID"
       ) %>%
