@@ -331,7 +331,7 @@ download_tables <- function() {
             left_join(forms$form_prep)
 
          log_info("Downloading {green('Latest PrEP Discontinuation')}.")
-         forms$prep_init_p12m <- lw_conn %>%
+         forms$prepdisc_last <- lw_conn %>%
             dbTable(
                "ohasis_warehouse",
                "prepdisc_last",
