@@ -28,6 +28,7 @@ download_data <- function(path_to_sql) {
 }
 
 ##  Initial Cleaning -----------------------------------------------------------
+
 clean_data <- function(data, dup_munc) {
    data %<>%
       mutate_at(
@@ -132,16 +133,8 @@ clean_data <- function(data, dup_munc) {
          ),
 
          # Age
-         AGE                   = if_else(
-            condition = is.na(AGE) & !is.na(AGE_MO),
-            true      = AGE_MO / 12,
-            false     = as.double(AGE)
-         ),
-         AGE_DTA               = if_else(
-            condition = !is.na(BIRTHDATE),
-            true      = floor((visit_date - BIRTHDATE) / 365.25) %>% as.numeric(),
-            false     = as.numeric(NA)
-         ),
+         AGE                   = coalesce(AGE, AGE_MO / 12),
+         AGE_DTA               = calc_age(BIRTHDATE, visit_date),
       ) %>%
       left_join(
          y  = dup_munc %>%
@@ -301,6 +294,7 @@ get_checks <- function(data, pdf_rhivda) {
          "blood_extract_date",
          "specimen_receipt_date",
          "confirm_date",
+         "hts_date",
          "BIRTHDATE"
       )
       check     <- check_dates(data, check, view_vars, date_vars)
@@ -327,7 +321,7 @@ get_checks <- function(data, pdf_rhivda) {
       check          <- check_age(data, check, view_vars)
 
       # special checks
-      .log_info("Checking for mismatch facilities (source != test).")
+      log_info("Checking for mismatch facilities (source != test).")
       check[["SOURCE_FACI"]] <- data %>%
          mutate(
             CHECK = case_when(
@@ -341,7 +335,7 @@ get_checks <- function(data, pdf_rhivda) {
             SOURCE_FACI
          )
 
-      .log_info("Checking for similarly named municipalities.")
+      log_info("Checking for similarly named municipalities.")
       check[["dup_munc"]] <- data %>%
          filter(
             DUP_MUNC == 1
@@ -374,7 +368,7 @@ get_checks <- function(data, pdf_rhivda) {
             NAME_MUNC,
          )
 
-      .log_info("Checking NRL-SACCL reports not assigned to DOH-EB.")
+      log_info("Checking NRL-SACCL reports not assigned to DOH-EB.")
       check[["saccl_not_eb"]] <- data %>%
          filter(
             StrLeft(CONFIRM_TYPE, 1) == "1",
@@ -386,7 +380,7 @@ get_checks <- function(data, pdf_rhivda) {
          )
 
       # test kits
-      .log_info("Checking invalid test kits.")
+      log_info("Checking invalid test kits.")
       check[["T1_KIT"]] <- data %>%
          filter(
             !(T1_KIT %in% c("SD Bioline HIV 1/2 3.0", "Abbott Bioline HIV 1/2 3.0", "SYSMEX HISCL HIV Ag + Ab Assay")) | is.na(T1_KIT)
@@ -413,7 +407,7 @@ get_checks <- function(data, pdf_rhivda) {
          )
 
       # pdf results
-      .log_info("Checking missing rHIVda PDF.")
+      log_info("Checking missing rHIVda PDF.")
       check[["no_pdf_result"]] <- data %>%
          filter(StrLeft(CONFIRM_TYPE, 1) == "2") %>%
          anti_join(
