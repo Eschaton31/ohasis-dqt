@@ -559,6 +559,10 @@ if ((object %>% count() %>% collect())$n > 0) {
                y  = tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "disp_meds")),
                by = "REC_ID"
             ) %>%
+            anti_join(
+               y  = tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "disc_meds")),
+               by = c("REC_ID", "MEDICINE")
+            ) %>%
             collect() %>%
             left_join(
                y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "inventory_product")) %>%
