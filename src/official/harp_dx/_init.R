@@ -9,8 +9,8 @@ flow(
       "x1" = "dedup_new",
       "x2" = "dedup_old",
       "y1" = "pdf_saccl",
-      "y2" = "import_saccl_logsheet",
-      "y3" = "import_saccl_recency"
+      "y2" = "saccl_logsheet",
+      "y3" = "saccl_recency"
    ),
    file.path(getwd(), "src", "official", "harp_dx"),
    nhsss

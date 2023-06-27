@@ -1,6 +1,9 @@
 ##  Download encoding documentation --------------------------------------------
 
 get_pdf_data <- function(file = NULL) {
+   local_drive_quiet()
+   local_gs4_quiet()
+
    if (is.null(file))
       file <- input("Kindly provide the UNIX path to the SACCL PDF Logsheet.")
 
