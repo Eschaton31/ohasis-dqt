@@ -183,9 +183,10 @@ if (length(reclink_df$matches$inds.a) > 0) {
    # assign to global env
    nhsss$harp_dead$dedup_dx$reclink <- reclink_review %>%
       mutate(
-         Bene = NA_character_,
-         Meg  = NA_character_,
-         Kath = NA_character_,
+         Bene  = NA_character_,
+         Gab   = NA_character_,
+         Lala  = NA_character_,
+         Fayye = NA_character_,
       )
 }
 
