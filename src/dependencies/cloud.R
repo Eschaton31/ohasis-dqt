@@ -211,11 +211,12 @@ gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NUL
          #       corr[[corr_name]] <- read_sheet(corr_id)
          #    }
          # }
-         log_info("Primary correction list = {green(corr_name)}.")
+         log_info("GSheet = {green(corr_name)}.")
          if (length(corr_sheets) > 1) {
-            corr[[corr_name]]        <- lapply(corr_sheets, function(sheet) {
-               log_info("Sub-correction list = {green(sheet)}.")
-               read_xlsx(corr_local, sheet, col_types = "text")
+            corr[[corr_name]]        <- lapply(corr_sheets, function(sheet, last_sheet) {
+               log_info("       > {green(sheet)}.")
+
+               read_xlsx(corr_local, sheet, col_types = "text", .name_repair = "unique_quiet")
             })
             names(corr[[corr_name]]) <- corr_sheets
          } else {
@@ -228,11 +229,13 @@ gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NUL
    # create monthly folder if not exists
    log_info("Downloading corrections for this period.")
    if (nrow(clean_now) > 0) {
+      log_info("Period = {green(report_period)}.")
       for (i in seq_len(nrow(clean_now))) {
          corr_local <- tempfile(fileext = ".xlsx")
          corr_id    <- as_id(clean_now[i,]$id)
          corr_name  <- clean_now[i,]$name
 
+         log_info("       > {green(corr_name)}.")
          drive_download(corr_id, corr_local, overwrite = TRUE)
          corr_sheets <- excel_sheets(corr_local)
          sheet       <- corr_sheets[corr_sheets == surv_name]
@@ -242,7 +245,6 @@ gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NUL
             #    corr[[corr_name]] <- range_speedread(corr_id, sheet, show_col_types = FALSE)
             # else
             #    corr[[corr_name]] <- read_sheet(corr_id, sheet)
-            log_info("Primary correction list = {green(report_period)}.")
             corr[[corr_name]] <- read_xlsx(corr_local, sheet, col_types = "text")
          }
          unlink(corr_local)
