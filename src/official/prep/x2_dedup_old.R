@@ -178,9 +178,10 @@ dedup_old <- function(data) {
       # assign to global env
       dedup_old$reclink <- reclink_review %>%
          mutate(
-            Bene = NA_character_,
-            Meg  = NA_character_,
-            Kath = NA_character_,
+            Bene  = NA_character_,
+            Gab   = NA_character_,
+            Lala  = NA_character_,
+            Fayye = NA_character_,
          )
    }
    return(dedup_old)

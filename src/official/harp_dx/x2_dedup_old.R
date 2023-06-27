@@ -178,7 +178,13 @@ dedup_old <- function(data) {
          filter(AVG_DIST >= 0.60, !is.na(posterior))
 
       # assign to global env
-      dedup_old$reclink <- reclink_review
+      dedup_old$reclink <- reclink_review %>%
+         mutate(
+            Bene  = NA_character_,
+            Gab   = NA_character_,
+            Lala  = NA_character_,
+            Fayye = NA_character_,
+         )
    }
 
    return(dedup_old)

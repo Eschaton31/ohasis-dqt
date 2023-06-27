@@ -96,17 +96,17 @@ dedup_dx <- function(data) {
          ) %>%
          select(
             MATCH_ID,
-            MASTER_RID          = REC_ID,
-            MASTER_PID          = PATIENT_ID,
-            MASTER_CID          = CENTRAL_ID,
-            MASTER_FIRST        = firstname,
-            MASTER_MIDDLE       = middle,
-            MASTER_LAST         = last,
-            MASTER_SUFFIX       = suffix,
-            MASTER_BIRTHDATE    = birthdate,
+            MASTER_RID       = REC_ID,
+            MASTER_PID       = PATIENT_ID,
+            MASTER_CID       = CENTRAL_ID,
+            MASTER_FIRST     = firstname,
+            MASTER_MIDDLE    = middle,
+            MASTER_LAST      = last,
+            MASTER_SUFFIX    = suffix,
+            MASTER_BIRTHDATE = birthdate,
             # MASTER_CONFIRMATORY = confirmatory_code,
-            MASTER_UIC          = uic,
-            MASTER_INITIALS     = initials,
+            MASTER_UIC       = uic,
+            MASTER_INITIALS  = initials,
             posterior
          ) %>%
          left_join(
@@ -182,9 +182,10 @@ dedup_dx <- function(data) {
       # assign to global env
       dedup_dx$reclink <- reclink_review %>%
          mutate(
-            Bene = NA_character_,
-            Meg  = NA_character_,
-            Kath = NA_character_,
+            Bene  = NA_character_,
+            Gab   = NA_character_,
+            Lala  = NA_character_,
+            Fayye = NA_character_,
          )
    }
    return(dedup_dx)
