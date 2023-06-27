@@ -66,6 +66,27 @@ generate_final <- function(data) {
       filter(drop == 0) %>%
       select(-drop, -drop_duplicates, -drop_notyet, -mot)
 
+   final_new <- data %>%
+      filter(year == as.numeric(ohasis$yr), month == as.numeric(ohasis$mo))
+
+   nrow_new  <- nrow(final_new)
+   nrow_ahd  <- final_new %>%
+      filter(class2022 == "AIDS") %>%
+      nrow()
+   perc_ahd  <- stri_c(format((nrow_ahd / nrow_new) * 100, digits = 2), "%")
+   nrow_none <- final_new %>%
+      filter(transmit == "UNKNOWN") %>%
+      nrow()
+   perc_none <- stri_c(format((nrow_none / nrow_new) * 100, digits = 2), "%")
+   nrow_mtct <- final_new %>%
+      filter(transmit == "PERINATAL") %>%
+      nrow()
+   perc_mtct <- stri_c(format((nrow_mtct / nrow_new) * 100, digits = 2), "%")
+
+   log_info("New cases    = {green(stri_pad_left(nrow_new, 4, ' '))}.")
+   log_info("New AHD      = {green(stri_pad_left(nrow_ahd, 4, ' '))}, {red(perc_ahd)}.")
+   log_info("New Unknown  = {green(stri_pad_left(nrow_none, 4, ' '))}, {red(perc_none)}.")
+   log_info("New Vertical = {green(stri_pad_left(nrow_mtct, 4, ' '))}, {red(perc_mtct)}.")
    return(data)
 }
 
