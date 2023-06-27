@@ -529,12 +529,12 @@ tag_class <- function(data) {
          ) %>% as.numeric(),
          description_symptoms = stri_trans_toupper(SYMPTOMS),
          classd               = case_when(
-            stri_detect_regex(description_symptoms, paste(collapse = "|", (nhsss$harp_dx$corr$classd %>% filter(class == 3))$symptom)) ~ 3,
+            stri_detect_regex(description_symptoms, paste(collapse = "|", (nhsss$harp_dx$corr$classd %>% filter(as.numeric(class) == 3))$symptom)) ~ 3,
             MED_TB_PX == 1 ~ 3,
             TRUE ~ classd
          ),
          classd               = case_when(
-            stri_detect_regex(description_symptoms, paste(collapse = "|", (nhsss$harp_dx$corr$classd %>% filter(class == 4))$symptom)) ~ 4,
+            stri_detect_regex(description_symptoms, paste(collapse = "|", (nhsss$harp_dx$corr$classd %>% filter(as.numeric(class) == 4))$symptom)) ~ 4,
             TRUE ~ classd
          ),
 
