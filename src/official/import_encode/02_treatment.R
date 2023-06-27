@@ -8,23 +8,40 @@ import$STAFF       <- read_sheet(as_id("1BRohoSaBE73zwRMXQNcWeRf5rC2OcePS64A67OD
 local(envir = import, {
 
    download_ei <- function() {
+      local_drive_quiet()
+      local_gs4_quiet()
+
       encode_mo     <- as_id(drive_ls(import$encoding_ss, pattern = ohasis$ym)$id)
       encode_surv   <- as_id(drive_ls(encode_mo, pattern = "TREATMENT")$id)
       encode_sheets <- drive_ls(encode_surv, pattern = ohasis$ym)
       data          <- list()
-      for (sheet in c("FORMS", "DISPENSE", "DISCONTINUE", "ref_faci", "ref_addr", "ref_meds"))
+      for (sheet in c("FORMS", "DISPENSE", "DISCONTINUE", "ref_faci", "ref_addr", "ref_meds")) {
+         log_info("GSheet = {red(sheet)}.")
+
          data[[sheet]] <- bind_rows(lapply(seq_len(nrow(encode_sheets)), function(i) {
-            ss   <- encode_sheets[i,]$id
-            name <- encode_sheets[i,]$name
-            data <- range_speedread(ss, sheet, show_col_types = FALSE, col_types = cols(.default = "c")) %>%
-               mutate(
-                  ss        = ss,
-                  encoder   = str_squish(substr(name, 9, stri_locate_first_fixed(name, ".com") + 4)),
-                  sheet_row = row_number()
-               )
+            ss    <- encode_sheets[i,]$id
+            name  <- encode_sheets[i,]$name
+            email <- str_squish(substr(name, 9, stri_locate_first_fixed(name, ".com") + 4))
+
+            log_info("       > {green(email)}.")
+            if (sheet == "ref_meds")
+               data <- range_speedread(ss, sheet, show_col_types = FALSE, col_types = cols(.default = "c"), col_names = FALSE) %>%
+                  mutate(
+                     ss        = ss,
+                     encoder   = email,
+                     sheet_row = row_number()
+                  )
+            else
+               data <- range_speedread(ss, sheet, show_col_types = FALSE, col_types = cols(.default = "c"), name_repair = "unique_quiet") %>%
+                  mutate(
+                     ss        = ss,
+                     encoder   = email,
+                     sheet_row = row_number()
+                  )
+
             return(as.data.frame(data))
          }))
-
+      }
       data$FORMS %<>%
          filter(is.na(PATIENT_ID) | toupper(PATIENT_ID) != "DUPLICATE")
 
