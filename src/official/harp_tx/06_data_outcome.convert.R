@@ -455,6 +455,7 @@ final_conversion <- function(data) {
          who_staging,
          use_db,
          artstart_date,
+         artstart_rec,
          oh_artstart_rec     = EARLIEST_REC,
          oh_artstart         = EARLIEST_VISIT,
          prev_rec,
@@ -554,6 +555,7 @@ get_checks <- function(data) {
          "philhealth_no",
          "use_db",
          "artstart_date",
+         "artstart_rec",
          "oh_artstart",
          "oh_artstart_rec",
          "prev_hub",
@@ -704,8 +706,14 @@ get_checks <- function(data) {
             start_visit_diffmo
          ) %>%
          arrange(curr_hub)
-      
-      check[["oh_later_start"]]   <- data %>%
+
+      check[["oh_startrec_diff"]] <- data %>%
+         filter(
+            artstart_rec != oh_artstart_rec | is.na(artstart_rec)
+         ) %>%
+         arrange(curr_hub)
+
+      check[["oh_later_start"]] <- data %>%
          filter(
             artstart_date < oh_artstart
          ) %>%

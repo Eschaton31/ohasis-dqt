@@ -1,4 +1,5 @@
 ##  Filter Initial Data & Remove Already Reported ------------------------------
+
 clean_data <- function(art_first, old_reg) {
    data <- art_first %>%
       anti_join(
@@ -11,7 +12,7 @@ clean_data <- function(art_first, old_reg) {
       ) %>%
       mutate_at(
          .vars = vars(FIRST, MIDDLE, LAST, SUFFIX),
-         ~toupper(.)
+         ~str_squish(coalesce(toupper(.), ""))
       ) %>%
       mutate(
          # date variables
@@ -19,42 +20,12 @@ clean_data <- function(art_first, old_reg) {
          visit_date         = VISIT_DATE,
 
          # name
-         name               = paste0(
-            if_else(
-               condition = is.na(LAST),
-               true      = "",
-               false     = LAST
-            ), ", ",
-            if_else(
-               condition = is.na(FIRST),
-               true      = "",
-               false     = FIRST
-            ), " ",
-            if_else(
-               condition = is.na(MIDDLE),
-               true      = "",
-               false     = MIDDLE
-            ), " ",
-            if_else(
-               condition = is.na(SUFFIX),
-               true      = "",
-               false     = SUFFIX
-            )
-         ),
-         name               = str_squish(name),
          STANDARD_FIRST     = stri_trans_general(FIRST, "latin-ascii"),
+         name               = str_squish(stri_c(LAST, ", ", FIRST, " ", MIDDLE, " ", SUFFIX)),
 
          # Age
-         AGE                = if_else(
-            condition = is.na(AGE) & !is.na(AGE_MO),
-            true      = AGE_MO / 12,
-            false     = as.double(AGE)
-         ),
-         AGE_DTA            = if_else(
-            condition = !is.na(BIRTHDATE),
-            true      = floor((VISIT_DATE - BIRTHDATE) / 365.25) %>% as.numeric(),
-            false     = as.numeric(NA)
-         ),
+         AGE                = coalesce(AGE, AGE_MO / 12),
+         AGE_DTA            = calc_age(BIRTHDATE, VISIT_DATE),
 
          # tag those without ART_FACI
          use_record_faci    = if_else(
@@ -136,7 +107,11 @@ clean_data <- function(art_first, old_reg) {
             true      = SUB_FACI_DISP,
             false     = NA_character_
          ),
+
+         LATEST_NEXT_DATE   = as.Date(LATEST_NEXT_DATE),
+         DISP_DATE          = as.Date(DISP_DATE),
       )
+
    return(data)
 }
 
@@ -150,6 +125,7 @@ prioritize_reports <- function(data) {
          ART_FACI     = SERVICE_FACI,
          ART_SUB_FACI = SERVICE_SUB_FACI,
       )
+
    return(data)
 }
 
@@ -158,7 +134,6 @@ prioritize_reports <- function(data) {
 get_cd4 <- function(data) {
    data %<>%
       # get cd4 data
-      # TODO: attach max dates for filtering of cd4 data
       left_join(
          y  = .GlobalEnv$nhsss$harp_tx$forms$lab_cd4 %>%
             select(
@@ -192,39 +167,33 @@ get_cd4 <- function(data) {
 
 attach_faci_names <- function(data) {
    # record faci
-   data <- ohasis$get_faci(
-      data,
-      list("FACI_CODE" = c("FACI_ID", "SUB_FACI_ID")),
-      "code"
-   )
-   # art faci
-   data <- ohasis$get_faci(
-      data,
-      list("ART_FACI_CODE" = c("ART_FACI", "ART_SUB_FACI")),
-      "code",
-      c("tx_reg", "tx_prov", "tx_munc")
-   )
-   # epic / gf faci
-   data <- ohasis$get_faci(
-      data,
-      list("ACTUAL_FACI_CODE" = c("ACTUAL_FACI", "ACTUAL_SUB_FACI")),
-      "code",
-      c("real_reg", "real_prov", "real_munc")
-   )
-   # satellite
-   data <- ohasis$get_faci(
-      data,
-      list("SATELLITE_FACI_CODE" = c("SATELLITE_FACI", "SATELLITE_SUB_FACI")),
-      "code"
-   )
-   # satellite
-   data <- ohasis$get_faci(
-      data,
-      list("TRANSIENT_FACI_CODE" = c("TRANSIENT_FACI", "TRANSIENT_SUB_FACI")),
-      "code"
-   )
-
    data %<>%
+      ohasis$get_faci(
+         list("FACI_CODE" = c("FACI_ID", "SUB_FACI_ID")),
+         "code"
+      ) %>%
+      # art faci
+      ohasis$get_faci(
+         list("ART_FACI_CODE" = c("ART_FACI", "ART_SUB_FACI")),
+         "code",
+         c("tx_reg", "tx_prov", "tx_munc")
+      ) %>%
+      # epic / gf faci
+      ohasis$get_faci(
+         list("ACTUAL_FACI_CODE" = c("ACTUAL_FACI", "ACTUAL_SUB_FACI")),
+         "code",
+         c("real_reg", "real_prov", "real_munc")
+      ) %>%
+      # satellite
+      ohasis$get_faci(
+         list("SATELLITE_FACI_CODE" = c("SATELLITE_FACI", "SATELLITE_SUB_FACI")),
+         "code"
+      ) %>%
+      # satellite
+      ohasis$get_faci(
+         list("TRANSIENT_FACI_CODE" = c("TRANSIENT_FACI", "TRANSIENT_SUB_FACI")),
+         "code"
+      ) %>%
       mutate(
          ART_BRANCH = if_else(
             condition = nchar(ART_FACI_CODE) > 3,
@@ -287,26 +256,26 @@ get_checks <- function(data) {
 
       view_vars <- c(
          "REC_ID",
-         "PATIENT_ID",
+         "CENTRAL_ID",
+         "FACI_CODE",
+         "ACTUAL_FACI_CODE",
+         "ACTUAL_BRANCH",
          "FORM_VERSION",
          "CONFIRMATORY_CODE",
          "UIC",
          "PATIENT_CODE",
          "PHILHEALTH_NO",
          "PHILSYS_ID",
-         "ART_FACI_CODE",
          "FIRST",
          "MIDDLE",
          "LAST",
          "SUFFIX",
          "BIRTHDATE",
          "SEX",
-         "ART_BRANCH",
-         "SATELLITE_FACI_CODE",
-         "TRANSIENT_FACI_CODE",
-         "ACTUAL_FACI_CODE",
-         "ACTUAL_BRANCH",
+         "TX_STATUS",
          "VISIT_DATE",
+         "LATEST_NEXT_DATE",
+         "MEDICINE_SUMMARY",
          "CLINIC_NOTES",
          "COUNSEL_NOTES"
       )

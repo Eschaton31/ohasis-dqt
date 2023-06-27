@@ -9,7 +9,8 @@ clean_data <- function(art_last, new_reg) {
    data %<>%
       right_join(
          y  = new_reg %>%
-            select(-REC_ID, -PATIENT_ID),
+            select(-PATIENT_ID) %>%
+            rename(artstart_rec = REC_ID),
          by = "CENTRAL_ID"
       ) %>%
       mutate(
@@ -108,6 +109,9 @@ clean_data <- function(art_last, new_reg) {
             true      = SUB_FACI_DISP,
             false     = NA_character_
          ),
+
+         LATEST_NEXT_DATE   = as.Date(LATEST_NEXT_DATE),
+         DISP_DATE          = as.Date(DISP_DATE),
       )
    return(data)
 }
@@ -129,40 +133,33 @@ prioritize_reports <- function(data) {
 
 attach_faci_names <- function(data) {
    # record faci
-   data <- ohasis$get_faci(
-      data,
-      list("FACI_CODE" = c("FACI_ID", "SUB_FACI_ID")),
-      "code"
-   )
-   # art faci
-   data <- ohasis$get_faci(
-      data,
-      list("ART_FACI_CODE" = c("ART_FACI", "ART_SUB_FACI")),
-      "code",
-      c("tx_reg", "tx_prov", "tx_munc")
-   )
-   # epic / gf faci
-   data <- ohasis$get_faci(
-      data,
-      list("ACTUAL_FACI_CODE" = c("ACTUAL_FACI", "ACTUAL_SUB_FACI")),
-      "code",
-      c("real_reg", "real_prov", "real_munc")
-   )
-   # satellite
-   data <- ohasis$get_faci(
-      data,
-      list("SATELLITE_FACI_CODE" = c("SATELLITE_FACI", "SATELLITE_SUB_FACI")),
-      "code"
-   )
-   # satellite
-   data <- ohasis$get_faci(
-      data,
-      list("TRANSIENT_FACI_CODE" = c("TRANSIENT_FACI", "TRANSIENT_SUB_FACI")),
-      "code"
-   )
-
-   # arrange via faci
    data %<>%
+      ohasis$get_faci(
+         list("FACI_CODE" = c("FACI_ID", "SUB_FACI_ID")),
+         "code"
+      ) %>%
+      # art faci
+      ohasis$get_faci(
+         list("ART_FACI_CODE" = c("ART_FACI", "ART_SUB_FACI")),
+         "code",
+         c("tx_reg", "tx_prov", "tx_munc")
+      ) %>%
+      # epic / gf faci
+      ohasis$get_faci(
+         list("ACTUAL_FACI_CODE" = c("ACTUAL_FACI", "ACTUAL_SUB_FACI")),
+         "code",
+         c("real_reg", "real_prov", "real_munc")
+      ) %>%
+      # satellite
+      ohasis$get_faci(
+         list("SATELLITE_FACI_CODE" = c("SATELLITE_FACI", "SATELLITE_SUB_FACI")),
+         "code"
+      ) %>%
+      # satellite
+      ohasis$get_faci(
+         list("TRANSIENT_FACI_CODE" = c("TRANSIENT_FACI", "TRANSIENT_SUB_FACI")),
+         "code"
+      ) %>%
       mutate(
          ART_BRANCH = if_else(
             condition = nchar(ART_FACI_CODE) > 3,
@@ -219,6 +216,7 @@ attach_faci_names <- function(data) {
             TRUE ~ ACTUAL_BRANCH
          ),
       )
+
    return(data)
 }
 
@@ -237,7 +235,10 @@ get_checks <- function(data) {
 
       view_vars <- c(
          "REC_ID",
-         "PATIENT_ID",
+         "CENTRAL_ID",
+         "FACI_CODE",
+         "ACTUAL_FACI_CODE",
+         "ACTUAL_BRANCH",
          "FORM_VERSION",
          "art_id",
          "confirmatory_code",
@@ -251,13 +252,10 @@ get_checks <- function(data) {
          "suffix",
          "birthdate",
          "sex",
-         "ART_FACI_CODE",
-         "ART_BRANCH",
-         "SATELLITE_FACI_CODE",
-         "TRANSIENT_FACI_CODE",
-         "ACTUAL_FACI_CODE",
-         "ACTUAL_BRANCH",
+         "TX_STATUS",
          "VISIT_DATE",
+         "LATEST_NEXT_DATE",
+         "MEDICINE_SUMMARY",
          "CLINIC_NOTES",
          "COUNSEL_NOTES"
       )
@@ -276,7 +274,7 @@ get_checks <- function(data) {
       )
       check          <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
 
-      .log_info("Checking for dispensing later than next pick-up.")
+      log_info("Checking for dispensing later than next pick-up.")
       check[["disp_>_next"]] <- data %>%
          filter(
             VISIT_DATE > LATEST_NEXT_DATE
@@ -286,7 +284,7 @@ get_checks <- function(data) {
             LATEST_NEXT_DATE
          )
 
-      .log_info("Checking for mismatch record vs art faci.")
+      log_info("Checking for mismatch record vs art faci.")
       check[["mismatch_faci"]] <- data %>%
          filter(
             FACI_CODE != ART_FACI_CODE,
@@ -296,7 +294,7 @@ get_checks <- function(data) {
             any_of(view_vars),
          )
 
-      .log_info("Checking for mismatch visit vs disp date.")
+      log_info("Checking for mismatch visit vs disp date.")
       check[["mismatch_disp"]] <- data %>%
          mutate(
             diff = abs(as.numeric(difftime(RECORD_DATE, as.Date(DISP_DATE), units = "days")))
@@ -313,7 +311,7 @@ get_checks <- function(data) {
             diff
          )
 
-      .log_info("Checking for possible PMTCT-N clients.")
+      log_info("Checking for possible PMTCT-N clients.")
       check[["possible_pmtct"]] <- data %>%
          filter(
             (NUM_OF_DRUGS == 1 & stri_detect_fixed(MEDICINE_SUMMARY, "syr")) |
@@ -325,7 +323,7 @@ get_checks <- function(data) {
             MEDICINE_SUMMARY,
          )
 
-      .log_info("Checking for possible PrEP clients.")
+      log_info("Checking for possible PrEP clients.")
       check[["possible_prep"]] <- data %>%
          filter(
             stri_detect_fixed(MEDICINE_SUMMARY, "FTC")
@@ -335,7 +333,7 @@ get_checks <- function(data) {
             MEDICINE_SUMMARY,
          )
 
-      .log_info("Checking calculated age vs computed age.")
+      log_info("Checking calculated age vs computed age.")
       check[["mismatch_age"]] <- data %>%
          filter(
             AGE != AGE_DTA
@@ -346,7 +344,7 @@ get_checks <- function(data) {
             AGE_DTA
          )
 
-      .log_info("Checking ART reports tagged as DOH-EB.")
+      log_info("Checking ART reports tagged as DOH-EB.")
       check[["art_eb"]] <- data %>%
          filter(
             ART_FACI_CODE == "DOH"
