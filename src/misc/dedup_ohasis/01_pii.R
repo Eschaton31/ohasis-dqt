@@ -35,9 +35,13 @@ dedup_download <- function() {
    dedup$id_registry <- dbTable(
       lw_conn,
       "ohasis_warehouse",
-      "id_registry",
-      cols = c("CENTRAL_ID", "PATIENT_ID")
-   )
+      "id_registry"
+   ) %>%
+      select(-SNAPSHOT) %>%
+      mutate_if(
+         .predicate = is.POSIXct,
+         ~as.character(.)
+      )
 
    # deleted records reference
    log_info("Downloading {green('deleted')}.")
