@@ -560,7 +560,12 @@ if ((object %>% count() %>% collect())$n > 0) {
                by = "REC_ID"
             ) %>%
             anti_join(
-               y  = tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "disc_meds")),
+               y  = tbl(lw_conn, dbplyr::in_schema("ohasis_lake", "disc_meds")) %>%
+                  filter(
+                     DISC_REASON != 8 |
+                        (DISC_REASON == 8888 & !(DISC_REASON_OTHER %like% "NEGATIVE CONFIRMATORY")) |
+                        is.na(DISC_REASON)
+                  ),
                by = c("REC_ID", "MEDICINE")
             ) %>%
             collect() %>%
