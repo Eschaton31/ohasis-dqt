@@ -15,7 +15,7 @@ check_dir(output_dir)
 # write main file
 .log_info("Saving in Stata data format.")
 write_dta(
-   data = nhsss$harp_dead$official$new,
+   data = format_stata(nhsss$harp_dead$official$new),
    path = nhsss$harp_dead$official$new_file
 )
 
