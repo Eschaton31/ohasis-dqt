@@ -69,28 +69,29 @@ merge_dx <- function(data) {
          y  = dx %>%
             select(
                CENTRAL_ID,
-               dxreg_saccl_lab_code = labcode2,
-               dxreg_idnum          = idnum,
-               dxreg_uic            = uic,
-               dxreg_fname          = firstname,
-               dxreg_mname          = middle,
-               dxreg_lname          = last,
-               dxreg_sname          = name_suffix,
-               dxreg_fullname       = name,
-               dxreg_birthdate      = bdate,
-               dxreg_sex            = sex,
-               dxreg_initials       = pxcode,
-               dxreg_philhealth     = philhealth,
-               dxreg_region         = region,
-               dxreg_province       = province,
-               dxreg_muncity        = muncity
+               dxreg_confirmatory_code = labcode2,
+               dxreg_idnum             = idnum,
+               dxreg_uic               = uic,
+               dxreg_fname             = firstname,
+               dxreg_mname             = middle,
+               dxreg_lname             = last,
+               dxreg_sname             = name_suffix,
+               dxreg_fullname          = name,
+               dxreg_birthdate         = bdate,
+               dxreg_sex               = sex,
+               dxreg_initials          = pxcode,
+               dxreg_philhealth        = philhealth,
+               dxreg_region            = region,
+               dxreg_province          = province,
+               dxreg_muncity           = muncity
             ),
          by = "CENTRAL_ID"
       ) %>%
       mutate(
          # tag clients for updating w/ dx registry data
          use_dxreg      = if_else(
-            condition = is.na(idnum) & !is.na(dxreg_idnum),
+            condition = !is.na(dxreg_confirmatory_code),
+            # condition = is.na(idnum) & !is.na(dxreg_idnum),
             true      = 1,
             false     = 0,
             missing   = 0
@@ -102,8 +103,8 @@ merge_dx <- function(data) {
             missing   = idnum %>% as.integer()
          ),
          saccl_lab_code = if_else(
-            condition = !is.na(dxreg_saccl_lab_code),
-            true      = dxreg_saccl_lab_code,
+            condition = !is.na(dxreg_confirmatory_code),
+            true      = dxreg_confirmatory_code,
             false     = saccl_lab_code,
             missing   = saccl_lab_code
          ),
@@ -401,13 +402,17 @@ generate_final <- function(data) {
       old <- .GlobalEnv$nhsss$harp_dead$official$old
       new <- read_rds(file.path(wd, "converted.RDS"))
 
-      .GlobalEnv$nhsss$harp_dead$official$new <- append_data(old, new)
+      .GlobalEnv$nhsss$harp_dead$official$new <- append_data(old, new) %>%
+         merge_dx()
       rm(new, old)
 
       tag_fordrop()
       subset_drops()
-      .GlobalEnv$nhsss$harp_dead$official$new %<>% generate_final()
+      .GlobalEnv$nhsss$harp_dead$official$new %<>%
+         generate_final()
 
       write_rds(.GlobalEnv$nhsss$harp_dead$official$new, file.path(wd, "final.RDS"))
-   })
+   }
+
+   )
 }
