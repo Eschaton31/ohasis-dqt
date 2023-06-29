@@ -97,12 +97,7 @@ download_tables <- function() {
             lw_conn,
             "ohasis_warehouse",
             "id_registry",
-            cols      = c("CENTRAL_ID", "PATIENT_ID"),
-            where     = r"(
-               (PATIENT_ID IN (SELECT CENTRAL_ID FROM ohasis_warehouse.art_first)) OR
-                  (CENTRAL_ID IN (SELECT CENTRAL_ID FROM ohasis_warehouse.art_first))
-            )",
-            raw_where = TRUE
+            cols = c("CENTRAL_ID", "PATIENT_ID")
          )
 
          log_info("Downloading {green('ART Visits w/in the scope')}.")
