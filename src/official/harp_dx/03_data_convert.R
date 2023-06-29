@@ -883,6 +883,7 @@ final_conversion <- function(data) {
          baseline_cd4,
          baseline_cd4_date         = CD4_DATE,
          baseline_cd4_result       = CD4_RESULT,
+         t3_date                   = T3_DATE,
          confirm_date,
          CONFIRM_FACI,
          confirmlab,
