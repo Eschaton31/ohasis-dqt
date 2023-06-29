@@ -424,6 +424,89 @@ WHERE INVENTORY_ID = ?
    dbDisconnect(db_conn)
 }
 
+
+update_disp_date <- function(data) {
+   rec_ids <- data$REC_ID
+
+   db_conn <- ohasis$conn("db")
+
+   log_info("Downloading live data.")
+   px_medicine        <- dbxSelect(db_conn, "SELECT * FROM ohasis_interim.px_medicine WHERE REC_ID IN (?)", params = list(rec_ids))
+   inventory_transact <- dbxSelect(db_conn, "SELECT * FROM ohasis_interim.inventory_transact WHERE TRANSACT_ID IN (?)", params = list(rec_ids))
+   inventory_product  <- dbxSelect(db_conn, "SELECT * FROM ohasis_interim.inventory_product")
+
+   inv_ids <- inventory_transact$INVENTORY_ID
+
+   # correct data
+   log_info("Processing {green('px_medicine')}.")
+   px_medicine %<>%
+      mutate_at(
+         .vars = vars(MEDICINE, DISP_NUM, DISP_DATE),
+         ~as.character(.)
+      ) %>%
+      inner_join(
+         y  = data %>%
+            select(
+               REC_ID   = 1,
+               MEDICINE = 2,
+               DISP_NUM = 3,
+               CORRECT  = 4
+            ),
+         by = join_by(REC_ID, MEDICINE, DISP_NUM)
+      ) %>%
+      left_join(
+         y  = inventory_product %>%
+            mutate(
+               ITEM          = as.character(ITEM),
+               TYPICAL_BATCH = as.integer(TYPICAL_BATCH)
+            ) %>%
+            select(
+               MEDICINE = ITEM,
+               TYPICAL_BATCH
+            ),
+         by = join_by(MEDICINE)
+      ) %>%
+      mutate(
+         DISP_DATE   = if_else(!is.na(CORRECT), CORRECT, DISP_DATE, DISP_DATE),
+         TOTAL_PILLS = if_else(UNIT_BASIS == 1, DISP_TOTAL * coalesce(TYPICAL_BATCH, 1), DISP_TOTAL, DISP_TOTAL) + MEDICINE_LEFT,
+         TOTAL_DAYS  = TOTAL_PILLS / PER_DAY,
+         NEXT_DATE   = as.character(as.Date(DISP_DATE) %m+% days(as.integer(TOTAL_DAYS)))
+      ) %>%
+      select(-TYPICAL_BATCH, -CORRECT, -TOTAL_PILLS, -TOTAL_DAYS)
+
+   log_info("Processing {green('inventory_transact')}.")
+   inventory_transact %<>%
+      mutate_at(
+         .vars = vars(TRANSACT_NUM, TRANSACT_DATE),
+         ~as.character(.)
+      ) %>%
+      left_join(
+         y  = px_medicine %>%
+            select(
+               TRANSACT_ID  = REC_ID,
+               TRANSACT_NUM = DISP_NUM,
+               BATCH_NUM,
+               CORRECT      = DISP_DATE
+            ),
+         by = join_by(TRANSACT_ID, TRANSACT_NUM, BATCH_NUM)
+      ) %>%
+      mutate(
+         TRANSACT_DATE = if_else(!is.na(CORRECT), CORRECT, TRANSACT_DATE, TRANSACT_DATE),
+      ) %>%
+      select(-CORRECT)
+
+   # update live
+   log_info("Uploading.")
+   dbxUpsert(db_conn, Id(schema = "ohasis_interim", table = "px_medicine"), px_medicine, c("REC_ID", "MEDICINE", "DISP_NUM"))
+   dbxUpsert(db_conn, Id(schema = "ohasis_interim", table = "inventory_transact"), inventory_transact, c("TRANSACT_ID", "TRANSACT_NUM", "INVENTORY_ID"))
+   dbDisconnect(db_conn)
+
+   log_info("Updating records.")
+   update_credentials(rec_ids)
+   invisible(lapply(inv_ids, update_inv))
+   log_success("Done.")
+}
+
 # ohasis patient_id
 oh_px_id <- function(db_conn = NULL, faci_id = NULL) {
    letter <- substr(stri_rand_shuffle(paste(collapse = "", LETTERS[seq_len(130)])), 1, 1)
