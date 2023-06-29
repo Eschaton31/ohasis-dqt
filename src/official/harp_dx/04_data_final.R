@@ -2,8 +2,16 @@
 
 append_data <- function(old, new) {
    data <- old %>%
-      mutate(consent_test = as.integer(consent_test)) %>%
-      bind_rows(new) %>%
+      mutate(
+         consent_test = as.integer(consent_test),
+      ) %>%
+      bind_rows(
+         new %>%
+            mutate(
+               confirm_date = coalesce(confirm_date, as.Date(t3_date))
+            ) %>%
+            select(-t3_date)
+      ) %>%
       arrange(idnum) %>%
       mutate(
          drop_notyet     = 0,
