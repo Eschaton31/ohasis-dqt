@@ -30,7 +30,7 @@ SELECT pii.REC_ID,
        pii.GENDER_AFFIRM_THERAPY,
        CASE LEFT(pii.SELF_IDENT, 1)
            WHEN '1' THEN '1_Man'
-           WHEN '2' THEN '2_Man'
+           WHEN '2' THEN '2_Woman'
            WHEN '3' THEN '3_Other'
            END                             AS SELF_IDENT,
        pii.SELF_IDENT_OTHER,
