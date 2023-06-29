@@ -396,18 +396,26 @@ get_checks <- function(data) {
 
       # non-negotiable variables
       nonnegotiables <- c(
-         "age",
          "year",
          "month",
-         "first",
-         "last",
-         "sex",
          "CENTRAL_ID"
       )
       check          <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
 
       # special checks
-      .log_info("Checking for mismatch age.")
+      log_info("Checking for missing pii.")
+      check[["missing_pii"]] <- data %>%
+         filter(
+            if_any(c(first, last, sex, birthdate, age), ~is.na(.))
+         ) %>%
+         select(
+            any_of(view_vars),
+            age,
+            age_dta,
+         ) %>%
+         arrange(artstart_hub)
+
+      log_info("Checking for mismatch age.")
       check[["mismatch_age"]] <- data %>%
          filter(
             age != age_dta
@@ -419,7 +427,7 @@ get_checks <- function(data) {
          ) %>%
          arrange(artstart_hub)
 
-      .log_info("Checking for mismatch birthdate.")
+      log_info("Checking for mismatch birthdate.")
       check[["uic_bdate"]] <- data %>%
          mutate(
             uic_bdate = if_else(
@@ -444,7 +452,7 @@ get_checks <- function(data) {
          ) %>%
          arrange(artstart_hub)
 
-      # .log_info("Checking for TAT (confirmatory to enrollment).")
+      # log_info("Checking for TAT (confirmatory to enrollment).")
       # check[["tat_confirm_enroll"]] <- data %>%
       #    left_join(
       #       y  = nhsss$harp_dx$official$new %>%
@@ -470,7 +478,7 @@ get_checks <- function(data) {
       #    arrange(artstart_hub)
 
       # range-median
-      .log_info("Checking range-median of data.")
+      log_info("Checking range-median of data.")
       tabstat <- c(
          "age",
          "year",
