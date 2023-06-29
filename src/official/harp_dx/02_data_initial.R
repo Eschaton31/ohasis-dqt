@@ -111,6 +111,8 @@ clean_data <- function(data, dup_munc) {
          STANDARD_FIRST        = stri_trans_general(FIRST, "latin-ascii"),
 
          # Permanent
+         PERM_PSGC_PROV = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
+         PERM_PSGC_MUNC = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
          use_curr              = if_else(
             condition = (is.na(PERM_PSGC_MUNC) & !is.na(CURR_PSGC_MUNC)) | StrLeft(PERM_PSGC_MUNC, 2) == '99',
             true      = 1,
