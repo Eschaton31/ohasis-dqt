@@ -279,25 +279,20 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, params) {
          who_staging         = StrLeft(WHO_CLASS, 1) %>% as.integer(),
 
          # tag if new data is to be used
+         new_report          = if_else(is.na(prev_outcome), 1, 0, 0),
+         use_type            = case_when(
+            !is.na(MEDICINE_SUMMARY) & LATEST_NEXT_DATE >= -25567 ~ "latest",
+            !is.na(LASTDISP_ARV) & LASTDISP_NEXT_DATE >= -25567 ~ "lastdisp",
+            TRUE ~ NA_character_
+         ),
          use_db              = case_when(
-            is.na(prev_outcome) &
-               !is.na(MEDICINE_SUMMARY) &
-               !is.na(LATEST_NEXT_DATE) ~ 1,
-            is.na(prev_outcome) &
-               !is.na(LASTDISP_ARV) &
-               !is.na(LASTDISP_NEXT_DATE) ~ 2,
-            LATEST_VISIT > prev_ffup &
-               !is.na(MEDICINE_SUMMARY) &
-               !is.na(LATEST_NEXT_DATE) ~ 1,
-            LATEST_NEXT_DATE > prev_pickup &
-               !is.na(MEDICINE_SUMMARY) &
-               !is.na(LATEST_NEXT_DATE) ~ 1,
-            LASTDISP_VISIT > prev_ffup &
-               !is.na(LASTDISP_ARV) &
-               !is.na(LATEST_NEXT_DATE) ~ 2,
-            LASTDISP_NEXT_DATE > prev_pickup &
-               !is.na(LASTDISP_ARV) &
-               !is.na(LASTDISP_NEXT_DATE) ~ 2,
+            new_report == 1 & use_type == "latest" ~ 1,
+            new_report == 1 & use_type == "lastdisp" ~ 2,
+            LATEST_VISIT > prev_ffup & use_type == "latest" ~ 1,
+            LATEST_NEXT_DATE > prev_pickup & use_type == "latest" ~ 1,
+            LASTDISP_VISIT > prev_ffup & use_type == "lastdisp" ~ 2,
+            LASTDISP_NEXT_DATE > prev_pickup & use_type == "lastdisp" ~ 2,
+            LATEST_VISIT == prev_ffup & MEDICINE_SUMMARY != prev_regimen ~ 1,
             TRUE ~ 0
          ),
 
