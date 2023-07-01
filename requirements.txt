@@ -52,3 +52,4 @@ arrow
 envnames
 docstring
 tabulizer
+bigrquery
