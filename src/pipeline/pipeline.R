@@ -102,7 +102,8 @@ flow_validation <- function(data_env = NULL,
                             process_step = NULL,
                             report_period = NULL,
                             channels = NULL,
-                            list_name = "check") {
+                            list_name = "check",
+                            upload = NULL) {
    # re-intiialize
    local_drive_quiet()
    local_gs4_quiet()
@@ -128,12 +129,16 @@ flow_validation <- function(data_env = NULL,
    }
 
    if (length(corr_list) > 0) {
-      check <- input(
-         prompt  = glue("Re-upload gsheet validations for {green(surv_name)}-{green(process_step)}?"),
-         options = c("1" = "yes", "2" = "no"),
-         default = "2"
+      upload <- ifelse(
+         !is.null(upload),
+         upload,
+         input(
+            prompt  = glue("Re-upload gsheet validations for {green(surv_name)}-{green(process_step)}?"),
+            options = c("1" = "yes", "2" = "no"),
+            default = "2"
+         )
       )
-      if (check == "1") {
+      if (upload == "1") {
          log_info("Loading endpoints.")
          corr_status <- "old"
 
