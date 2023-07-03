@@ -3,6 +3,7 @@
 /.secrets
 /.idea
 /.Renviron
+/.Rprofile
 /.httr-oauth
 /kath.R
 .httr-oauth
