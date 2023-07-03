@@ -701,7 +701,8 @@ DB <- setRefClass(
                .self$get_addr(
                   addr_cols,
                   return_type
-               )
+               ) %>%
+               relocate(names(addr_names), .after = {{final_faci}})
          }
 
          return(linelist)
