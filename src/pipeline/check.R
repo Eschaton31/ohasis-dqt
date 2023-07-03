@@ -1,10 +1,29 @@
-check_pii <- function(data, checklist, view_vars = everything()) {
-   .log_info("Checking missing PIIs.")
+#' @param ... possible arguments (first, middle, last, sex, birthdate)
+check_pii <- function(data, checklist, view_vars = everything(), ...) {
+   vars <- match.call(expand.dots = FALSE)$`...`
+   data %<>%
+      mutate(
+         FIRST          = if (!is.null(vars$first)) !!vars$first else FIRST,
+         MIDDLE         = if (!is.null(vars$middle)) !!vars$middle else MIDDLE,
+         LAST           = if (!is.null(vars$last)) !!vars$last else LAST,
+         SEX            = if (!is.null(vars$sex)) !!vars$sex else SEX,
+         BIRTHDATE      = if (!is.null(vars$birthdate)) !!vars$birthdate else BIRTHDATE,
+
+         STANDARD_FIRST = stri_trans_general(FIRST, "latin-ascii"),
+         SEX            = StrLeft(SEX, 1),
+         SEX            = case_when(
+            SEX %in% c("1", "M") ~ "1_Male",
+            SEX %in% c("2", "F") ~ "2_Female",
+            TRUE ~ SEX
+         )
+      )
+
+   log_info("Checking missing PIIs.")
    checklist[["missing_pii"]] <- data %>%
       filter(if_any(c("FIRST", "LAST", "SEX", "BIRTHDATE"), ~is.na(.))) %>%
       select(any_of(view_vars))
 
-   .log_info("Checking short names.")
+   log_info("Checking short names.")
    checklist[["short_name"]] <- data %>%
       mutate(
          n_first  = nchar(FIRST),
@@ -18,7 +37,7 @@ check_pii <- function(data, checklist, view_vars = everything()) {
       select(any_of(view_vars))
 
 
-   .log_info("Checking possible wrong sex.")
+   log_info("Checking possible wrong sex.")
    genders                  <- gender(unique(data$STANDARD_FIRST), method = "ssa")
    checklist[["wrong_sex"]] <- data %>%
       left_join(
@@ -47,7 +66,7 @@ check_addr <- function(data, checklist, view_vars = everything(), addr_type) {
    addr_name <- paste0(tolower(addr_type), "_addr")
    addr_type <- paste0(addr_type, "_PSGC_")
 
-   .log_info("Checking incomplete address.")
+   log_info("Checking incomplete address.")
    checklist[[addr_name]] <- data %>%
       filter(if_any(starts_with(addr_type, ignore.case = FALSE), ~is.na(.))) %>%
       select(any_of(view_vars), starts_with(addr_type, ignore.case = FALSE))
@@ -56,7 +75,7 @@ check_addr <- function(data, checklist, view_vars = everything(), addr_type) {
 }
 
 check_dates <- function(data, checklist, view_vars = everything(), date_vars) {
-   .log_info("Checking dates.")
+   log_info("Checking dates.")
    for (var in date_vars) {
       var              <- as.symbol(var)
       checklist[[var]] <- data %>%
@@ -76,7 +95,7 @@ check_dates <- function(data, checklist, view_vars = everything(), date_vars) {
 }
 
 check_nonnegotiables <- function(data, checklist, view_vars = everything(), nonnegotiables) {
-   .log_info("Checking if non-negotiable variables are missing.")
+   log_info("Checking if non-negotiable variables are missing.")
    for (var in nonnegotiables) {
       var              <- as.symbol(var)
       checklist[[var]] <- data %>%
@@ -92,12 +111,24 @@ check_nonnegotiables <- function(data, checklist, view_vars = everything(), nonn
    return(checklist)
 }
 
-check_preggy <- function(data, checklist, view_vars = everything()) {
-   .log_info("Checking for males tagged as pregnant.")
+check_preggy <- function(data, checklist, view_vars = everything(), ...) {
+   vars <- match.call(expand.dots = FALSE)$`...`
+   data %<>%
+      mutate(
+         SEX = if (!is.null(vars$sex)) !!vars$sex else SEX,
+         SEX = StrLeft(SEX, 1),
+         SEX = case_when(
+            SEX %in% c("1", "M") ~ "1_Male",
+            SEX %in% c("2", "F") ~ "2_Female",
+            TRUE ~ SEX
+         )
+      )
+
+   log_info("Checking for males tagged as pregnant.")
    checklist[["pregnant_m"]] <- data %>%
       filter(StrLeft(SEX, 1) == "1") %>%
       filter_at(
-         .vars = vars(any_of(c("MED_IS_PREGNANT", "IS_PREGNANT"))),
+         .vars = vars(any_of(c("MED_IS_PREGNANT", "IS_PREGNANT", "pregnant"))),
          ~StrLeft(., 1) == "1"
       ) %>%
       select(
@@ -105,11 +136,11 @@ check_preggy <- function(data, checklist, view_vars = everything()) {
          any_of(c("IS_PREGNANT", "MED_IS_PREGNANT"))
       )
 
-   .log_info("Checking for pregnant females.")
+   log_info("Checking for pregnant females.")
    checklist[["pregnant_f"]] <- data %>%
       filter(StrLeft(SEX, 1) == "2") %>%
       filter_at(
-         .vars = vars(any_of(c("MED_IS_PREGNANT", "IS_PREGNANT"))),
+         .vars = vars(any_of(c("MED_IS_PREGNANT", "IS_PREGNANT", "pregnant"))),
          ~StrLeft(., 1) == "1"
       ) %>%
       select(
@@ -120,13 +151,21 @@ check_preggy <- function(data, checklist, view_vars = everything()) {
    return(checklist)
 }
 
-check_age <- function(data, checklist, view_vars = everything()) {
-   .log_info("Checking calculated age vs computed age.")
+check_age <- function(data, checklist, view_vars = everything(), ...) {
+   vars <- match.call(expand.dots = FALSE)$`...`
+   data %<>%
+      mutate(
+         AGE       = if (!is.null(vars$age)) !!vars$age else AGE,
+         BIRTHDATE = if (!is.null(vars$birthdate)) !!vars$birthdate else BIRTHDATE,
+         VISIT_DATE = if (!is.null(vars$visit_date)) !!vars$visit_date else VISIT_DATE,
+      )
+
+   log_info("Checking calculated age vs computed age.")
    checklist[["mismatch_age"]] <- data %>%
       mutate(
          AGE_DTA = if_else(
             condition = !is.na(BIRTHDATE),
-            true      = floor((visit_date - BIRTHDATE) / 365.25) %>% as.numeric(),
+            true      = floor((VISIT_DATE - BIRTHDATE) / 365.25) %>% as.numeric(),
             false     = as.numeric(NA)
          ),
       ) %>%
@@ -144,7 +183,7 @@ check_age <- function(data, checklist, view_vars = everything()) {
 }
 
 check_tabstat <- function(data, checklist, vars) {
-   .log_info("Checking range-median of data.")
+   log_info("Checking range-median of data.")
    checklist[["tabstat"]] <- data.frame()
    for (var in vars) {
       var <- as.symbol(var)
