@@ -8,9 +8,6 @@ get_enrollees <- function(art_first, old_reg, params) {
             select(CENTRAL_ID),
          by = "CENTRAL_ID"
       ) %>%
-      filter(
-         VISIT_DATE <= params$max
-      ) %>%
       mutate_at(
          .vars = vars(FIRST, MIDDLE, LAST, SUFFIX),
          ~str_squish(coalesce(toupper(.), ""))
@@ -20,9 +17,6 @@ get_enrollees <- function(art_first, old_reg, params) {
          ~as.Date(.)
       ) %>%
       mutate(
-         # date variables
-         visit_date         = VISIT_DATE,
-
          # name
          STANDARD_FIRST     = stri_trans_general(FIRST, "latin-ascii"),
          name               = str_squish(stri_c(LAST, ", ", FIRST, " ", MIDDLE, " ", SUFFIX)),
@@ -189,9 +183,9 @@ convert_faci_addr <- function(data) {
       arrange(ART_FACI_CODE, VISIT_DATE, LATEST_NEXT_DATE) %>%
       ohasis$get_addr(
          c(
-            "artstart_reg"  = "CURR_PSGC_REG",
-            "artstart_prov" = "CURR_PSGC_PROV",
-            "artstart_munc" = "CURR_PSGC_MUNC"
+            artstart_reg  = "CURR_PSGC_REG",
+            artstart_prov = "CURR_PSGC_PROV",
+            artstart_munc = "CURR_PSGC_MUNC"
          ),
          "nhsss"
       )
@@ -609,7 +603,7 @@ get_checks <- function(data, corr, run_checks = NULL, exclude_drops = NULL) {
          "birthdate",
          "sex",
          "tx_status",
-         "visit_date",
+         "artstart_date",
          "artstart_nextpickup",
          "artstart_regimen"
       )
