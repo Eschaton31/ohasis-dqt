@@ -2,10 +2,8 @@ flow(
    harp_tx,
    list(
       "01" = "load_reqs",
-      "02" = "data_harp.tx_new",
-      "05" = "data_outcome.initial",
-      "06" = "data_outcome.convert",
-      "07" = "data_outcome.final",
+      "02" = "data_tx_new",
+      "03" = "data_tx_curr",
       "08" = "output",
       "x1" = "dedup_new",
       "x2" = "dedup_old",
