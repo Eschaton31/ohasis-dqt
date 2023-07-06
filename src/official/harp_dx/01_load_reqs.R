@@ -51,6 +51,33 @@ update_warehouse <- function() {
    }
 }
 
+##  Filter Initial Data & Remove Already Reported ------------------------------
+
+download_tables <- function(path_to_sql) {
+   lw_conn <- ohasis$conn("lw")
+
+   # read queries
+   sql              <- list()
+   sql$form_a       <- read_file(file.path(path_to_sql, "form_a.sql"))
+   sql$form_hts     <- read_file(file.path(path_to_sql, "form_hts.sql"))
+   sql$form_cfbs    <- read_file(file.path(path_to_sql, "form_cfbs.sql"))
+   sql$px_confirmed <- read_file(file.path(path_to_sql, "px_confirmed.sql"))
+   sql$cd4          <- read_file(file.path(path_to_sql, "lab_cd4.sql"))
+
+
+   # read data
+   data              <- list()
+   data$form_a       <- tracked_select(lw_conn, sql$form_a, "New Form A")
+   data$form_hts     <- tracked_select(lw_conn, sql$form_hts, "New HTS Form")
+   data$form_cfbs    <- tracked_select(lw_conn, sql$form_cfbs, "New CFBS Form")
+   data$px_confirmed <- tracked_select(lw_conn, sql$px_confirmed, "New Confirmed w/ no Form")
+   data$cd4          <- tracked_select(lw_conn, sql$cd4, "Baseline CD4", list(as.character(ohasis$next_date)))
+
+   dbDisconnect(lw_conn)
+
+   return(data)
+}
+
 ##  get pdf results ------------------------------------------------------------
 
 get_rhivda_pdf <- function() {
@@ -98,13 +125,22 @@ define_params <- function() {
       params              <- list()
       params$p10y         <- (as.numeric(ohasis$yr) - 10)
       params$latest_idnum <- max(as.integer(official$old$idnum), na.rm = TRUE)
+
+      params$min <- ohasis$date
+      params$max <- ohasis$next_date %m-% days(1)
+      params$yr  <- year(params$max)
+      params$mo  <- month(params$max)
+      params$ym  <- str_c(sep = ".", params$yr, stri_pad_left(params$mo, 2, "0"))
    })
 }
 
-.init <- function() {
+.init <- function(envir = parent.env(environment())) {
    download_corrections()
    update_warehouse()
    update_dataset()
    define_params()
    get_rhivda_pdf()
+
+   p       <- envir
+   p$forms <- download_tables(p$wd)
 }
