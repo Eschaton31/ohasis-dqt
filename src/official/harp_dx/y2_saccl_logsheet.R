@@ -16,24 +16,46 @@ get_pdf_data <- function(file = NULL) {
    log_info("Extractinng tables from PDF.")
    lst        <- tabulizer::extract_tables(file = file, method = "lattice")
    confirm_df <- lst %>%
+      # lapply(function(data) {
+      #    data %<>%
+      #       as_tibble() %>%
+      #       slice(-1, -2) %>%
+      #       select(
+      #          DATE_RECEIVE      = V2,
+      #          CONFIRMATORY_CODE = V3,
+      #          FULLNAME          = V4,
+      #          BIRTHDATE         = V5,
+      #          AGE               = V6,
+      #          SEX               = V7,
+      #          SOURCE            = V8,
+      #          RAPID             = V10,
+      #          SYSMEX            = V14,
+      #          VIDAS             = V17,
+      #          GEENIUS           = V18,
+      #          REMARKS           = V19,
+      #          DATE_CONFIRM      = V20
+      #       )
+      #
+      #    return(data)
+      # }) %>%
       lapply(function(data) {
          data %<>%
             as_tibble() %>%
             slice(-1, -2) %>%
             select(
-               DATE_RECEIVE      = V2,
-               CONFIRMATORY_CODE = V3,
-               FULLNAME          = V4,
-               BIRTHDATE         = V5,
-               AGE               = V6,
-               SEX               = V7,
-               SOURCE            = V8,
+               DATE_RECEIVE      = V3,
+               CONFIRMATORY_CODE = V4,
+               FULLNAME          = V5,
+               BIRTHDATE         = V6,
+               AGE               = V7,
+               SEX               = V8,
+               SOURCE            = V9,
                RAPID             = V10,
-               SYSMEX            = V14,
-               VIDAS             = V17,
-               GEENIUS           = V18,
-               REMARKS           = V19,
-               DATE_CONFIRM      = V20
+               SYSMEX            = V11,
+               VIDAS             = V14,
+               GEENIUS           = V15,
+               REMARKS           = V16,
+               DATE_CONFIRM      = V17
             )
 
          return(data)
