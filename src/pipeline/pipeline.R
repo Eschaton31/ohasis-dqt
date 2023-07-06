@@ -109,7 +109,7 @@ flow_validation <- function(data_env = NULL,
    local_gs4_quiet()
 
    data_validation <- as_id("1JOCJPjIsdrys_uaFPI3AIElfkMHzrayh")
-   surv_name       <- strsplit(deparse(substitute(data_env)), "\\$")[[1]]
+   surv_name       <- strsplit(environment_name(data_env), "\\$")[[1]]
    surv_name       <- surv_name[length(surv_name)]
 
    data_env      <- data_env$steps
