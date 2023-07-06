@@ -45,11 +45,12 @@ update_first_last_art <- function() {
       db_name <- "ohasis_warehouse"
 
       # download the data
-      for (scope in c("art_first", "art_last", "art_lastdisp")) {
+      for (scope in c("art_first", "art_last", "art_lastdisp", "vl_last")) {
          name <- case_when(
             scope == "art_first" ~ "ART Start Dates",
             scope == "art_last" ~ "ART Latest Visits",
             scope == "art_lastdisp" ~ "ART Latest Dispense",
+            scope == "vl_last" ~ "Latest VL Data",
          )
          log_info("Processing {green(name)}.")
 
@@ -201,6 +202,14 @@ download_tables <- function() {
             ) %>%
             left_join(forms$form_art_bc)
 
+         log_info("Downloading {green('Latest VL Data')}.")
+         forms$vl_last <- lw_conn %>%
+            dbTable(
+               "ohasis_warehouse",
+               "vl_last",
+               cols = c("CENTRAL_ID", "LAB_VIRAL_DATE", "LAB_VIRAL_RESULT")
+            )
+
          log_info("Downloading {green('CD4 Data')}.")
          forms$lab_cd4 <- dbTable(
             lw_conn,
@@ -291,7 +300,11 @@ define_params <- function() {
          tly  = c("040198", "070021", "130001", "130173", "130707", "130708", "130749", "130751", "130845")
       )
 
+      params$min <- ohasis$date
       params$max <- ohasis$next_date %m-% days(1)
+      params$yr  <- year(params$max)
+      params$mo  <- month(params$max)
+      params$ym  <- str_c(sep = ".", params$yr, stri_pad_left(params$mo, 2, "0"))
    })
 }
 
