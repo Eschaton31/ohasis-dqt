@@ -1,14 +1,160 @@
+##  Initial Cleaning -----------------------------------------------------------
+
+clean_data <- function(forms, dup_munc) {
+   log_info("Processing new positives.")
+   data <- process_hts(forms$form_hts, forms$form_a, forms$form_cfbs) %>%
+      bind_rows(forms$px_confirmed %>% mutate(SNAPSHOT = as.POSIXct(SNAPSHOT))) %>%
+      distinct(REC_ID, .keep_all = TRUE) %>%
+      mutate_at(
+         .vars = vars(FIRST, MIDDLE, LAST, SUFFIX),
+         ~toupper(.)
+      ) %>%
+      mutate_if(
+         .predicate = is.POSIXct,
+         ~as.Date(.)
+      ) %>%
+      mutate_if(
+         .predicate = is.Date,
+         ~if_else(. <= -25567, NA_Date_, ., .)
+      ) %>%
+      rename(
+         blood_extract_date    = DATE_COLLECT,
+         specimen_receipt_date = DATE_RECEIVE,
+         confirm_date          = DATE_CONFIRM,
+      ) %>%
+      mutate(
+         # month of labcode/date received
+         lab_month      = coalesce(
+            str_extract(CONFIRM_CODE, "[A-Z]+([0-9][0-9])-([0-9][0-9])", 2),
+            stri_pad_left(month(specimen_receipt_date), 2, "0")
+         ),
+
+         # year of labcode/date received
+         lab_year       = coalesce(
+            str_c("20", str_extract(CONFIRM_CODE, "[A-Z]+([0-9][0-9])-([0-9][0-9])", 1)),
+            stri_pad_left(year(specimen_receipt_date), 4, "0")
+         ),
+
+         # date variables
+         visit_date     = RECORD_DATE,
+
+         # date var for keeping
+         report_date    = as.Date(str_c(sep = "-", lab_year, lab_month, "01")),
+
+         # name
+         STANDARD_FIRST = stri_trans_general(FIRST, "latin-ascii"),
+         name           = str_squish(stri_c(LAST, ", ", FIRST, " ", MIDDLE, " ", SUFFIX)),
+
+         # Permanent
+         PERM_PSGC_PROV = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
+         PERM_PSGC_MUNC = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
+         use_curr       = if_else(
+            condition = !is.na(CURR_PSGC_MUNC) & (is.na(PERM_PSGC_MUNC) | StrLeft(PERM_PSGC_MUNC, 2) == "99"),
+            true      = 1,
+            false     = 0
+         ),
+         PERM_PSGC_REG  = if_else(
+            condition = use_curr == 1,
+            true      = CURR_PSGC_REG,
+            false     = PERM_PSGC_REG
+         ),
+         PERM_PSGC_PROV = if_else(
+            condition = use_curr == 1,
+            true      = CURR_PSGC_PROV,
+            false     = PERM_PSGC_PROV
+         ),
+         PERM_PSGC_MUNC = if_else(
+            condition = use_curr == 1,
+            true      = CURR_PSGC_MUNC,
+            false     = PERM_PSGC_MUNC
+         ),
+
+         # Age
+         AGE            = coalesce(AGE, AGE_MO / 12),
+         AGE_DTA        = calc_age(BIRTHDATE, visit_date),
+      ) %>%
+      left_join(
+         y  = dup_munc %>%
+            select(
+               PERM_PSGC_MUNC = PSGC_MUNC,
+               DUP_MUNC
+            ),
+         by = "PERM_PSGC_MUNC"
+      )
+
+   return(data)
+}
+
+##  Sorting confirmatory results -----------------------------------------------
+
+prioritize_reports <- function(data) {
+   log_info("Using first visited facility.")
+   data %<>%
+      arrange(lab_year, lab_month, desc(CONFIRM_TYPE), visit_date, confirm_date) %>%
+      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      filter(report_date < ohasis$next_date | is.na(report_date)) %>%
+      rename(
+         TEST_FACI     = SERVICE_FACI,
+         TEST_SUB_FACI = SERVICE_SUB_FACI,
+      )
+
+   return(data)
+}
+
+##  Adding CD4 results ---------------------------------------------------------
+
+get_cd4 <- function(data, lab_cd4) {
+   log_info("Attaching baseline cd4.")
+   data %<>%
+      # get cd4 data
+      # TODO: attach max dates for filtering of cd4 data
+      left_join(
+         y  = lab_cd4 %>%
+            select(
+               CD4_DATE,
+               CD4_RESULT,
+               CENTRAL_ID
+            ),
+         by = join_by(CENTRAL_ID)
+      ) %>%
+      mutate(
+         # calculate distance from confirmatory date
+         CD4_DATE     = as.Date(CD4_DATE),
+         CD4_CONFIRM  = interval(CD4_DATE, confirm_date) / days(1),
+
+         # baseline is within 182 days
+         BASELINE_CD4 = if_else(
+            CD4_CONFIRM >= -182 & CD4_CONFIRM <= 182,
+            1,
+            0
+         ),
+
+         # make values absolute to take date nearest to confirmatory
+         CD4_CONFIRM  = abs(CD4_CONFIRM),
+      ) %>%
+      arrange(REC_ID, CD4_CONFIRM) %>%
+      distinct(REC_ID, .keep_all = TRUE) %>%
+      arrange(desc(CONFIRM_TYPE), CONFIRM_CODE)
+
+   return(data)
+}
+
 ##  Generate subset variables --------------------------------------------------
 
-standardize_data <- function(data) {
-   data %<>%
+standardize_data <- function(initial, params, corr) {
+   log_info("Converting to final HARP variables.")
+   data <- initial %>%
       mutate(
          # generate idnum
          idnum                     = if_else(
             condition = is.na(IDNUM),
-            true      = .GlobalEnv$nhsss$harp_dx$params$latest_idnum + row_number(),
+            true      = params$latest_idnum + row_number(),
             false     = as.integer(IDNUM)
          ),
+
+         # report date
+         year                      = params$yr,
+         month                     = params$mo,
 
          # Perm Region (as encoded)
          PERMONLY_PSGC_REG         = if_else(
@@ -39,15 +185,11 @@ standardize_data <- function(data) {
             false     = 0
          ),
 
-         # report date
-         year                      = ohasis$yr %>% as.integer(),
-         month                     = ohasis$mo %>% as.integer(),
-
          # confirmatory info
          test_done                 = case_when(
-            T3_KIT == "Geenius HIV 1/2 Confirmatory Assay" ~ "GEENIUS",
-            T3_KIT == "HIV 1/2 STAT-PAK Assay" ~ "STAT-PAK",
-            T3_KIT == "MP Diagnostics HIV BLOT 2.2" ~ "WESTERN BLOT",
+            str_detect(toupper(T3_KIT), "GEENIUS") ~ "GEENIUS",
+            str_detect(toupper(T3_KIT), "STAT-PAK") ~ "STAT-PAK",
+            str_detect(toupper(T3_KIT), "MP DIAGNOSTICS") ~ "WESTERN BLOT",
             AGE <= 1 ~ "PCR"
          ),
          rhivda_done               = if_else(
@@ -55,40 +197,13 @@ standardize_data <- function(data) {
             true      = 1,
             false     = as.numeric(NA)
          ),
-         sample_source             = if_else(
-            condition = !is.na(SPECIMEN_REFER_TYPE),
-            true      = substr(SPECIMEN_REFER_TYPE, 3, 3),
-            false     = NA_character_
-         ),
+         sample_source             = substr(SPECIMEN_REFER_TYPE, 3, 3),
 
          # demographics
-         pxcode                    = paste0(
-            if_else(
-               condition = !is.na(FIRST),
-               true      = StrLeft(FIRST, 1),
-               false     = ""
-            ),
-            if_else(
-               condition = !is.na(MIDDLE),
-               true      = StrLeft(MIDDLE, 1),
-               false     = ""
-            ),
-            if_else(
-               condition = !is.na(LAST),
-               true      = StrLeft(LAST, 1),
-               false     = ""
-            )
-         ),
-         SEX                       = stri_trans_toupper(SEX),
-         self_identity             = if_else(
-            condition = !is.na(SELF_IDENT),
-            true      = substr(stri_trans_toupper(SELF_IDENT), 3, stri_length(SELF_IDENT)),
-            false     = NA_character_
-         ),
-         self_identity_other       = toupper(SELF_IDENT_OTHER),
+         pxcode                    = str_squish(stri_c(StrLeft(FIRST, 1), StrLeft(MIDDLE, 1), StrLeft(LAST, 1))), ,
+         SEX                       = remove_code(stri_trans_toupper(SEX)),
+         self_identity             = remove_code(stri_trans_toupper(SELF_IDENT)),
          self_identity             = case_when(
-            # self_identity_other == "N/A" ~ NA_character_,
-            # self_identity_other == "no answer" ~ NA_character_,
             self_identity == "OTHER" ~ "OTHERS",
             self_identity == "MAN" ~ "MALE",
             self_identity == "WOMAN" ~ "FEMALE",
@@ -96,12 +211,8 @@ standardize_data <- function(data) {
             self_identity == "FEMALE" ~ "FEMALE",
             TRUE ~ self_identity
          ),
-         self_identity_other       = toupper(self_identity_other),
-         self_identity_other_sieve = if_else(
-            condition = !is.na(self_identity_other),
-            true      = str_replace_all(self_identity_other, "[^[:alnum:]]", ""),
-            false     = NA_character_
-         ),
+         self_identity_other       = stri_trans_toupper(SELF_IDENT_OTHER),
+         self_identity_other_sieve = str_replace_all(self_identity_other, "[^[:alnum:]]", ""),
 
          CIVIL_STATUS              = stri_trans_toupper(CIVIL_STATUS),
          nationalit                = case_when(
@@ -128,16 +239,19 @@ standardize_data <- function(data) {
          ),
 
          # clinical pic
-         who_staging               = StrLeft(WHO_CLASS, 1) %>% as.integer(),
+         who_staging               = as.integer(keep_code(WHO_CLASS)),
          other_reason_test         = stri_trans_toupper(TEST_REASON_OTHER_TEXT),
+
          CLINICAL_PIC              = case_when(
             StrLeft(CLINICAL_PIC, 1) == "1" ~ "0_Asymptomatic",
             StrLeft(CLINICAL_PIC, 1) == "2" ~ "1_Symptomatic",
          ),
+
          OFW_STATION               = case_when(
             StrLeft(OFW_STATION, 1) == "1" ~ "1_On ship",
             StrLeft(OFW_STATION, 1) == "2" ~ "2_Land",
          ),
+
          REFER_TYPE                = case_when(
             StrLeft(REFER_TYPE, 1) == "1" ~ "1",
             StrLeft(REFER_TYPE, 1) == "2" ~ "1",
@@ -199,15 +313,17 @@ standardize_data <- function(data) {
       ) %>%
       # gender identity
       left_join(
-         y  = nhsss$harp_dx$corr$gender_identity$Sheet1,
+         y  = corr$gender_identity$Sheet1,
          by = c("SEX", "self_identity", "self_identity_other_sieve")
       )
+
    return(data)
 }
 
 ##  Modes of transmission ------------------------------------------------------
 
-tag_mot <- function(data) {
+tag_mot <- function(data, params) {
+   log_info("Generating mode of transmission.")
    data %<>%
       # mode of transmission
       mutate(
@@ -263,18 +379,18 @@ tag_mot <- function(data) {
          # m->m only
          mot        = case_when(
             male == 1 & EXPOSE_SEX_M_NOCONDOM == 1 ~ 1,
-            male == 1 & YR_LAST_M >= nhsss$harp_dx$params$p10y ~ 1,
-            male == 1 & year(EXPOSE_SEX_M_AV_DATE) >= nhsss$harp_dx$params$p10y ~ 1,          # HTS Form
-            male == 1 & year(EXPOSE_SEX_M_AV_NOCONDOM_DATE) >= nhsss$harp_dx$params$p10y ~ 1, # HTS Form
+            male == 1 & YR_LAST_M >= params$p10y ~ 1,
+            male == 1 & year(EXPOSE_SEX_M_AV_DATE) >= params$p10y ~ 1,          # HTS Form
+            male == 1 & year(EXPOSE_SEX_M_AV_NOCONDOM_DATE) >= params$p10y ~ 1, # HTS Form
             TRUE ~ mot
          ),
 
          # m->m+f
          mot        = case_when(
             mot == 1 & EXPOSE_SEX_F_NOCONDOM == 1 ~ 2,
-            mot == 1 & YR_LAST_F >= nhsss$harp_dx$params$p10y ~ 2,
-            mot == 1 & year(EXPOSE_SEX_F_AV_DATE) >= nhsss$harp_dx$params$p10y ~ 2,          # HTS Form
-            mot == 1 & year(EXPOSE_SEX_F_AV_NOCONDOM_DATE) >= nhsss$harp_dx$params$p10y ~ 2, # HTS Form
+            mot == 1 & YR_LAST_F >= params$p10y ~ 2,
+            mot == 1 & year(EXPOSE_SEX_F_AV_DATE) >= params$p10y ~ 2,          # HTS Form
+            mot == 1 & year(EXPOSE_SEX_F_AV_NOCONDOM_DATE) >= params$p10y ~ 2, # HTS Form
             TRUE ~ mot
          ),
 
@@ -283,22 +399,22 @@ tag_mot <- function(data) {
             male == 1 & mot == 0 & EXPOSE_SEX_F_NOCONDOM == 1 ~ 3,
             male == 1 &
                mot == 0 &
-               YR_LAST_F >= nhsss$harp_dx$params$p10y ~ 3,
+               YR_LAST_F >= params$p10y ~ 3,
             male == 1 &
                mot == 0 &
-               year(EXPOSE_SEX_F_AV_DATE) >= nhsss$harp_dx$params$p10y ~ 3,          # HTS Form
+               year(EXPOSE_SEX_F_AV_DATE) >= params$p10y ~ 3,          # HTS Form
             male == 1 &
                mot == 0 &
-               year(EXPOSE_SEX_F_AV_NOCONDOM_DATE) >= nhsss$harp_dx$params$p10y ~ 3, # HTS Form
+               year(EXPOSE_SEX_F_AV_NOCONDOM_DATE) >= params$p10y ~ 3, # HTS Form
             TRUE ~ mot
          ),
 
          # f->m
          mot        = case_when(
             female == 1 & EXPOSE_SEX_M_NOCONDOM == 1 ~ 4,
-            female == 1 & YR_LAST_M >= nhsss$harp_dx$params$p10y ~ 4,
-            female == 1 & year(EXPOSE_SEX_M_AV_DATE) >= nhsss$harp_dx$params$p10y ~ 4,          # HTS Form
-            female == 1 & year(EXPOSE_SEX_M_AV_NOCONDOM_DATE) >= nhsss$harp_dx$params$p10y ~ 4, # HTS Form
+            female == 1 & YR_LAST_M >= params$p10y ~ 4,
+            female == 1 & year(EXPOSE_SEX_M_AV_DATE) >= params$p10y ~ 4,          # HTS Form
+            female == 1 & year(EXPOSE_SEX_M_AV_NOCONDOM_DATE) >= params$p10y ~ 4, # HTS Form
             TRUE ~ mot
          ),
 
@@ -322,7 +438,7 @@ tag_mot <- function(data) {
                is.na(YR_LAST_M) ~ 11,
             male == 1 &
                mot == 0 &
-               YR_LAST_M >= nhsss$harp_dx$params$p10y ~ 11,
+               YR_LAST_M >= params$p10y ~ 11,
             male == 1 &
                mot == 0 &
                !is.na(EXPOSE_SEX_M_AV_DATE) ~ 11,                     # HTS Form
@@ -338,7 +454,7 @@ tag_mot <- function(data) {
             mot == 1 & NUM_F_PARTNER > 0 & is.na(YR_LAST_F) ~ 21,
             mot == 3 & NUM_M_PARTNER > 0 & is.na(YR_LAST_M) ~ 21,
             mot == 11 & NUM_F_PARTNER > 0 & is.na(YR_LAST_F) ~ 21,
-            mot == 11 & YR_LAST_F >= nhsss$harp_dx$params$p10y ~ 21,
+            mot == 11 & YR_LAST_F >= params$p10y ~ 21,
             mot == 11 & !is.na(EXPOSE_SEX_F_AV_DATE) ~ 21,          # HTS Form,
             mot == 11 & !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ 21, # HTS Form,
             mot == 11 & EXPOSE_SEX_F > 0 ~ 21,                      # HTS Form,
@@ -353,7 +469,7 @@ tag_mot <- function(data) {
                is.na(YR_LAST_F) ~ 31,
             male == 1 &
                mot == 0 &
-               YR_LAST_F >= nhsss$harp_dx$params$p10y ~ 31,
+               YR_LAST_F >= params$p10y ~ 31,
             male == 1 &
                mot == 0 &
                !is.na(EXPOSE_SEX_F_AV_DATE) ~ 31,                     # HTS Form,
@@ -372,7 +488,7 @@ tag_mot <- function(data) {
                is.na(YR_LAST_M) ~ 41,
             female == 1 &
                mot == 0 &
-               YR_LAST_M >= nhsss$harp_dx$params$p10y ~ 41,
+               YR_LAST_M >= params$p10y ~ 41,
             female == 1 &
                mot == 0 &
                !is.na(EXPOSE_SEX_M_AV_DATE) ~ 41,              # HTS Form,
@@ -459,19 +575,32 @@ tag_mot <- function(data) {
             mot %in% c(1, 11) ~ "HOMOSEXUAL",
          ),
       )
+
    return(data)
 }
 
 ##  Advanced HIV disease -------------------------------------------------------
 
-tag_class <- function(data) {
+tag_class <- function(data, corr) {
+   log_info("Tagging AHD.")
    data %<>%
       mutate(
          # cd4 tagging
-         CD4_RESULT           = stri_replace_all_charclass(CD4_RESULT, "[:alpha:]", ""),
-         CD4_RESULT           = stri_replace_all_fixed(CD4_RESULT, " ", ""),
-         CD4_RESULT           = stri_replace_all_fixed(CD4_RESULT, "<", ""),
-         CD4_RESULT           = as.numeric(CD4_RESULT),
+         days_cd4_confirm     = interval(CD4_DATE, confirm_date) / days(1),
+         cd4_is_baseline      = if_else(condition = days_cd4_confirm <= 182, 1, 0, 0),
+         CD4_DATE             = case_when(
+            cd4_is_baseline == 0 ~ NA_Date_,
+            is.na(CD4_RESULT) ~ NA_Date_,
+            TRUE ~ CD4_DATE
+         ),
+         CD4_RESULT           = case_when(
+            cd4_is_baseline == 0 ~ NA_character_,
+            TRUE ~ CD4_RESULT
+         ),
+         CD4_RESULT           = stri_replace_all_charclass(CD4_RESULT, "[:alpha:]", "") %>%
+            stri_replace_all_fixed(" ", "") %>%
+            stri_replace_all_fixed("<", "") %>%
+            as.numeric(),
          baseline_cd4         = case_when(
             CD4_RESULT >= 500 ~ 1,
             CD4_RESULT >= 350 & CD4_RESULT < 500 ~ 2,
@@ -479,40 +608,8 @@ tag_class <- function(data) {
             CD4_RESULT >= 50 & CD4_RESULT < 200 ~ 4,
             CD4_RESULT < 50 ~ 5,
          ),
-         CD4_DATE             = if_else(
-            condition = is.na(CD4_RESULT),
-            true      = NA_Date_,
-            false     = CD4_DATE
-         ),
 
          # WHO Case Definition of advanced HIV classification
-         CD4_CONFIRM          = difftime(as.Date(confirm_date), CD4_DATE, units = "days") %>% as.numeric(),
-         baseline_cd4         = if_else(
-            condition = CD4_CONFIRM <= 182,
-            true      = baseline_cd4,
-            false     = as.numeric(NA)
-         ),
-         CD4_DATE             = if_else(
-            condition = CD4_CONFIRM <= 182,
-            true      = CD4_DATE,
-            false     = as.Date(NA)
-         ),
-         CD4_RESULT           = if_else(
-            condition = CD4_CONFIRM <= 182,
-            true      = CD4_RESULT,
-            false     = as.numeric(NA)
-         ),
-         ahd                  = case_when(
-            who_staging %in% c(3, 4) ~ 1,
-            AGE >= 5 &
-               baseline_cd4 %in% c(3, 4, 5) ~ 1,
-            AGE >= 1 &
-               AGE < 5 &
-               baseline_cd4 %in% c(2, 3, 4, 5) ~ 1,
-            (AGE < 1 | AGE_MO < 12) &
-               baseline_cd4 %in% c(1, 2, 3, 4, 5) ~ 1,
-            !is.na(baseline_cd4) ~ 0
-         ),
          # refined ahd
          ahd                  = case_when(
             who_staging %in% c(3, 4) ~ 1,
@@ -520,7 +617,18 @@ tag_class <- function(data) {
             AGE < 5 ~ 1,
             !is.na(baseline_cd4) ~ 0
          ),
+         baseline_cd4         = labelled(
+            baseline_cd4,
+            c(
+               "1_500+ cells/μL"    = 1,
+               "2_350-499 cells/μL" = 2,
+               "3_200-349 cells/μL" = 3,
+               "4_50-199 cells/μL"  = 4,
+               "5_below 50"         = 5
+            )
+         ),
 
+         # tb patient
          # class
          classd               = if_else(
             condition = !is.na(who_staging),
@@ -528,13 +636,17 @@ tag_class <- function(data) {
             false     = NA_integer_
          ) %>% as.numeric(),
          description_symptoms = stri_trans_toupper(SYMPTOMS),
+         MED_TB_PX            = case_when(
+            stri_detect_fixed(description_symptoms, "TB") ~ 1,
+            TRUE ~ as.numeric(MED_TB_PX)
+         ),
          classd               = case_when(
-            stri_detect_regex(description_symptoms, paste(collapse = "|", (nhsss$harp_dx$corr$classd %>% filter(as.numeric(class) == 3))$symptom)) ~ 3,
+            stri_detect_regex(description_symptoms, paste(collapse = "|", (corr$classd %>% filter(as.numeric(class) == 3))$symptom)) ~ 3,
             MED_TB_PX == 1 ~ 3,
             TRUE ~ classd
          ),
          classd               = case_when(
-            stri_detect_regex(description_symptoms, paste(collapse = "|", (nhsss$harp_dx$corr$classd %>% filter(as.numeric(class) == 4))$symptom)) ~ 4,
+            stri_detect_regex(description_symptoms, paste(collapse = "|", (corr$classd %>% filter(as.numeric(class) == 4))$symptom)) ~ 4,
             TRUE ~ classd
          ),
 
@@ -551,33 +663,19 @@ tag_class <- function(data) {
             TRUE ~ "HIV"
          ),
 
-         # tb patient
-         MED_TB_PX            = case_when(
-            stri_detect_fixed(description_symptoms, "TB") ~ 1,
-            TRUE ~ as.numeric(MED_TB_PX)
-         ),
-
-         # modality (HTS)
-         MODALITY             = case_when(
-            FORM_VERSION == "Form A (v2017)" ~ "FBT",
-            StrLeft(MODALITY, 6) == "101101" ~ "FBT",
-            StrLeft(MODALITY, 6) == "101103" ~ "CBS",
-            StrLeft(MODALITY, 6) == "101104" ~ "FBS",
-            StrLeft(MODALITY, 6) == "101105" ~ "ST",
-            StrLeft(MODALITY, 6) == "101304" ~ "REACH",
+         # no data for stage of hiv
+         nodata_hiv_stage     = if_else(
+            if_all(c(who_staging, description_symptoms, MED_TB_PX, CLINICAL_PIC), ~is.na(.)),
+            1,
+            0,
+            0
          ),
 
          # form (HTS)
          FORM_VERSION         = if_else(FORM_VERSION == " (vNA)", NA_character_, FORM_VERSION),
 
          # provider type (HTS)
-         PROVIDER_TYPE        = if_else(!is.na(PROVIDER_TYPE), substr(PROVIDER_TYPE, 1, stri_locate_first_fixed(PROVIDER_TYPE, "_") - 1), NA_character_) %>% as.integer(),
-
-         # agreed to test (HTS)
-         SCREEN_AGREED        = case_when(
-            FORM_VERSION == "Form A (v2017)" ~ "1",
-            !is.na(SCREEN_AGREED) ~ StrLeft(SCREEN_AGREED, 1),
-         ) %>% as.integer(),
+         PROVIDER_TYPE        = as.integer(keep_code(PROVIDER_TYPE)),
 
          # other services (HTS)
          given_ssnt           = case_when(
@@ -589,181 +687,63 @@ tag_class <- function(data) {
          SERVICE_CONDOMS      = if_else(SERVICE_CONDOMS == 0, NA_integer_, as.integer(SERVICE_CONDOMS), NA_integer_),
          SERVICE_LUBES        = if_else(SERVICE_LUBES == 0, NA_integer_, as.integer(SERVICE_LUBES), NA_integer_),
       )
+
    return(data)
 }
 
-##  Address --------------------------------------------------------------------
+##  Facilities & Address -------------------------------------------------------
 
-convert_address <- function(data) {
+convert_faci_addr <- function(data) {
+   log_info("Converting address & facility data.")
+   # rename columns
    data %<>%
-      mutate_at(
-         .vars = vars(contains("_PSGC_")),
-         ~if_else(is.na(.), "", .)
+      ohasis$get_addr(
+         c(
+            region   = "PERM_PSGC_REG",
+            province = "PERM_PSGC_PROV",
+            muncity  = "PERM_PSGC_MUNC"
+         ),
+         "nhsss"
       ) %>%
-      # permanent
-      rename_at(
-         .vars = vars(starts_with("PERM_PSGC")),
-         ~stri_replace_all_fixed(., "PERM_", "")
+      ohasis$get_addr(
+         c(
+            region_c   = "CURR_PSGC_REG",
+            province_c = "CURR_PSGC_PROV",
+            muncity_c  = "CURR_PSGC_MUNC"
+         ),
+         "nhsss"
       ) %>%
-      left_join(
-         y  = ohasis$ref_addr %>%
-            select(
-               PSGC_REG,
-               PSGC_PROV,
-               PSGC_MUNC,
-               region   = NHSSS_REG,
-               province = NHSSS_PROV,
-               muncity  = NHSSS_MUNC,
-            ),
-         by = c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC")
+      ohasis$get_addr(
+         c(
+            region01   = "BIRTH_PSGC_REG",
+            province01 = "BIRTH_PSGC_PROV",
+            placefbir  = "BIRTH_PSGC_MUNC"
+         ),
+         "nhsss"
       ) %>%
-      relocate(muncity, province, region, .before = PSGC_REG) %>%
-      rename(
-         psgc_region   = PSGC_REG,
-         psgc_province = PSGC_PROV,
-         psgc_muncity  = PSGC_MUNC
+      ohasis$get_addr(
+         c(
+            region_p   = "PERMONLY_PSGC_REG",
+            province_p = "PERMONLY_PSGC_PROV",
+            muncity_p  = "PERMONLY_PSGC_MUNC"
+         ),
+         "nhsss"
       ) %>%
-      # current
-      rename_at(
-         .vars = vars(starts_with("CURR_PSGC")),
-         ~stri_replace_all_fixed(., "CURR_", "")
-      ) %>%
-      left_join(
-         y  = ohasis$ref_addr %>%
-            select(
-               PSGC_REG,
-               PSGC_PROV,
-               PSGC_MUNC,
-               region_c   = NHSSS_REG,
-               province_c = NHSSS_PROV,
-               muncity_c  = NHSSS_MUNC,
-            ),
-         by = c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC")
-      ) %>%
-      relocate(muncity_c, province_c, region_c, .before = PSGC_REG) %>%
-      rename(
-         psgc_region_c   = PSGC_REG,
-         psgc_province_c = PSGC_PROV,
-         psgc_muncity_c  = PSGC_MUNC
-      ) %>%
-      # birth
-      rename_at(
-         .vars = vars(starts_with("BIRTH_PSGC")),
-         ~stri_replace_all_fixed(., "BIRTH_", "")
-      ) %>%
-      left_join(
-         y  = ohasis$ref_addr %>%
-            select(
-               PSGC_REG,
-               PSGC_PROV,
-               PSGC_MUNC,
-               region01   = NHSSS_REG,
-               province01 = NHSSS_PROV,
-               placefbir  = NHSSS_MUNC,
-            ),
-         by = c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC")
-      ) %>%
-      relocate(placefbir, province01, region01, .before = PSGC_REG) %>%
-      rename(
-         psgc_region01   = PSGC_REG,
-         psgc_province01 = PSGC_PROV,
-         psgc_placeofbir = PSGC_MUNC
-      ) %>%
-      # perm region only
-      rename_at(
-         .vars = vars(starts_with("PERMONLY_PSGC")),
-         ~stri_replace_all_fixed(., "PERMONLY_", "")
-      ) %>%
-      left_join(
-         y  = ohasis$ref_addr %>%
-            select(
-               PSGC_REG,
-               PSGC_PROV,
-               PSGC_MUNC,
-               region_p   = NHSSS_REG,
-               province_p = NHSSS_PROV,
-               muncity_p  = NHSSS_MUNC,
-            ),
-         by = c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC")
-      ) %>%
-      relocate(muncity_p, province_p, region_p, .before = PSGC_REG) %>%
-      rename(
-         psgc_region_p   = PSGC_REG,
-         psgc_province_p = PSGC_PROV,
-         psgc_muncity_p  = PSGC_MUNC
-      ) %>%
-      # hiv_service location
-      rename_at(
-         .vars = vars(starts_with("HIV_SERVICE_PSGC")),
-         ~stri_replace_all_fixed(., "HIV_SERVICE_", "")
-      ) %>%
-      left_join(
-         y  = ohasis$ref_addr %>%
-            select(
-               PSGC_REG,
-               PSGC_PROV,
-               PSGC_MUNC,
-               venue_region   = NHSSS_REG,
-               venue_province = NHSSS_PROV,
-               venue_muncity  = NHSSS_MUNC,
-            ),
-         by = c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC")
-      ) %>%
-      relocate(venue_muncity, venue_province, venue_region, .before = PSGC_REG) %>%
-      rename(
-         psgc_venue_region   = PSGC_REG,
-         psgc_venue_province = PSGC_PROV,
-         psgc_venue_muncity  = PSGC_MUNC
+      ohasis$get_addr(
+         c(
+            venue_region   = "HIV_SERVICE_PSGC_REG",
+            venue_province = "HIV_SERVICE_PSGC_PROV",
+            venue_muncity  = "HIV_SERVICE_PSGC_MUNC"
+         ),
+         "nhsss"
       ) %>%
       # country names
       left_join(
          y  = ohasis$ref_country %>%
             select(COUNTRY_CODE, ocw_country = COUNTRY_NAME),
-         by = c("OFW_COUNTRY" = "COUNTRY_CODE")
+         by = join_by(OFW_COUNTRY == COUNTRY_CODE)
       ) %>%
-      relocate(ocw_country, .before = OFW_COUNTRY)
-   return(data)
-}
-
-##  Facilities -----------------------------------------------------------------
-
-convert_faci_names <- function(data) {
-   data %<>%
-      # confirmlab
-      mutate(
-         CONFIRM_FACI     = if_else(
-            condition = is.na(CONFIRM_FACI),
-            true      = "",
-            false     = CONFIRM_FACI
-         ),
-         CONFIRM_SUB_FACI = case_when(
-            is.na(CONFIRM_SUB_FACI) ~ "",
-            StrLeft(CONFIRM_SUB_FACI, 6) != CONFIRM_FACI ~ "",
-            TRUE ~ CONFIRM_SUB_FACI
-         )
-      ) %>%
-      left_join(
-         na_matches = "never",
-         y          = nhsss$harp_dx$corr$confirmlab %>%
-            mutate(
-               FACI_ID     = if_else(
-                  condition = is.na(FACI_ID),
-                  true      = "",
-                  false     = FACI_ID
-               ),
-               SUB_FACI_ID = case_when(
-                  is.na(SUB_FACI_ID) ~ "",
-                  StrLeft(SUB_FACI_ID, 6) != FACI_ID ~ "",
-                  TRUE ~ SUB_FACI_ID
-               )
-            ) %>%
-            rename(
-               CONFIRM_FACI     = FACI_ID,
-               CONFIRM_SUB_FACI = SUB_FACI_ID,
-            ),
-         by         = c("CONFIRM_FACI", "CONFIRM_SUB_FACI")
-      ) %>%
-      relocate(confirmlab, .before = CONFIRM_FACI) %>%
+      relocate(ocw_country, .before = OFW_COUNTRY) %>%
       # dxlab_standard
       mutate(
          TEST_FACI     = if_else(
@@ -780,30 +760,42 @@ convert_faci_names <- function(data) {
       left_join(
          na_matches = "never",
          y          = ohasis$ref_faci %>%
-            left_join(
-               y  = ohasis$ref_addr %>%
-                  select(
-                     FACI_PSGC_REG  = PSGC_REG,
-                     FACI_PSGC_PROV = PSGC_PROV,
-                     FACI_PSGC_MUNC = PSGC_MUNC,
-                     dx_region      = NHSSS_REG,
-                     dx_province    = NHSSS_PROV,
-                     dx_muncity     = NHSSS_MUNC
-                  ),
-               by = c("FACI_PSGC_REG", "FACI_PSGC_PROV", "FACI_PSGC_MUNC")
-            ) %>%
             select(
-               TEST_FACI      = FACI_ID,
-               TEST_SUB_FACI  = SUB_FACI_ID,
-               dxlab_standard = FACI_NAME_CLEAN,
-               pubpriv        = PUBPRIV,
-               dx_region,
-               dx_province,
-               dx_muncity
+               TEST_FACI     = FACI_ID,
+               TEST_SUB_FACI = SUB_FACI_ID,
+               pubpriv       = PUBPRIV
             ),
-         by         = c("TEST_FACI", "TEST_SUB_FACI")
+         by         = join_by(TEST_FACI, TEST_SUB_FACI)
       ) %>%
-      relocate(dxlab_standard, .before = CONFIRM_FACI)
+      mutate(
+         FORM_FACI_2        = TEST_FACI,
+         FORM_FACI          = TEST_FACI,
+         SUB_FORM_FACI      = TEST_SUB_FACI,
+         diff_source_v_form = if_else(coalesce(FORM_FACI, "") != coalesce(SPECIMEN_SOURCE, ""), 1, 0, 0)
+      ) %>%
+      ohasis$get_faci(
+         list(HTS_FACI = c("FORM_FACI", "SUB_FORM_FACI")),
+         "name"
+      ) %>%
+      ohasis$get_faci(
+         list(SOURCE_FACI = c("SPECIMEN_SOURCE", "SPECIMEN_SUB_SOURCE")),
+         "name"
+      ) %>%
+      # confirmlab
+      ohasis$get_faci(
+         list(confirmlab = c("CONFIRM_FACI", "CONFIRM_SUB_FACI")),
+         "code",
+         c("confirm_region", "confirm_province", "confirm_muncity")
+      ) %>%
+      ohasis$get_faci(
+         list(dxlab_standard = c("TEST_FACI", "TEST_SUB_FACI")),
+         "nhsss",
+         c("dx_region", "dx_province", "dx_muncity")
+      ) %>%
+      rename(
+         FORM_FACI = FORM_FACI_2
+      )
+
    return(data)
 }
 
@@ -811,18 +803,22 @@ convert_faci_names <- function(data) {
 
 final_conversion <- function(data) {
    data %<>%
+      mutate(
+         labcode2 = CONFIRM_CODE
+      ) %>%
       # same vars as registry
       select(
+         REC_ID,
          CENTRAL_ID,
          PATIENT_ID,
-         REC_ID,
          idnum,
          form                      = FORM_VERSION,
-         modality                  = MODALITY,              # HTS Form
-         consent_test              = SCREEN_AGREED,         # HTS Form
+         modality                  = hts_modality,        # HTS Form
+         consent_test              = test_agreed,         # HTS Form
          mot,
          starts_with("risk_", ignore.case = FALSE),
          labcode                   = CONFIRM_CODE,
+         labcode2,
          year,
          month,
          uic                       = UIC,
@@ -831,23 +827,19 @@ final_conversion <- function(data) {
          last                      = LAST,
          name_suffix               = SUFFIX,
          bdate                     = BIRTHDATE,
+         patient_code              = PATIENT_CODE,
          pxcode,
          age                       = AGE,
          age_months                = AGE_MO,
          sex                       = SEX,
          philhealth                = PHILHEALTH_NO,
+         philsys_id                = PHILSYS_ID,
          muncity,
          province,
          region,
-         psgc_muncity,
-         psgc_province,
-         psgc_region,
          muncity_c,
          province_c,
          region_c,
-         psgc_muncity_c,
-         psgc_province_c,
-         psgc_region_c,
          muncity_p,
          province_p,
          region_p,
@@ -883,10 +875,11 @@ final_conversion <- function(data) {
          baseline_cd4,
          baseline_cd4_date         = CD4_DATE,
          baseline_cd4_result       = CD4_RESULT,
-         t3_date                   = T3_DATE,
          confirm_date,
-         CONFIRM_FACI,
          confirmlab,
+         confirm_region,
+         confirm_province,
+         confirm_muncity,
          region01,
          province01,
          placefbir,
@@ -961,12 +954,19 @@ final_conversion <- function(data) {
          venue_text                = HIV_SERVICE_ADDR,
          px_type                   = CLIENT_TYPE,
          referred_by               = REFER_TYPE,
+         hts_date,
          t0_date                   = T0_DATE,
          t0_result                 = T0_RESULT,
          test_done,
          name,
+         t1_date                   = T1_DATE,
+         t1_kit                    = T1_KIT,
          t1_result                 = T1_RESULT,
+         t2_date                   = T2_DATE,
+         t2_kit                    = T2_KIT,
          t2_result                 = T2_RESULT,
+         t3_date                   = T3_DATE,
+         t3_kit                    = T3_KIT,
          t3_result                 = T3_RESULT,
          final_interpretation      = CONFIRM_RESULT,
          visit_date,
@@ -974,13 +974,16 @@ final_conversion <- function(data) {
          specimen_receipt_date,
          rhivda_done,
          sample_source,
-         TEST_FACI,
          dxlab_standard,
          pubpriv,
          dx_region,
          dx_province,
          dx_muncity,
-         CD4_CONFIRM
+         diff_source_v_form,
+         SOURCE_FACI,
+         HTS_FACI,
+         DUP_MUNC,
+         FORM_FACI
       ) %>%
       # turn into codes
       mutate_at(
@@ -995,14 +998,9 @@ final_conversion <- function(data) {
             prev_test_result,
             clinicalpicture,
             prevtest,
-            px_type,
-            referred_by
+            px_type
          ),
-         ~if_else(
-            condition = !is.na(.),
-            true      = substr(., 1, stri_locate_first_fixed(., "_") - 1),
-            false     = NA_character_
-         ) %>% as.integer()
+         ~as.integer(keep_code(.))
       ) %>%
       # remove codes
       mutate_at(
@@ -1014,21 +1012,9 @@ final_conversion <- function(data) {
             t3_result,
             final_interpretation
          ),
-         ~if_else(
-            condition = !is.na(.),
-            true      = substr(., stri_locate_first_fixed(., "_") + 1, stri_length(.)),
-            false     = NA_character_
-         )
+         ~remove_code(.)
       ) %>%
       # remove codes
-      mutate_at(
-         .vars = vars(contains("date")),
-         ~if_else(
-            condition = !is.na(.),
-            true      = as.Date(.),
-            false     = NA_Date_
-         )
-      ) %>%
       mutate(
          age_pregnant = if_else(
             condition = pregnant == 1,
@@ -1036,122 +1022,339 @@ final_conversion <- function(data) {
             false     = as.numeric(NA)
          ),
          age_vertical = if_else(
-            condition = transmit == 'PERINATAL',
+            condition = transmit == "PERINATAL",
             true      = age,
             false     = as.numeric(NA)
          ),
          age_unknown  = if_else(
-            condition = transmit == 'UNKNOWN',
+            condition = transmit == "UNKNOWN",
             true      = age,
             false     = as.numeric(NA)
          ),
          pubpriv      = if_else(pubpriv == "0", NA_character_, as.character(pubpriv))
       ) %>%
       distinct_all()
+
+   return(data)
+}
+
+##  Append w/ old Registry -----------------------------------------------------
+
+append_data <- function(old, new) {
+   log_info("Appending cases to final registry.")
+   data <- new %>%
+      mutate(
+         confirm_date = coalesce(confirm_date, as.Date(t3_date))
+      ) %>%
+      bind_rows(
+         old %>%
+            mutate(
+               consent_test = as.integer(consent_test),
+            )
+      ) %>%
+      arrange(idnum) %>%
+      mutate(
+         drop_notyet = 0,
+         anti_join   = 0,
+      )
+
+   return(data)
+}
+
+##  Tag data to be reported later on and duplicates for dropping ---------------
+
+tag_fordrop <- function(data, corr) {
+   log_info("Tagging enrollees for dropping.")
+   for (drop_var in c("drop_notyet", "anti_join"))
+      if (drop_var %in% names(corr))
+         data %<>%
+            left_join(
+               y  = corr[[drop_var]] %>%
+                  distinct(REC_ID) %>%
+                  mutate(drop_this = 1),
+               by = join_by(REC_ID)
+            ) %>%
+            mutate_at(
+               .vars = vars(matches(drop_var)),
+               ~coalesce(drop_this, .)
+            ) %>%
+            select(-drop_this)
+
+   return(data)
+}
+
+##  Subsets for documentation --------------------------------------------------
+
+subset_drops <- function(data) {
+   log_info("Archive those for dropping.")
+   drops <- list(
+      dropped_notyet     = data %>% filter(drop_notyet == 1),
+      dropped_duplicates = data %>% filter(anti_join == 1)
+   )
+
+   return(drops)
+}
+
+##  Drop using taggings --------------------------------------------------------
+
+remove_drops <- function(data) {
+   log_info("Cleaning final dataset.")
+   data %<>%
+      mutate(
+         labcode2    = if_else(
+            condition = is.na(labcode2),
+            true      = labcode,
+            false     = labcode2,
+            missing   = labcode2
+         ),
+         drop        = anti_join + drop_notyet,
+         who_staging = as.integer(who_staging)
+      ) %>%
+      filter(drop == 0) %>%
+      select(
+         -drop,
+         -anti_join,
+         -drop_notyet,
+         -mot,
+         -FORM_FACI
+      )
+
+   final_new <- data %>%
+      filter(year == as.numeric(ohasis$yr), month == as.numeric(ohasis$mo))
+
+   nrow_new  <- nrow(final_new)
+   nrow_ahd  <- final_new %>%
+      filter(class2022 == "AIDS") %>%
+      nrow()
+   perc_ahd  <- stri_c(format((nrow_ahd / nrow_new) * 100, digits = 2), "%")
+   nrow_none <- final_new %>%
+      filter(transmit == "UNKNOWN") %>%
+      nrow()
+   perc_none <- stri_c(format((nrow_none / nrow_new) * 100, digits = 2), "%")
+   nrow_mtct <- final_new %>%
+      filter(transmit == "PERINATAL") %>%
+      nrow()
+   perc_mtct <- stri_c(format((nrow_mtct / nrow_new) * 100, digits = 2), "%")
+
+   log_info("New cases    = {green(stri_pad_left(nrow_new, 4, ' '))}.")
+   log_info("New AHD      = {green(stri_pad_left(nrow_ahd, 4, ' '))}, {red(perc_ahd)}.")
+   log_info("New Unknown  = {green(stri_pad_left(nrow_none, 4, ' '))}, {red(perc_none)}.")
+   log_info("New Vertical = {green(stri_pad_left(nrow_mtct, 4, ' '))}, {red(perc_mtct)}.")
+
    return(data)
 }
 
 ##  Flag data for validation ---------------------------------------------------
 
-get_checks <- function(data) {
-   check  <- list()
-   update <- input(
-      prompt  = "Run `converted` validations?",
-      options = c("1" = "yes", "2" = "no"),
-      default = "1"
+get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops = NULL) {
+   check         <- list()
+   run_checks    <- ifelse(
+      !is.null(run_checks),
+      run_checks,
+      input(
+         prompt  = "Run `hts_tst_pos` validations?",
+         options = c("1" = "yes", "2" = "no"),
+         default = "1"
+      )
    )
-   update <- substr(toupper(update), 1, 1)
+   exclude_drops <- switch(
+      run_checks,
+      `1`     = ifelse(!is.null(exclude_drops), exclude_drops, input(
+         prompt  = "Exclude clients initially tagged for dropping from validations?",
+         options = c("1" = "yes", "2" = "no"),
+         default = "1"
+      )),
+      default = "2"
+   )
 
-   if (update == "1") {
-      # initialize checking layer
+   if (run_checks == "1") {
+      data %<>%
+         arrange(confirm_region, confirmlab, labcode)
+
       view_vars <- c(
          "REC_ID",
          "PATIENT_ID",
+         "confirm_region",
+         "confirmlab",
          "form",
          "labcode",
          "uic",
+         "patient_code",
          "firstname",
          "middle",
          "last",
          "name_suffix",
          "bdate",
          "sex",
+         "self_identity",
+         "self_identity_other",
          "gender_identity",
-         "curr_work",
-         "prev_work",
-         "CONFIRM_FACI",
          "confirmlab",
-         "TEST_FACI",
-         "dxlab_standard",
+         "HTS_FACI",
+         "SOURCE_FACI",
+         "hts_date",
+         "hts_modality",
+         "visit_date",
+         "blood_extract_date",
+         "specimen_receipt_date",
+         "confirm_date",
          "mot",
          "transmit",
          "sexhow",
+         "FORM_FACI",
          get_names(data, "risk_")
       )
+      check     <- check_pii(data, check, view_vars, first = firstname, middle = middle, last = last, birthdate = bdate, sex = sex)
+
+      # dates
+      date_vars <- c(
+         "visit_date",
+         "blood_extract_date",
+         "specimen_receipt_date",
+         "confirm_date",
+         "hts_date"
+      )
+      check     <- check_dates(data, check, view_vars, date_vars)
 
       # non-negotiable variables
       nonnegotiables <- c(
-         "idnum",
+         "uic",
          "age",
          "confirmlab",
          "dxlab_standard",
-         "pubpriv"
-      )
-      check          <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
-
-      # unknown data
-      vars <- c(
+         "pubpriv",
+         "form",
+         "dxlab_standard",
+         "sample_source",
+         "self_identity",
+         "nationality",
+         "t1_date",
+         "t1_result",
+         "t2_date",
+         "t2_result",
+         "t3_date",
+         "t3_result",
          "transmit",
          "region",
          "province",
          "muncity"
       )
-      .log_info("Checking if required variables have UNKNOWN data or unpaired NHSSS versions.")
-      for (var in vars) {
-         var          <- as.symbol(var)
-         check[[var]] <- data %>%
-            filter(
-               !!var %in% c("UNKNOWN", "OTHERS", NA_character_)
-            ) %>%
-            select(
-               any_of(view_vars),
-               !!var
-            )
-      }
+      check          <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
+      check          <- check_preggy(data, check, view_vars, sex = sex)
+      check          <- check_age(data, check, view_vars, birthdate = bdate, age = age, visit_date = visit_date)
 
       # special checks
+      log_info("Checking for mismatch facilities (source != test).")
+      check[["faci_diff_source_v_form"]] <- data %>%
+         filter(diff_source_v_form == 1) %>%
+         select(
+            any_of(view_vars),
+         ) %>%
+         arrange(confirm_region, confirmlab)
+
+      log_info("Checking for similarly named municipalities.")
+      check[["dup_munc"]] <- data %>%
+         filter(
+            DUP_MUNC == 1
+         ) %>%
+         select(
+            any_of(view_vars)
+         )
+
+      # test kits
+      log_info("Checking invalid test kits.")
+      check[["T1_KIT"]] <- data %>%
+         filter(
+            !(t1_kit %in% c("SD Bioline HIV 1/2 3.0", "Abbott Bioline HIV 1/2 3.0", "SYSMEX HISCL HIV Ag + Ab Assay")) | is.na(t1_kit)
+         ) %>%
+         select(
+            any_of(view_vars),
+            t1_kit
+         )
+
+      check[["T2_KIT"]] <- data %>%
+         filter(
+            !(t2_kit %in% c("Alere Determine HIV-1/2", "Abbott Determine HIV 1/2", "VIDAS HIV DUO Ultra")) | is.na(t2_kit)
+         ) %>%
+         select(
+            any_of(view_vars),
+            t2_kit
+         )
+
+      check[["T3_KIT"]] <- data %>%
+         filter(
+            !(t3_kit %in% c("Geenius HIV 1/2 Confirmatory Assay", "HIV 1/2 STAT-PAK Assay")) | is.na(t3_kit)
+         ) %>%
+         select(
+            any_of(view_vars),
+            t3_kit
+         )
+
+      # pdf results
+      log_info("Checking missing rHIVda PDF.")
+      check[["no_pdf_result"]] <- data %>%
+         filter(confirmlab != "SACCL") %>%
+         anti_join(
+            y  = pdf_rhivda$data %>% select(CONFIRM_CODE),
+            by = join_by(labcode == CONFIRM_CODE)
+         ) %>%
+         select(
+            any_of(view_vars),
+         )
+
+      log_info("Checking for MTCT.")
       check[["perinatal"]] <- data %>%
          filter(
             transmit == "PERINATAL"
          ) %>%
          select(
             any_of(view_vars),
-            transmit
          )
 
+      log_info("Checking for missing gender identity.")
       check[["no_gender_ident"]] <- data %>%
          filter(
-            !is.na(self_identity),
             is.na(gender_identity)
          ) %>%
          select(
             any_of(view_vars),
-            gender_identity
          )
 
       # range-median
       tabstat <- c(
+         "visit_date",
+         "blood_extract_date",
+         "specimen_receipt_date",
+         "confirm_date",
+         "t1_date",
+         "t2_date",
+         "t3_date",
          "age_unknown",
          "age_vertical",
          "age_pregnant",
-         "yrlastfsex",
-         "howmanyfse",
-         "yrlastmsex",
-         "howmanymse",
-         "age_sex",
-         "age_inj"
+         "date_lastsex_m",
+         "date_lastsex_condomless_m",
+         "date_lastsex_f",
+         "date_lastsex_condomless_f",
+         "bdate",
+         "age"
       )
       check   <- check_tabstat(data, check, tabstat)
+
+      # Remove already tagged data from validation
+      if (exclude_drops == "1") {
+         for (drop in c("drop_notart", "drop_notyet")) {
+            if (drop %in% names(corr))
+               for (check_var in names(check)) {
+                  if (check_var != "tabstat")
+                     check[[check_var]] %<>%
+                        anti_join(
+                           y  = corr[[drop]],
+                           by = "REC_ID"
+                        )
+               }
+         }
+      }
    }
 
    return(check)
@@ -1159,21 +1362,29 @@ get_checks <- function(data) {
 
 ##  Actual flow ----------------------------------------------------------------
 
-.init <- function() {
-   p <- parent.env(environment())
-   local(envir = p, {
-      data <- read_rds(file.path(wd, "initial.RDS"))
-      data <- standardize_data(data) %>%
-         tag_mot() %>%
-         tag_class() %>%
-         convert_address() %>%
-         convert_faci_names() %>%
-         final_conversion()
+.init <- function(envir = parent.env(environment()), ...) {
+   step <- parent.env(environment())
+   p    <- envir
+   vars <- match.call(expand.dots = FALSE)$`...`
 
-      write_rds(data, file.path(wd, "converted.RDS"))
+   data <- clean_data(p$forms, p$corr$dup_munc)
+   data <- prioritize_reports(data)
+   data <- get_cd4(data, p$forms$cd4)
+   data <- standardize_data(data, p$params, p$corr)
+   data <- tag_mot(data, p$params)
+   data <- tag_class(data, p$corr)
+   data <- convert_faci_addr(data)
+   data <- final_conversion(data)
 
-      check <- get_checks(data)
-   })
+   new_reg <- append_data(p$official$old, data)
+   new_reg <- tag_fordrop(new_reg, p$corr)
+   drops   <- subset_drops(new_reg)
+   new_reg <- remove_drops(new_reg)
 
-   local(envir = .GlobalEnv, flow_validation(nhsss$harp_dx, "converted", ohasis$ym))
+   step$check <- get_checks(data, p$pdf_rhivda, p$corr, run_checks = vars$run_checks, exclude_drops = vars$exclude_drops)
+   step$data  <- data
+
+   p$official$new <- new_reg
+   flow_validation(p, "hts_tst_pos", p$params$ym, upload = vars$upload)
+   log_success("Done.")
 }
