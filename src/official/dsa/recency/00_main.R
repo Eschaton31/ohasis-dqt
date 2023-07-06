@@ -26,11 +26,12 @@ rt$download_forms <- function(wd) {
   )"
 
    log_info("Downloading lake.")
-   lw_conn    <- ohasis$conn("lw")
-   dbname     <- "ohasis_warehouse"
-   forms$hts  <- dbTable(lw_conn, dbname, "form_hts", raw_where = TRUE, where = hts_where)
-   forms$a    <- dbTable(lw_conn, dbname, "form_a", raw_where = TRUE, where = hts_where)
-   forms$cfbs <- dbTable(lw_conn, dbname, "form_cfbs", raw_where = TRUE, where = hts_where)
+   lw_conn      <- ohasis$conn("lw")
+   dbname       <- "ohasis_warehouse"
+   forms$id_reg <- dbTable(lw_conn, dbname, "id_registry", cols = c("PATIENT_ID", "CENTRAL_ID"))
+   forms$hts    <- dbTable(lw_conn, dbname, "form_hts", raw_where = TRUE, where = hts_where)
+   forms$a      <- dbTable(lw_conn, dbname, "form_a", raw_where = TRUE, where = hts_where)
+   forms$cfbs   <- dbTable(lw_conn, dbname, "form_cfbs", raw_where = TRUE, where = hts_where)
    dbDisconnect(lw_conn)
 
    log_info("Downloading RT.")
@@ -60,6 +61,7 @@ rt$rt_initial <- function(forms) {
       )
 
    rt_raw <- forms$rt %>%
+      get_cid(forms$id_reg, PATIENT_ID) %>%
       left_join(
          y  = hts_data %>%
             select(-any_of(hts_names_remove)) %>%
@@ -150,6 +152,17 @@ rt$rt_initial <- function(forms) {
          RT_SUB_FACI = coalesce(SPECIMEN_SUB_SOURCE, SERVICE_SUB_FACI, CONFIRM_SUB_FACI),
          .after      = RT_VL_RESULT_CLEAN,
       ) %>%
+      left_join(
+         y  = hs_data("harp_dx", "reg", ohasis$yr, ohasis$mo) %>%
+            read_dta(col_select = c(PATIENT_ID, year, month)) %>%
+            get_cid(forms$id_reg, PATIENT_ID) %>%
+            mutate(
+               HARP_INCLUSION_DATE = as.Date(ceiling_date(as.Date(paste(sep = "-", year, month, "01")), unit = "month")) - 1
+            ) %>%
+            select(CENTRAL_ID, HARP_INCLUSION_DATE),
+         by = join_by(CENTRAL_ID)
+      ) %>%
+      relocate(HARP_INCLUSION_DATE, .after = DATE_CONFIRM) %>%
       select(
          -any_of(
             c(
