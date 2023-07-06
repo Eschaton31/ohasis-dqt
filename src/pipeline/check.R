@@ -43,13 +43,18 @@ check_pii <- function(data, checklist, view_vars = everything(), ...) {
       left_join(
          y  = genders %>%
             mutate(
-               PROBABLE_SEX = case_when(
+               PROBABLE_SEX       = case_when(
                   gender == "male" ~ "1_Male",
                   gender == "female" ~ "2_Female",
                   TRUE ~ gender
+               ),
+               GENDER_PROBABILITY = case_when(
+                  gender == "male" ~ proportion_male,
+                  gender == "female" ~ proportion_female,
                )
             ) %>%
-            select(STANDARD_FIRST = name, PROBABLE_SEX),
+            filter(GENDER_PROBABILITY >= 0.65) %>%
+            select(STANDARD_FIRST = name, PROBABLE_SEX, GENDER_PROBABILITY),
          by = "STANDARD_FIRST"
       ) %>%
       filter(SEX != PROBABLE_SEX) %>%
@@ -100,7 +105,7 @@ check_nonnegotiables <- function(data, checklist, view_vars = everything(), nonn
       var              <- as.symbol(var)
       checklist[[var]] <- data %>%
          filter(
-            is.na(!!var)
+            is.na(!!var) | toupper(!!var) == "UNKNOWN"
          ) %>%
          select(
             any_of(view_vars),
@@ -155,8 +160,8 @@ check_age <- function(data, checklist, view_vars = everything(), ...) {
    vars <- match.call(expand.dots = FALSE)$`...`
    data %<>%
       mutate(
-         AGE       = if (!is.null(vars$age)) !!vars$age else AGE,
-         BIRTHDATE = if (!is.null(vars$birthdate)) !!vars$birthdate else BIRTHDATE,
+         AGE        = if (!is.null(vars$age)) !!vars$age else AGE,
+         BIRTHDATE  = if (!is.null(vars$birthdate)) !!vars$birthdate else BIRTHDATE,
          VISIT_DATE = if (!is.null(vars$visit_date)) !!vars$visit_date else VISIT_DATE,
       )
 
