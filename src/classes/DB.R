@@ -672,6 +672,7 @@ DB <- setRefClass(
                {{sub_faci_id}} := case_when(
                   is.na({{sub_faci_id}}) ~ "",
                   StrLeft({{sub_faci_id}}, 6) != {{faci_id}} ~ "",
+                  {{sub_faci_id}} == "130023_001" ~ "130023_001",
                   !(StrLeft({{sub_faci_id}}, 6) %in% c("130001", "130605", "040200")) ~ "",
                   TRUE ~ {{sub_faci_id}}
                )
