@@ -16,6 +16,10 @@ get_enrollees <- function(art_first, old_reg, params) {
          .predicate = is.POSIXct,
          ~as.Date(.)
       ) %>%
+      mutate_if(
+         .predicate = is.Date,
+         ~if_else(. <= -25567, NA_Date_, ., .)
+      ) %>%
       mutate(
          # name
          STANDARD_FIRST     = stri_trans_general(FIRST, "latin-ascii"),
@@ -101,12 +105,12 @@ get_cd4 <- function(data, lab_cd4) {
                CD4_RESULT,
                CENTRAL_ID
             ),
-         by = "CENTRAL_ID"
+         by = join_by(CENTRAL_ID)
       ) %>%
       mutate(
          # calculate distance from confirmatory date
          CD4_DATE     = as.Date(CD4_DATE),
-         CD4_ENROLL   = difftime(as.Date(VISIT_DATE), CD4_DATE, units = "days") %>% as.numeric(),
+         CD4_ENROLL   = interval(CD4_DATE, VISIT_DATE) / days(1),
 
          # baseline is within 182 days
          BASELINE_CD4 = if_else(
@@ -116,10 +120,11 @@ get_cd4 <- function(data, lab_cd4) {
          ),
 
          # make values absolute to take date nearest to confirmatory
-         CD4_ENROLL   = abs(CD4_ENROLL %>% as.numeric()),
+         CD4_ENROLL   = abs(CD4_ENROLL),
       ) %>%
       arrange(CENTRAL_ID, CD4_ENROLL) %>%
       distinct(CENTRAL_ID, .keep_all = TRUE)
+
    return(data)
 }
 
@@ -168,7 +173,28 @@ convert_faci_addr <- function(data) {
       mutate(
          across(
             names(select(., ends_with("_BRANCH", ignore.case = FALSE))),
-            ~if_else(. == "TLY", "TLY-ANGLO", ., .)
+            ~if_else(nchar(.) > 3, ., NA_character_)
+         )
+      )
+
+   data %<>%
+      mutate_at(
+         .vars = vars(ends_with("_FACI_CODE", ignore.case = FALSE)),
+         ~case_when(
+            str_detect(., "^TLY") ~ "TLY",
+            str_detect(., "^SHIP") ~ "SHP",
+            str_detect(., "^SAIL") ~ "SAIL",
+            TRUE ~ .
+         )
+      ) %>%
+      mutate(
+         across(
+            names(select(., ends_with("_BRANCH", ignore.case = FALSE))),
+            ~case_when(
+               pull(data, str_replace(cur_column(), "_BRANCH", "_FACI_CODE")) == "TLY" & is.na(.) ~ "TLY-ANGLO",
+               pull(data, str_replace(cur_column(), "_BRANCH", "_FACI_CODE")) == "SHP" & is.na(.) ~ "SHIP-MAKATI",
+               TRUE ~ .
+            )
          )
       ) %>%
       mutate(
@@ -183,9 +209,9 @@ convert_faci_addr <- function(data) {
       arrange(ART_FACI_CODE, VISIT_DATE, LATEST_NEXT_DATE) %>%
       ohasis$get_addr(
          c(
-            artstart_reg  = "CURR_PSGC_REG",
-            artstart_prov = "CURR_PSGC_PROV",
-            artstart_munc = "CURR_PSGC_MUNC"
+            curr_reg  = "CURR_PSGC_REG",
+            curr_prov = "CURR_PSGC_PROV",
+            curr_munc = "CURR_PSGC_MUNC"
          ),
          "nhsss"
       )
@@ -203,8 +229,8 @@ standardize_data <- function(initial, params) {
          art_id            = params$latest_art_id + row_number(),
 
          # report date
-         year              = ohasis$yr %>% as.integer(),
-         month             = ohasis$mo %>% as.integer(),
+         year              = params$yr,
+         month             = params$mo,
 
          # demographics
          initials          = str_squish(stri_c(StrLeft(FIRST, 1), StrLeft(MIDDLE, 1), StrLeft(LAST, 1))),
@@ -267,37 +293,40 @@ final_conversion <- function(data) {
          art_id,
          year,
          month,
-         confirmatory_code   = CONFIRMATORY_CODE,
-         px_code             = PATIENT_CODE,
-         uic                 = UIC,
-         first               = FIRST,
-         middle              = MIDDLE,
-         last                = LAST,
-         suffix              = SUFFIX,
-         age                 = AGE,
-         birthdate           = BIRTHDATE,
-         sex                 = SEX,
+         confirmatory_code       = CONFIRMATORY_CODE,
+         px_code                 = PATIENT_CODE,
+         uic                     = UIC,
+         first                   = FIRST,
+         middle                  = MIDDLE,
+         last                    = LAST,
+         suffix                  = SUFFIX,
+         age                     = AGE,
+         birthdate               = BIRTHDATE,
+         sex                     = SEX,
          initials,
-         philsys_id          = PHILSYS_ID,
-         philhealth_no       = PHILHEALTH_NO,
-         artstart_hub        = ART_FACI_CODE,
-         artstart_branch     = ART_BRANCH,
-         artstart_realhub    = ACTUAL_FACI_CODE,
-         artstart_realbranch = ACTUAL_BRANCH,
+         philsys_id              = PHILSYS_ID,
+         philhealth_no           = PHILHEALTH_NO,
+         curr_reg,
+         curr_prov,
+         curr_munc,
+         artstart_hub            = ART_FACI_CODE,
+         artstart_branch         = ART_BRANCH,
+         artstart_realhub        = ACTUAL_FACI_CODE,
+         artstart_realhub_branch = ACTUAL_BRANCH,
+         artstart_reg            = real_reg,
+         artstart_prov           = real_prov,
+         artstart_munc           = real_munc,
          artstart_stage,
-         artstart_reg,
-         artstart_prov,
-         artstart_munc,
-         visit_type          = VISIT_TYPE,
-         tx_status           = TX_STATUS,
-         artstart_addr       = CURR_ADDR,
-         artstart_date       = VISIT_DATE,
-         artstart_nextpickup = LATEST_NEXT_DATE,
-         artstart_regimen    = MEDICINE_SUMMARY,
-         artstart_num_arv    = NUM_OF_DRUGS,
+         visit_type              = VISIT_TYPE,
+         tx_status               = TX_STATUS,
+         artstart_addr           = CURR_ADDR,
+         artstart_date           = VISIT_DATE,
+         artstart_nextpickup     = LATEST_NEXT_DATE,
+         artstart_regimen        = MEDICINE_SUMMARY,
+         artstart_num_arv        = NUM_OF_DRUGS,
          baseline_cd4,
-         baseline_cd4_date   = CD4_DATE,
-         baseline_cd4_result = CD4_RESULT,
+         baseline_cd4_date       = CD4_DATE,
+         baseline_cd4_result     = CD4_RESULT,
          pregnant,
          starts_with("CURR_PSGC")
       ) %>%
@@ -363,8 +392,9 @@ subset_drops <- function(data) {
    log_info("Archive those for dropping.")
    drops <- list(
       dropped_notyet = data %>% filter(drop_notyet == 1),
-      drop_notart    = data %>% filter(drop_notart == 1)
+      dropped_notart = data %>% filter(drop_notart == 1)
    )
+
    return(drops)
 }
 
@@ -389,8 +419,8 @@ remove_drops <- function(data) {
 
 ##  Merge w/ Dx Registry -------------------------------------------------------
 
-merge_dx <- function(data, forms) {
-   dx <- hs_data("harp_dx", "reg", ohasis$yr, ohasis$mo) %>%
+merge_dx <- function(data, forms, params) {
+   dx <- hs_data("harp_dx", "reg", params$yr, params$mo) %>%
       read_dta(
          col_select = c(
             PATIENT_ID,
@@ -483,8 +513,7 @@ merge_dx <- function(data, forms) {
          age               = coalesce(age, age_dta),
          confirmatory_code = coalesce(labcode2, confirmatory_code, glue("*{uic}"), glue("*{px_code}")),
          newonart          = if_else(
-            condition = year(artstart_date) == as.numeric(ohasis$yr) &
-               month(artstart_date) == as.numeric(ohasis$mo),
+            condition = year(artstart_date) == params$yr & month(artstart_date) == params$mo,
             true      = 1,
             false     = 0,
             missing   = 0
@@ -499,8 +528,8 @@ merge_dx <- function(data, forms) {
 
 ##  Merge w/ Tx Registry -------------------------------------------------------
 
-merge_prep <- function(data, forms) {
-   prep <- hs_data("prep", "reg", ohasis$yr, ohasis$mo) %>%
+merge_prep <- function(data, forms, params) {
+   prep <- hs_data("prep", "reg", params$yr, params$mo) %>%
       read_dta(
          col_select = c(
             PATIENT_ID,
@@ -525,8 +554,8 @@ merge_prep <- function(data, forms) {
 
 ##  Merge w/ Death Registry ----------------------------------------------------
 
-merge_dead <- function(data, forms) {
-   dead <- hs_data("harp_dead", "reg", ohasis$yr, ohasis$mo) %>%
+merge_dead <- function(data, forms, params) {
+   dead <- hs_data("harp_dead", "reg", params$yr, params$mo) %>%
       read_dta(
          col_select = c(
             PATIENT_ID,
@@ -563,13 +592,13 @@ merge_dead <- function(data, forms) {
 
 ##  Flag data for validation ---------------------------------------------------
 
-get_checks <- function(data, corr, run_checks = NULL, exclude_drops = NULL) {
+get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NULL) {
    check         <- list()
    run_checks    <- ifelse(
       !is.null(run_checks),
       run_checks,
       input(
-         prompt  = "Run `reg.initial` validations?",
+         prompt  = "Run `tx_new` validations?",
          options = c("1" = "yes", "2" = "no"),
          default = "1"
       )
@@ -585,12 +614,15 @@ get_checks <- function(data, corr, run_checks = NULL, exclude_drops = NULL) {
    )
 
    if (run_checks == "1") {
-      # initialize checking layer
+      data %<>%
+         arrange(artstart_reg, artstart_realhub, artstart_realhub_branch, art_id)
+
       view_vars <- c(
          "REC_ID",
          "CENTRAL_ID",
+         "artstart_reg",
          "artstart_realhub",
-         "artstart_realbranch",
+         "artstart_realhub_branch",
          "confirmatory_code",
          "uic",
          "px_code",
@@ -602,6 +634,7 @@ get_checks <- function(data, corr, run_checks = NULL, exclude_drops = NULL) {
          "suffix",
          "birthdate",
          "sex",
+         "age",
          "tx_status",
          "artstart_date",
          "artstart_nextpickup",
@@ -610,22 +643,22 @@ get_checks <- function(data, corr, run_checks = NULL, exclude_drops = NULL) {
       check     <- check_pii(data, check, view_vars, first = first, middle = middle, last = last, birthdate = birthdate, sex = sex)
       check     <- check_addr(data, check, view_vars, "curr")
 
-      # dates
-      date_vars <- c("birthdate", "artstart_date")
-      check     <- check_dates(data, check, view_vars, date_vars)
-
       # non-negotiable variables
-      nonnegotiables <- c(
-         "artstart_hub",
-         "age",
-         "uic",
-         "artstart_regimen"
-      )
+      nonnegotiables <- c("age", "uic")
       check          <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
       check          <- check_preggy(data, check, view_vars, sex = sex)
       check          <- check_age(data, check, view_vars, birthdate = birthdate, age = age, visit_date = artstart_date)
 
       # special checks
+      log_info("Checking for missing dispensing data.")
+      check[["no_disp"]] <- data %>%
+         filter(
+            if_any(c(artstart_date, artstart_regimen, artstart_nextpickup, artstart_hub), ~is.na(.))
+         ) %>%
+         select(
+            any_of(view_vars),
+         )
+
       log_info("Checking for new clients tagged as refills.")
       check[["refill_enroll"]] <- data %>%
          filter(
@@ -640,7 +673,7 @@ get_checks <- function(data, corr, run_checks = NULL, exclude_drops = NULL) {
       log_info("Checking for new clients that are not enrollees.")
       check[["non_enrollee"]] <- data %>%
          filter(
-            artstart_date < ohasis$date
+            artstart_date < params$min
          ) %>%
          select(
             any_of(view_vars),
@@ -649,13 +682,11 @@ get_checks <- function(data, corr, run_checks = NULL, exclude_drops = NULL) {
       log_info("Checking for possible PMTCT-N clients.")
       check[["possible_pmtct"]] <- data %>%
          filter(
-            (artstart_num_arv == 1 & stri_detect_fixed(artstart_regimen, "syr")) |
+            (artstart_num_arv == 1 & str_detect(artstart_regimen, "syr")) |
                age <= 5
          ) %>%
          select(
             any_of(view_vars),
-            artstart_regimen,
-            age
          )
 
       log_info("Checking for possible PrEP clients.")
@@ -665,7 +696,6 @@ get_checks <- function(data, corr, run_checks = NULL, exclude_drops = NULL) {
          ) %>%
          select(
             any_of(view_vars),
-            artstart_regimen,
          )
 
       log_info("Checking ART reports tagged as DOH-EB.")
@@ -687,7 +717,7 @@ get_checks <- function(data, corr, run_checks = NULL, exclude_drops = NULL) {
       check   <- check_tabstat(data, check, tabstat)
 
       # Remove already tagged data from validation
-      if (run_checks == "1") {
+      if (exclude_drops == "1") {
          for (drop in c("drop_notart", "drop_notyet")) {
             if (drop %in% names(corr))
                for (check_var in names(check)) {
@@ -712,7 +742,6 @@ get_checks <- function(data, corr, run_checks = NULL, exclude_drops = NULL) {
    p    <- envir
    vars <- match.call(expand.dots = FALSE)$`...`
 
-
    data <- get_enrollees(p$forms$art_first, p$official$old_reg, p$params)
    data <- get_first_visit(data)
    data <- get_cd4(data, p$forms$lab_cd4)
@@ -722,18 +751,19 @@ get_checks <- function(data, corr, run_checks = NULL, exclude_drops = NULL) {
 
    new_reg <- p$official$old_reg %>%
       append_enrollees(data) %>%
-      merge_dx(p$forms) %>%
-      merge_dead(p$forms) %>%
-      merge_prep(p$forms)
+      merge_dx(p$forms, p$params) %>%
+      merge_dead(p$forms, p$params) %>%
+      merge_prep(p$forms, p$params)
 
    new_reg <- tag_fordrop(new_reg, p$corr)
+   drops   <- subset_drops(new_reg)
    new_reg <- remove_drops(new_reg) %>%
       select(-artstart_num_arv)
 
-   step$check <- get_checks(data, p$corr, run_checks = vars$run_checks, exclude_drops = vars$exclude_drops)
+   step$check <- get_checks(data, p$params, p$corr, run_checks = vars$run_checks, exclude_drops = vars$exclude_drops)
    step$data  <- data
 
    p$official$new_reg <- new_reg
-   flow_validation(p, "harp.tx_new", ohasis$ym, upload = vars$upload)
+   flow_validation(p, "tx_new", p$params$ym, upload = vars$upload)
    log_success("Done.")
 }
