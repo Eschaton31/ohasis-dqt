@@ -194,7 +194,21 @@ match_ohasis <- function(pdf_data) {
    # get list of labcodes
    labcodes <- unique(pdf_data$CONFIRMATORY_CODE)
    query    <- r"(
-SELECT px_info.*,
+SELECT px_info.REC_ID,
+       px_info.PATIENT_ID,
+       COALESCE(px_confirm.CONFIRM_CODE, px_info.CONFIRMATORY_CODE) AS CONFIRMATORY_CODE,
+       px_info.UIC,
+       px_info.PHILHEALTH_NO,
+       px_info.SEX,
+       px_info.BIRTHDATE,
+       px_info.PATIENT_CODE,
+       px_info.PHILSYS_ID,
+       px_info.PRIME,
+       px_info.CREATED_BY,
+       px_info.CREATED_AT,
+       px_info.UPDATED_BY,
+       px_info.UPDATED_AT,
+       px_info.DELETED_BY,
        1                                             AS EXIST_INFO,
        IF(px_confirm.CONFIRM_CODE IS NOT NULL, 1, 0) AS EXIST_CONFIRM
 FROM ohasis_interim.px_info
@@ -202,7 +216,7 @@ FROM ohasis_interim.px_info
          LEFT JOIN ohasis_interim.px_confirm ON px_info.REC_ID = px_confirm.REC_ID
 WHERE px_record.MODULE = 2
   AND px_record.DELETED_AT IS NULL
-  AND px_info.CONFIRMATORY_CODE IN (?)
+  AND COALESCE(px_confirm.CONFIRM_CODE, px_info.CONFIRMATORY_CODE) IN (?)
       )"
    oh_data  <- dbxSelect(db_conn, query, params = list(labcodes))
    dbDisconnect(db_conn)
