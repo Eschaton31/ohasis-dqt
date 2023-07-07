@@ -83,8 +83,8 @@ dedup_by <- function(ss, sheet, col_start, col_end) {
    col_formula <- col_start
 
    # columns must be letters
-   col_start <- xlcolconv(col_start)-1
-   col_end   <- xlcolconv(col_end)-1
+   col_start <- xlcolconv(col_start) - 1
+   col_end   <- xlcolconv(col_end) - 1
 
    # get sheet properties
    req <- googlesheets4::request_generate(
@@ -227,4 +227,15 @@ dedup_by <- function(ss, sheet, col_start, col_end) {
       )
    )
    googlesheets4::request_make(req)
+}
+
+sheet_autofit <- function(ss) {
+   local_gs4_quiet()
+   ss     <- as_id(ss)
+   sheets <- sheet_names(ss)
+   invisible(lapply(sheets, function (sheet) {
+      log_info("Resizing = {green(sheet)}.")
+      range_autofit(ss, sheet)
+   }))
+   log_success("Done.")
 }
