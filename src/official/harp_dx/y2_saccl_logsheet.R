@@ -13,54 +13,98 @@ get_pdf_data <- function(file = NULL) {
    corr_data        <- lapply(corr_names, function(sheet) read_sheet(corr_sheet, sheet, col_types = "c"))
    names(corr_data) <- corr_names
 
-   log_info("Extractinng tables from PDF.")
-   lst        <- tabulizer::extract_tables(file = file, method = "lattice")
-   confirm_df <- lst %>%
-      # lapply(function(data) {
-      #    data %<>%
-      #       as_tibble() %>%
-      #       slice(-1, -2) %>%
-      #       select(
-      #          DATE_RECEIVE      = V2,
-      #          CONFIRMATORY_CODE = V3,
-      #          FULLNAME          = V4,
-      #          BIRTHDATE         = V5,
-      #          AGE               = V6,
-      #          SEX               = V7,
-      #          SOURCE            = V8,
-      #          RAPID             = V10,
-      #          SYSMEX            = V14,
-      #          VIDAS             = V17,
-      #          GEENIUS           = V18,
-      #          REMARKS           = V19,
-      #          DATE_CONFIRM      = V20
-      #       )
-      #
-      #    return(data)
-      # }) %>%
-      lapply(function(data) {
-         data %<>%
-            as_tibble() %>%
-            slice(-1, -2) %>%
-            select(
-               DATE_RECEIVE      = V3,
-               CONFIRMATORY_CODE = V4,
-               FULLNAME          = V5,
-               BIRTHDATE         = V6,
-               AGE               = V7,
-               SEX               = V8,
-               SOURCE            = V9,
-               RAPID             = V10,
-               SYSMEX            = V11,
-               VIDAS             = V14,
-               GEENIUS           = V15,
-               REMARKS           = V16,
-               DATE_CONFIRM      = V17
-            )
+   if (tools::file_ext(file) == "pdf") {
+      log_info("Extractinng tables from PDF.")
+      lst        <- tabulizer::extract_tables(file = file, method = "lattice")
+      confirm_df <- lst %>%
+         # lapply(function(data) {
+         #    data %<>%
+         #       as_tibble() %>%
+         #       slice(-1, -2) %>%
+         #       select(
+         #          DATE_RECEIVE      = V2,
+         #          CONFIRMATORY_CODE = V3,
+         #          FULLNAME          = V4,
+         #          BIRTHDATE         = V5,
+         #          AGE               = V6,
+         #          SEX               = V7,
+         #          SOURCE            = V8,
+         #          RAPID             = V10,
+         #          SYSMEX            = V14,
+         #          VIDAS             = V17,
+         #          GEENIUS           = V18,
+         #          REMARKS           = V19,
+         #          DATE_CONFIRM      = V20
+         #       )
+         #
+         #    return(data)
+         # }) %>%
+         lapply(function(data) {
+            data %<>%
+               as_tibble() %>%
+               slice(-1, -2) %>%
+               select(
+                  DATE_RECEIVE      = V3,
+                  CONFIRMATORY_CODE = V4,
+                  FULLNAME          = V5,
+                  BIRTHDATE         = V6,
+                  AGE               = V7,
+                  SEX               = V8,
+                  SOURCE            = V9,
+                  RAPID             = V10,
+                  SYSMEX            = V11,
+                  VIDAS             = V14,
+                  GEENIUS           = V15,
+                  REMARKS           = V16,
+                  DATE_CONFIRM      = V17
+               ) %>%
+               mutate(
+                  DATE_RECEIVE = as.Date(DATE_RECEIVE, "%m/%d/%y"),
+                  DATE_CONFIRM = as.Date(DATE_CONFIRM, "%m/%d/%y"),
+                  BIRTHDATE    = as.Date(BIRTHDATE, "%m/%d/%Y"),
+               )
 
-         return(data)
-      }) %>%
-      bind_rows() %>%
+            return(data)
+         }) %>%
+         bind_rows()
+   } else if (tools::file_ext(file) == "xlsx") {
+      log_info("Extractinng tables from XLSX.")
+      # read workbook using password
+      wb         <- XLConnect::loadWorkbook(file)
+      confirm_df <- XLConnect::readWorksheet(wb, 1, colTypes = XLC$DATA_TYPE.STRING) %>%
+         as_tibble() %>%
+         rename_all(
+            ~toupper(.) %>%
+               str_replace_all("[^[:alnum:]]", "_") %>%
+               str_replace_all("(_)\\1+", "_") %>%
+               str_replace_all("_$", "")
+         ) %>%
+         select(
+            DATE_RECEIVE      = DATE_RECEIVED,
+            CONFIRMATORY_CODE = LABORATORY,
+            FULLNAME          = NAME_CODE,
+            BIRTHDATE,
+            AGE               = A,
+            SEX               = S,
+            SOURCE,
+            RAPID,
+            SYSMEX,
+            VIDAS             = COL14,
+            GEENIUS,
+            REMARKS,
+            DATE_CONFIRM      = DATE_RELEASED
+         ) %>%
+         mutate_at(
+            .vars = vars(contains("DATE")),
+            ~as.Date(StrLeft(., 10))
+         ) %>%
+         slice(-1)
+
+      rm(wb)
+      XLConnect::xlcFreeMemory()
+   }
+
+   confirm_df %<>%
       mutate_if(
          .predicate = is.character,
          ~str_squish(.)
@@ -134,10 +178,6 @@ get_pdf_data <- function(file = NULL) {
             grepl("20", FINAL_RESULT) ~ "Indeterminate",
             grepl("^SAME AS", REMARKS) ~ "Duplicate",
          ),
-
-         DATE_RECEIVE = as.Date(DATE_RECEIVE, "%m/%d/%y"),
-         DATE_CONFIRM = as.Date(DATE_CONFIRM, "%m/%d/%y"),
-         BIRTHDATE    = as.Date(BIRTHDATE, "%m/%d/%Y"),
       ) %>%
       filter(SOURCE != "JAY DUMMY LAB") %>%
       left_join(corr_data$SOURCE %>% distinct(SOURCE, SOURCE_FACI, SOURCE_SUB_FACI))
