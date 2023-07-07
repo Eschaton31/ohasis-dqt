@@ -508,12 +508,13 @@ update_disp_date <- function(data) {
 }
 
 # ohasis patient_id
-oh_px_id <- function(db_conn = NULL, faci_id = NULL) {
+oh_px_id <- function(db_conn = NULL, faci_id = NULL, date = NULL) {
+   date   <- ifelse(is.null(date), format(Sys.time(), "%Y%m%d"), date)
    letter <- substr(stri_rand_shuffle(paste(collapse = "", LETTERS[seq_len(130)])), 1, 1)
    number <- substr(stri_rand_shuffle(strrep("0123456789", 5)), 1, 3)
 
    randomized <- stri_rand_shuffle(paste0(letter, number))
-   patient_id <- paste0(format(Sys.time(), "%Y%m%d"), faci_id, randomized)
+   patient_id <- paste0(date, faci_id, randomized)
 
    pid_query <- dbSendQuery(db_conn, glue("SELECT DISTINCT PATIENT_ID FROM `ohasis_interim`.`px_info` WHERE PATIENT_ID = '{patient_id}'"))
    pid_count <- dbFetch(pid_query)
@@ -524,7 +525,7 @@ oh_px_id <- function(db_conn = NULL, faci_id = NULL) {
       number <- substr(stri_rand_shuffle(strrep("0123456789", 5)), 1, 3)
 
       randomized <- stri_rand_shuffle(paste0(letter, number))
-      patient_id <- paste0(format(Sys.time(), "%Y%m%d"), faci_id, randomized)
+      patient_id <- paste0(date, faci_id, randomized)
 
       pid_query <- dbSendQuery(db_conn, glue("SELECT DISTINCT PATIENT_ID FROM `ohasis_interim`.`px_info` WHERE PATIENT_ID = '{patient_id}'"))
       pid_count <- dbFetch(pid_query)
