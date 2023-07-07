@@ -771,7 +771,7 @@ convert_faci_addr <- function(data) {
          FORM_FACI_2        = TEST_FACI,
          FORM_FACI          = TEST_FACI,
          SUB_FORM_FACI      = TEST_SUB_FACI,
-         diff_source_v_form = if_else(coalesce(FORM_FACI, "") != coalesce(SPECIMEN_SOURCE, ""), 1, 0, 0)
+         diff_source_v_form = if_else(coalesce(FORM_FACI, "") != coalesce(SPECIMEN_SOURCE, "") & (sample_source == "R" | is.na(sample_source)), 1, 0, 0)
       ) %>%
       ohasis$get_faci(
          list(HTS_FACI = c("FORM_FACI", "SUB_FORM_FACI")),
@@ -1249,6 +1249,9 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          filter(diff_source_v_form == 1) %>%
          select(
             any_of(view_vars),
+            sample_source,
+            HTS_FACI,
+            SOURCE_FACI
          ) %>%
          arrange(confirm_region, confirmlab)
 
