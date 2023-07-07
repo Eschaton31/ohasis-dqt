@@ -295,7 +295,7 @@ prepare_import <- function(data) {
       if (is.na(pid_now)) {
          pid_new <- oh_px_id(db_conn, "130023")
          while (pid_new %in% pid_list)
-            pid_new <- oh_px_id(db_conn, "130023")
+            pid_new <- oh_px_id(db_conn, "130023", import[i,]$DATE_RECEIVE)
       }
 
       # record id
