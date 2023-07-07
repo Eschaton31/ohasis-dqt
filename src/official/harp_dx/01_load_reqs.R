@@ -115,6 +115,7 @@ update_dataset <- function() {
             remove_cols     = "CENTRAL_ID",
             remove_rows     = corr$anti_join
          )
+         official$dupes <- official$old %>% get_dupes(CENTRAL_ID)
       })
    }
    rm(check)

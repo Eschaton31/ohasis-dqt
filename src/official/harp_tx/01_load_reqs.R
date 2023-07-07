@@ -278,6 +278,8 @@ update_dataset <- function() {
             log_info("Performing cleaning on the outcome dataset.")
             official$old_outcome <- .cleaning_list(official$old_outcome, corr$old_outcome, "ART_ID", "integer")
          }
+
+         official$dupes <- official$old_reg %>% get_dupes(CENTRAL_ID)
       })
    }
    rm(check)
