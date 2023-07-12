@@ -15,7 +15,9 @@ check_pii <- function(data, checklist, view_vars = everything(), ...) {
             SEX %in% c("1", "M") ~ "1_Male",
             SEX %in% c("2", "F") ~ "2_Female",
             TRUE ~ SEX
-         )
+         ),
+
+         retain         = 0
       )
 
    log_info("Checking missing PIIs.")
@@ -36,6 +38,23 @@ check_pii <- function(data, checklist, view_vars = everything(), ...) {
       ) %>%
       select(any_of(view_vars))
 
+   log_info("Checking for extensions in first/last.")
+   extensions <- c("JR", "SR", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X")
+   for (suffix_word in extensions)
+      data %<>%
+         mutate(
+            retain = case_when(
+               str_detect(FIRST, str_c("\\b", suffix_word, "+\\.*$")) ~ 1,
+               str_detect(LAST, str_c("\\b", suffix_word, "+\\.*$")) ~ 1,
+               TRUE ~ retain
+            )
+         )
+
+   checklist[["suffix_in_first/last"]] <- data %>%
+      filter(
+         retain == 1
+      ) %>%
+      select(any_of(view_vars))
 
    log_info("Checking possible wrong sex.")
    genders                  <- gender(unique(data$STANDARD_FIRST), method = "ssa")
@@ -64,7 +83,7 @@ check_pii <- function(data, checklist, view_vars = everything(), ...) {
    return(checklist)
 }
 
-check_addr <- function(data, checklist, view_vars = everything(), addr_type) {
+check_addr_psgc <- function(data, checklist, view_vars = everything(), addr_type) {
    addr_type <- toupper(addr_type)
    addr_type <- ifelse(grepl("PSGC", addr_type), gsub("PSGC", "", addr_type), addr_type)
    addr_type <- ifelse(grepl("_", addr_type), gsub("_", "", addr_type), addr_type)
@@ -75,6 +94,20 @@ check_addr <- function(data, checklist, view_vars = everything(), addr_type) {
    checklist[[addr_name]] <- data %>%
       filter(if_any(starts_with(addr_type, ignore.case = FALSE), ~is.na(.))) %>%
       select(any_of(view_vars), starts_with(addr_type, ignore.case = FALSE))
+
+   return(checklist)
+}
+
+check_unknown <- function(data, checklist, unknown_name, view_vars = everything(), ...) {
+   is_unknown <- function(col) {
+      return(ifelse(is.na(col) | toupper(col) == "UNKNOWN", TRUE, FALSE))
+   }
+
+   log_info("Checking incomplete address.")
+   checklist[[unknown_name]] <- data %>%
+      filter(if_any(c(...), ~is_unknown(.))) %>%
+      select(any_of(view_vars), ...) %>%
+      relocate(..., .after = last_col())
 
    return(checklist)
 }
