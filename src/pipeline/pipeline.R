@@ -160,7 +160,7 @@ flow_validation <- function(data_env = NULL,
             # create as new if not existing
             corr_status <- "new"
             drive_rm(paste0("~/", process_step))
-            gd_step <- as_id(gs4_create(process_step, sheets = corr_list))
+            gd_step <- as_id(gs4_create(process_step))
             drive_mv(gd_step, gd_surv, overwrite = TRUE)
          }
          gd_archive <- as_id((drive_ls(gd_surv, pattern = "Archive"))$id)
@@ -188,10 +188,12 @@ flow_validation <- function(data_env = NULL,
             # add issue
             if (nrow(corr_list[[issue]]) > 0) {
                log_info("Uploadinng {green(issue)}.")
-               if (corr_status == "old")
-                  sheet_write(corr_list[[issue]], gd_step, issue)
-               else
-                  range_autofit(gd_step, issue)
+               corr_list[[issue]] %>%
+                  mutate_if(
+                     .predicate = is.labelled,
+                     ~as_factor(.)
+                  ) %>%
+                  sheet_write(gd_step, issue)
             }
          }
 
@@ -209,6 +211,8 @@ flow_validation <- function(data_env = NULL,
                sheet_delete(gd_step, empty_sheets)
             }
          }
+         if (corr_status == "new")
+            sheet_autofit(gd_step)
 
          # log in slack
          if (is.null(channels)) {
