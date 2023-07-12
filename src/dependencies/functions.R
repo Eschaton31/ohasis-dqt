@@ -331,3 +331,11 @@ chunk_df <- function(data = NULL, chunk_size = NULL) {
 
    return(chunked)
 }
+
+end_friday <- function(date) {
+   date     <- as.Date(date)
+   offset   <- if_else(weekdays(date) %in% c("Saturday", "Sunday"), 5, -2)
+   next_fri <- ceiling_date(date %m+% days(offset), "week") %m-% days(2)
+
+   return(next_fri)
+}
