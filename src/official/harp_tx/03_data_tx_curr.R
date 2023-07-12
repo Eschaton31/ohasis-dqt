@@ -276,19 +276,19 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
          # current outcome
          curr_outcome   = case_when(
             use_db == 1 & (LATEST_VISIT <= ref_death_date) ~ "dead",
-            use_db == 1 & LATEST_NEXT_DATE >= params$cutoff_date ~ "alive on arv",
-            use_db == 1 & LATEST_NEXT_DATE < params$cutoff_date ~ "lost to follow up",
+            use_db == 1 & LATEST_NEXT_DATE >= params$max ~ "alive on arv",
+            use_db == 1 & LATEST_NEXT_DATE < params$max ~ "lost to follow up",
             use_db == 2 & (LASTDISP_VISIT <= ref_death_date) ~ "dead",
-            use_db == 2 & LASTDISP_NEXT_DATE >= params$cutoff_date ~ "alive on arv",
-            use_db == 2 & LASTDISP_NEXT_DATE < params$cutoff_date ~ "lost to follow up",
+            use_db == 2 & LASTDISP_NEXT_DATE >= params$max ~ "alive on arv",
+            use_db == 2 & LASTDISP_NEXT_DATE < params$max ~ "lost to follow up",
             use_db == 0 & prev_ffupdate <= ref_death_date ~ "dead",
             use_db == 0 &
                stri_detect_fixed(prev_outcome, "dead") &
                is.na(ref_death_date) ~ prev_outcome,
             use_db == 0 & stri_detect_fixed(prev_outcome, "stopped") ~ prev_outcome,
             use_db == 0 & stri_detect_fixed(prev_outcome, "overseas") ~ prev_outcome,
-            use_db == 0 & prev_nextpickup >= params$cutoff_date ~ "alive on arv",
-            use_db == 0 & prev_nextpickup < params$cutoff_date ~ "lost to follow up",
+            use_db == 0 & prev_nextpickup >= params$max ~ "alive on arv",
+            use_db == 0 & prev_nextpickup < params$max ~ "lost to follow up",
             use_db == 0 ~ prev_outcome
          ),
 
@@ -467,6 +467,9 @@ final_conversion <- function(data) {
          days_to_pickup,
          arv_worth,
          ref_death_date,
+         confirm_date,
+         confirm_result,
+         confirm_remarks
       )
 
    return(data)
@@ -482,6 +485,7 @@ finalize_outcomes <- function(data, params) {
          REC_ID = case_when(
             use_db == 1 ~ REC_ID,
             use_db == 2 ~ lastdisp_rec,
+            use_db == 0 ~ REC_ID,
             TRUE ~ prev_rec
          )
       ) %>%
@@ -1244,8 +1248,42 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
             any_of(view_vars),
             curr_vl_date,
             curr_vl_result
+         )
+
+      log_info("Checking for no confirmatories.")
+      check[["not_confirmed"]] <- step_data %>%
+         filter(
+            is.na(idnum) | is.na(confirm_result),
+            curr_outcome == "alive on arv"
          ) %>%
-         arrange(real_reg, curr_realhub)
+         select(
+            any_of(view_vars),
+            confirm_date,
+            confirm_result,
+            confirm_remarks
+         )
+
+      log_info("Checking for non-positives.")
+      check[["not_positive"]] <- step_data %>%
+         filter(
+            confirm_result != "1_Positive"
+         ) %>%
+         select(
+            any_of(view_vars),
+            confirm_date,
+            confirm_result,
+            confirm_remarks
+         )
+
+      log_info("Checking for dead not in mortality dataset.")
+      check[["dead_not_in_mort"]] <- step_data %>%
+         filter(
+            is.na(mort_id),
+            curr_outcome == "dead"
+         ) %>%
+         select(
+            any_of(view_vars),
+         )
 
       data <- new_outcome %>%
          left_join(
@@ -1338,6 +1376,59 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
    return(check)
 }
 
+##  Stata Labels ---------------------------------------------------------------
+
+label_stata <- function(data, stata_labels) {
+   labels <- split(stata_labels$lab_def, ~label_name)
+   labels <- lapply(labels, function(data) {
+      final_labels        <- as.integer(data[["value"]])
+      names(final_labels) <- as.character(data[["label"]])
+      return(final_labels)
+   })
+
+   for (i in seq_len(nrow(stata_labels$lab_val))) {
+      var   <- stata_labels$lab_val[i,]$variable
+      label <- stata_labels$lab_val[i,]$label_name
+
+      if (var %in% names(data))
+         data[[var]] <- labelled(
+            data[[var]],
+            labels[[label]]
+         )
+   }
+
+   return(data)
+}
+
+##  Output Stata Datasets ------------------------------------------------------
+
+output_dta <- function(official, params, save = "2") {
+   if (save == "1") {
+      log_info("Checking output directory.")
+      version <- format(Sys.time(), "%Y%m%d")
+      dir     <- Sys.getenv("HARP_TX")
+      check_dir(dir)
+
+      log_info("Saving in Stata data format.")
+      period_ext <- str_c(params$yr, "-", stri_pad_left(params$mo, 2, "0"), ".dta")
+      files      <- list(
+         new_reg            = file.path(dir, str_c(version, "_reg-art_", period_ext)),
+         new_outcome        = file.path(dir, str_c(version, "_onart_", period_ext)),
+         dropped_notyet     = file.path(dir, str_c(version, "_dropped_notyet_", period_ext)),
+         dropped_duplicates = file.path(dir, str_c(version, "_dropped_duplicates_", period_ext))
+      )
+      for (output in intersect(names(files), names(official))) {
+         if (nrow(official[[output]]) > 0) {
+            official[[output]] %>%
+               format_stata() %>%
+               write_dta(files[[output]])
+
+            compress_stata(files[[output]])
+         }
+      }
+   }
+}
+
 ##  Actual flow ----------------------------------------------------------------
 
 .init <- function(envir = parent.env(environment()), ...) {
@@ -1367,11 +1458,14 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
       reg_disagg("previous_regimen", "previous_regdisagg", "previous_regline")
 
    new_outcome <- get_form_data(new_outcome, p$forms$form_art_bc)
+   # new_outcome <- label_stata(new_outcome, p$corr$stata_labels)
 
    step$check <- get_checks(data, new_outcome, p$official$new_reg, p$params, run_checks = vars$run_checks)
    step$data  <- data
 
    p$official$new_outcome <- new_outcome
+   output_dta(p$official, p$params, vars$save)
+
    flow_validation(p, "tx_curr", p$params$ym, upload = vars$upload)
    log_success("Done.")
 }
