@@ -11,6 +11,6 @@ FROM (SELECT data.CENTRAL_ID,
                       rec.*
                FROM ohasis_warehouse.form_art_bc rec
                         LEFT JOIN ohasis_warehouse.id_registry reg ON rec.PATIENT_ID = reg.PATIENT_ID
-               WHERE ART_RECORD = 'ART' AND VISIT_DATE < ?
+               WHERE ART_RECORD = 'ART' AND DATE(VISIT_DATE) <= ?
            ) AS data) AS artstart
 WHERE VISIT_NUM = 1;

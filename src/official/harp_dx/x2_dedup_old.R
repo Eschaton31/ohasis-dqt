@@ -244,35 +244,37 @@ dedup_group_ids <- function(data) {
 
 ##  Actual flow ----------------------------------------------------------------
 
-.init <- function() {
-   p <- parent.env(environment())
-   local(envir = p, {
-      old  <- .GlobalEnv$nhsss$harp_dx$official$old
-      new  <- read_rds(file.path(wd, "converted.RDS"))
-      full <- read_rds(file.path(wd, "final.RDS"))
-      data <- dedup_prep(
-         full %>%
-            zap_label %>%
-            zap_labels %>%
-            zap_formats %>%
-            mutate(philsys_id = NA_character_),
-         firstname,
-         middle,
-         last,
-         name_suffix,
-         uic,
-         bdate,
-         labcode2,
-         pxcode,
-         philhealth,
-         philsys_id
+.init <- function(envir = parent.env(environment()), ...) {
+   step <- parent.env(environment())
+   p    <- envir
+   vars <- match.call(expand.dots = FALSE)$`...`
+
+   full <- p$official$new %>%
+      mutate(
+         data_filter = if_else(year == p$params$yr & month == p$params$mo, "new", "old", "old")
       )
+   old  <- full %>% filter(data_filter == "old")
+   new  <- full %>% filter(data_filter == "new")
 
-      reclink <- prep_data(old, new)
-      check   <- dedup_old(reclink)
-      check   <- append(check, dedup_group_ids(data))
-      rm(old, new, data, reclink)
-   })
+   data <- dedup_prep(
+      full,
+      firstname,
+      middle,
+      last,
+      name_suffix,
+      uic,
+      bdate,
+      labcode2,
+      pxcode,
+      philhealth,
+      philsys_id
+   )
 
-   local(envir = .GlobalEnv, flow_validation(nhsss$harp_dx, "dedup_old", ohasis$ym))
+   reclink <- prep_data(old, new)
+   check   <- dedup_old(reclink)
+   check   <- append(check, dedup_group_ids(data))
+   step$check <- check
+
+   flow_validation(p, "dedup_old", p$params$ym, upload = vars$upload)
+   log_success("Done.")
 }

@@ -59,12 +59,14 @@ dedup_group_ids <- function(data) {
 
 ##  Actual flow ----------------------------------------------------------------
 
-.init <- function() {
-   p <- parent.env(environment())
-   local(envir = p, {
-      data <- read_rds(file.path(wd, "reg.converted.RDS"))
-      data <- dedup_prep(
-         data,
+.init <- function(envir = parent.env(environment()), ...) {
+   step <- parent.env(environment())
+   p    <- envir
+   vars <- match.call(expand.dots = FALSE)$`...`
+
+   data <- p$official$new_reg %>%
+      filter(year == p$params$yr, month == p$params$mo) %>%
+      dedup_prep(
          first,
          middle,
          last,
@@ -77,8 +79,7 @@ dedup_group_ids <- function(data) {
          philsys_id
       )
 
-      check <- dedup_group_ids(data)
-   })
-
-   local(envir = .GlobalEnv, flow_validation(nhsss$harp_tx, "dedup_new", ohasis$ym))
+   step$check <- dedup_group_ids(data)
+   flow_validation(p, "dedup_new", p$params$ym, upload = vars$upload)
+   log_success("Done.")
 }
