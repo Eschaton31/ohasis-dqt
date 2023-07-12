@@ -194,23 +194,6 @@ gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NUL
          drive_download(corr_id, corr_local, overwrite = TRUE)
          corr_sheets <- excel_sheets(corr_local)
 
-         # if (speed) {
-         #    if (length(corr_sheets) > 1) {
-         #       corr[[corr_name]] <- list()
-         #       for (sheet in corr_sheets)
-         #          corr[[corr_name]][[sheet]] <- range_speedread(corr_id, sheet, show_col_types = FALSE)
-         #    } else {
-         #       corr[[corr_name]] <- range_speedread(corr_id, show_col_types = FALSE)
-         #    }
-         # } else {
-         #    if (length(corr_sheets) > 1) {
-         #       corr[[corr_name]] <- list()
-         #       for (sheet in corr_sheets)
-         #          corr[[corr_name]][[sheet]] <- read_sheet(corr_id, sheet)
-         #    } else {
-         #       corr[[corr_name]] <- read_sheet(corr_id)
-         #    }
-         # }
          log_info("GSheet = {green(corr_name)}.")
          if (length(corr_sheets) > 1) {
             corr[[corr_name]]        <- lapply(corr_sheets, function(sheet, last_sheet) {
@@ -220,7 +203,7 @@ gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NUL
             })
             names(corr[[corr_name]]) <- corr_sheets
          } else {
-            corr[[corr_name]] <- read_xlsx(corr_local, corr_sheets, col_types = "text")
+            corr[[corr_name]] <- read_xlsx(corr_local, corr_sheets, col_types = "text", .name_repair = "unique_quiet")
          }
          unlink(corr_local)
       }
@@ -241,11 +224,7 @@ gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NUL
          sheet       <- corr_sheets[corr_sheets == surv_name]
 
          if (length(sheet) != 0) {
-            # if (speed)
-            #    corr[[corr_name]] <- range_speedread(corr_id, sheet, show_col_types = FALSE)
-            # else
-            #    corr[[corr_name]] <- read_sheet(corr_id, sheet)
-            corr[[corr_name]] <- read_xlsx(corr_local, sheet, col_types = "text")
+            corr[[corr_name]] <- read_xlsx(corr_local, sheet, col_types = "text", .name_repair = "unique_quiet")
          }
          unlink(corr_local)
       }
@@ -254,6 +233,70 @@ gdrive_correct2 <- function(parent = NULL, report_period = NULL, surv_name = NUL
    parent[[surv_name]]$corr <- corr
    log_success("Done.")
    return(parent)
+}
+
+# unified data factory
+gdrive_correct3 <- function(report_period = NULL, surv_name = NULL) {
+   # re-initialize
+   corr <- list()
+   local_drive_quiet()
+   local_gs4_quiet()
+
+   # get period data
+   clean_all <- drive_ls(as_id("109AGqRwhu_zdL2CrDTy3eCSQky2Mf8fM"), pattern = surv_name)
+   clean_all <- (if (nrow(clean_all) > 0) drive_ls(clean_all[["id"]]) else data.frame())
+   clean_now <- drive_ls(as_id("1rk5kVc7MxtWfE-Ju_kJSMkviSLvr0h6C"), pattern = report_period)
+   clean_now <- (if (nrow(clean_now) > 0) drive_ls(clean_now[["id"]]) else data.frame())
+
+   # list of correction files
+   log_info("Downloading corrections across all periods.")
+   if (nrow(clean_all) > 0) {
+      for (i in seq_len(nrow(clean_all))) {
+         corr_local <- tempfile(fileext = ".xlsx")
+         corr_id    <- as_id(clean_all[i,]$id)
+         corr_name  <- clean_all[i,]$name
+
+         drive_download(corr_id, corr_local, overwrite = TRUE)
+         corr_sheets <- excel_sheets(corr_local)
+
+         log_info("GSheet = {green(corr_name)}.")
+         if (length(corr_sheets) > 1) {
+            corr[[corr_name]]        <- lapply(corr_sheets, function(sheet, last_sheet) {
+               log_info("       > {green(sheet)}.")
+
+               read_xlsx(corr_local, sheet, col_types = "text", .name_repair = "unique_quiet")
+            })
+            names(corr[[corr_name]]) <- corr_sheets
+         } else {
+            corr[[corr_name]] <- read_xlsx(corr_local, corr_sheets, col_types = "text", .name_repair = "unique_quiet")
+         }
+         unlink(corr_local)
+      }
+   }
+
+   # create monthly folder if not exists
+   log_info("Downloading corrections for this period.")
+   if (nrow(clean_now) > 0) {
+      log_info("Period = {green(report_period)}.")
+      for (i in seq_len(nrow(clean_now))) {
+         corr_local <- tempfile(fileext = ".xlsx")
+         corr_id    <- as_id(clean_now[i,]$id)
+         corr_name  <- clean_now[i,]$name
+
+         log_info("       > {green(corr_name)}.")
+         drive_download(corr_id, corr_local, overwrite = TRUE)
+         corr_sheets <- excel_sheets(corr_local)
+         sheet       <- corr_sheets[corr_sheets == surv_name]
+
+         if (length(sheet) != 0) {
+            corr[[corr_name]] <- read_xlsx(corr_local, sheet, col_types = "text", .name_repair = "unique_quiet")
+         }
+         unlink(corr_local)
+      }
+   }
+
+   log_success("Done.")
+   return(corr)
 }
 
 # validatioins
