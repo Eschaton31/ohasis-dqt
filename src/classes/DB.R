@@ -16,7 +16,7 @@ DB <- setRefClass(
       ref_staff     = "data.frame"
    ),
    methods  = list(
-      initialize        = function(ref_yr = NULL, ref_mo = NULL, title = NULL) {
+      initialize        = function(ref_yr = NULL, ref_mo = NULL, title = NULL, update = NULL) {
          "This method is called when you create an instance of this class."
 
          # get current time
@@ -45,7 +45,7 @@ DB <- setRefClass(
          db_checks <<- .self$check_consistency()
 
          # update data lake
-         .self$update_lake()
+         .self$update_lake(update)
 
          # download latest references before final initialization
          log_info("Downloading references.")
@@ -126,11 +126,15 @@ DB <- setRefClass(
       },
 
       # update lake
-      update_lake       = function() {
-         update <- input(
-            prompt  = "Update the data lake?",
-            options = c("1" = "yes", "2" = "no", "3" = "all"),
-            default = "1"
+      update_lake       = function(update = NULL) {
+         update <- ifelse(
+            !is.null(update),
+            update,
+            input(
+               prompt  = "Update the data lake?",
+               options = c("1" = "yes", "2" = "no", "3" = "all"),
+               default = "1"
+            )
          )
          if (update %in% c("1", "3")) {
             # get required refresh data & upsert only
@@ -337,8 +341,10 @@ DB <- setRefClass(
             } else if (update_type == "refresh" | !table_exists) {
                snapshot_old <- "1970-01-01 00:00:00"
 
-               if (table_exists)
+               if (table_exists) {
                   dbRemoveTable(lw_conn, table_space)
+                  table_exists <- FALSE
+               }
             } else if (table_exists) {
                snapshot_old <- as.character(dbGetQuery(lw_conn, query_snapshot)$snapshot)
             }
@@ -369,7 +375,9 @@ DB <- setRefClass(
                params <- list(snapshot_old, snapshot_new, snapshot_old, snapshot_new, snapshot_old, snapshot_new)
 
                # use a diff connection if factory_sql exists for warehouse data
-               if (length(factory_sql) != 0 && db_type == "warehouse") {
+               if (length(factory_sql) != 0 &&
+                  db_type == "warehouse" &&
+                  table_name != "id_registry") {
                   dbDisconnect(db_conn)
                   db_conn <- .self$conn("lw")
                }
@@ -536,7 +544,7 @@ DB <- setRefClass(
             if ("flipped_cid" %in% names(checklist))
                log_error("Flipped Central IDs found in OHASIS registry.")
          } else {
-            log_info("DB is clean.")
+            log_success("DB is clean.")
          }
          return(checklist)
       },
@@ -805,7 +813,8 @@ DB <- setRefClass(
          dta_pid = NULL,
          remove_cols = NULL,
          remove_rows = NULL,
-         id_registry = NULL
+         id_registry = NULL,
+         reload = NULL
       ) {
          # open connections
          log_info("Opening connections.")
@@ -819,10 +828,14 @@ DB <- setRefClass(
 
          # check if dataset is to be re-loaded
          # TODO: add checking of latest version
-         reload <- input(
-            prompt  = "How do you want to load the previous dataset?",
-            options = c("1" = "reprocess", "2" = "download"),
-            default = "1"
+         reload <- ifelse(
+            reload %in% c("1", "2"),
+            reload,
+            input(
+               prompt  = "How do you want to load the previous dataset?",
+               options = c("1" = "reprocess", "2" = "download"),
+               default = "1"
+            )
          )
 
          if (!is.null(id_registry))
