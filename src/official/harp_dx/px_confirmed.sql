@@ -33,6 +33,7 @@ SELECT IF(id_registry.CENTRAL_ID IS NULL, pii.PATIENT_ID, id_registry.CENTRAL_ID
        hts_data.SPECIMEN_SOURCE,
        hts_data.SPECIMEN_SUB_SOURCE,
        hts_data.CONFIRM_RESULT,
+       hts_data.CONFIRM_REMARKS,
        hts_data.SIGNATORY_1,
        hts_data.SIGNATORY_2,
        hts_data.SIGNATORY_3,
@@ -53,7 +54,7 @@ SELECT IF(id_registry.CENTRAL_ID IS NULL, pii.PATIENT_ID, id_registry.CENTRAL_ID
 FROM ohasis_lake.px_pii AS pii
          JOIN ohasis_lake.px_hiv_testing AS hts_data ON pii.REC_ID = hts_data.REC_ID
          LEFT JOIN ohasis_warehouse.id_registry ON pii.PATIENT_ID = id_registry.PATIENT_ID
-WHERE LEFT(hts_data.CONFIRM_RESULT, 1) = '1'
+WHERE LEFT(hts_data.CONFIRM_RESULT, 1) IN ('1', '5')
   AND hts_data.REC_ID NOT IN (SELECT REC_ID FROM ohasis_warehouse.harp_dx_old)
   AND hts_data.DELETED_AT IS NULL
   AND IF(id_registry.CENTRAL_ID IS NULL, pii.PATIENT_ID, id_registry.CENTRAL_ID) NOT IN
