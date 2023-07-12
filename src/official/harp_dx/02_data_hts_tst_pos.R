@@ -5,6 +5,12 @@ clean_data <- function(forms, dup_munc) {
    data <- process_hts(forms$form_hts, forms$form_a, forms$form_cfbs) %>%
       bind_rows(forms$px_confirmed %>% mutate(SNAPSHOT = as.POSIXct(SNAPSHOT))) %>%
       distinct(REC_ID, .keep_all = TRUE) %>%
+      select(-any_of(c("CONFIRM_RESULT", "CONFIRM_REMARKS"))) %>%
+      left_join(
+         y  = forms$px_confirmed %>%
+            select(REC_ID, CONFIRM_RESULT, CONFIRM_REMARKS),
+         by = join_by(REC_ID)
+      ) %>%
       mutate_at(
          .vars = vars(FIRST, MIDDLE, LAST, SUFFIX),
          ~toupper(.)
@@ -90,7 +96,7 @@ clean_data <- function(forms, dup_munc) {
 prioritize_reports <- function(data) {
    log_info("Using first visited facility.")
    data %<>%
-      arrange(lab_year, lab_month, desc(CONFIRM_TYPE), visit_date, confirm_date) %>%
+      arrange(CONFIRM_RESULT, lab_year, lab_month, desc(CONFIRM_TYPE), visit_date, confirm_date) %>%
       distinct(CENTRAL_ID, .keep_all = TRUE) %>%
       filter(report_date < ohasis$next_date | is.na(report_date)) %>%
       rename(
@@ -311,11 +317,7 @@ standardize_data <- function(initial, params, corr) {
             false     = NA_character_
          ) %>% as.integer()
       ) %>%
-      # gender identity
-      left_join(
-         y  = corr$gender_identity$Sheet1,
-         by = c("SEX", "self_identity", "self_identity_other_sieve")
-      )
+      generate_gender_identity(SEX, SELF_IDENT, SELF_IDENT_OTHER, gender_identity)
 
    return(data)
 }
@@ -813,10 +815,8 @@ final_conversion <- function(data) {
          PATIENT_ID,
          idnum,
          form                      = FORM_VERSION,
-         modality                  = hts_modality,        # HTS Form
-         consent_test              = test_agreed,         # HTS Form
-         mot,
-         starts_with("risk_", ignore.case = FALSE),
+         modality                  = hts_modality,          # HTS Form
+         consent_test              = test_agreed,           # HTS Form
          labcode                   = CONFIRM_CODE,
          labcode2,
          year,
@@ -834,6 +834,8 @@ final_conversion <- function(data) {
          sex                       = SEX,
          philhealth                = PHILHEALTH_NO,
          philsys_id                = PHILSYS_ID,
+         mobile                    = CLIENT_MOBILE,
+         email                     = CLIENT_EMAIL,
          muncity,
          province,
          region,
@@ -869,6 +871,8 @@ final_conversion <- function(data) {
          needlepri1,
          transmit,
          sexhow,
+         mot,
+         starts_with("risk_", ignore.case = FALSE),
          class,
          class2022,
          ahd,
@@ -880,6 +884,8 @@ final_conversion <- function(data) {
          confirm_region,
          confirm_province,
          confirm_muncity,
+         confirm_result            = CONFIRM_RESULT,
+         confirm_remarks           = CONFIRM_REMARKS,
          region01,
          province01,
          placefbir,
@@ -1097,7 +1103,7 @@ subset_drops <- function(data) {
 
 ##  Drop using taggings --------------------------------------------------------
 
-remove_drops <- function(data) {
+remove_drops <- function(data, params) {
    log_info("Cleaning final dataset.")
    data %<>%
       mutate(
@@ -1120,7 +1126,7 @@ remove_drops <- function(data) {
       )
 
    final_new <- data %>%
-      filter(year == as.numeric(ohasis$yr), month == as.numeric(ohasis$mo))
+      filter(year == as.numeric(params$yr), month == as.numeric(params$mo))
 
    nrow_new  <- nrow(final_new)
    nrow_ahd  <- final_new %>%
@@ -1189,7 +1195,7 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          "self_identity",
          "self_identity_other",
          "gender_identity",
-         "confirmlab",
+         "sample_source",
          "HTS_FACI",
          "SOURCE_FACI",
          "hts_date",
@@ -1201,6 +1207,8 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          "mot",
          "transmit",
          "sexhow",
+         "confirm_result",
+         "confirm_remarks",
          "FORM_FACI",
          get_names(data, "risk_")
       )
@@ -1215,16 +1223,15 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          "hts_date"
       )
       check     <- check_dates(data, check, view_vars, date_vars)
+      check[["blood_extract_date"]] %<>%
+         filter(confirmlab != "SACCL")
 
       # non-negotiable variables
       nonnegotiables <- c(
          "uic",
          "age",
          "confirmlab",
-         "dxlab_standard",
-         "pubpriv",
          "form",
-         "dxlab_standard",
          "sample_source",
          "self_identity",
          "nationality",
@@ -1234,11 +1241,11 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          "t2_result",
          "t3_date",
          "t3_result",
-         "transmit",
-         "region",
-         "province",
-         "muncity"
+         "transmit"
       )
+      check          <- check_unknown(data, check, "perm_addr", view_vars, region, province, muncity)
+      check          <- check_unknown(data, check, "curr_addr", view_vars, region_c, province_c, muncity_c)
+      check          <- check_unknown(data, check, "dxlab_data", view_vars, dxlab_standard, pubpriv)
       check          <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
       check          <- check_preggy(data, check, view_vars, sex = sex)
       check          <- check_age(data, check, view_vars, birthdate = bdate, age = age, visit_date = visit_date)
@@ -1248,17 +1255,22 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
       check[["faci_diff_source_v_form"]] <- data %>%
          filter(diff_source_v_form == 1) %>%
          select(
-            any_of(view_vars),
-            sample_source,
-            HTS_FACI,
-            SOURCE_FACI
-         ) %>%
-         arrange(confirm_region, confirmlab)
+            any_of(view_vars)
+         )
 
       log_info("Checking for similarly named municipalities.")
       check[["dup_munc"]] <- data %>%
          filter(
             DUP_MUNC == 1
+         ) %>%
+         select(
+            any_of(view_vars)
+         )
+
+      log_info("Checking for duplicate results w/o a reported positive result.")
+      check[["dup_not_positive"]] <- data %>%
+         filter(
+            confirm_result == "5_Duplicate"
          ) %>%
          select(
             any_of(view_vars)
@@ -1363,6 +1375,58 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
    return(check)
 }
 
+##  Stata Labels ---------------------------------------------------------------
+
+label_stata <- function(newdx, stata_labels) {
+   labels <- split(stata_labels$lab_def, ~label_name)
+   labels <- lapply(labels, function(data) {
+      final_labels        <- as.integer(data[["value"]])
+      names(final_labels) <- as.character(data[["label"]])
+      return(final_labels)
+   })
+
+   for (i in seq_len(nrow(stata_labels$lab_val))) {
+      var   <- stata_labels$lab_val[i,]$variable
+      label <- stata_labels$lab_val[i,]$label_name
+
+      if (var %in% names(newdx))
+         newdx[[var]] <- labelled(
+            newdx[[var]],
+            labels[[label]]
+         )
+   }
+
+   return(newdx)
+}
+
+##  Output Stata Datasets ------------------------------------------------------
+
+output_dta <- function(official, params, save = "2") {
+   if (save == "1") {
+      log_info("Checking output directory.")
+      version <- format(Sys.time(), "%Y%m%d")
+      dir     <- Sys.getenv("HARP_DX")
+      check_dir(dir)
+
+      log_info("Saving in Stata data format.")
+      period_ext <- str_c(params$yr, "-", stri_pad_left(params$mo, 2, "0"), ".dta")
+      files      <- list(
+         new                = file.path(dir, str_c(version, "_reg_", period_ext)),
+         dropped_notyet     = file.path(dir, str_c(version, "_dropped_notyet_", period_ext)),
+         dropped_duplicates = file.path(dir, str_c(version, "_dropped_duplicates_", period_ext))
+      )
+      for (output in intersect(names(files), names(official))) {
+         if (nrow(official[[output]]) > 0) {
+            official[[output]] %>%
+               format_stata() %>%
+               write_dta(files[[output]])
+
+            compress_stata(files[[output]])
+         }
+      }
+   }
+}
+
 ##  Actual flow ----------------------------------------------------------------
 
 .init <- function(envir = parent.env(environment()), ...) {
@@ -1382,12 +1446,16 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
    new_reg <- append_data(p$official$old, data)
    new_reg <- tag_fordrop(new_reg, p$corr)
    drops   <- subset_drops(new_reg)
-   new_reg <- remove_drops(new_reg)
+   new_reg <- remove_drops(new_reg, p$params)
+   new_reg <- label_stata(new_reg, p$corr$stata_labels)
 
    step$check <- get_checks(data, p$pdf_rhivda, p$corr, run_checks = vars$run_checks, exclude_drops = vars$exclude_drops)
    step$data  <- data
 
    p$official$new <- new_reg
+   append(p$official, drops)
+   output_dta(p$official, p$params, vars$save)
+
    flow_validation(p, "hts_tst_pos", p$params$ym, upload = vars$upload)
    log_success("Done.")
 }
