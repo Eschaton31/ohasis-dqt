@@ -29,3 +29,27 @@ format_stata <- function(data) {
 
    return(data)
 }
+
+compress_stata <- function(file) {
+   if (Sys.getenv("STATA_PATH") != "") {
+      # format and save file
+      stataCMD <- glue(r"(
+u "{file}", clear
+
+ds, has(type string)
+foreach var in `r(varlist)' {{
+   loc type : type `var'
+   loc len = substr("`type'", 4, 1000)
+
+   cap form `var' %-`len's
+}}
+
+form *date* %tdCCYY-NN-DD
+compress
+
+sa "{file}", replace
+   )")
+
+      stata(stataCMD)
+   }
+}
