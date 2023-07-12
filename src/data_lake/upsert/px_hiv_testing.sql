@@ -28,6 +28,7 @@ SELECT rec.REC_ID,
            WHEN conf.FINAL_RESULT LIKE '%PENDING%' THEN '4_Pending'
            WHEN conf.FINAL_RESULT LIKE '%Duplicate%' THEN '5_Duplicate'
            ELSE conf.FINAL_RESULT END                                                                  AS CONFIRM_RESULT,
+       CONCAT_WS(' ', conf.REMARKS, conf.REMARKS_RHIVDA)                                               AS CONFIRM_REMARKS,
        conf.SIGNATORY_1,
        conf.SIGNATORY_2,
        conf.SIGNATORY_3,
