@@ -467,36 +467,28 @@ merge_dx <- function(data, forms, params) {
                dxreg_initials          = pxcode,
                dxreg_philhealth_no     = philhealth
             ),
-         by = "CENTRAL_ID"
-      ) %>%
-      mutate(
-         # tag clients for updating w/ dx registry data
-         use_dxreg = if_else(
-            condition = !is.na(dxreg_confirmatory_code),
-            true      = 1,
-            false     = 0,
-            missing   = 0
-         ),
+         by = join_by(CENTRAL_ID)
       )
 
    # run_checksthese variables if missing in art reg
+   cols <- names(select(data, starts_with("dxreg_", ignore.case = FALSE)))
+   cols <- str_replace(cols, "dxreg_", "")
    data %<>%
       mutate(
          across(
-            names(select(., starts_with("dxreg", ignore.case = FALSE))),
-            ~coalesce(pull(data, str_replace(cur_column(), "dxreg_", "")), .)
+            all_of(cols),
+            ~coalesce(., pull(data, str_c("dxreg_", cur_column())))
          )
       )
 
    # remove dx registry variables
    data %<>%
       select(
-         -use_dxreg,
          -starts_with("dxreg")
       ) %>%
       left_join(
          y          = dx %>%
-            select(idnum, labcode2) %>%
+            select(idnum, labcode2, confirm_date) %>%
             mutate(
                labcode2 = case_when(
                   idnum == 6978 ~ "R11-06-3387",
@@ -522,6 +514,21 @@ merge_dx <- function(data, forms, params) {
       distinct(CENTRAL_ID, .keep_all = TRUE) %>%
       relocate(idnum, .after = art_id) %>%
       arrange(art_id)
+
+   # add latest confirmatory data
+   data %<>%
+      left_join(forms$confirm_last, join_by(CENTRAL_ID)) %>%
+      mutate(
+         confirm_date   = coalesce(confirm_date, as.Date(DATE_CONFIRM)),
+         confirm_result = case_when(
+            !is.na(idnum) ~ "1_Positive",
+            TRUE ~ CONFIRM_RESULT
+         )
+      ) %>%
+      rename(
+         confirm_remarks = CONFIRM_REMARKS
+      ) %>%
+      select(-CONFIRM_RESULT, -DATE_CONFIRM)
 
    return(data)
 }
@@ -641,7 +648,7 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
          "artstart_regimen"
       )
       check     <- check_pii(data, check, view_vars, first = first, middle = middle, last = last, birthdate = birthdate, sex = sex)
-      check     <- check_addr(data, check, view_vars, "curr")
+      check     <- check_addr_psgc(data, check, view_vars, "curr")
 
       # non-negotiable variables
       nonnegotiables <- c("age", "uic")
@@ -764,6 +771,8 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
    step$data  <- data
 
    p$official$new_reg <- new_reg
+   append(p$official, drops)
+
    flow_validation(p, "tx_new", p$params$ym, upload = vars$upload)
    log_success("Done.")
 }
