@@ -10,5 +10,5 @@ flow(
       "y3" = "saccl_recency"
    ),
    file.path(getwd(), "src", "official", "harp_dx"),
-   nhsss
+   .GlobalEnv
 )
