@@ -1,53 +1,62 @@
-##  Generate pre-requisites and endpoints --------------------------------------
+##  Set coverage ---------------------------------------------------------------
 
-download_corrections <- function() {
-   check <- input(
-      prompt  = glue("Re-download the {green('data corrections')}?"),
-      options = c("1" = "yes", "2" = "no"),
-      default = "2"
-   )
-   if (check == "1") {
-      .log_info("Downloading corrections list.")
-      nhsss <- gdrive_correct2(nhsss, ohasis$ym, "harp_dx", speed = FALSE)
-   }
+set_coverage <- function(max = end_friday(Sys.time())) {
+   params   <- list()
+   max_date <- as.Date(max)
+
+   params$yr   <- year(max_date)
+   params$mo   <- month(max_date)
+   params$ym   <- str_c(sep = ".", params$yr, stri_pad_left(params$mo, 2, "0"))
+   params$p10y <- params$yr - 10
+   params$min  <- max_date %m-% days(30) %>% as.character()
+   params$max  <- max
+
+   params$prev_mo <- month(as.Date(params$min) %m-% months(1))
+   params$prev_yr <- year(as.Date(params$min) %m-% months(1))
+
+   return(params)
 }
 
-# run through all tables
-update_warehouse <- function() {
-   check <- input(
-      prompt  = glue("Update {green('data/forms')} to be used for consolidation?"),
-      options = c("1" = "yes", "2" = "no"),
-      default = "2"
-   )
-   if (check == "1") {
-      .log_info("Updating data lake and data warehouse.")
-      local(envir = nhsss$harp_dx, invisible({
-         tables           <- list()
-         tables$lake      <- c(
-            "px_pii",
-            "px_faci_info",
-            "px_ob",
-            "px_hiv_testing",
-            "px_consent",
-            "px_occupation",
-            "px_ofw",
-            "px_risk",
-            "px_expose_profile",
-            "px_test_reason",
-            "px_test_refuse",
-            "px_test_previous",
-            "px_med_profile",
-            "px_staging",
-            "px_cfbs",
-            "px_reach",
-            "px_linkage",
-            "px_other_service"
-         )
-         tables$warehouse <- c("form_a", "form_hts", "id_registry")
+##  Generate pre-requisites and endpoints --------------------------------------
 
-         lapply(tables$lake, function(table) ohasis$data_factory("lake", table, "upsert", TRUE))
-         lapply(tables$warehouse, function(table) ohasis$data_factory("warehouse", table, "upsert", TRUE))
-      }))
+# run through all tables
+update_warehouse <- function(update) {
+   update <- ifelse(
+      update %in% c("1", "2"),
+      update,
+      input(
+         prompt  = glue("Update {green('data/forms')} to be used for consolidation?"),
+         options = c("1" = "yes", "2" = "no"),
+         default = "2"
+      )
+   )
+   if (update == "1") {
+      log_info("Updating data lake and data warehouse.")
+      tables           <- list()
+      tables$lake      <- c(
+         "px_pii",
+         "px_faci_info",
+         "px_ob",
+         "px_hiv_testing",
+         "px_consent",
+         "px_occupation",
+         "px_ofw",
+         "px_risk",
+         "px_expose_profile",
+         "px_test_reason",
+         "px_test_refuse",
+         "px_test_previous",
+         "px_med_profile",
+         "px_staging",
+         "px_cfbs",
+         "px_reach",
+         "px_linkage",
+         "px_other_service"
+      )
+      tables$warehouse <- c("form_a", "form_hts", "id_registry")
+
+      lapply(tables$lake, function(table) ohasis$data_factory("lake", table, "upsert", TRUE))
+      lapply(tables$warehouse, function(table) ohasis$data_factory("warehouse", table, "upsert", TRUE))
    }
 }
 
@@ -71,7 +80,7 @@ download_tables <- function(path_to_sql) {
    data$form_hts     <- tracked_select(lw_conn, sql$form_hts, "New HTS Form")
    data$form_cfbs    <- tracked_select(lw_conn, sql$form_cfbs, "New CFBS Form")
    data$px_confirmed <- tracked_select(lw_conn, sql$px_confirmed, "New Confirmed w/ no Form")
-   data$cd4          <- tracked_select(lw_conn, sql$cd4, "Baseline CD4", list(as.character(ohasis$next_date)))
+   data$cd4          <- tracked_select(lw_conn, sql$cd4, "Baseline CD4", list(as.character(params$max)))
 
    dbDisconnect(lw_conn)
 
@@ -80,9 +89,9 @@ download_tables <- function(path_to_sql) {
 
 ##  get pdf results ------------------------------------------------------------
 
-get_rhivda_pdf <- function() {
-   .log_info("Loading list of rHIVda PDF Results.")
-   rhivda <- dir_info(file.path(Sys.getenv("DRIVE_DROPBOX"), "File requests/rHIVda Submission/FORMS", ohasis$ym), recurse = TRUE)
+get_rhivda_pdf <- function(params) {
+   log_info("Loading list of rHIVda PDF Results.")
+   rhivda <- dir_info(file.path(Sys.getenv("DRIVE_DROPBOX"), "File requests/rHIVda Submission/FORMS", params$ym), recurse = TRUE)
    rhivda %<>%
       filter(type == "file") %>%
       mutate(
@@ -91,57 +100,77 @@ get_rhivda_pdf <- function() {
       ) %>%
       filter(!is.na(CONFIRM_CODE))
 
-   .GlobalEnv$nhsss$harp_dx$pdf_rhivda$data <- rhivda
+   return(rhivda)
 }
 
 ##  Get the previous report's HARP Registry ------------------------------------
 
-update_dataset <- function() {
-   check <- input(
-      prompt  = "Reload previous dataset?",
-      options = c("1" = "yes", "2" = "no"),
-      default = "2"
+update_dataset <- function(params, corr, reprocess) {
+   log_info("Getting previous datasets.")
+   official       <- list()
+   official$old   <- ohasis$load_old_dta(
+      path            = hs_data("harp_dx", "reg", params$prev_yr, ohasis$prev_mo),
+      corr            = corr$old_reg,
+      warehouse_table = "harp_dx_old",
+      id_col          = c("idnum" = "integer"),
+      dta_pid         = "PATIENT_ID",
+      remove_cols     = "CENTRAL_ID",
+      remove_rows     = corr$anti_join,
+      reload          = reprocess
    )
-   if (check == "1") {
-      .log_info("Getting previous datasets.")
-      local(envir = nhsss$harp_dx, {
-         official     <- list()
-         official$old <- ohasis$load_old_dta(
-            path            = hs_data("harp_dx", "reg", ohasis$prev_yr, ohasis$prev_mo),
-            corr            = corr$old_reg,
-            warehouse_table = "harp_dx_old",
-            id_col          = c("idnum" = "integer"),
-            dta_pid         = "PATIENT_ID",
-            remove_cols     = "CENTRAL_ID",
-            remove_rows     = corr$anti_join
-         )
-         official$dupes <- official$old %>% get_dupes(CENTRAL_ID)
-      })
-   }
-   rm(check)
+   official$dupes <- official$old %>% get_dupes(CENTRAL_ID)
+   if (nrow(official$dupes) > 0)
+      log_warn("Duplicate {green('Central IDs')} found.")
+
+   return(official)
 }
 
-define_params <- function() {
-   local(envir = nhsss$harp_dx, {
-      params              <- list()
-      params$p10y         <- (as.numeric(ohasis$yr) - 10)
-      params$latest_idnum <- max(as.integer(official$old$idnum), na.rm = TRUE)
+.init <- function(envir = parent.env(environment()), ...) {
+   p    <- envir
+   vars <- match.call(expand.dots = FALSE)$`...`
 
-      params$min <- ohasis$date
-      params$max <- ohasis$next_date %m-% days(1)
-      params$yr  <- year(params$max)
-      params$mo  <- month(params$max)
-      params$ym  <- str_c(sep = ".", params$yr, stri_pad_left(params$mo, 2, "0"))
-   })
-}
+   update_warehouse(vars$update_lw)
+   p$params <- set_coverage(vars$end_date)
 
-.init <- function(envir = parent.env(environment())) {
-   download_corrections()
-   update_warehouse()
-   update_dataset()
-   define_params()
-   get_rhivda_pdf()
+   # ! corrections
+   dl <- ifelse(
+      vars$dl_corr %in% c("1", "2"),
+      vars$dl_corr,
+      input(
+         prompt  = glue("GET: {green('corrections')}?"),
+         options = c("1" = "yes", "2" = "no"),
+         default = "2"
+      )
+   )
+   if (dl == "1")
+      p$corr <- gdrive_correct3(params$ym, "harp_dx")
 
-   p       <- envir
-   p$forms <- download_tables(p$wd)
+   # ! old dataset
+   update <- ifelse(
+      vars$update_harp %in% c("1", "2"),
+      vars$update_harp,
+      input(
+         prompt  = "Reload previous dataset?",
+         options = c("1" = "yes", "2" = "no"),
+         default = "2"
+      )
+   )
+   if (update == "1")
+      p$official <- update_dataset(p$params, p$corr, vars$harp_reprocess)
+
+   p$params$latest_idnum <- max(as.integer(p$official$old$idnum), na.rm = TRUE)
+
+   dl <- ifelse(
+      vars$dl_corr %in% c("1", "2"),
+      vars$dl_corr,
+      input(
+         prompt  = "GET: {green('forms')}?",
+         options = c("1" = "Yes", "2" = "No"),
+         default = "1"
+      )
+   )
+   if (dl == "1")
+      p$forms <- download_tables(p$wd)
+
+   p$pdf_rhivda$data <- get_rhivda_pdf(p$params)
 }
