@@ -1,4 +1,6 @@
 generate_gender_identity <- function(linelist, sex, self_identity, self_identity_text, gender_identity) {
+   local_gs4_quiet()
+
    col_sex <- deparse(substitute(sex))
    col_si  <- deparse(substitute(self_identity))
    ref_gi  <- read_sheet("1LFYk4FGokmq4OzBsU6KW6cJWPUYKagXvR6VvvWu1uNo", "Sheet1")
