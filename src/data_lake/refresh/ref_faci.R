@@ -187,4 +187,7 @@ object <- bind_rows(object_1, object_2) %>%
          PUBPRIV == 2 ~ "PRIVATE",
          TRUE ~ NA_character_
       )
+   ) %>%
+   mutate(
+      FACI_NAME_CLEAN = coalesce(FACI_NAME_CLEAN, toupper(FACI_NAME))
    )
