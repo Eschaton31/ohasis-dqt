@@ -219,7 +219,7 @@ download_tables <- function(params) {
       dbTable(
          db_name,
          "confirm_last",
-         cols = c("CENTRAL_ID", "DATE_CONFIRM", "CONFIRM_RESULT", "CONFIRM_REMARKS")
+         cols = c("CENTRAL_ID", "DATE_CONFIRM", "CONFIRM_CODE", "CONFIRM_RESULT", "CONFIRM_REMARKS")
       )
 
    log_info("Downloading {green('CD4 Data')}.")

@@ -143,7 +143,7 @@ update_dataset <- function(params, corr, reprocess) {
       )
    )
    if (dl == "1")
-      p$corr <- gdrive_correct3(params$ym, "harp_dx")
+      p$corr <- gdrive_correct3(p$params$ym, "harp_dx")
 
    # ! old dataset
    update <- ifelse(
