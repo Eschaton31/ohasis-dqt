@@ -470,7 +470,7 @@ merge_dx <- function(data, forms, params) {
          by = join_by(CENTRAL_ID)
       )
 
-   # run_checksthese variables if missing in art reg
+   # check these variables if missing in art reg
    cols <- names(select(data, starts_with("dxreg_", ignore.case = FALSE)))
    cols <- str_replace(cols, "dxreg_", "")
    data %<>%
@@ -484,7 +484,8 @@ merge_dx <- function(data, forms, params) {
    # remove dx registry variables
    data %<>%
       select(
-         -starts_with("dxreg")
+         -starts_with("dxreg"),
+         -starts_with("labcode2")
       ) %>%
       left_join(
          y          = dx %>%
@@ -499,24 +500,7 @@ merge_dx <- function(data, forms, params) {
          by         = join_by(idnum),
          na_matches = "never"
       ) %>%
-      mutate(
-         # finalize age data
-         age_dta           = calc_age(birthdate, artstart_date),
-         age               = coalesce(age, age_dta),
-         confirmatory_code = coalesce(labcode2, confirmatory_code, glue("*{uic}"), glue("*{px_code}")),
-         newonart          = if_else(
-            condition = year(artstart_date) == params$yr & month(artstart_date) == params$mo,
-            true      = 1,
-            false     = 0,
-            missing   = 0
-         ),
-      ) %>%
-      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
-      relocate(idnum, .after = art_id) %>%
-      arrange(art_id)
-
-   # add latest confirmatory data
-   data %<>%
+      # add latest confirmatory data
       left_join(forms$confirm_last, join_by(CENTRAL_ID)) %>%
       mutate(
          confirm_date   = coalesce(confirm_date, as.Date(DATE_CONFIRM)),
@@ -528,7 +512,22 @@ merge_dx <- function(data, forms, params) {
       rename(
          confirm_remarks = CONFIRM_REMARKS
       ) %>%
-      select(-CONFIRM_RESULT, -DATE_CONFIRM)
+      mutate(
+         # finalize age data
+         age_dta           = calc_age(birthdate, artstart_date),
+         age               = coalesce(age, age_dta),
+         confirmatory_code = coalesce(labcode2, CONFIRM_CODE, confirmatory_code, glue("*{uic}"), glue("*{px_code}")),
+         newonart          = if_else(
+            condition = year(artstart_date) == params$yr & month(artstart_date) == params$mo,
+            true      = 1,
+            false     = 0,
+            missing   = 0
+         ),
+      ) %>%
+      select(-CONFIRM_RESULT, -DATE_CONFIRM, -CONFIRM_CODE, -labcode2) %>%
+      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      relocate(idnum, .after = art_id) %>%
+      arrange(art_id)
 
    return(data)
 }
