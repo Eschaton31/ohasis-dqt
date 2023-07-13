@@ -28,7 +28,7 @@ dedup_download <- function() {
    min <- "1900-01-01 00:00:00"
    max <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
    if (nrow(dedup$pii) > 0)
-      min <- format(max(dedup$pii$SNAPSHOT, na.rm = TRUE), "%Y-%m-%d %H:%M:%S")
+      min <- format(max(dedup$pii$SNAPSHOT, na.rm = TRUE), "%Y-%m-%d %H:%M:00")
 
    # central id reference
    log_info("Downloading {green('id_registry')}.")
