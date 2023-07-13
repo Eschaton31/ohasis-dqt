@@ -147,7 +147,7 @@ get_cd4 <- function(data, lab_cd4) {
 
 ##  Generate subset variables --------------------------------------------------
 
-standardize_data <- function(initial, params, corr) {
+standardize_data <- function(initial, params) {
    log_info("Converting to final HARP variables.")
    data <- initial %>%
       mutate(
@@ -206,7 +206,7 @@ standardize_data <- function(initial, params, corr) {
          sample_source             = substr(SPECIMEN_REFER_TYPE, 3, 3),
 
          # demographics
-         pxcode                    = str_squish(stri_c(StrLeft(FIRST, 1), StrLeft(MIDDLE, 1), StrLeft(LAST, 1))), ,
+         pxcode                    = str_squish(stri_c(StrLeft(FIRST, 1), StrLeft(MIDDLE, 1), StrLeft(LAST, 1))),
          SEX                       = remove_code(stri_trans_toupper(SEX)),
          self_identity             = remove_code(stri_trans_toupper(SELF_IDENT)),
          self_identity             = case_when(
@@ -1061,7 +1061,7 @@ append_data <- function(old, new) {
       arrange(idnum) %>%
       mutate(
          drop_notyet = 0,
-         anti_join   = 0,
+         drop_duplicates   = 0,
       )
 
    return(data)
@@ -1071,7 +1071,7 @@ append_data <- function(old, new) {
 
 tag_fordrop <- function(data, corr) {
    log_info("Tagging enrollees for dropping.")
-   for (drop_var in c("drop_notyet", "anti_join"))
+   for (drop_var in c("drop_notyet", "drop_duplicates"))
       if (drop_var %in% names(corr))
          data %<>%
             left_join(
@@ -1095,7 +1095,7 @@ subset_drops <- function(data) {
    log_info("Archive those for dropping.")
    drops <- list(
       dropped_notyet     = data %>% filter(drop_notyet == 1),
-      dropped_duplicates = data %>% filter(anti_join == 1)
+      dropped_duplicates = data %>% filter(drop_duplicates == 1)
    )
 
    return(drops)
@@ -1113,13 +1113,13 @@ remove_drops <- function(data, params) {
             false     = labcode2,
             missing   = labcode2
          ),
-         drop        = anti_join + drop_notyet,
+         drop        = drop_duplicates + drop_notyet,
          who_staging = as.integer(who_staging)
       ) %>%
       filter(drop == 0) %>%
       select(
          -drop,
-         -anti_join,
+         -drop_duplicates,
          -drop_notyet,
          -mot,
          -FORM_FACI
@@ -1437,7 +1437,7 @@ output_dta <- function(official, params, save = "2") {
    data <- clean_data(p$forms, p$corr$dup_munc)
    data <- prioritize_reports(data)
    data <- get_cd4(data, p$forms$cd4)
-   data <- standardize_data(data, p$params, p$corr)
+   data <- standardize_data(data, p$params)
    data <- tag_mot(data, p$params)
    data <- tag_class(data, p$corr)
    data <- convert_faci_addr(data)
