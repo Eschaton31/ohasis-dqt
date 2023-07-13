@@ -1,11 +1,13 @@
 SELECT *
 FROM (SELECT data.CENTRAL_ID,
              data.DATE_CONFIRM,
+             data.CONFIRM_CODE,
              data.CONFIRM_RESULT,
              data.CONFIRM_REMARKS,
              ROW_NUMBER() OVER (PARTITION BY CENTRAL_ID ORDER BY DATE_CONFIRM DESC) AS VISIT_NUM
       FROM (SELECT COALESCE(reg.CENTRAL_ID, rec.PATIENT_ID)                                    AS CENTRAL_ID,
                    DATE(COALESCE(data.DATE_CONFIRM, data.T3_DATE, data.T2_DATE, data.T1_DATE)) AS DATE_CONFIRM,
+                   data.CONFIRM_CODE,
                    data.CONFIRM_RESULT,
                    data.CONFIRM_REMARKS
             FROM ohasis_lake.px_pii AS rec
