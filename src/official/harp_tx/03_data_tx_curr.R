@@ -1345,7 +1345,28 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
          ) %>%
          relocate(real_reg, realhub, realhub_branch, .after = art_id) %>%
          mutate(
-            reg_order = stri_pad_left(real_reg, 8, "0")
+            reg_order = real_reg,
+            reg_order = case_when(
+               reg_order == "1" ~ 1,
+               reg_order == "2" ~ 2,
+               reg_order == "CAR" ~ 3,
+               reg_order == "3" ~ 4,
+               reg_order == "NCR" ~ 5,
+               reg_order == "4A" ~ 6,
+               reg_order == "4B" ~ 7,
+               reg_order == "5" ~ 8,
+               reg_order == "6" ~ 9,
+               reg_order == "7" ~ 10,
+               reg_order == "8" ~ 11,
+               reg_order == "9" ~ 12,
+               reg_order == "10" ~ 13,
+               reg_order == "11" ~ 14,
+               reg_order == "12" ~ 15,
+               reg_order == "CARAGA" ~ 16,
+               reg_order == "ARMM" ~ 17,
+               reg_order == "BARMM" ~ 17,
+               TRUE ~ 9999
+            ),
          ) %>%
          arrange(reg_order, realhub) %>%
          select(-reg_order)
