@@ -1,5 +1,11 @@
 # process prep data
 process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_link = data.frame()) {
+   if (!("hts_src" %in% names(form_prep)))
+      form_prep %<>%
+         mutate(
+            hts_src = 0
+         )
+
    data <- form_prep %>%
       mutate(
          # fix date formats
@@ -122,6 +128,9 @@ process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_
             ),
          by = "REC_ID"
       ) %>%
+      mutate(
+         HTS_REC = if_else(hts_src == 1, REC_ID, HTS_REC, HTS_REC)
+      ) %>%
       left_join(
          y  = hts_data %>%
             rename_at(
@@ -129,11 +138,13 @@ process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_
                ~paste0("hts_", .)
             ) %>%
             select(
-               HTS_REC  = REC_ID,
-               hts_form = FORM_VERSION,
+               HTS_REC         = REC_ID,
+               hts_form        = FORM_VERSION,
+               hts_prep_client = MED_PREP_PX,
+               hts_prep_offer  = SERVICE_PREP_REFER,
                starts_with("hts", ignore.case = FALSE),
                starts_with("CURR_PSGC", ignore.case = FALSE),
-               starts_with("PERM_PSGC", ignore.case = FALSE)
+               starts_with("PERM_PSGC", ignore.case = FALSE),
             ) %>%
             mutate(with_hts = 1),
          by = "HTS_REC"
