@@ -622,7 +622,9 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
    if (run_checks == "1") {
       data %<>%
          mutate(
-            reg_order = stri_pad_left(artstart_reg, 8, "0")
+            reg_order = artstart_reg,
+            reg_order = stri_pad_right(reg_order, 2, "0"),
+            reg_order = stri_pad_left(reg_order, 8, "0"),
          ) %>%
          arrange(reg_order, artstart_realhub, artstart_realhub_branch, art_id) %>%
          select(-reg_order)

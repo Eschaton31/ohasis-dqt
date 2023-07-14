@@ -637,7 +637,9 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
    if (run_checks == "1") {
       data %<>%
          mutate(
-            reg_order = stri_pad_left(facility_region, 8, "0")
+            reg_order = facility_region,
+            reg_order = stri_pad_right(reg_order, 2, "0"),
+            reg_order = stri_pad_left(reg_order, 8, "0"),
          ) %>%
          arrange(reg_order, facility, mort_id) %>%
          select(-reg_order)

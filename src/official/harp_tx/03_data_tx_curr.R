@@ -1041,7 +1041,9 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
    if (run_checks == "1") {
       step_data %<>%
          mutate(
-            reg_order = stri_pad_left(real_reg, 8, "0")
+            reg_order = real_reg,
+            reg_order = stri_pad_right(reg_order, 2, "0"),
+            reg_order = stri_pad_left(reg_order, 8, "0"),
          ) %>%
          arrange(reg_order, curr_realhub, curr_realhub_branch, art_id) %>%
          select(-reg_order)
