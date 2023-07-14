@@ -1040,7 +1040,11 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
 
    if (run_checks == "1") {
       step_data %<>%
-         arrange(real_reg, curr_realhub, curr_realhub_branch, art_id)
+         mutate(
+            reg_order = stri_pad_left(real_reg, 8, "0")
+         ) %>%
+         arrange(real_reg, curr_realhub, curr_realhub_branch, art_id) %>%
+         select(-reg_order)
 
       view_vars <- c(
          "REC_ID",
@@ -1319,7 +1323,11 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
             birthdate
          ) %>%
          relocate(real_reg, realhub, realhub_branch, .after = art_id) %>%
-         arrange(real_reg, realhub)
+         mutate(
+            reg_order = stri_pad_left(real_reg, 8, "0")
+         ) %>%
+         arrange(reg_order, realhub) %>%
+         select(-reg_order)
 
       # special checks
       log_info("Checking for shift out of TLD.")

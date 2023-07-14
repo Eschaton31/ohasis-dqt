@@ -1060,8 +1060,8 @@ append_data <- function(old, new) {
       ) %>%
       arrange(idnum) %>%
       mutate(
-         drop_notyet = 0,
-         drop_duplicates   = 0,
+         drop_notyet     = 0,
+         drop_duplicates = 0,
       )
 
    return(data)
@@ -1175,7 +1175,11 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
 
    if (run_checks == "1") {
       data %<>%
-         arrange(confirm_region, confirmlab, labcode)
+         mutate(
+            reg_order = stri_pad_left(confirm_region, 8, "0")
+         ) %>%
+         arrange(confirm_region, confirmlab, labcode) %>%
+         select(-reg_order)
 
       view_vars <- c(
          "REC_ID",

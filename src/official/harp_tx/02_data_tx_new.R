@@ -6,7 +6,7 @@ get_enrollees <- function(art_first, old_reg, params) {
       anti_join(
          y  = old_reg %>%
             select(CENTRAL_ID),
-         by = "CENTRAL_ID"
+         by = join_by(CENTRAL_ID)
       ) %>%
       mutate_at(
          .vars = vars(FIRST, MIDDLE, LAST, SUFFIX),
@@ -356,8 +356,8 @@ append_enrollees <- function(old, new) {
       ) %>%
       arrange(art_id) %>%
       mutate(
-         drop_notyet = 0,
-         drop_notart = 0,
+         drop_notyet = coalesce(drop_notyet, 0),
+         drop_notart = coalesce(drop_notart, 0),
       ) %>%
       zap_labels()
 
@@ -621,7 +621,11 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
 
    if (run_checks == "1") {
       data %<>%
-         arrange(artstart_reg, artstart_realhub, artstart_realhub_branch, art_id)
+         mutate(
+            reg_order = stri_pad_left(artstart_reg, 8, "0")
+         ) %>%
+         arrange(reg_order, artstart_realhub, artstart_realhub_branch, art_id) %>%
+         select(-reg_order)
 
       view_vars <- c(
          "REC_ID",
