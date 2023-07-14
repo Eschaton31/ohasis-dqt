@@ -7,12 +7,11 @@ set_coverage <- function(max = end_friday(Sys.time())) {
    params$yr   <- year(max_date)
    params$mo   <- month(max_date)
    params$ym   <- str_c(sep = ".", params$yr, stri_pad_left(params$mo, 2, "0"))
-   params$p10y <- params$yr - 10
    params$min  <- max_date %m-% days(30) %>% as.character()
    params$max  <- max
 
-   params$prev_mo <- month(as.Date(params$min) %m-% months(1))
-   params$prev_yr <- year(as.Date(params$min) %m-% months(1))
+   params$prev_mo <- month(max_date %m-% months(1))
+   params$prev_yr <- year(max_date %m-% months(1))
 
    # special clinics
    params$clinics <- list(
