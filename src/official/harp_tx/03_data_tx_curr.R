@@ -1043,7 +1043,7 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
          mutate(
             reg_order = stri_pad_left(real_reg, 8, "0")
          ) %>%
-         arrange(real_reg, curr_realhub, curr_realhub_branch, art_id) %>%
+         arrange(reg_order, curr_realhub, curr_realhub_branch, art_id) %>%
          select(-reg_order)
 
       view_vars <- c(

@@ -639,7 +639,7 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
          mutate(
             reg_order = stri_pad_left(facility_region, 8, "0")
          ) %>%
-         arrange(facility_region, facility, mort_id) %>%
+         arrange(reg_order, facility, mort_id) %>%
          select(-reg_order)
 
       view_vars <- c(

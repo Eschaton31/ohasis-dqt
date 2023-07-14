@@ -1178,7 +1178,7 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          mutate(
             reg_order = stri_pad_left(confirm_region, 8, "0")
          ) %>%
-         arrange(confirm_region, confirmlab, labcode) %>%
+         arrange(reg_order, confirmlab, labcode) %>%
          select(-reg_order)
 
       view_vars <- c(
