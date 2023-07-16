@@ -291,6 +291,7 @@ prep_merge <- function(dead, dx) {
    check   <- dedup_dx(reclink)
    check   <- append(check, prep_merge(dead, dx))
 
+   step$check <- check
    flow_validation(p, "dedup_dx", p$params$ym, upload = vars$upload)
    log_success("Done.")
 }

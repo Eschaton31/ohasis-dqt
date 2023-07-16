@@ -274,11 +274,11 @@ dedup_group_ids <- function(data) {
       philsys_id
    )
 
-   reclink    <- prep_data(old, new)
-   check      <- dedup_old(reclink)
-   check      <- append(check, dedup_group_ids(data))
-   step$check <- check
+   reclink <- prep_data(old, new)
+   check   <- dedup_old(reclink)
+   check   <- append(check, dedup_group_ids(data))
 
+   step$check <- check
    flow_validation(p, "dedup_old", p$params$ym, upload = vars$upload)
    log_success("Done.")
 }
