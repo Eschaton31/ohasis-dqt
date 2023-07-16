@@ -324,7 +324,6 @@ get_names <- function(parent, pattern = NULL) {
 }
 
 chunk_df <- function(data = NULL, chunk_size = NULL) {
-   # upsert data
    n_rows   <- nrow(data)
    n_chunks <- rep(1:ceiling(n_rows / chunk_size), each = chunk_size)[seq_len(n_rows)]
    chunked  <- split(data, n_chunks)
@@ -338,4 +337,19 @@ end_friday <- function(date) {
    next_fri <- ceiling_date(date %m+% days(offset), "week") %m-% days(2)
 
    return(next_fri)
+}
+
+start_ym <- function(year, month) {
+   yr             <- stri_pad_left(year, 4, "0")
+   mo             <- stri_pad_left(month, 2, "0")
+   start_of_month <- as.Date(str_c(sep = "-", yr, mo, "01"))
+
+   return(start_of_month)
+}
+
+end_ym <- function(year, month) {
+   date         <- start_ym(year, month)
+   end_of_month <- ceiling_date(date, "month") %m-% days(1)
+
+   return(end_of_month)
 }
