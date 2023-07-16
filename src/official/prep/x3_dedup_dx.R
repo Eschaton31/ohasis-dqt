@@ -319,53 +319,45 @@ prep_merge <- function(prep, dx) {
 
 ##  Actual flow ----------------------------------------------------------------
 
-.init <- function() {
-   p <- parent.env(environment())
-   local(envir = p, {
-      dx   <- ohasis$get_data("harp_dx", ohasis$yr, ohasis$mo) %>%
-         read_dta(
-            col_select = c(
-               PATIENT_ID,
-               labcode,
-               labcode2,
-               idnum,
-               uic,
-               firstname,
-               middle,
-               last,
-               name_suffix,
-               bdate,
-               sex,
-               pxcode,
-               philhealth,
-               confirm_date
-            )
-         ) %>%
-         # convert Stata string missing data to NAs
-         mutate_if(
-            .predicate = is.character,
-            ~if_else(. == '', NA_character_, .)
-         ) %>%
-         left_join(
-            y  = nhsss$prep$forms$id_registry,
-            by = "PATIENT_ID"
-         ) %>%
-         mutate(
-            CENTRAL_ID = if_else(
-               condition = is.na(CENTRAL_ID),
-               true      = PATIENT_ID,
-               false     = CENTRAL_ID
-            ),
-            labcode2   = if_else(is.na(labcode2), labcode, labcode2)
+.init <- function(envir = parent.env(environment()), ...) {
+   step <- parent.env(environment())
+   p    <- envir
+   vars <- match.call(expand.dots = FALSE)$`...`
+
+   dx <- hs_data("harp_dx", "reg", p$params$yr, p$params$mo) %>%
+      read_dta(
+         col_select = c(
+            PATIENT_ID,
+            labcode,
+            labcode2,
+            idnum,
+            uic,
+            firstname,
+            middle,
+            last,
+            name_suffix,
+            bdate,
+            sex,
+            pxcode,
+            philhealth,
+            confirm_date
          )
-      prep <- read_rds(file.path(wd, "reg.final.RDS")) %>%
-         mutate(confirmatory_code = NA_character_)
+      ) %>%
+      # convert Stata string missing data to NAs
+      mutate_if(
+         .predicate = is.character,
+         ~if_else(. == '', NA_character_, .)
+      ) %>%
+      get_cid(p$forms$id_registry, PATIENT_ID)
 
-      reclink <- prep_data(prep, dx)
-      check   <- dedup_dx(reclink)
-      check   <- append(check, prep_merge(prep, dx))
-      rm(dx, prep, reclink)
-   })
+   prep <- p$official$new_reg %>%
+      mutate(confirmatory_code = NA_character_)
 
-   local(envir = .GlobalEnv, flow_validation(nhsss$prep, "dedup_dx", ohasis$ym))
+   reclink <- prep_data(prep, dx)
+   check   <- dedup_dx(reclink)
+   check   <- append(check, prep_merge(tx, dx))
+
+   step$check <- check
+   flow_validation(p, "dedup_dx", p$params$ym, upload = vars$upload)
+   log_success("Done.")
 }
