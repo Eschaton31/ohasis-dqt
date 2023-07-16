@@ -1,4 +1,4 @@
-remove_pii <- function (data) {
+remove_pii <- function(data) {
    data %<>%
       select(
          -any_of(
@@ -36,4 +36,23 @@ remove_pii <- function (data) {
          )
       )
    return(data)
+}
+
+clean_pii <- function(pii_col) {
+   clean <- str_squish(stri_trans_toupper(pii_col))
+   clean <- case_when(
+      str_detect(clean, "^[^[:alnum:]]$") ~ NA_character_,
+      str_detect(clean, "^AWAITING") ~ NA_character_,
+      str_detect(clean, "^PENDING") ~ NA_character_,
+      clean == "NOT AVAILABLE" ~ NA_character_,
+      clean == "" ~ NA_character_,
+      clean == "NONE" ~ NA_character_,
+      clean == "N/A" ~ NA_character_,
+      clean == "NA" ~ NA_character_,
+      clean == "XXX" ~ NA_character_,
+      clean == "XX" ~ NA_character_,
+      TRUE ~ clean
+   )
+
+   return(clean)
 }
