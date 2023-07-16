@@ -13,7 +13,11 @@ clean_data <- function(forms, old_reg) {
       ) %>%
       mutate_at(
          .vars = vars(FIRST, MIDDLE, LAST, SUFFIX),
-         ~str_squish(coalesce(toupper(.), ""))
+         ~coalesce(clean_pii(.), "")
+      ) %>%
+      mutate_at(
+         .vars = vars(CONFIRMATORY_CODE, PATIENT_CODE, UIC, PHILHEALTH_NO, PHILSYS_ID, CLIENT_MOBILE, CLIENT_MOBILE),
+         ~clean_pii(.)
       ) %>%
       mutate_if(
          .predicate = is.POSIXct,
