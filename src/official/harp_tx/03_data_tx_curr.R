@@ -1194,16 +1194,6 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
             months_to_pickup
          )
 
-      log_info("Checking for mismatch facility.")
-      check[["mismatch_faci"]] <- step_data %>%
-         filter(
-            prev_ffupdate == curr_ffupdate,
-            curr_hub != prev_hub
-         ) %>%
-         select(
-            any_of(view_vars),
-         )
-
       log_info("Checking for resurrected clients.")
       check[["resurrect"]] <- step_data %>%
          filter(
