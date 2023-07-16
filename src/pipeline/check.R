@@ -18,6 +18,10 @@ check_pii <- function(data, checklist, view_vars = everything(), ...) {
          ),
 
          retain         = 0
+      ) %>%
+      mutate_at(
+         .vars = vars(FIRST, MIDDLE, LAST),
+         ~if_else(. == "", NA_character_, ., .)
       )
 
    log_info("Checking missing PIIs.")
@@ -99,6 +103,7 @@ check_addr_psgc <- function(data, checklist, view_vars = everything(), addr_type
 }
 
 check_unknown <- function(data, checklist, unknown_name, view_vars = everything(), ...) {
+
    is_unknown <- function(col) {
       return(ifelse(is.na(col) | toupper(col) == "UNKNOWN", TRUE, FALSE))
    }
