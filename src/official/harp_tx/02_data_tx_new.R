@@ -13,7 +13,7 @@ get_enrollees <- function(art_first, old_reg, params) {
          ~coalesce(clean_pii(.), "")
       ) %>%
       mutate_at(
-         .vars = vars(CONFIRMATORY_CODE, PATIENT_CODE, UIC, PHILHEALTH_NO, PHILSYS_ID, CLIENT_MOBILE, CLIENT_MOBILE),
+         .vars = vars(CONFIRMATORY_CODE, PATIENT_CODE, UIC, PHILHEALTH_NO, PHILSYS_ID),
          ~clean_pii(.)
       ) %>%
       mutate_if(
