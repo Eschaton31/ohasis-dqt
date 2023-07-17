@@ -21,7 +21,7 @@ set_coverage <- function(max = end_friday(Sys.time())) {
 # run through all tables
 update_warehouse <- function(update) {
    update <- ifelse(
-      update %in% c("1", "2"),
+      !is.null(update) && update %in% c("1", "2"),
       update,
       input(
          prompt  = glue("Update {green('data/forms')} to be used for consolidation?"),
@@ -43,7 +43,7 @@ update_warehouse <- function(update) {
 # check if prep starts to be re-processed
 update_first_last_prep <- function(update, params, path_to_sql) {
    update <- ifelse(
-      update %in% c("1", "2"),
+      !is.null(update) && update %in% c("1", "2"),
       update,
       input(
          prompt  = glue("Do you want to re-process the {green('ART Start & Latest Dates')}?"),
@@ -89,7 +89,7 @@ update_first_last_prep <- function(update, params, path_to_sql) {
 
 update_prep_rec_link <- function(update, path_to_sql) {
    update <- ifelse(
-      update %in% c("1", "2"),
+      !is.null(update) && update %in% c("1", "2"),
       update,
       input(
          prompt  = "Do you want to update {green('rec_link')}?",
@@ -143,7 +143,7 @@ update_prep_rec_link <- function(update, path_to_sql) {
 
 update_initiation <- function(update, params, path_to_sql) {
    update <- ifelse(
-      update %in% c("1", "2"),
+      !is.null(update) && update %in% c("1", "2"),
       update,
       input(
          prompt  = "Do you want to update {green('prep_init_p12m')}?",
@@ -397,7 +397,7 @@ update_dataset <- function(params, corr, forms, reprocess) {
 
    # ! corrections
    dl <- ifelse(
-      vars$dl_corr %in% c("1", "2"),
+      !is.null(vars$dl_corr) && vars$dl_corr %in% c("1", "2"),
       vars$dl_corr,
       input(
          prompt  = glue("GET: {green('corrections')}?"),
@@ -410,7 +410,7 @@ update_dataset <- function(params, corr, forms, reprocess) {
 
    # ! old dataset
    update <- ifelse(
-      vars$update_harp %in% c("1", "2"),
+      !is.null(vars$update_harp) && vars$update_harp %in% c("1", "2"),
       vars$update_harp,
       input(
          prompt  = "Reload previous dataset?",
@@ -423,7 +423,7 @@ update_dataset <- function(params, corr, forms, reprocess) {
 
    # ! forms
    dl <- ifelse(
-      vars$dl_forms %in% c("1", "2"),
+      !is.null(vars$dl_forms) && vars$dl_forms %in% c("1", "2"),
       vars$dl_forms,
       input(
          prompt  = "GET: {green('forms')}?",
