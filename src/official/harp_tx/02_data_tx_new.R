@@ -39,8 +39,8 @@ get_enrollees <- function(art_first, old_reg, params) {
 
          # tag special clinics
          special_clinic     = case_when(
-            SERVICE_FACI %in% params$tly ~ "tly",
-            SERVICE_FACI %in% params$sail ~ "sail",
+            SERVICE_FACI %in% params$clinics$tly ~ "tly",
+            SERVICE_FACI %in% params$clinics$sail ~ "sail",
             TRUE ~ NA_character_
          ),
          SERVICE_FACI       = case_when(
