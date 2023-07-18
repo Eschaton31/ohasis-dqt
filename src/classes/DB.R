@@ -829,7 +829,7 @@ DB <- setRefClass(
          # check if dataset is to be re-loaded
          # TODO: add checking of latest version
          reload <- ifelse(
-            reload %in% c("1", "2"),
+            !is.null(reload) && reload %in% c("1", "2"),
             reload,
             input(
                prompt  = "How do you want to load the previous dataset?",

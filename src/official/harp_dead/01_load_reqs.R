@@ -22,7 +22,7 @@ set_coverage <- function(max = end_friday(Sys.time())) {
 # run through all tables
 update_warehouse <- function(update) {
    update <- ifelse(
-      update %in% c("1", "2"),
+      !is.null(update) && update %in% c("1", "2"),
       update,
       input(
          prompt  = glue("Update {green('data/forms')} to be used for consolidation?"),
@@ -99,7 +99,7 @@ define_params <- function() {
 
    # ! corrections
    dl <- ifelse(
-      vars$dl_corr %in% c("1", "2"),
+      !is.null(vars$dl_corr) && vars$dl_corr %in% c("1", "2"),
       vars$dl_corr,
       input(
          prompt  = glue("GET: {green('corrections')}?"),
@@ -112,7 +112,7 @@ define_params <- function() {
 
    # ! old dataset
    update <- ifelse(
-      vars$update_harp %in% c("1", "2"),
+      !is.null(vars$update_harp) && vars$update_harp %in% c("1", "2"),
       vars$update_harp,
       input(
          prompt  = "Reload previous dataset?",
@@ -126,7 +126,7 @@ define_params <- function() {
    p$params$latest_mort_id <- max(as.integer(p$official$old$mort_id), na.rm = TRUE)
 
    dl <- ifelse(
-      vars$dl_corr %in% c("1", "2"),
+      !is.null(vars$dl_corr) && vars$dl_corr %in% c("1", "2"),
       vars$dl_corr,
       input(
          prompt  = "GET: {green('forms')}?",

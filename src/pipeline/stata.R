@@ -50,6 +50,6 @@ compress
 sa "{file}", replace
    )")
 
-      stata(stataCMD)
+      stata(stataCMD, stata.echo = FALSE)
    }
 }
