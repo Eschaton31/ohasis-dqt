@@ -4,10 +4,10 @@ local(envir = epictr, {
    harp$dx <- list()
    harp$tx <- list()
 
-   for (yr in c(2020, 2021, 2022)) {
+   for (yr in seq(2020, params$yr)) {
       ref_yr            <- as.character(yr)
       ref_mo            <- ifelse(yr == params$yr, params$mo, '12')
-      harp$dx[[ref_yr]] <- ohasis$get_data("harp_full", yr, ref_mo) %>%
+      harp$dx[[ref_yr]] <- hs_data("harp_full", "reg", yr, ref_mo) %>%
          read_dta() %>%
          mutate_if(
             .predicate = is.character,
@@ -110,12 +110,13 @@ local(envir = epictr, {
                   ) %>%
                   select(
                      art_id,
+                     birthdate,
                      confirmatory_code
                   ),
                by = "art_id"
             ) %>%
             left_join(
-               y  = read_dta("E:/_R/library/hiv_vl/20230103_vlnaive-tx_2022-11.dta") %>%
+               y  = read_dta(hs_data("harp_vl", "naive_tx", yr, ref_mo)) %>%
                   select(
                      art_id,
                      vl_naive,
@@ -125,11 +126,18 @@ local(envir = epictr, {
                      vl_result_last
                   ),
                by = "art_id"
-            )
+            ) %>%
+            mutate(
+               outcome_old = hiv_tx_outcome(outcome, latest_nextpickup, params$max, 3, "months"),
+               onart       = if_else(outcome_old == "alive on arv" | onart == 1, 1, 0, 0),
+               .after      = outcome
+            ) %>%
+            select(-outcome) %>%
+            rename(outcome = outcome_old)
 
          harp$dx[[ref_yr]] %<>%
             left_join(
-               y  = read_dta("E:/_R/library/hiv_vl/20230103_vlnaive-dx_2022-11.dta") %>%
+               y  = read_dta(hs_data("harp_vl", "naive_dx", yr, ref_mo)) %>%
                   select(
                      idnum,
                      vl_naive,
@@ -139,6 +147,20 @@ local(envir = epictr, {
                      vl_result_last
                   ),
                by = "idnum"
+            ) %>%
+            mutate(
+               outcome_old = hiv_tx_outcome(outcome, latest_nextpickup, params$max, 3, "months"),
+               onart       = if_else(outcome_old == "alive on arv" | onart == 1, 1, 0, 0),
+               .after      = outcome
+            ) %>%
+            select(-outcome) %>%
+            rename(outcome = outcome_old) %>%
+            mutate_at(
+               .vars = vars(blood_extract_date, visit_date, specimen_receipt_date, test_date, t0_date),
+               ~if_else(year(.) <= 2002, NA_Date_, as.Date(.), NA_Date_)
+            ) %>%
+            mutate(
+               reactive_date = coalesce(blood_extract_date, specimen_receipt_date, test_date, t0_date, visit_date, confirm_date) %>% as.Date()
             )
       } else {
          harp$dx[[ref_yr]] %<>%

@@ -1,7 +1,7 @@
 ##
 local(envir = epictr, {
    data[["est_dx"]] <- list()
-   for (yr in c(2020, 2021, 2022)) {
+   for (yr in seq(2020, params$yr)) {
       ref_yr                     <- as.character(yr)
       data[["est_dx"]][[ref_yr]] <- data$resreg %>%
          filter(year(report_yr) == yr, dx == 1) %>%

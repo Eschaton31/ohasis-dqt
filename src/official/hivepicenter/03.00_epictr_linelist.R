@@ -1,7 +1,7 @@
 ##
 local(envir = epictr, {
    data$linelist <- list()
-   for (yr in c(2020, 2021, 2022)) {
+   for (yr in seq(2020, params$yr)) {
       ref_yr     <- as.character(yr)
       ref_mo     <- ifelse(yr == params$yr, params$mo, '12')
       ref_artmin <- paste(sep = "-", ref_yr, ref_mo, "01")
@@ -29,6 +29,7 @@ local(envir = epictr, {
                select(
                   labcode,
                   sex,
+                  bdate      = birthdate,
                   cur_age_tx = age,
                   idnum,
                   region,
@@ -67,10 +68,11 @@ local(envir = epictr, {
             row_id                = paste(sep = "-", idnum, labcode),
 
             # tat
-            tat_test_confirm      = case_when(
+            tat_test_confirm      = if (yr >= 2022) reactive_date else case_when(
                !is.na(specimen_receipt_date) ~ specimen_receipt_date,
                !is.na(visit_date) ~ visit_date,
             ),
+            # tat_test_conmfirm     = ,
             tat_test_confirm      = interval(tat_test_confirm, confirm_date) / days(1),
             tat_confirm_art       = interval(confirm_date, artstart_date) / days(1),
 
@@ -84,14 +86,7 @@ local(envir = epictr, {
                cur_age >= 50 & cur_age < 1000 ~ "50+",
                TRUE ~ "(no data)"
             ),
-            cur_age_tx_c          = case_when(
-               cur_age >= 0 & cur_age < 15 ~ "<15",
-               cur_age >= 15 & cur_age < 25 ~ "15-24",
-               cur_age >= 25 & cur_age < 35 ~ "25-34",
-               cur_age >= 35 & cur_age < 50 ~ "35-49",
-               cur_age >= 50 & cur_age < 1000 ~ "50+",
-               TRUE ~ "(no data)"
-            ),
+            cur_age_tx_c          = cur_age,
 
             # dx age
             dx_age                = floor(cur_age),
@@ -103,14 +98,28 @@ local(envir = epictr, {
                dx_age >= 50 & dx_age < 1000 ~ "50+",
                TRUE ~ "(no data)"
             ),
-            dx_age_c              = case_when(
-               dx_age >= 0 & dx_age < 15 ~ "<15",
-               dx_age >= 15 & dx_age < 25 ~ "15-24",
-               dx_age >= 25 & dx_age < 35 ~ "25-34",
-               dx_age >= 35 & dx_age < 50 ~ "35-49",
-               dx_age >= 50 & dx_age < 1000 ~ "50+",
+            dx_age_c              = dx_age,
+
+            # report age
+            rep_age               = calc_age(
+               bdate,
+               as.Date(stri_c(sep = "-", yr, "12-31"))
+            ),
+            rep_age               = if_else(
+               is.na(bdate),
+               as.integer((as.numeric(yr) - year) + dx_age),
+               rep_age,
+               rep_age
+            ),
+            rep_age_c             = case_when(
+               rep_age >= 0 & rep_age < 15 ~ "<15",
+               rep_age >= 15 & rep_age < 25 ~ "15-24",
+               rep_age >= 25 & rep_age < 35 ~ "25-34",
+               rep_age >= 35 & rep_age < 50 ~ "35-49",
+               rep_age >= 50 & rep_age < 1000 ~ "50+",
                TRUE ~ "(no data)"
             ),
+            rep_age_c             = rep_age,
 
             #sex
             sex                   = case_when(
@@ -170,8 +179,9 @@ local(envir = epictr, {
             evertx                = if_else(everonart == 1, 1, 0, 0),
             # evertx_plhiv          = if_else(evertx == 1 & plhiv == 1, 1, 0, 0),
             evertx_plhiv          = if_else(evertx == 1 & outcome != "dead", 1, 0, 0),
+            outcome_new           = hiv_tx_outcome(outcome, latest_nextpickup, ref_artmax, 30),
             ontx                  = if_else(onart == 1, 1, 0, 0),
-            ontx_1mo              = if_else(ontx == 1 & latest_nextpickup >= as.Date(ref_artmin), 1, 0, 0),
+            ontx_1mo              = if_else(outcome_new == "alive on arv", 1, 0, 0),
 
             # tag baseline data
             # baseline_vl           = if_else(
@@ -186,27 +196,20 @@ local(envir = epictr, {
                false     = 0,
                missing   = 0
             ),
-            baseline_vl1mo        = if_else(
-               condition = floor(interval(artstart_date, vl_date) / months(1)) < 6,
-               true      = 1,
-               false     = 0,
-               missing   = 0
-            ),
-
 
             txestablish           = if_else(ontx == 1 & txlen_days > 92, 1, 0, 0),
-            txestablish_1mo       = if_else(ontx_1mo == 1 & txlen_months >= 6, 1, 0, 0),
+            txestablish_1mo       = if_else(ontx_1mo == 1 & txlen_days > 92, 1, 0, 0),
             vltested              = if_else(ontx == 1 &
                                                baseline_vl == 0 &
                                                !is.na(vlp12m), 1, 0, 0),
             vltested_1mo          = if_else(ontx_1mo == 1 &
-                                               baseline_vl1mo == 0 &
+                                               baseline_vl == 0 &
                                                !is.na(vlp12m), 1, 0, 0),
             vlsuppress            = if_else(ontx == 1 &
                                                baseline_vl == 0 &
-                                               vlp12m == 1, 1, 0, 0),
+                                               (vlp12m == 1 | (vlp12m == 0 & vl_result < 1000)), 1, 0, 0),
             vlsuppress_50         = if_else(ontx_1mo == 1 &
-                                               baseline_vl1mo == 0 &
+                                               baseline_vl == 0 &
                                                vlp12m == 1 &
                                                vl_result < 50, 1, 0, 0),
 
@@ -278,6 +281,24 @@ local(envir = epictr, {
 
             ltfuestablish         = if_else(ontx == 0 & startpickuplen_months >= 6, 1, 0, 0),
             ltfuestablish_1mo     = if_else(ontx_1mo == 0 & startpickuplen_months >= 6, 1, 0, 0),
+         ) %>%
+         mutate_at(
+            .vars = vars(cur_age_tx_c, dx_age_c, rep_age_c),
+            ~case_when(
+               . < 1 ~ "<01",
+               . >= 1 & . < 10 ~ "01-09",
+               . >= 10 & . < 15 ~ "10-14",
+               . >= 15 & . < 18 ~ "15-17",
+               . >= 18 & . < 20 ~ "18-19",
+               . >= 20 & . < 25 ~ "20-24",
+               . >= 25 & . < 30 ~ "25-29",
+               . >= 30 & . < 35 ~ "30-34",
+               . >= 35 & . < 40 ~ "35-39",
+               . >= 40 & . < 45 ~ "40-44",
+               . >= 45 & . < 50 ~ "45-49",
+               . >= 50 & . < 1000 ~ "50+",
+               TRUE ~ "(no data)"
+            )
          ) %>%
          # perm address
          left_join(
@@ -451,6 +472,8 @@ local(envir = epictr, {
             vltested_1mo,
             vlsuppress,
             vlsuppress_50,
+            rep_age,
+            rep_age_c,
             dx_age,
             dx_age_c,
             cur_age_tx,

@@ -16,7 +16,7 @@ local(envir = epictr, {
    )
 
    data$cascade <- list()
-   for (yr in c(2020, 2021, 2022)) {
+   for (yr in seq(2020, params$yr)) {
       ref_yr <- as.character(yr)
       long   <- epictr$data$resreg %>%
          filter(year(report_yr) == yr) %>%
@@ -27,7 +27,7 @@ local(envir = epictr, {
             values_to = "data"
          )
 
-      group_vars             <- setdiff(names(long), c("data", "dx_age", "cur_age_tx", inds, "row_id", "harp_report_date", "tat_test_confirm", "tat_confirm_art", "confirm_date", "artstart_date", "startpickuplen_months", "ltfu_months", "mmd_months", "txlen_months", "ltfu_months", "txlen_m", "dxlab_standard"))
+      group_vars             <- setdiff(names(long), c("data", "rep_age", "dx_age", "cur_age_tx", inds, "row_id", "harp_report_date", "tat_test_confirm", "tat_confirm_art", "confirm_date", "artstart_date", "startpickuplen_months", "ltfu_months", "mmd_months", "txlen_months", "ltfu_months", "txlen_m", "dxlab_standard"))
       min_date               <- max(long$harp_report_date, na.rm = TRUE) %m-% months(11)
       data$cascade[[ref_yr]] <- long %>%
          mutate(

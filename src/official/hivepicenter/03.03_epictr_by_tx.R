@@ -1,7 +1,7 @@
 ##
 local(envir = epictr, {
    data$txreg <- list()
-   for (yr in c(2020, 2021, 2022)) {
+   for (yr in seq(2020, params$yr)) {
       ref_yr                <- as.character(yr)
       data$txreg[[ref_yr]] <- data$linelist[[ref_yr]] %>%
          rename_at(
