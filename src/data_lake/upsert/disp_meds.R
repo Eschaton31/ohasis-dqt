@@ -85,7 +85,7 @@ if ((object %>% count() %>% collect())$n > 0) {
             mutate(
                TOTAL_PILLS = coalesce(DISP_TOTAL, 0) * coalesce(MEDICINE_LEFT, 0),
                TOTAL_DAYS  = coalesce(TOTAL_PILLS / coalesce(PER_DAY, 0), 0),
-               NEW_NEXT    = DISP_DATE %m+% days(TOTAL_DAYS),
+               NEW_NEXT    = DISP_DATE %m+% days(if_else(is.infinite(TOTAL_DAYS), 0, TOTAL_DAYS)),
                NEXT_DATE   = if_else(
                   !is.na(UNIT_BASIS) &
                      !is.na(DISP_TOTAL) &
