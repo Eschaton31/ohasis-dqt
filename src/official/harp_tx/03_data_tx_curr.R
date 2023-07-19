@@ -230,6 +230,14 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
             distinct(art_id, .keep_all = TRUE),
          by = join_by(art_id)
       ) %>%
+      mutate_if(
+         .predicate = is.POSIXct,
+         ~as.Date(.)
+      ) %>%
+      mutate_if(
+         .predicate = is.Date,
+         ~if_else(. <= -25567, NA_Date_, ., .)
+      ) %>%
       mutate(
          # clinical pic
          who_staging    = as.integer(keep_code(WHO_CLASS)),
