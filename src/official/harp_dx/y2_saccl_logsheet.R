@@ -71,34 +71,27 @@ get_pdf_data <- function(file = NULL) {
       log_info("Extractinng tables from XLSX.")
       # read workbook using password
       wb         <- XLConnect::loadWorkbook(file)
-      confirm_df <- XLConnect::readWorksheet(wb, 1, colTypes = XLC$DATA_TYPE.STRING) %>%
+      confirm_df <- XLConnect::readWorksheet(wb, 1, colTypes = XLC$DATA_TYPE.STRING, header = FALSE) %>%
          as_tibble() %>%
-         rename_all(
-            ~toupper(.) %>%
-               str_replace_all("[^[:alnum:]]", "_") %>%
-               str_replace_all("(_)\\1+", "_") %>%
-               str_replace_all("_$", "")
-         ) %>%
          select(
-            DATE_RECEIVE      = DATE_RECEIVED,
-            CONFIRMATORY_CODE = LABORATORY,
-            FULLNAME          = NAME_CODE,
-            BIRTHDATE,
-            AGE               = A,
-            SEX               = S,
-            SOURCE,
-            RAPID,
-            SYSMEX,
-            VIDAS             = COL14,
-            GEENIUS,
-            REMARKS,
-            DATE_CONFIRM      = DATE_RELEASED
+            DATE_RECEIVE      = 2,
+            CONFIRMATORY_CODE = 3,
+            FULLNAME          = 4,
+            BIRTHDATE         = 5,
+            AGE               = 6,
+            SEX               = 7,
+            SOURCE            = 8,
+            RAPID             = 13,
+            SYSMEX            = 14,
+            VIDAS             = 17,
+            GEENIUS           = 18,
+            REMARKS           = 19,
+            DATE_CONFIRM      = 20
          ) %>%
          mutate_at(
             .vars = vars(contains("DATE")),
             ~as.Date(StrLeft(., 10))
-         ) %>%
-         slice(-1)
+         )
 
       rm(wb)
       XLConnect::xlcFreeMemory()
