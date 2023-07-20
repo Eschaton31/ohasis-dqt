@@ -92,7 +92,7 @@ define_params <- function() {
 
 .init <- function(envir = parent.env(environment()), ...) {
    p    <- envir
-   vars <- match.call(expand.dots = FALSE)$`...`
+   vars <- as.list(list(...))
 
    update_warehouse(vars$update_lw)
    p$params <- set_coverage(vars$end_date)

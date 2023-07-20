@@ -755,7 +755,7 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
 .init <- function(envir = parent.env(environment()), ...) {
    step <- parent.env(environment())
    p    <- envir
-   vars <- match.call(expand.dots = FALSE)$`...`
+   vars <- as.list(list(...))
 
    data <- clean_data(p$forms, p$official$old)
    data <- prioritize_reports(data)

@@ -127,7 +127,7 @@ update_dataset <- function(params, corr, reprocess) {
 
 .init <- function(envir = parent.env(environment()), ...) {
    p    <- envir
-   vars <- match.call(expand.dots = FALSE)$`...`
+   vars <- as.list(list(...))
 
    update_warehouse(vars$update_lw)
    p$params <- set_coverage(vars$end_date)
@@ -161,8 +161,8 @@ update_dataset <- function(params, corr, reprocess) {
    p$params$latest_idnum <- max(as.integer(p$official$old$idnum), na.rm = TRUE)
 
    dl <- ifelse(
-      !is.null(vars$dl_corr) && vars$dl_corr %in% c("1", "2"),
-      vars$dl_corr,
+      !is.null(vars$dl_forms) && vars$dl_forms %in% c("1", "2"),
+      vars$dl_forms,
       input(
          prompt  = "GET: {green('forms')}?",
          options = c("1" = "Yes", "2" = "No"),

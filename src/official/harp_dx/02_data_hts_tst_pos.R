@@ -1461,7 +1461,7 @@ output_dta <- function(official, params, save = "2") {
 .init <- function(envir = parent.env(environment()), ...) {
    step <- parent.env(environment())
    p    <- envir
-   vars <- match.call(expand.dots = FALSE)$`...`
+   vars <- as.list(list(...))
 
    data <- clean_data(p$forms, p$corr$dup_munc)
    data <- prioritize_reports(data)

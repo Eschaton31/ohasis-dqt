@@ -280,7 +280,7 @@ update_dataset <- function(params, corr, forms, reprocess) {
 
 .init <- function(envir = parent.env(environment()), ...) {
    p    <- envir
-   vars <- match.call(expand.dots = FALSE)$`...`
+   vars <- as.list(list(...))
 
    # handle logic here
    update_warehouse(vars$update_lw)

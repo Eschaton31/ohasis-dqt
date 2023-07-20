@@ -322,7 +322,7 @@ prep_merge <- function(prep, dx) {
 .init <- function(envir = parent.env(environment()), ...) {
    step <- parent.env(environment())
    p    <- envir
-   vars <- match.call(expand.dots = FALSE)$`...`
+   vars <- as.list(list(...))
 
    dx <- hs_data("harp_dx", "reg", p$params$yr, p$params$mo) %>%
       read_dta(

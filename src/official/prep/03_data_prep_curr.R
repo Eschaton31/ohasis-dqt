@@ -830,7 +830,7 @@ output_dta <- function(official, params, save = "2") {
 .init <- function(envir = parent.env(environment()), ...) {
    step <- parent.env(environment())
    p    <- envir
-   vars <- match.call(expand.dots = FALSE)$`...`
+   vars <- as.list(list(...))
 
    last_disp <- get_latest_record(p$forms$prepdisp_last, p$official$new_reg)
    last_disp <- get_final_visit(last_disp)

@@ -62,7 +62,7 @@ dedup_group_ids <- function(data) {
 .init <- function(envir = parent.env(environment()), ...) {
    step <- parent.env(environment())
    p    <- envir
-   vars <- match.call(expand.dots = FALSE)$`...`
+   vars <- as.list(list(...))
 
    data <- p$official$new_reg %>%
       filter(year == p$params$yr, month == p$params$mo) %>%
