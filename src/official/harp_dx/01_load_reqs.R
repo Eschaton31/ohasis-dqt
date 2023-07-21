@@ -11,8 +11,8 @@ set_coverage <- function(max = end_friday(Sys.time())) {
    params$min  <- max_date %m-% days(30) %>% as.character()
    params$max  <- max
 
-   params$prev_mo <- month(as.Date(params$min) %m-% months(1))
-   params$prev_yr <- year(as.Date(params$min) %m-% months(1))
+   params$prev_mo <- month(max_date %m-% months(1))
+   params$prev_yr <- year(max_date %m-% months(1))
 
    return(params)
 }
