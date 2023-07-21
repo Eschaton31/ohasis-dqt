@@ -516,7 +516,7 @@ merge_dx <- function(data, forms, params) {
          # finalize age data
          age_dta           = calc_age(birthdate, artstart_date),
          age               = coalesce(age, age_dta),
-         confirmatory_code = coalesce(labcode2, CONFIRM_CODE, confirmatory_code, glue("*{uic}"), glue("*{px_code}")),
+         confirmatory_code = coalesce(labcode2, CONFIRM_CODE, confirmatory_code, str_c("*", coalesce(uic, patient_code))),
          newonart          = if_else(
             condition = year(artstart_date) == params$yr & month(artstart_date) == params$mo,
             true      = 1,

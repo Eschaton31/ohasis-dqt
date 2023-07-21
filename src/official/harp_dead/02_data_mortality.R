@@ -519,7 +519,7 @@ merge_dx <- function(data, forms, params) {
          # finalize age data
          age_dta        = calc_age(birthdate, coalesce(date_of_death, report_date)),
          age            = coalesce(age, age_dta),
-         saccl_lab_code = coalesce(labcode2, saccl_lab_code, glue("*{uic}"), glue("*{patient_code}")),
+         saccl_lab_code = coalesce(labcode2, saccl_lab_code, str_c("*", coalesce(uic, patient_code))),
       ) %>%
       distinct_all()
 
