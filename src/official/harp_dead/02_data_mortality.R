@@ -271,6 +271,7 @@ final_conversion <- function(data) {
          facility_muncity,
          is_valid                = EB_VALIDATED,
          date_of_death           = DEATH_DATE,
+         with_death_cert         = DEATH_CERTIFICATE,
          place_of_death_region,
          place_of_death_province,
          place_of_death_muncity,
@@ -289,6 +290,7 @@ final_conversion <- function(data) {
             candidiasis,
             toxo,
             covid19,
+            with_death_cert
          ),
          ~as.integer(keep_code(.))
       ) %>%
@@ -684,6 +686,7 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
          "sex",
          "report_date",
          "date_of_death",
+         "with_death_cert",
          "immediate_cause",
          "antecedentcause",
          "underlying_cause"
