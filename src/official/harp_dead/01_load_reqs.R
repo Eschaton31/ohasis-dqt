@@ -126,8 +126,8 @@ define_params <- function() {
    p$params$latest_mort_id <- max(as.integer(p$official$old$mort_id), na.rm = TRUE)
 
    dl <- ifelse(
-      !is.null(vars$dl_corr) && vars$dl_corr %in% c("1", "2"),
-      vars$dl_corr,
+      !is.null(vars$dl_forms) && vars$dl_forms %in% c("1", "2"),
+      vars$dl_forms,
       input(
          prompt  = "GET: {green('forms')}?",
          options = c("1" = "Yes", "2" = "No"),
