@@ -1,12 +1,17 @@
 ##  CD4 Dataset ----------------------------------------------------------------
 
 cd4          <- list()
-cd4$yr       <- 2021
-cd4$max_date <- as.Date("2021-12-31")
+cd4$yr       <- 2022
+cd4$max_date <- as.Date("2022-12-31")
+lw_conn      <- ohasis$conn("lw")
+cd4$id_reg   <- dbTable(lw_conn, "ohasis_warehouse", "id_registry", cols = c("CENTRAL_ID", "PATIENT_ID"))
+cd4$raw      <- dbTable(lw_conn, "ohasis_lake", "lab_cd4")
+dbDisconnect(lw_conn)
+rm(lw_conn)
 
 ##  Registry Dataset -----------------------------------------------------------
 
-cd4$harp_dx <- hs_data("harp_dx", "reg", 2021, 12) %>%
+cd4$harp_dx <- hs_data("harp_dx", "reg", 2022, 12) %>%
    read_dta %>%
    zap_label %>%
    zap_formats %>%
@@ -16,42 +21,45 @@ cd4$harp_dx <- hs_data("harp_dx", "reg", 2021, 12) %>%
    ) %>%
    mutate(
       bdate = if_else(idnum == 8902, as.Date('1976-07-28'), bdate)
-   # ) %>%
-   # select(-CENTRAL_ID) %>%
-   # left_join(
-   #    y  = ohasis$db$registry %>% select(CENTRAL_ID, PATIENT_ID),
-   #    by = "PATIENT_ID"
+      # ) %>%
+      # select(-CENTRAL_ID) %>%
+      # left_join(
+      #    y  = ohasis$db$registry %>% select(CENTRAL_ID, PATIENT_ID),
+      #    by = "PATIENT_ID"
    )
 
 ##  On ART Dataset -------------------------------------------------------------
 
-cd4$harp_tx <- hs_data("harp_tx", "outcome", 2021, 12)  %>%
+cd4$harp_tx <- hs_data("harp_tx", "outcome", 2022, 12) %>%
    read_dta %>%
    zap_label %>%
    zap_formats %>%
+   left_join(
+      y = hs_data("harp_tx", "reg", 2022, 12) %>%
+         read_dta(col_select = c(art_id, birthdate, confirmatory_code, PATIENT_ID))
+   ) %>%
+   rename(sacclcode = confirmatory_code) %>%
    mutate_if(.predicate = is.character,
              ~if_else(. == '', NA_character_, .)) %>%
    mutate(
       birthdate = if_else(idnum == 8902, as.Date('1976-07-28'), birthdate)
    ) %>%
-   rename(PATIENT_ID = oh_ci) %>%
-   left_join(
-      y  = ohasis$db$registry %>% select(CENTRAL_ID, PATIENT_ID),
-      by = "PATIENT_ID"
-   ) %>%
-   mutate(
-      CENTRAL_ID = if_else(is.na(CENTRAL_ID), ml_id, CENTRAL_ID)
-   ) %>%
+   # rename(PATIENT_ID = oh_ci) %>%
+   get_cid(cd4$id_reg, PATIENT_ID) %>%
+   # mutate(
+   #    CENTRAL_ID = if_else(is.na(CENTRAL_ID), ml_id, CENTRAL_ID)
+   # ) %>%
    arrange(desc(latest_nextpickup), desc(latest_ffupdate)) %>%
-   group_by(CENTRAL_ID) %>%
-   summarise(
-      sacclcode         = first(sacclcode, na.rm = TRUE),
-      artstart_date     = min(artstart_date, na.rm = TRUE),
-      latest_ffupdate   = first(latest_ffupdate, na.rm = TRUE),
-      latest_nextpickup = first(latest_nextpickup, na.rm = TRUE),
-      latest_regimen    = first(latest_regimen, na.rm = TRUE),
-      hub               = first(hub, na.rm = TRUE),
-   )
+   select(-idnum)
+# group_by(CENTRAL_ID) %>%
+# summarise(
+#    sacclcode         = first(sacclcode, na.rm = TRUE),
+#    artstart_date     = min(artstart_date, na.rm = TRUE),
+#    latest_ffupdate   = first(latest_ffupdate, na.rm = TRUE),
+#    latest_nextpickup = first(latest_nextpickup, na.rm = TRUE),
+#    latest_regimen    = first(latest_regimen, na.rm = TRUE),
+#    hub               = first(hub, na.rm = TRUE),
+# )
 
 ##  Fully merged Dataset -------------------------------------------------------
 
@@ -75,12 +83,8 @@ cd4$harp_all <- cd4$harp_dx %>%
 
 ##  CD4 Cleaned ----------------------------------------------------------------
 
-cd4$long <- readRDS("H:/Forms - CD4.RDS") %>%
-   left_join(
-      y  = ohasis$db$registry %>% select(CENTRAL_ID, PATIENT_ID),
-      by = "PATIENT_ID"
-   ) %>%
-   select(-PATIENT_ID) %>%
+cd4$long <- cd4$raw %>%
+   get_cid(cd4$id_reg, PATIENT_ID) %>%
    mutate(
       # cd4 tagging
       CD4_RESULT   = stri_replace_all_charclass(CD4_RESULT, "[:alpha:]", ""),
@@ -97,7 +101,8 @@ cd4$long <- readRDS("H:/Forms - CD4.RDS") %>%
 
       CD4_DATE     = as.Date(CD4_DATE)
    ) %>%
-   filter(!is.na(CD4_RESULT), CD4_DATE <= cd4$max_date, CD4_RESULT >= 0)
+   filter(!is.na(CD4_RESULT), CD4_DATE <= cd4$max_date, CD4_RESULT >= 0) %>%
+   distinct(CENTRAL_ID, CD4_DATE, CD4_RESULT, CD4_RESULT_C)
 
 ##  CD4 History ----------------------------------------------------------------
 
@@ -189,12 +194,13 @@ cd4$data <- cd4$harp_all %>%
       y  = cd4$wide,
       by = "CENTRAL_ID"
    ) %>%
-   remove_empty("cols")
+   remove_empty("cols") %>%
+   relocate(art_id, .after = idnum)
 
-write_dta(cd4$data, "H:/cd4_harp_2021-12.dta")
+write_dta(format_stata(cd4$data), "H:/cd4_harp_2022-12.dta")
 
 stata(r"(
-u "H:/cd4_harp_2021-12.dta", clear
+u "H:/cd4_harp_2022-12.dta", clear
 
 format_compress
 
@@ -211,5 +217,5 @@ form cdd* %tdCCYY-NN-DD
 form *date %tdCCYY-NN-DD
 form *pickup %tdCCYY-NN-DD
 
-sa "H:/20220311_cd4_harp_2021-12.dta", replace
+sa "H:/20220311_cd4_harp_2022-12.dta", replace
 )")
