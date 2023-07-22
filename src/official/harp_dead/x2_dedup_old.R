@@ -208,10 +208,12 @@ dedup_group_ids <- function(data) {
       "ConfirmUIC.Fixed"   = c("CONFIRM_SIEVE", "UIC"),
       "PxUIC.Base"         = c("PATIENT_CODE", "UIC"),
       "PxUIC.Fixed"        = c("PXCODE_SIEVE", "UIC_SORT"),
-      "FirstUIC.Base"      = c("FIRST_SIEVE", "UIC"),
+      "FirstUIC.Base"      = c("FIRST_SIEVE", "UIC_SORT"),
       "FirstUIC.Fixed"     = c("FIRST_NY", "UIC_SORT"),
       "FirstUIC.Partial"   = c("FIRST_A", "UIC_SORT"),
-      "FirstUIC.Partial"   = c("FIRST_A", "UIC"),
+      "FirstBD.Base"       = c("FIRST_SIEVE", "birthdate"),
+      "FirstBD.Fixed"      = c("FIRST_NY", "birthdate"),
+      "FirstBD.Partial"    = c("FIRST_A", "birthdate"),
       "PxBD.Base"          = c("PATIENT_CODE", "birthdate"),
       "PxBD.Fixed"         = c("PXCODE_SIEVE", "birthdate"),
       "Name.Base"          = c("FIRST_SIEVE", "LAST_SIEVE", "birthdate"),
@@ -279,9 +281,9 @@ dedup_group_ids <- function(data) {
       philsys_id
    )
 
-   reclink    <- prep_data(old, new)
-   check      <- dedup_old(reclink)
-   check      <- append(check, dedup_group_ids(data))
+   reclink <- prep_data(old, new)
+   check   <- dedup_old(reclink)
+   check   <- append(check, dedup_group_ids(data))
 
    step$check <- check
    flow_validation(p, "dedup_old", p$params$ym, upload = vars$upload)
