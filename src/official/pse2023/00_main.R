@@ -160,11 +160,24 @@ final <- pse$psgc$pse_gf %>%
    ) %>%
    select(-`_merge`) %>%
    relocate(PSGC_REG, PSGC_PROV, PSGC_MUNC, .before = 1) %>%
-   left_join(pse$ref_addr) %>%
+   left_join(
+      epictr$ref_addr %>%
+         select(
+            region      = NHSSS_REG,
+            province    = NHSSS_PROV,
+            muncity     = NHSSS_MUNC,
+            PSGC_REG,
+            PSGC_PROV,
+            PSGC_MUNC,
+            prov_income = INCOME_PROV,
+            munc_income = INCOME_MUNC,
+            popcen2015  = POPCEN_MUNC_2015,
+            popcen2020  = POPCEN_MUNC_2020,
+         )
+   ) %>%
    relocate(region, province, muncity, .before = 1)
 
-file <- "H:/20230720_pse_harp-labbs-gf_2023-05.dta"
+file <- "H:/20230722_pse_harp-labbs-gf_2023-05.dta"
 final %>%
-   format_stata() %>%
    write_dta(file)
 compress_stata(file)
