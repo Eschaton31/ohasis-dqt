@@ -11,20 +11,24 @@ object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_reg")) %>%
    left_join(
       y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_prov")) %>%
          select(
-            PSGC_REG   = REG,
-            PSGC_PROV  = PROV,
-            NAME_PROV  = NAME,
-            NHSSS_PROV = NHSSS
+            PSGC_REG    = REG,
+            PSGC_PROV   = PROV,
+            NAME_PROV   = NAME,
+            NHSSS_PROV  = NHSSS,
+            INCOME_PROV = CLASS_INCOME
          ),
       by = "PSGC_REG"
    ) %>%
    left_join(
       y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_munc")) %>%
          select(
-            PSGC_PROV  = PROV,
-            PSGC_MUNC  = MUNC,
-            NAME_MUNC  = NAME,
-            NHSSS_MUNC = NHSSS,
+            PSGC_PROV        = PROV,
+            PSGC_MUNC        = MUNC,
+            NAME_MUNC        = NAME,
+            NHSSS_MUNC       = NHSSS,
+            INCOME_MUNC      = CLASS_INCOME,
+            POPCEN_MUNC_2015 = POPCEN_2015,
+            POPCEN_MUNC_2020 = POPCEN_2020,
             CREATED_AT
          ),
       by = "PSGC_PROV"
@@ -38,12 +42,15 @@ object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_reg")) %>%
             CREATED_AT
          ) %>%
          mutate(
-            PSGC_PROV  = NA_character_,
-            NAME_PROV  = "Unknown",
-            NHSSS_PROV = "UNKNOWN",
-            PSGC_MUNC  = NA_character_,
-            NAME_MUNC  = "Unknown",
-            NHSSS_MUNC = "UNKNOWN"
+            PSGC_PROV        = NA_character_,
+            NAME_PROV        = "Unknown",
+            NHSSS_PROV       = "UNKNOWN",
+            PSGC_MUNC        = NA_character_,
+            NAME_MUNC        = "Unknown",
+            NHSSS_MUNC       = "UNKNOWN",
+            INCOME_MUNC      = NA_character_,
+            POPCEN_MUNC_2015 = NA_integer_,
+            POPCEN_MUNC_2020 = NA_integer_,
          )
    ) %>%
    union(
@@ -56,33 +63,41 @@ object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_reg")) %>%
          left_join(
             y  = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_prov")) %>%
                select(
-                  PSGC_REG   = REG,
-                  PSGC_PROV  = PROV,
-                  NAME_PROV  = NAME,
-                  NHSSS_PROV = NHSSS,
+                  PSGC_REG    = REG,
+                  PSGC_PROV   = PROV,
+                  NAME_PROV   = NAME,
+                  NHSSS_PROV  = NHSSS,
+                  INCOME_PROV = CLASS_INCOME,
                   CREATED_AT
                ),
             by = "PSGC_REG"
          ) %>%
          mutate(
-            PSGC_MUNC  = NA_character_,
-            NAME_MUNC  = "Unknown",
-            NHSSS_MUNC = "UNKNOWN"
+            PSGC_MUNC        = NA_character_,
+            NAME_MUNC        = "Unknown",
+            NHSSS_MUNC       = "UNKNOWN",
+            INCOME_MUNC      = NA_character_,
+            POPCEN_MUNC_2015 = NA_integer_,
+            POPCEN_MUNC_2020 = NA_integer_,
          )
    ) %>%
    union(
       y = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_reg")) %>%
          head(n = 1) %>%
          mutate(
-            PSGC_REG   = NA_character_,
-            NAME_REG   = "Unknown",
-            NHSSS_REG  = "UNKNOWN",
-            PSGC_PROV  = NA_character_,
-            NAME_PROV  = "Unknown",
-            NHSSS_PROV = "UNKNOWN",
-            PSGC_MUNC  = NA_character_,
-            NAME_MUNC  = "Unknown",
-            NHSSS_MUNC = "UNKNOWN"
+            PSGC_REG         = NA_character_,
+            NAME_REG         = "Unknown",
+            NHSSS_REG        = "UNKNOWN",
+            PSGC_PROV        = NA_character_,
+            NAME_PROV        = "Unknown",
+            NHSSS_PROV       = "UNKNOWN",
+            INCOME_PROV      = CLASS_INCOME,
+            PSGC_MUNC        = NA_character_,
+            NAME_MUNC        = "Unknown",
+            NHSSS_MUNC       = "UNKNOWN",
+            INCOME_MUNC      = NA_character_,
+            POPCEN_MUNC_2015 = NA_integer_,
+            POPCEN_MUNC_2020 = NA_integer_,
          ) %>%
          select(
             PSGC_REG,
@@ -91,9 +106,13 @@ object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_reg")) %>%
             PSGC_PROV,
             NAME_PROV,
             NHSSS_PROV,
+            INCOME_PROV,
             PSGC_MUNC,
             NAME_MUNC,
             NHSSS_MUNC,
+            INCOME_MUNC,
+            POPCEN_MUNC_2015,
+            POPCEN_MUNC_2020,
             CREATED_AT
          )
    ) %>%
