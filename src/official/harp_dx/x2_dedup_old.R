@@ -240,6 +240,7 @@ dedup_group_ids <- function(data, params) {
          ) %>%
          ungroup() %>%
          arrange(grp_sort, across(all_of(dedup_id))) %>%
+         select(-grp_sort)
 
          # if any found, include in list for review
          dedup_old[[dedup_name]] <- df
