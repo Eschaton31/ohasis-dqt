@@ -94,8 +94,6 @@ dedup_old <- function(data) {
          ) %>%
          select(
             MATCH_ID,
-            MASTER_RID          = REC_ID,
-            MASTER_PID          = PATIENT_ID,
             MASTER_CID          = CENTRAL_ID,
             MASTER_FIRST        = firstname,
             MASTER_MIDDLE       = middle,
@@ -114,8 +112,6 @@ dedup_old <- function(data) {
                ) %>%
                select(
                   MATCH_ID,
-                  USING_RID          = REC_ID,
-                  USING_PID          = PATIENT_ID,
                   USING_CID          = CENTRAL_ID,
                   USING_IDNUM        = idnum,
                   USING_FIRST        = firstname,
