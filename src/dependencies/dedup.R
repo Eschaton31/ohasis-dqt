@@ -181,6 +181,30 @@ dedup_prep <- function(
          UIC_SORT = stri_c(UIC_1, UIC_2, substr(UIC, 5, 14))
       )
 
+   dedup_new_names <- dedup_new %>%
+      rename(
+         NAME_1 = FIRST,
+         NAME_2 = MIDDLE,
+         NAME_3 = LAST
+      ) %>%
+      pivot_longer(
+         cols = starts_with("NAME_")
+      ) %>%
+      filter(!is.na(value)) %>%
+      arrange(CENTRAL_ID, value) %>%
+      group_by(CENTRAL_ID) %>%
+      summarise(
+         NAMESORT_FIRST = first(value),
+         NAMESORT_LAST  = last(value),
+      ) %>%
+      ungroup()
+
+   dedup_new %<>%
+      left_join(
+         y  = dedup_new_names,
+         by = 'CENTRAL_ID'
+      )
+
    return(dedup_new)
 }
 

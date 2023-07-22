@@ -205,6 +205,7 @@ dedup_group_ids <- function(data) {
       "FirstBD.Base"       = c("FIRST_SIEVE", "bdate"),
       "FirstBD.Fixed"      = c("FIRST_NY", "bdate"),
       "FirstBD.Partial"    = c("FIRST_A", "bdate"),
+      "FirstBD.Sort"       = c("NAMESORT_FIRST", "bdate"),
       "PxBD.Base"          = c("PATIENT_CODE", "bdate"),
       "PxBD.Fixed"         = c("PXCODE_SIEVE", "bdate"),
       "Email"              = "email",
@@ -213,6 +214,7 @@ dedup_group_ids <- function(data) {
       "Name.Base"          = c("FIRST_SIEVE", "LAST_SIEVE", "bdate"),
       "Name.Fixed"         = c("FIRST_NY", "LAST_NY", "bdate"),
       "Name.Partial"       = c("FIRST_A", "LAST_A", "bdate"),
+      "Name.Sort"          = c("NAMESORT_FIRST", "NAMESORT_LAST", "bdate"),
       "YM.BD-Name.Base"    = c("FIRST_SIEVE", "LAST_SIEVE", "BIRTH_YR", "BIRTH_MO"),
       "YD.BD-Name.Base"    = c("FIRST_SIEVE", "LAST_SIEVE", "BIRTH_YR", "BIRTH_DY"),
       "MD.BD-Name.Base"    = c("FIRST_SIEVE", "LAST_SIEVE", "BIRTH_MO", "BIRTH_DY"),
@@ -221,7 +223,10 @@ dedup_group_ids <- function(data) {
       "MD.BD-Name.Fixed"   = c("FIRST_NY", "LAST_NY", "BIRTH_MO", "BIRTH_DY"),
       "YM.BD-Name.Partial" = c("FIRST_A", "LAST_A", "BIRTH_YR", "BIRTH_MO"),
       "YD.BD-Name.Partial" = c("FIRST_A", "LAST_A", "BIRTH_YR", "BIRTH_DY"),
-      "MD.BD-Name.Partial" = c("FIRST_A", "LAST_A", "BIRTH_MO", "BIRTH_DY")
+      "MD.BD-Name.Partial" = c("FIRST_A", "LAST_A", "BIRTH_MO", "BIRTH_DY"),
+      "YM.BD-Name.Sort"    = c("NAMESORT_FIRST", "NAMESORT_LAST", "BIRTH_YR", "BIRTH_MO"),
+      "YD.BD-Name.Sort"    = c("NAMESORT_FIRST", "NAMESORT_LAST", "BIRTH_YR", "BIRTH_DY"),
+      "MD.BD-Name.Sort"    = c("NAMESORT_FIRST", "NAMESORT_LAST", "BIRTH_MO", "BIRTH_DY")
    )
    for (i in seq_len(length(group_pii))) {
       dedup_name <- names(group_pii)[[i]]
@@ -257,6 +262,18 @@ dedup_group_ids <- function(data) {
    full <- p$official$new %>%
       mutate(
          data_filter = if_else(year == p$params$yr & month == p$params$mo, "new", "old", "old")
+      ) %>%
+      select(
+         -labcode,
+         -REC_ID,
+         -PATIENT_ID,
+         -form,
+         -modality,
+         -consent_test
+      ) %>%
+      mutate(
+         philhealth = str_replace_all(philhealth, "[^[:alnum:]]", ""),
+         philhealth = clean_pii(philhealth)
       )
    old  <- full %>% filter(data_filter == "old")
    new  <- full %>% filter(data_filter == "new")
