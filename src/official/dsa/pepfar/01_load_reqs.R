@@ -145,7 +145,8 @@ load_harp <- function(coverage, id_reg) {
       ) %>%
       dxlab_to_id(
          c("HARPDX_FACI", "HARPDX_SUB_FACI"),
-         c("dx_region", "dx_province", "dx_muncity", "dxlab_standard")
+         c("dx_region", "dx_province", "dx_muncity", "dxlab_standard"),
+         ohasis$ref_faci
       )
 
    log_info("Getting the previous HARP Tx Datasets.")
