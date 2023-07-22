@@ -16,6 +16,7 @@ local(envir = vlml, {
 ##  Download reference datasets ------------------------------------------------
 
 local(envir = vlml, {
+   local_gs4_quiet()
    config       <- read_sheet("1Yj-qP7sA8k-X0L9UHoXNl-TmBkPMfLkUIOlWNGJdENo", "eb_vl_ml") %>%
       filter(yr.mo == params$ym)
    px_id        <- lapply(sheet_names("1jaXjBjfWy6QsL4wcxFT6_LXYnEw5Unx-hAZUq2WIWiI"), function(sheet) {
@@ -278,6 +279,7 @@ local(envir = vlml, {
       relocate(hub, px_code, confirmatory_code, name, uic, .before = 1)
 
    for (var in c("latest_ffupdate", "artstart_date", "vl_date_2", "birthdate")) {
+      if (var %in% names(conso))
       conso %<>%
          mutate(
             date_num = as.numeric(!!as.name(var))
