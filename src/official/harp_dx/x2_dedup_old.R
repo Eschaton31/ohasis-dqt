@@ -100,7 +100,7 @@ dedup_old <- function(data) {
             MASTER_LAST         = last,
             MASTER_SUFFIX       = name_suffix,
             MASTER_BIRTHDATE    = bdate,
-            MASTER_CONFIRMATORY = labcode,
+            MASTER_CONFIRMATORY = labcode2,
             MASTER_UIC          = uic,
             MASTER_INITIALS     = pxcode,
             posterior
@@ -119,7 +119,7 @@ dedup_old <- function(data) {
                   USING_LAST         = last,
                   USING_SUFFIX       = name_suffix,
                   USING_BIRTHDATE    = bdate,
-                  USING_CONFIRMATORY = labcode,
+                  USING_CONFIRMATORY = labcode2,
                   USING_UIC          = uic,
                   USING_PATIENT_CODE = pxcode,
                   posterior
