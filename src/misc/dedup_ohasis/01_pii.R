@@ -193,7 +193,8 @@ dedup_linelist <- function(dedup) {
                   !!col_name == "NONE" ~ NA_character_,
                   nchar(!!col_name) == 1 ~ NA_character_,
                   TRUE ~ !!col_name
-               )
+               ),
+               !!col_name := clean_pii(!!col_name)
             ) %>%
             filter(!is.na(!!col_name))
       else
@@ -205,6 +206,7 @@ dedup_linelist <- function(dedup) {
             mutate(
                !!col_name := str_squish(toupper(!!col_name)),
                !!col_name := if_else(!!col_name == "", NA_character_, !!col_name, !!col_name),
+               !!col_name := clean_pii(!!col_name)
             ) %>%
             filter(!is.na(!!col_name))
 
