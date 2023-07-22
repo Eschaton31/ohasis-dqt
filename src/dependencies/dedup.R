@@ -185,7 +185,7 @@ dedup_prep <- function(
       select(
          CENTRAL_ID,
          NAME_1 = FIRST_SIEVE,
-         NAME_2 = MIDDLE_SEIVE,
+         NAME_2 = MIDDLE_SIEVE,
          NAME_3 = LAST_SIEVE
       ) %>%
       pivot_longer(
