@@ -184,9 +184,9 @@ dedup_prep <- function(
    dedup_new_names <- dedup_new %>%
       select(
          CENTRAL_ID,
-         NAME_1 = FIRST,
-         NAME_2 = MIDDLE,
-         NAME_3 = LAST
+         NAME_1 = FIRST_SIEVE,
+         NAME_2 = MIDDLE_SEIVE,
+         NAME_3 = LAST_SIEVE
       ) %>%
       pivot_longer(
          cols = starts_with("NAME_")
