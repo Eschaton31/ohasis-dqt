@@ -194,6 +194,8 @@ dedup_group_ids <- function(data) {
    group_pii <- list(
       "UIC.Base"           = "uic",
       "UIC.Fixed"          = "UIC_SORT",
+      "PhilHealth.Fixed"   = "PHIC",
+      "PhilSys.Fixed"      = "PHILSYS",
       "ConfirmCode.Base"   = "CONFIRMATORY_CODE",
       "ConfirmCode.Fixed"  = "CONFIRM_SIEVE",
       "PxCode.Base"        = "PATIENT_CODE",
@@ -207,11 +209,13 @@ dedup_group_ids <- function(data) {
       "FirstUIC.Base"      = c("FIRST_SIEVE", "UIC"),
       "FirstUIC.Fixed"     = c("FIRST_NY", "UIC_SORT"),
       "FirstUIC.Partial"   = c("FIRST_A", "UIC_SORT"),
+      "FirstUIC.Sort"      = c("NAMESORT_FIRST", "UIC_SORT"),
       "PxBD.Base"          = c("PATIENT_CODE", "birthdate"),
       "PxBD.Fixed"         = c("PXCODE_SIEVE", "birthdate"),
       "Name.Base"          = c("FIRST_SIEVE", "LAST_SIEVE", "birthdate"),
       "Name.Fixed"         = c("FIRST_NY", "LAST_NY", "birthdate"),
       "Name.Partial"       = c("FIRST_A", "LAST_A", "birthdate"),
+      "Name.Sort"          = c("NAMESORT_FIRST", "NAMESORT_LAST", "bdate"),
       "YM.BD-Name.Base"    = c("FIRST_SIEVE", "LAST_SIEVE", "BIRTH_YR", "BIRTH_MO"),
       "YD.BD-Name.Base"    = c("FIRST_SIEVE", "LAST_SIEVE", "BIRTH_YR", "BIRTH_DY"),
       "MD.BD-Name.Base"    = c("FIRST_SIEVE", "LAST_SIEVE", "BIRTH_MO", "BIRTH_DY"),
@@ -220,7 +224,10 @@ dedup_group_ids <- function(data) {
       "MD.BD-Name.Fixed"   = c("FIRST_NY", "LAST_NY", "BIRTH_MO", "BIRTH_DY"),
       "YM.BD-Name.Partial" = c("FIRST_A", "LAST_A", "BIRTH_YR", "BIRTH_MO"),
       "YD.BD-Name.Partial" = c("FIRST_A", "LAST_A", "BIRTH_YR", "BIRTH_DY"),
-      "MD.BD-Name.Partial" = c("FIRST_A", "LAST_A", "BIRTH_MO", "BIRTH_DY")
+      "MD.BD-Name.Partial" = c("FIRST_A", "LAST_A", "BIRTH_MO", "BIRTH_DY"),
+      "YM.BD-Name.Sort"    = c("NAMESORT_FIRST", "NAMESORT_LAST", "BIRTH_YR", "BIRTH_MO"),
+      "YD.BD-Name.Sort"    = c("NAMESORT_FIRST", "NAMESORT_LAST", "BIRTH_YR", "BIRTH_DY"),
+      "MD.BD-Name.Sort"    = c("NAMESORT_FIRST", "NAMESORT_LAST", "BIRTH_MO", "BIRTH_DY")
    )
    for (i in seq_len(length(group_pii))) {
       dedup_name <- names(group_pii)[[i]]

@@ -18,6 +18,7 @@ source("src/dependencies/full_tables.R")
 source("src/dependencies/cloud.R")
 source("src/dependencies/dedup.R")
 source("src/dependencies/googlesheets.R")
+source("src/dependencies/excel.R")
 
 # accounts
 source("src/dependencies/auth_acct.R")
@@ -34,38 +35,43 @@ flow_register()
 ##  Load primary classes -------------------------------------------------------
 
 # initiate the project & database
-ohasis <- DB("2022", "12", "check dupes")
+ohasis <- DB("2023", "06", "check harp data", "2")
 
-##  example flow pipeline
+##  example flow pipeline ------------------------------------------------------
+
 flow_register()
 
 # diagnosis
-nhsss$harp_dx$steps$`01_load_reqs`$.init()
-nhsss$harp_dx$steps$`02_data_initial`$.init()
-nhsss$harp_dx$steps$`03_data_convert`$.init()
-nhsss$harp_dx$steps$`04_data_final`$.init()
-nhsss$harp_dx$steps$x1_dedup_new$.init()
-nhsss$harp_dx$steps$x2_dedup_old$.init()
+harp_dx$steps$`01_load_reqs`$.init(harp_dx, end_date = "2023-06-30", dl_corr = "1", dl_forms = "1", update_lw = "1", update_harp = "1", harp_reprocess = "1")
+harp_dx$steps$`02_data_hts_tst_pos`$.init(harp_dx, run_checks = "1", upload = "1", exclude_drops = "1", save = "2")
+harp_dx$steps$x1_dedup_new$.init(harp_dx, upload = "1")
+harp_dx$steps$x2_dedup_old$.init(harp_dx, upload = "1")
+
+harp_dx$steps$y2_saccl_logsheet$.init()
+harp_dx$steps$y2_saccl_logsheet$import_data(harp_dx$steps$y2_saccl_logsheet$tables)
+harp_dx$steps$y3_saccl_recency$.init()
+harp_dx$steps$y3_saccl_recency$import_data(harp_dx$steps$y3_saccl_recency$tables)
 
 # treatment
-nhsss$harp_tx$steps$`01_load_reqs`$.init()
-nhsss$harp_tx$steps$`02_data_reg.initial`$.init()
-nhsss$harp_tx$steps$`03_data_reg.convert`$.init()
-nhsss$harp_tx$steps$`04_data_reg.final`$.init()
-nhsss$harp_tx$steps$`05_data_outcome.initial`$.init()
-nhsss$harp_tx$steps$`06_data_outcome.convert`$.init()
-nhsss$harp_tx$steps$`07_data_outcome.final`$.init()
-nhsss$harp_tx$steps$x1_dedup_new$.init()
-nhsss$harp_tx$steps$x2_dedup_old$.init()
-nhsss$harp_tx$steps$x3_dedup_dx$.init()
+harp_tx$steps$`01_load_reqs`$.init(harp_tx, end_date = "2023-06-30", dl_corr = "1", dl_forms = "1", update_lw = "2", update_visits = "2", update_harp = "1", harp_reprocess = "1")
+harp_tx$steps$`02_data_tx_new`$.init(harp_tx, run_checks = "1", upload = "1", exclude_drops = "1")
+harp_tx$steps$`03_data_tx_curr`$.init(harp_tx, run_checks = "1", upload = "1", save = "2")
+harp_tx$steps$x1_dedup_new$.init(harp_tx, upload = "1")
+harp_tx$steps$x2_dedup_old$.init(harp_tx, upload = "1")
+harp_tx$steps$x3_dedup_dx$.init(harp_tx, upload = "1")
+
+# dead
+harp_dead$steps$`01_load_reqs`$.init(harp_dead, end_date = "2023-06-30", dl_corr = "1", dl_forms = "1", update_lw = "1", update_harp = "1", harp_reprocess = "1")
+harp_dead$steps$`02_data_mortality`$.init(harp_dead, run_checks = "1", upload = "1", exclude_drops = "1", save = "2")
+harp_dead$steps$x1_dedup_new$.init(harp_dead, upload = "1")
+harp_dead$steps$x2_dedup_old$.init(harp_dead, upload = "1")
+harp_dead$steps$x3_dedup_dx$.init(harp_dead, upload = "1")
 
 # prep
-nhsss$prep$steps$`01_load_reqs`$.init()
-nhsss$prep$steps$`02_data_reg.initial`$.init()
-nhsss$prep$steps$`03_data_reg.convert`$.init()
-nhsss$prep$steps$`04_data_reg.final`$.init()
-nhsss$prep$steps$`05_data_outcome.initial`$.init()
-nhsss$prep$steps$`06_data_outcome.convert`$.init()
-nhsss$prep$steps$`07_data_outcome.final`$.init()
-nhsss$prep$steps$x1_dedup_new$.init()
-nhsss$prep$steps$x2_dedup_old$.init()
+prep$steps$`01_load_reqs`$.init(prep, end_date = "2023-06-30", dl_corr = "1", dl_forms = "1", update_lw = "2", update_visits = "2", update_init = "2", update_link = "2", update_harp = "1", harp_reprocess = "1")
+prep$steps$`02_data_prep_offer`$.init(prep, run_checks = "2", upload = "1", exclude_drops = "1")
+prep$steps$`03_data_prep_curr`$.init(prep, run_checks = "1", upload = "1", save = "2")
+prep$steps$x1_dedup_new$.init(prep, upload = "1")
+prep$steps$x2_dedup_old$.init(prep, upload = "1")
+prep$steps$x3_dedup_dx$.init(prep, upload = "1")
+prep$steps$x4_dedup_tx$.init(prep, upload = "1")
