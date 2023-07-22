@@ -198,6 +198,7 @@ dedup_group_ids <- function(data) {
       "FirstUIC.Base"      = c("FIRST_SIEVE", "UIC_SORT"),
       "FirstUIC.Fixed"     = c("FIRST_NY", "UIC_SORT"),
       "FirstUIC.Partial"   = c("FIRST_A", "UIC_SORT"),
+      "FirstUIC.Sort"      = c("NAMESORT_FIRST", "UIC_SORT"),
       "FirstBD.Base"       = c("FIRST_SIEVE", "bdate"),
       "FirstBD.Fixed"      = c("FIRST_NY", "bdate"),
       "FirstBD.Partial"    = c("FIRST_A", "bdate"),
