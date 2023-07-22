@@ -186,7 +186,7 @@ dedup_old <- function(data) {
    return(dedup_old)
 }
 
-dedup_group_ids <- function(data) {
+dedup_group_ids <- function(data, params) {
    dedup_old <- list()
    group_pii <- list(
       "UIC.Base"           = "uic",
@@ -236,14 +236,13 @@ dedup_group_ids <- function(data) {
          filter(dupe_count > 0) %>%
          group_by(across(all_of(dedup_id))) %>%
          mutate(
-            # generate a group id to identify groups of duplicates
-            group_id = cur_group_id(),
+            grp_sort = if_else(any(year == params$yr & month == params$mo), 1, 8, 9),
          ) %>%
          ungroup() %>%
-         mutate(DUP_IDS = paste(collapse = ', ', dedup_id))
+         arrange(grp_sort, across(all_of(dedup_id))) %>%
 
-      # if any found, include in list for review
-      dedup_old[[dedup_name]] <- df
+         # if any found, include in list for review
+         dedup_old[[dedup_name]] <- df
    }
 
    return(dedup_old)
@@ -450,7 +449,7 @@ dedup_group_ids <- function(data) {
 
    reclink <- prep_data(old, new)
    check   <- dedup_old(reclink)
-   check   <- append(check, dedup_group_ids(data))
+   check   <- append(check, dedup_group_ids(data, p$params))
 
    step$check <- check
    flow_validation(p, "dedup_old", p$params$ym, upload = vars$upload)
