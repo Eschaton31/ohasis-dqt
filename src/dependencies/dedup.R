@@ -182,7 +182,8 @@ dedup_prep <- function(
       )
 
    dedup_new_names <- dedup_new %>%
-      rename(
+      select(
+         CENTRAL_ID,
          NAME_1 = FIRST,
          NAME_2 = MIDDLE,
          NAME_3 = LAST
