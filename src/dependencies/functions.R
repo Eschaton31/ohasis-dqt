@@ -130,9 +130,11 @@ check_dir <- function(dir) {
          rowwise() %>%
          mutate(
             {{corr_id_name}} := eval(parse(text = glue("as.{id_type}({corr_id_name})"))),
-            NEW_VALUE        = eval(parse(text = glue("as.{FORMAT}('{NEW_VALUE}')"))),
-            NEW_NA           = eval(parse(text = glue("as.{FORMAT}(NA)"))),
-            NEW_VALUE        = if_else(NEW_VALUE == "NULL", NEW_NA, NEW_VALUE, NEW_VALUE)
+            NEW_VALUE        = if_else(
+               NEW_VALUE == "NULL",
+               eval(parse(text = glue("as.{FORMAT}(NA)"))),
+               eval(parse(text = glue("as.{FORMAT}('{NEW_VALUE}')"))),
+            ),
          ) %>%
          ungroup() %>%
          select(
