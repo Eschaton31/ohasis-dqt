@@ -26,7 +26,7 @@ dedup_group_ids <- function(data) {
       "Name.Base"          = c("FIRST_SIEVE", "LAST_SIEVE", "birthdate"),
       "Name.Fixed"         = c("FIRST_NY", "LAST_NY", "birthdate"),
       "Name.Partial"       = c("FIRST_A", "LAST_A", "birthdate"),
-      "Name.Sort"          = c("NAMESORT_FIRST", "NAMESORT_LAST", "bdate"),
+      "Name.Sort"          = c("NAMESORT_FIRST", "NAMESORT_LAST", "birthdate"),
       "YM.BD-Name.Base"    = c("FIRST_SIEVE", "LAST_SIEVE", "BIRTH_YR", "BIRTH_MO"),
       "YD.BD-Name.Base"    = c("FIRST_SIEVE", "LAST_SIEVE", "BIRTH_YR", "BIRTH_DY"),
       "MD.BD-Name.Base"    = c("FIRST_SIEVE", "LAST_SIEVE", "BIRTH_MO", "BIRTH_DY"),
