@@ -94,8 +94,6 @@ dedup_old <- function(data, non_dupes) {
          ) %>%
          select(
             MATCH_ID,
-            MASTER_RID          = REC_ID,
-            MASTER_PID          = PATIENT_ID,
             MASTER_CID          = CENTRAL_ID,
             MASTER_FIRST        = first,
             MASTER_MIDDLE       = middle,
@@ -114,8 +112,6 @@ dedup_old <- function(data, non_dupes) {
                ) %>%
                select(
                   MATCH_ID,
-                  USING_RID          = REC_ID,
-                  USING_PID          = PATIENT_ID,
                   USING_CID          = CENTRAL_ID,
                   USING_ART_ID       = art_id,
                   USING_FIRST        = first,
@@ -275,6 +271,10 @@ dedup_group_ids <- function(data, params, non_dupes) {
    full <- p$official$new_reg %>%
       mutate(
          data_filter = if_else(year == p$params$yr & month == p$params$mo, "new", "old", "old")
+      ) %>%
+      select(
+         -REC_ID,
+         -PATIENT_ID
       )
    old  <- full %>% filter(data_filter == "old")
    new  <- full %>% filter(data_filter == "new")
