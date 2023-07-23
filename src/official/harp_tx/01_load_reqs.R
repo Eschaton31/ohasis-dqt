@@ -4,11 +4,11 @@ set_coverage <- function(max = end_friday(Sys.time())) {
    params   <- list()
    max_date <- as.Date(max)
 
-   params$yr   <- year(max_date)
-   params$mo   <- month(max_date)
-   params$ym   <- str_c(sep = ".", params$yr, stri_pad_left(params$mo, 2, "0"))
-   params$min  <- max_date %m-% days(30) %>% as.character()
-   params$max  <- max
+   params$yr  <- year(max_date)
+   params$mo  <- month(max_date)
+   params$ym  <- str_c(sep = ".", params$yr, stri_pad_left(params$mo, 2, "0"))
+   params$min <- max_date %m-% days(30) %>% as.character()
+   params$max <- max
 
    params$prev_mo <- month(max_date %m-% months(1))
    params$prev_yr <- year(max_date %m-% months(1))
@@ -102,6 +102,9 @@ download_tables <- function(params) {
 
    log_info("Downloading {green('Central IDs')}.")
    forms$id_registry <- dbTable(lw_conn, db_name, "id_registry", cols = c("CENTRAL_ID", "PATIENT_ID"))
+
+   log_info("Downloading {green('Non-Dupes')}.")
+   forms$non_dupes <- dbTable(lw_conn, db_name, "non_dupes", cols = c("PATIENT_ID", "NON_PAIR_ID"))
 
    log_info("Downloading {green('ART Visits w/in the scope')}.")
    forms$form_art_bc <- lw_conn %>%
