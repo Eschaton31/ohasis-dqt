@@ -45,7 +45,7 @@ prep_data <- function(old, new) {
 
 ##  Patient Record Linkage Algorithm -------------------------------------------
 
-dedup_old <- function(data) {
+dedup_old <- function(data, non_dupes) {
    dedup_old  <- list()
    reclink_df <- fastLink(
       dfA              = data$new,
@@ -180,6 +180,11 @@ dedup_old <- function(data) {
             Gab   = NA_character_,
             Lala  = NA_character_,
             Fayye = NA_character_,
+         ) %>%
+         anti_join(
+            y  = non_dupes %>%
+               select(USING_CID = CENTRAL_ID, MASTER_CID = NON_PAIR_ID),
+            by = join_by(USING_CID, MASTER_CID)
          )
    }
 
@@ -236,6 +241,7 @@ dedup_group_ids <- function(data, params, non_dupes) {
          filter(dupe_count > 0) %>%
          group_by(across(all_of(dedup_id))) %>%
          mutate(
+            .before  = idnum,
             grp_id   = str_c(collapse = ",", sort(idnum)),
             grp_sort = if_else(any(year == params$yr & month == params$mo), 1, 8, 9),
          ) %>%
@@ -451,7 +457,7 @@ dedup_group_ids <- function(data, params, non_dupes) {
    )
 
    reclink <- prep_data(old, new)
-   check   <- dedup_old(reclink)
+   check   <- dedup_old(reclink, p$forms$non_dupes)
    check   <- append(check, dedup_group_ids(data, p$params, p$corr$non_dupes))
 
    step$check <- check
