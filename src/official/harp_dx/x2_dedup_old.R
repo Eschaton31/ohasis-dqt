@@ -186,7 +186,7 @@ dedup_old <- function(data) {
    return(dedup_old)
 }
 
-dedup_group_ids <- function(data, params) {
+dedup_group_ids <- function(data, params, non_dupes) {
    dedup_old <- list()
    group_pii <- list(
       "UIC.Base"           = "uic",
@@ -236,14 +236,16 @@ dedup_group_ids <- function(data, params) {
          filter(dupe_count > 0) %>%
          group_by(across(all_of(dedup_id))) %>%
          mutate(
+            grp_id   = str_c(collapse = ",", sort(idnum)),
             grp_sort = if_else(any(year == params$yr & month == params$mo), 1, 8, 9),
          ) %>%
          ungroup() %>%
          arrange(grp_sort, across(all_of(dedup_id))) %>%
          select(-grp_sort)
 
-         # if any found, include in list for review
-         dedup_old[[dedup_name]] <- df
+      # if any found, include in list for review
+      dedup_old[[dedup_name]] <- df %>%
+         anti_join(non_dupes, join_by(grp_id))
    }
 
    return(dedup_old)
