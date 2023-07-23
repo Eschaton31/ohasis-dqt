@@ -183,7 +183,7 @@ dedup_old <- function(data, non_dupes) {
          ) %>%
          anti_join(
             y  = non_dupes %>%
-               select(USING_CID = CENTRAL_ID, MASTER_CID = NON_PAIR_ID),
+               select(USING_CID = PATIENT_ID, MASTER_CID = NON_PAIR_ID),
             by = join_by(USING_CID, MASTER_CID)
          )
    }
