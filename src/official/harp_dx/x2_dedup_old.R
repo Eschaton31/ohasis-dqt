@@ -452,7 +452,7 @@ dedup_group_ids <- function(data, params, non_dupes) {
 
    reclink <- prep_data(old, new)
    check   <- dedup_old(reclink)
-   check   <- append(check, dedup_group_ids(data, p$params))
+   check   <- append(check, dedup_group_ids(data, p$params, p$corr$non_dupes))
 
    step$check <- check
    flow_validation(p, "dedup_old", p$params$ym, upload = vars$upload)
