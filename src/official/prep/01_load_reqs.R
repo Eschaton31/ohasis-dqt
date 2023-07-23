@@ -408,19 +408,6 @@ update_dataset <- function(params, corr, forms, reprocess) {
    if (dl == "1")
       p$corr <- gdrive_correct3(params$ym, "prep")
 
-   # ! old dataset
-   update <- ifelse(
-      !is.null(vars$update_harp) && vars$update_harp %in% c("1", "2"),
-      vars$update_harp,
-      input(
-         prompt  = "Reload previous dataset?",
-         options = c("1" = "yes", "2" = "no"),
-         default = "2"
-      )
-   )
-   if (update == "1")
-      p$official <- update_dataset(p$params, p$corr, p$forms, vars$harp_reprocess)
-
    # ! forms
    dl <- ifelse(
       !is.null(vars$dl_forms) && vars$dl_forms %in% c("1", "2"),
@@ -433,6 +420,19 @@ update_dataset <- function(params, corr, forms, reprocess) {
    )
    if (dl == "1")
       p$forms <- download_tables(p$params)
+
+   # ! old dataset
+   update <- ifelse(
+      !is.null(vars$update_harp) && vars$update_harp %in% c("1", "2"),
+      vars$update_harp,
+      input(
+         prompt  = "Reload previous dataset?",
+         options = c("1" = "yes", "2" = "no"),
+         default = "2"
+      )
+   )
+   if (update == "1")
+      p$official <- update_dataset(p$params, p$corr, p$forms, vars$harp_reprocess)
 
    p$params$latest_prep_id <- max(as.integer(p$official$old_reg$prep_id), na.rm = TRUE)
 }

@@ -110,6 +110,18 @@ define_params <- function() {
    if (dl == "1")
       p$corr <- gdrive_correct3(p$params$ym, "harp_dead")
 
+   dl <- ifelse(
+      !is.null(vars$dl_forms) && vars$dl_forms %in% c("1", "2"),
+      vars$dl_forms,
+      input(
+         prompt  = "GET: {green('forms')}?",
+         options = c("1" = "Yes", "2" = "No"),
+         default = "1"
+      )
+   )
+   if (dl == "1")
+      p$forms <- download_tables(p$params)
+
    # ! old dataset
    update <- ifelse(
       !is.null(vars$update_harp) && vars$update_harp %in% c("1", "2"),
@@ -124,17 +136,4 @@ define_params <- function() {
       p$official <- update_dataset(p$params, p$corr, p$forms, vars$harp_reprocess)
 
    p$params$latest_mort_id <- max(as.integer(p$official$old$mort_id), na.rm = TRUE)
-
-   dl <- ifelse(
-      !is.null(vars$dl_forms) && vars$dl_forms %in% c("1", "2"),
-      vars$dl_forms,
-      input(
-         prompt  = "GET: {green('forms')}?",
-         options = c("1" = "Yes", "2" = "No"),
-         default = "1"
-      )
-   )
-   if (dl == "1")
-      p$forms <- download_tables(p$params)
-
 }
