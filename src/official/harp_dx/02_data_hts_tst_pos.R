@@ -1248,7 +1248,6 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          "visit_date",
          "blood_extract_date",
          "specimen_receipt_date",
-         "confirm_date",
          "hts_date"
       )
       check     <- check_dates(data, check, view_vars, date_vars)
@@ -1264,6 +1263,7 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          "sample_source",
          "self_identity",
          "nationality",
+         "confirm_date",
          "t1_date",
          "t1_result",
          "t2_date",
