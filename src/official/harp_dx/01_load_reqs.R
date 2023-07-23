@@ -81,6 +81,7 @@ download_tables <- function(path_to_sql) {
    data$form_cfbs    <- tracked_select(lw_conn, sql$form_cfbs, "New CFBS Form")
    data$px_confirmed <- tracked_select(lw_conn, sql$px_confirmed, "New Confirmed w/ no Form")
    data$cd4          <- tracked_select(lw_conn, sql$cd4, "Baseline CD4", list(as.character(params$max)))
+   data$non_dupes    <- tracked_select(lw_conn, "SELECT PATIENT_ID, NON_PAIR_ID FROM ohasis_warehouse.non_dupes", "Baseline CD4")
 
    dbDisconnect(lw_conn)
 
