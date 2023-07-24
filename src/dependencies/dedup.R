@@ -191,6 +191,10 @@ dedup_prep <- function(
       pivot_longer(
          cols = starts_with("NAME_")
       ) %>%
+      mutate(
+         value = clean_pii(value),
+         value = if_else(nchar(value) == 1, NA_character_, value, value)
+      ) %>%
       filter(!is.na(value)) %>%
       arrange(CENTRAL_ID, value) %>%
       group_by(CENTRAL_ID) %>%
