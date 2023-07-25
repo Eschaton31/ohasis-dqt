@@ -59,10 +59,25 @@ SELECT rec.REC_ID,
            WHEN 20 THEN '20_Failed'
            WHEN 8888 THEN '8888_Other'
            END                                                                                         AS TB_TX_OUTCOME,
-       tb_yes.TB_TX_OUTCOME_OTHER
+       tb_yes.TB_TX_OUTCOME_OTHER,
+       CASE tb_no.TB_IPT_STATUS
+           WHEN 0 THEN '0_Not on IPT'
+           WHEN 11 THEN '11_Ongoing IPT'
+           WHEN 12 THEN '12_Started IPT'
+           WHEN 13 THEN '13_Ended IPT'
+           END                                                                                         AS TB_IPT_STATUS,
+       tb_no.TB_IPT_START_DATE,
+       tb_no.TB_IPT_END_DATE,
+       CASE tb_no.TB_IPT_OUTCOME
+           WHEN 1 THEN '1_Completed'
+           WHEN 2 THEN '2_Stopped before target end'
+           WHEN 8888 THEN '8888_Other'
+           END                                                                                         AS TB_IPT_OUTCOME,
+       tb_no.TB_IPT_OUTCOME_OTHER
 FROM ohasis_interim.px_record AS rec
          JOIN ohasis_interim.px_tb AS tb ON rec.REC_ID = tb.REC_ID
-         JOIN ohasis_interim.px_tb_active AS tb_yes ON rec.REC_ID = tb_yes.REC_ID
+         LEFT JOIN ohasis_interim.px_tb_active AS tb_yes ON rec.REC_ID = tb_yes.REC_ID
+         LEFT JOIN ohasis_interim.px_tb_ipt AS tb_no ON rec.REC_ID = tb_no.REC_ID
 WHERE ((rec.CREATED_AT BETWEEN ? AND ?) OR
        (rec.UPDATED_AT BETWEEN ? AND ?) OR
        (rec.DELETED_AT BETWEEN ? AND ?));
