@@ -38,8 +38,23 @@ update_warehouse <- function(update) {
    if (update == "1") {
       log_info("Updating data lake and data warehouse.")
       tables           <- list()
+      tables$lake      <- c(
+         "px_pii",
+         "px_faci_info",
+         "px_key_pop",
+         "px_staging",
+         "lab_wide",
+         "px_vaccine",
+         "px_tb_info",
+         "px_prophylaxis",
+         "px_oi",
+         "px_ob",
+         "disc_meds",
+         "disp_meds"
+      )
       tables$warehouse <- c("form_art_bc", "id_registry")
 
+      lapply(tables$lake, function(table) ohasis$data_factory("lake", table, "upsert", TRUE))
       lapply(tables$warehouse, function(table) ohasis$data_factory("warehouse", table, "upsert", TRUE))
    }
 }

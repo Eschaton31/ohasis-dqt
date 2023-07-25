@@ -11,10 +11,10 @@ SELECT pii.REC_ID,
        pii.FACI_ID,
        pii.SUB_FACI_ID,
        CASE
-           WHEN pii.RECORD_DATE = DATE(disp.DISP_DATE) THEN pii.RECORD_DATE
-           WHEN pii.RECORD_DATE != DATE(disp.DISP_DATE) AND DATE(disp.DISP_DATE) != '0000-00-00'
-               THEN DATE(disp.DISP_DATE)
-           WHEN pii.RECORD_DATE IS NULL AND disp.DISP_DATE IS NOT NULL THEN DATE(disp.DISP_DATE)
+           WHEN pii.RECORD_DATE = DATE(meds.DISP_DATE) THEN pii.RECORD_DATE
+           WHEN pii.RECORD_DATE != DATE(meds.DISP_DATE) AND DATE(meds.DISP_DATE) != '0000-00-00'
+               THEN DATE(meds.DISP_DATE)
+           WHEN pii.RECORD_DATE IS NULL AND meds.DISP_DATE IS NOT NULL THEN DATE(meds.DISP_DATE)
            ELSE pii.RECORD_DATE
            END                             AS VISIT_DATE,
        pii.RECORD_DATE,
@@ -165,7 +165,6 @@ SELECT pii.REC_ID,
            ELSE 'Care'
            END                             AS ART_RECORD
 FROM ohasis_lake.px_pii AS pii
-         LEFT JOIN ohasis_lake.disp_meds AS disp ON pii.REC_ID = disp.REC_ID
          LEFT JOIN ohasis_lake.px_faci_info AS service ON pii.REC_ID = service.REC_ID
          LEFT JOIN ohasis_lake.px_key_pop AS kp ON pii.REC_ID = kp.REC_ID
          LEFT JOIN ohasis_lake.px_staging AS staging ON pii.REC_ID = staging.REC_ID
