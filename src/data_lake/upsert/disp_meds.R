@@ -83,7 +83,7 @@ if ((object %>% count() %>% collect())$n > 0) {
             distinct(REC_ID, MEDICINE, DISP_DATE, .keep_all = TRUE) %>%
             as_tibble() %>%
             mutate(
-               TOTAL_PILLS = coalesce(DISP_TOTAL, 0) * coalesce(MEDICINE_LEFT, 0),
+               TOTAL_PILLS = coalesce(DISP_TOTAL, 0) + coalesce(MEDICINE_LEFT, 0),
                TOTAL_DAYS  = coalesce(TOTAL_PILLS / coalesce(PER_DAY, 0), 0),
                TOTAL_DAYS  = if_else(is.infinite(TOTAL_DAYS), 0, TOTAL_DAYS),
                NEW_NEXT    = DISP_DATE %m+% days(floor(TOTAL_DAYS)),
