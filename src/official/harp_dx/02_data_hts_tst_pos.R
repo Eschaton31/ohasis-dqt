@@ -1126,7 +1126,22 @@ remove_drops <- function(data, params) {
          -drop_duplicates,
          -drop_notyet,
          -mot,
-         -FORM_FACI
+         -FORM_FACI,
+         -any_of(
+            c(
+               "diff_source_v_form",
+               "SOURCE_FACI",
+               "HTS_FACI",
+               "DUP_MUNC",
+               "age_pregnant",
+               "age_vertical",
+               "age_unknown",
+               "CONFIRM_FACI",
+               "TEST_FACI",
+               "CD4_CONFIRM",
+               "update_ocw"
+            )
+         )
       )
 
    final_new <- data %>%
