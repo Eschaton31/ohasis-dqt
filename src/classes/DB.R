@@ -332,6 +332,11 @@ DB <- setRefClass(
                   stri_c("SELECT ", stri_c(collapse = ", ", stri_c(table_name, ".", id_col)), " FROM ohasis_lake.px_pii JOIN ", db_name, ".", table_name, " ON px_pii.REC_ID = ", table_name, ".REC_ID WHERE px_pii.SNAPSHOT BETWEEN ? AND ?"),
                   stri_c("SELECT ", sql_id, " FROM ", db_name, ".", table_name, " WHERE SNAPSHOT BETWEEN ? AND ?")
                )
+               query_affected <- ifelse(
+                  table_name %in% c("form_hts", "form_cfbs", "form_a"),
+                  stri_c("SELECT ", stri_c(collapse = ", ", stri_c(table_name, ".", id_col)), " FROM ohasis_lake.px_pii JOIN ", db_name, ".", table_name, " ON px_pii.REC_ID = ", table_name, ".REC_ID WHERE ((px_pii.CREATED_AT BETWEEN ? AND ?) OR (px_pii.UPDATED_AT BETWEEN ? AND ?) OR (px_pii.DELETED_AT BETWEEN ? AND ?))"),
+                  str_c("SELECT ", sql_id, " FROM ", db_name, ".", table_name, " WHERE ", sql_id[1], " IN (?)")
+               )
             }
 
             # snapshots are the reference for scoping
@@ -414,8 +419,14 @@ DB <- setRefClass(
                   dbClearResult(rs)
 
                   for_delete <- data.frame()
-                  if (table_exists)
-                     for_delete <- dbxSelect(lw_conn, query_affected, params = list(snapshot_old, snapshot_new))
+                  if (table_exists) {
+                     # for_delete <- dbxSelect(lw_conn, query_affected, params = list(snapshot_old, snapshot_new))
+                     if (table_name %in% c("form_hts", "form_cfbs", "form_a")) {
+                        for_delete <- dbxSelect(lw_conn, query_affected, params = params)
+                     } else {
+                        for_delete <- dbxSelect(lw_conn, query_affected, params = list(unique(object[, sql_id[1]][[1]])))
+                     }
+                  }
                } else {
                   continue <- 0
                }
