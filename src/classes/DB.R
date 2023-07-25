@@ -325,18 +325,18 @@ DB <- setRefClass(
                query_table    <- str_extract(sql_query, "^[^:]*(?=;)")
                query_nrow     <- stri_c("SELECT COUNT(*) AS nrow ", sql_tables)
                query_delete   <- stri_c("DELETE FROM ", db_name, ".", table_name, " WHERE ", sql_delete)
+               # query_affected <- ifelse(
+               #    str_detect(sql_id, "REC_ID") &
+               #       table_name != "px_pii" &
+               #       table_exists,
+               #    stri_c("SELECT ", stri_c(collapse = ", ", stri_c(table_name, ".", id_col)), " FROM ohasis_lake.px_pii JOIN ", db_name, ".", table_name, " ON px_pii.REC_ID = ", table_name, ".REC_ID WHERE px_pii.SNAPSHOT BETWEEN ? AND ?"),
+               #    stri_c("SELECT ", sql_id, " FROM ", db_name, ".", table_name, " WHERE SNAPSHOT BETWEEN ? AND ?")
+               # )
                query_affected <- ifelse(
-                  str_detect(sql_id, "REC_ID") &
-                     table_name != "px_pii" &
-                     table_exists,
-                  stri_c("SELECT ", stri_c(collapse = ", ", stri_c(table_name, ".", id_col)), " FROM ohasis_lake.px_pii JOIN ", db_name, ".", table_name, " ON px_pii.REC_ID = ", table_name, ".REC_ID WHERE px_pii.SNAPSHOT BETWEEN ? AND ?"),
+                  table_name %in% c("form_hts", "form_cfbs", "form_a"),
+                  stri_c("SELECT ", stri_c(collapse = ", ", stri_c(table_name, ".", id_col)), " FROM ohasis_lake.px_pii JOIN ", db_name, ".", table_name, " ON px_pii.REC_ID = ", table_name, ".REC_ID WHERE ((px_pii.CREATED_AT BETWEEN ? AND ?) OR (px_pii.UPDATED_AT BETWEEN ? AND ?) OR (px_pii.DELETED_AT BETWEEN ? AND ?))"),
                   stri_c("SELECT ", sql_id, " FROM ", db_name, ".", table_name, " WHERE ((CREATED_AT BETWEEN ? AND ?) OR (UPDATED_AT BETWEEN ? AND ?) OR (DELETED_AT BETWEEN ? AND ?))")
                )
-               # query_affected <- ifelse(
-               #    table_name %in% c("form_hts", "form_cfbs", "form_a"),
-               #    stri_c("SELECT ", stri_c(collapse = ", ", stri_c(table_name, ".", id_col)), " FROM ohasis_lake.px_pii JOIN ", db_name, ".", table_name, " ON px_pii.REC_ID = ", table_name, ".REC_ID WHERE ((px_pii.CREATED_AT BETWEEN ? AND ?) OR (px_pii.UPDATED_AT BETWEEN ? AND ?) OR (px_pii.DELETED_AT BETWEEN ? AND ?))"),
-               #    str_c("SELECT ", sql_id, " FROM ", db_name, ".", table_name, " WHERE ", sql_id[1], " IN (?)")
-               # )
             }
 
             # snapshots are the reference for scoping
