@@ -530,6 +530,7 @@ finalize_outcomes <- function(data, params) {
       mutate(
          curr_outcome = case_when(
             prev_outcome == "dead" ~ "dead",
+            confirm_date >= latest_ffupdate & confirm_result == "2_Negative" ~ "stopped - negative",
             TRUE ~ curr_outcome
          ),
          newonart     = if_else(
