@@ -138,12 +138,12 @@ dedup_prep <- function(
          PHILSYS       = str_replace_all(PHILSYS_ID, "[^[:alnum:]]", ""),
       ) %>%
       mutate_at(
-         .vars = vars(FIRST_SIEVE, MIDDLE_SIEVE, LAST_SIEVE),
-         ~str_replace_all(., "([[:alnum:]])\\1+", "\\1")
-      ) %>%
-      mutate_at(
          .vars = vars(ends_with("_SIEVE", ignore.case = TRUE), PHIC, PHILSYS),
          ~str_replace_all(., "[^[:alnum:]]", "")
+      ) %>%
+      mutate_at(
+         .vars = vars(FIRST_SIEVE, MIDDLE_SIEVE, LAST_SIEVE),
+         ~str_replace_all(., "([[:alnum:]])\\1+", "\\1")
       ) %>%
       mutate(
          # code standard names
