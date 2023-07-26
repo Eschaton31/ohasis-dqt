@@ -244,8 +244,8 @@ dedup_group_ids <- function(data, params, non_dupes) {
             .before  = art_id,
             grp_id   = str_c(collapse = ",", sort(art_id)),
             grp_sort = case_when(
-               any(is.na(idnum)) ~ 1,
-               any(year == params$yr & month == params$mo) ~ 2,
+               any(year == params$yr & month == params$mo) ~ 1,
+               any(is.na(idnum)) ~ 2,
                TRUE ~ 9
             )
          ) %>%
