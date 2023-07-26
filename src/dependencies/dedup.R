@@ -139,8 +139,7 @@ dedup_prep <- function(
       ) %>%
       mutate_at(
          .vars = vars(FIRST_SIEVE, MIDDLE_SIEVE, LAST_SIEVE),
-         ~str_replace_all(., "([[:alnum:]])\\1+", "\\1") %>%
-            str_replace_all("[^[:alnum:]]", "")
+         ~str_replace_all(., "([[:alnum:]])\\1+", "\\1")
       ) %>%
       mutate_at(
          .vars = vars(ends_with("_SIEVE", ignore.case = TRUE), PHIC, PHILSYS),
