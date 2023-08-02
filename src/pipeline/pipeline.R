@@ -8,6 +8,7 @@ source("gender_identity.R")
 source("check.R")
 source("oh_data.R")
 source("facility_id.R")
+source("address.R")
 source("pii.R")
 
 # pipeline function -> call files based on structure
