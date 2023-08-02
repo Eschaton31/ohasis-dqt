@@ -285,7 +285,8 @@ prep_merge <- function(tx, dx) {
             sex,
             pxcode,
             philhealth,
-            confirm_date
+            confirm_date,
+            philsys_id
          )
       ) %>%
       # convert Stata string missing data to NAs
