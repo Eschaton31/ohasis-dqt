@@ -89,6 +89,7 @@ object_1 <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "facility")) %>%
       FACI_NAME,
       FACI_NAME_CLEAN,
       FACI_CODE,
+      FACI_TYPE,
       PUBPRIV,
       LAT,
       LONG,
@@ -160,6 +161,7 @@ object_2 <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "facility")) %>%
       FACI_NAME,
       FACI_NAME_CLEAN,
       FACI_CODE,
+      FACI_TYPE,
       PUBPRIV,
       LAT,
       LONG,
@@ -182,7 +184,19 @@ object_2 <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "facility")) %>%
 
 object <- bind_rows(object_1, object_2) %>%
    mutate(
-      PUBPRIV = case_when(
+      FACI_TYPE = case_when(
+         FACI_TYPE == '10000' ~ 'Health Service Facility',
+         FACI_TYPE == '20000' ~ 'Private Entity',
+         FACI_TYPE == '21001' ~ 'NGO',
+         FACI_TYPE == '21002' ~ 'CBO',
+         FACI_TYPE == '22001' ~ 'Private Company',
+         FACI_TYPE == '30000' ~ 'Public Entity',
+         FACI_TYPE == '31000' ~ "Gov't - National",
+         FACI_TYPE == '32000' ~ "Gov't - Regional",
+         FACI_TYPE == '40000' ~ 'International Entity',
+         TRUE ~ FACI_TYPE
+      ),
+      PUBPRIV   = case_when(
          PUBPRIV == 1 ~ "PUBLIC",
          PUBPRIV == 2 ~ "PRIVATE",
          TRUE ~ NA_character_
