@@ -72,25 +72,53 @@ get_pdf_data <- function(file = NULL) {
       # read workbook using password
       wb         <- XLConnect::loadWorkbook(file)
       confirm_df <- XLConnect::readWorksheet(wb, 1, colTypes = XLC$DATA_TYPE.STRING, header = FALSE) %>%
-         as_tibble() %>%
-         select(
-            DATE_RECEIVE      = 2,
-            CONFIRMATORY_CODE = 3,
-            FULLNAME          = 4,
-            BIRTHDATE         = 5,
-            AGE               = 6,
-            SEX               = 7,
-            SOURCE            = 8,
-            RAPID             = 13,
-            SYSMEX            = 14,
-            VIDAS             = 17,
-            GEENIUS           = 18,
-            REMARKS           = 19,
-            DATE_CONFIRM      = 20
-         ) %>%
+         as_tibble()
+
+      if (ncol(confirm_df) > 17) {
+         confirm_df %<>%
+            select(
+               DATE_RECEIVE      = 2,
+               CONFIRMATORY_CODE = 3,
+               FULLNAME          = 4,
+               BIRTHDATE         = 5,
+               AGE               = 6,
+               SEX               = 7,
+               SOURCE            = 8,
+               RAPID             = 13,
+               SYSMEX            = 14,
+               VIDAS             = 17,
+               GEENIUS           = 18,
+               REMARKS           = 19,
+               DATE_CONFIRM      = 20
+            )
+      } else {
+         confirm_df %<>%
+            select(
+               DATE_RECEIVE      = 3,
+               CONFIRMATORY_CODE = 4,
+               FULLNAME          = 5,
+               BIRTHDATE         = 6,
+               AGE               = 7,
+               SEX               = 8,
+               SOURCE            = 9,
+               RAPID             = 10,
+               SYSMEX            = 11,
+               VIDAS             = 14,
+               GEENIUS           = 15,
+               REMARKS           = 16,
+               DATE_CONFIRM      = 17
+            ) %>%
+            filter(!is.na(CONFIRMATORY_CODE))
+      }
+
+      if (confirm_df[1,]$DATE_RECEIVE == "DATE RECEIVED")
+         confirm_df %<>%
+            slice(-1)
+
+      confirm_df %<>%
          mutate_at(
             .vars = vars(contains("DATE")),
-            ~as.Date(StrLeft(., 10))
+            ~as.Date(.)
          )
 
       rm(wb)
@@ -189,7 +217,7 @@ match_ohasis <- function(pdf_data) {
    query    <- r"(
 SELECT px_info.REC_ID,
        px_info.PATIENT_ID,
-       COALESCE(px_confirm.CONFIRM_CODE, px_info.CONFIRMATORY_CODE) AS CONFIRMATORY_CODE,
+       COALESCE(px_confirm.CONFIRM_CODE, px_info.CONFIRMATORY_CODE)                                  AS CONFIRMATORY_CODE,
        px_info.UIC,
        px_info.PHILHEALTH_NO,
        px_info.SEX,
@@ -202,11 +230,13 @@ SELECT px_info.REC_ID,
        px_info.UPDATED_BY,
        px_info.UPDATED_AT,
        px_info.DELETED_BY,
-       1                                             AS EXIST_INFO,
-       IF(px_confirm.CONFIRM_CODE IS NOT NULL, 1, 0) AS EXIST_CONFIRM
+       1                                                                                             AS EXIST_INFO,
+       IF(px_confirm.CONFIRM_CODE IS NOT NULL AND COALESCE(px_confirm.FINAL_RESULT, '') <> '', 1, 0) AS EXIST_CONFIRM,
+       IF(px_test_hiv.DATE_RECEIVE IS NOT NULL, 1, 0)                                                AS EXIST_TEST
 FROM ohasis_interim.px_info
          JOIN ohasis_interim.px_record ON px_info.REC_ID = px_record.REC_ID
          LEFT JOIN ohasis_interim.px_confirm ON px_info.REC_ID = px_confirm.REC_ID
+         LEFT JOIN ohasis_interim.px_test_hiv ON px_info.REC_ID = px_test_hiv.REC_ID AND px_test_hiv.TEST_TYPE = 31
 WHERE px_record.MODULE = 2
   AND px_record.DELETED_AT IS NULL
   AND COALESCE(px_confirm.CONFIRM_CODE, px_info.CONFIRMATORY_CODE) IN (?)
@@ -331,7 +361,9 @@ generate_tables <- function(import) {
       name = "px_record",
       pk   = c("REC_ID", "PATIENT_ID"),
       data = import %>%
-         filter(EXIST_INFO == 0 | EXIST_CONFIRM == 0) %>%
+         filter(EXIST_INFO == 0 |
+                   EXIST_CONFIRM == 0 |
+                   EXIST_TEST == 0) %>%
          mutate(
             FACI_ID     = "130000",
             SUB_FACI_ID = NA_character_,
@@ -416,7 +448,7 @@ generate_tables <- function(import) {
       name = "px_test",
       pk   = c("REC_ID", "TEST_TYPE", "TEST_NUM"),
       data = import %>%
-         filter(EXIST_CONFIRM == 0) %>%
+         filter(EXIST_TEST == 0) %>%
          select(
             REC_ID,
             FACI_ID,
@@ -471,7 +503,7 @@ generate_tables <- function(import) {
       name = "px_test_hiv",
       pk   = c("REC_ID", "TEST_TYPE", "TEST_NUM"),
       data = import %>%
-         filter(EXIST_CONFIRM == 0) %>%
+         filter(EXIST_TEST == 0) %>%
          select(
             REC_ID,
             FACI_ID,
