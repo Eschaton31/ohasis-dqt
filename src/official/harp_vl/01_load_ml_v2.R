@@ -247,15 +247,17 @@ local(envir = vlml, {
                      true      = "",
                      false     = `Middle Name`
                   ), " ",
-                  if_else(
-                     condition = is.na(`Name Ext.`),
-                     true      = "",
-                     false     = `Name Ext.`
-                  )
+                  if ("Name Ext." %in% names(data$xlsx)) {
+                     if_else(
+                        condition = is.na(`Name Ext.`),
+                        true      = "",
+                        false     = `Name Ext.`
+                     )
+                  }
                ),
                name,
                name
-            )
+            ) %>% str_squish()
          )
    }
 })
@@ -280,30 +282,30 @@ local(envir = vlml, {
 
    for (var in c("latest_ffupdate", "artstart_date", "vl_date_2", "birthdate")) {
       if (var %in% names(conso))
-      conso %<>%
-         mutate(
-            date_num = as.numeric(!!as.name(var))
-         ) %>%
-         rowwise() %>%
-         mutate(
-            first_dash = stri_locate_first_fixed(!!as.name(var), "-")[1, 1]
-         ) %>%
-         ungroup() %>%
-         mutate(
-            !!as.name(var) := case_when(
-               grepl(paste(collapse = "|", toupper(month.abb[1:12])), !!as.name(var)) ~ as.Date(!!as.name(var), "%d-%b-%y"),
-               !is.na(date_num) ~ excel_numeric_to_date(date_num),
-               !!as.name(var) %in% c("NULL", "N/A", "NA") ~ NA_Date_,
-               !!as.name(var) == "03/182022" ~ as.Date("2022-03-18"),
-               !!as.name(var) == "1--2-2021" ~ as.Date("2021-01-02"),
-               !!as.name(var) == "12/072022" ~ as.Date("2022-12-07"),
-               first_dash %in% c(2, 3) ~ as.Date(!!as.name(var), "%m-%d-%Y"),
-               grepl("/", !!as.name(var)) ~ as.Date(!!as.name(var), "%m/%d/%Y"),
-               grepl("\\.", !!as.name(var)) ~ as.Date(!!as.name(var), "%m.%d.%Y"),
-               TRUE ~ as.Date(!!as.name(var), "%Y-%m-%d")
-            )
-         ) %>%
-         select(-first_dash, -date_num)
+         conso %<>%
+            mutate(
+               date_num = as.numeric(!!as.name(var))
+            ) %>%
+            rowwise() %>%
+            mutate(
+               first_dash = stri_locate_first_fixed(!!as.name(var), "-")[1, 1]
+            ) %>%
+            ungroup() %>%
+            mutate(
+               !!as.name(var) := case_when(
+                  grepl(paste(collapse = "|", toupper(month.abb[1:12])), !!as.name(var)) ~ as.Date(!!as.name(var), "%d-%b-%y"),
+                  !is.na(date_num) ~ excel_numeric_to_date(date_num),
+                  !!as.name(var) %in% c("NULL", "N/A", "NA") ~ NA_Date_,
+                  !!as.name(var) == "03/182022" ~ as.Date("2022-03-18"),
+                  !!as.name(var) == "1--2-2021" ~ as.Date("2021-01-02"),
+                  !!as.name(var) == "12/072022" ~ as.Date("2022-12-07"),
+                  first_dash %in% c(2, 3) ~ as.Date(!!as.name(var), "%m-%d-%Y"),
+                  grepl("/", !!as.name(var)) ~ as.Date(!!as.name(var), "%m/%d/%Y"),
+                  grepl("\\.", !!as.name(var)) ~ as.Date(!!as.name(var), "%m.%d.%Y"),
+                  TRUE ~ as.Date(!!as.name(var), "%Y-%m-%d")
+               )
+            ) %>%
+            select(-first_dash, -date_num)
    }
    rm(var)
    if (nrow(conso %>% filter(is.na(vl_date_2), !is.na(vl_date)))) {
@@ -355,6 +357,7 @@ local(envir = vlml, {
       mutate_at(
          .vars = vars(vl_result_nomeasure),
          ~stri_replace_all_regex(., " \\(LOG [0-9]\\.[0-9][0-9]\\)$", "") %>%
+            stri_replace_all_regex("COPES$", "") %>%
             stri_replace_all_regex("COPIES/ML$", "") %>%
             stri_replace_all_regex("COPIES ML$", "") %>%
             stri_replace_all_regex("COPIE/ML$", "") %>%
@@ -381,6 +384,7 @@ local(envir = vlml, {
             stri_replace_all_regex("^HIV1 DETECTED;", "") %>%
             stri_replace_all_regex("^HIV1 DETECETED,", "") %>%
             stri_replace_all_regex("^HIV DETECTED", "") %>%
+            stri_replace_all_regex("^HIV1 DETECTED", "") %>%
             stri_replace_all_regex("7.00 E03", "7.00E03") %>%
             str_squish()
       ) %>%
