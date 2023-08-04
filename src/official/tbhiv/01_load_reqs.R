@@ -35,6 +35,10 @@ download_forms <- function(coverage) {
    forms$id_reg <- lw_conn %>%
       dbTable(dbname, "id_registry", cols = c("CENTRAL_ID", "PATIENT_ID"))
 
+   log_info("Downloading {green('ITIS IDs')}.")
+   forms$id_itis <- lw_conn %>%
+      dbTable(dbname, "id_itis", cols = c("PATIENT_ID", "ITIS_PATIENT_ID"))
+
    log_info("Downloading {green('ART Visits w/in the scope')}.")
    forms$form_art_bc <- lw_conn %>%
       dbTable(
