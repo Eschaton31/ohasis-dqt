@@ -192,7 +192,7 @@ gf$mail$for_release <- gm_mime() %>%
             gmail$nhsss$head,
             gmail$nhsss$ss,
             gmail$nhsss$dqt,
-            gmail$nhsss$dat1
+            gmail$nhsss$dat
          )
       )
    ) %>%
