@@ -24,6 +24,7 @@ faci_code_to_id <- function(data, ref_faci_code, faci_branch) {
             main_faci == "HASH" & is.na(branch_faci) ~ "HASH-QC",
             main_faci == "TLY" & is.na(branch_faci) ~ "TLY-ANGLO",
             main_faci == "SHP" & is.na(branch_faci) ~ "SHIP-MAKATI",
+            main_faci == "SACCL" & is.na(branch_faci) ~ "SACCL",
             TRUE ~ branch_faci
          ),
       ) %>%
@@ -66,6 +67,8 @@ faci_code_to_id <- function(data, ref_faci_code, faci_branch) {
 }
 
 dxlab_to_id <- function(data, facility_ids, dx_lab_cols = NULL, ref_faci = NULL) {
+   local_gs4_quiet()
+
    faci_id     <- facility_ids[1]
    sub_faci_id <- facility_ids[2]
 
@@ -80,7 +83,7 @@ dxlab_to_id <- function(data, facility_ids, dx_lab_cols = NULL, ref_faci = NULL)
          ~str_squish(stri_replace_all_fixed(., "\n", ""))
       ) %>%
       left_join(
-         y = read_sheet("1WiUiB7n5qkvyeARwGV1l1ipuCknDT8wZ6Pt7662J2ms", "Sheet1") %>%
+         y  = read_sheet("1WiUiB7n5qkvyeARwGV1l1ipuCknDT8wZ6Pt7662J2ms", "Sheet1", col_types = "c", .name_repair = "unique_quiet") %>%
             select(
                {{dx_reg}}     := dx_region,
                {{dx_prov}}    := dx_province,
@@ -88,7 +91,8 @@ dxlab_to_id <- function(data, facility_ids, dx_lab_cols = NULL, ref_faci = NULL)
                {{dx_lab}}     := dxlab_standard,
                MATCH_FACI     = FACI_ID,
                MATCH_SUB_FACI = SUB_FACI_ID
-            )
+            ),
+         by = join_by({{dx_reg}}, {{dx_prov}}, {{dx_munc}}, {{dx_lab}})
       ) %>%
       mutate(
          OH_FACI     = NA_character_,
@@ -111,6 +115,7 @@ dxlab_to_id <- function(data, facility_ids, dx_lab_cols = NULL, ref_faci = NULL)
                ) %>%
                arrange(desc(OH_SUB_FACI), dx_region, dx_province, dx_muncity, dxlab_standard) %>%
                distinct(dx_region, dx_province, dx_muncity, dxlab_standard, .keep_all = TRUE),
+            by = join_by({{dx_reg}}, {{dx_prov}}, {{dx_munc}}, {{dx_lab}})
          )
    }
 
