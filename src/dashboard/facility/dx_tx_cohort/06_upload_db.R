@@ -1,4 +1,4 @@
-create_tables <- function(data, params) {
+create_tables <- function(data, cascade, params) {
    lw_conn <- ohasis$conn("lw")
 
    cascade_ids <- c(
@@ -16,7 +16,7 @@ create_tables <- function(data, params) {
       "indicator"
    )
 
-   data    <- lapply(data, function(data, params) {
+   add_faci_name <- function(data, params) {
       data %<>%
          mutate(
             dashboard_date = as.Date(params$max),
@@ -28,7 +28,9 @@ create_tables <- function(data, params) {
             "name",
          )
       return(data)
-   }, params)
+   }
+
+   data    <- lapply(data, add_faci_name, params)
    cascade <- lapply(cascade, function(data, params) {
       data %<>%
          mutate(
@@ -64,6 +66,7 @@ create_tables <- function(data, params) {
       keys   <- tables[[table]]$pk
       dbCreateTable(lw_conn, table_space, upload)
       dbExecute(lw_conn, stri_c("ALTER TABLE db_faci.", table, " ADD PRIMARY KEY (", stri_c(collapse = ", ", keys), ");"))
+      dbExecute(lw_conn, stri_c("ALTER TABLE db_faci.", table, " ADD INDEX `FACI_ID` (`FACI_ID`);"))
       ohasis$upsert(lw_conn, "db_faci", table, upload, keys)
    }
 
@@ -72,5 +75,5 @@ create_tables <- function(data, params) {
 
 .init <- function(envir = parent.env(environment())) {
    p <- envir
-   create_tables(p$data, p$params)
+   create_tables(p$data, p$cascade, p$params)
 }
