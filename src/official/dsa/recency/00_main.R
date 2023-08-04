@@ -11,18 +11,21 @@ rt$download_forms <- function(wd) {
    log_info("Preparing select.")
    rt_where  <- read_file(file.path(wd, "rt.sql"))
    hts_where <- r"(
-  REC_ID IN (
-  SELECT REC_ID FROM ohasis_lake.px_hiv_testing where (SPECIMEN_SOURCE in
-       ('070010', '070078', '070013', '070003', '070004', '070002', '070019', '070009', '070008', '070045', '070108',
-        '070111', '060007', '060001', '060003', '060008', '060037', '060077', '060237', '060232', '060023', '060004',
-        '060069', '060049', '130411', '130342', '130581', '130299', '130657', '130015', '130182', '130022', '130554',
-        '130026') or
-       SPECIMEN_SOURCE is null)
-  and (CONFIRM_FACI in ('070010', '060007','060001','060008') OR (CONFIRM_FACI = '130023' AND CONFIRM_SUB_FACI = '130023_001'))
-  and CONFIRM_RESULT REGEXP 'Positive'
-  ) AND REC_ID IN (
-  SELECT REC_ID FROM ohasis_lake.px_pii WHERE RECORD_DATE >= '2023-03-01'
-  )
+REC_ID IN (SELECT REC_ID
+                 FROM ohasis_lake.px_hiv_testing
+                 where ((SPECIMEN_SOURCE in
+                         ('130026', '070010', '070078', '070013', '070003', '070004', '070002', '070019', '070009',
+                          '070008', '070045', '070108', '070111', '060007', '060001', '060003', '060008', '060037',
+                          '060077', '060237', '060232', '060023', '060004', '060069', '060049', '130411', '130342',
+                          '130581', '130299', '130657', '130015', '130182', '130022', '130554', '130219', '130645') or
+                         SPECIMEN_SOURCE is null)
+                     and (CONFIRM_FACI in ('070010', '070013', '060007', '060001', '060003', '060008') OR
+                          (CONFIRM_FACI = '130023' AND CONFIRM_SUB_FACI = '130023_001'))
+                     and CONFIRM_RESULT REGEXP 'Positive')
+                    OR RT_DATE IS NOT NULL)
+  AND REC_ID IN (SELECT REC_ID
+                 FROM ohasis_lake.px_pii
+                 WHERE RECORD_DATE >= '2023-03-01')
   )"
 
    log_info("Downloading lake.")
@@ -367,7 +370,7 @@ rt$data$final   <- rt$data$initial %>%
    ohasis$get_staff(c(REVIEWED_BY = "SIGNATORY_2")) %>%
    ohasis$get_staff(c(NOTED_BY = "SIGNATORY_3"))
 
-oh_dir       <- file.path("C:/Users/Administrator/Box/TRACE Philippines")
+oh_dir       <- file.path("C:/Users/johnb/Box/TRACE Philippines")
 file_initial <- file.path(oh_dir, "RecencyTesting-PreProcess.xlsx")
 file_final   <- file.path(oh_dir, "RecencyTesting-PostProcess.xlsx")
 file_faci    <- file.path(oh_dir, "OHASIS-FacilityIDs.xlsx")
