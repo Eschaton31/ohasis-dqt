@@ -56,7 +56,6 @@ load_harp <- function(params = NULL) {
             dx_region,
             dx_province,
             dx_muncity,
-            TEST_FACI,
             baseline_cd4_date,
             baseline_cd4_result,
             pregnant,
