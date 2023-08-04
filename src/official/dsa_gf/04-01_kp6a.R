@@ -54,6 +54,7 @@ gf$linelist$kp6a <- gf$harp$prep$new_reg %>%
          ),
       by = "REC_ID"
    ) %>%
+   distinct(prep_id, .keep_all = TRUE) %>%
    left_join(
       y  = gf$linelist$psfi_matched %>%
          select(
