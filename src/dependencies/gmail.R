@@ -40,26 +40,27 @@ gmail$nhsss$head  <- "nspalaypayon@doh.gov.ph"
 gmail$nhsss$ss    <- c(
    "jsmartinez@doh.gov.ph",
    "cjtinaja@doh.gov.ph",
-   "kapamittan@doh.gov.ph"
+   "jmdeliso@doh.gov.ph",
+   "macabreros@doh.gov.ph"
 )
 gmail$nhsss$dqt   <- c(
+   "rphaynes@doh.gov.ph",
    "nesaplagio@doh.gov.ph",
-   "fqyap@doh.gov.ph",
-   "rphaynes@doh.gov.ph"
+   "fgsolquio@doh.gov.ph"
 )
 gmail$nhsss$dat   <- c(
    "jsmartinez@doh.gov.ph",
    "cjtinaja@doh.gov.ph",
    "kapamittan@doh.gov.ph",
    "roricaflanca.doh@gmail.com",
+   "roricaflanca@doh.gov.ph",
    "jmdeliso@doh.gov.ph",
    "macabreros@doh.gov.ph",
-   "kmasilo@doh.gov.ph",
-   "nesaplagio@doh.gov.ph",
-   "fgsolquio@doh.gov.ph"
+   "nesaplagio@doh.gov.ph"
 )
 gmail$nhsss$ihbss <- c(
    "jsmartinez@doh.gov.ph",
    "cjtinaja@doh.gov.ph",
-   "roricaflanca.doh@gmail.com"
+   "roricaflanca.doh@gmail.com",
+   "roricaflanca@doh.gov.ph"
 )
