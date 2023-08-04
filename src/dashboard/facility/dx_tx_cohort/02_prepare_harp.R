@@ -1,208 +1,29 @@
-reg_disagg <- function(data, regimen_col, reg_disagg_col) {
-   concat_col     <- reg_disagg_col
-   regimen_col    <- as.name(regimen_col)
-   reg_disagg_col <- as.name(reg_disagg_col)
-
-   data %<>%
-      mutate(
-         # reg disagg
-         !!reg_disagg_col := toupper(str_squish(!!regimen_col)),
-         r_abc            = if_else(
-            stri_detect_fixed(!!reg_disagg_col, "ABC") &
-               !stri_detect_fixed(!!reg_disagg_col, "ABCSYR"),
-            "ABC",
-            NA_character_
-         ),
-         r_abcsyr         = if_else(stri_detect_fixed(!!reg_disagg_col, "ABCSYR"), "ABCsyr", NA_character_),
-         r_azt_3tc        = if_else(stri_detect_fixed(!!reg_disagg_col, "AZT/3TC"), "AZT/3TC", NA_character_),
-         r_azt            = if_else(
-            stri_detect_fixed(!!reg_disagg_col, "AZT") &
-               !stri_detect_fixed(!!reg_disagg_col, "AZT/3TC") &
-               !stri_detect_fixed(!!reg_disagg_col, "AZTSYR"),
-            "AZT",
-            NA_character_
-         ),
-         r_aztsyr         = if_else(stri_detect_fixed(!!reg_disagg_col, "AZTSYR"), "AZTsyr", NA_character_),
-         r_tdf            = if_else(
-            stri_detect_fixed(!!reg_disagg_col, "TDF") &
-               !stri_detect_fixed(!!reg_disagg_col, "TDF/3TC") &
-               !stri_detect_fixed(!!reg_disagg_col, "TDF100MG"),
-            "TDF",
-            NA_character_
-         ),
-         r_tdf_3tc        = if_else(
-            stri_detect_fixed(!!reg_disagg_col, "TDF/3TC") &
-               !stri_detect_fixed(!!reg_disagg_col, "TDF/3TC/EFV") &
-               !stri_detect_fixed(!!reg_disagg_col, "TDF/3TC/DTG"),
-            "TDF/3TC",
-            NA_character_
-         ),
-         r_tdf_3tc_efv    = if_else(stri_detect_fixed(!!reg_disagg_col, "TDF/3TC/EFV"), "TDF/3TC/EFV", NA_character_),
-         r_tdf_3tc_dtg    = if_else(stri_detect_fixed(!!reg_disagg_col, "TDF/3TC/DTG"), "TDF/3TC/DTG", NA_character_),
-         r_tdf100         = if_else(stri_detect_fixed(!!reg_disagg_col, "TDF100MG"), "TDF100mg", NA_character_),
-         r_xtc            = case_when(
-            stri_detect_fixed(!!reg_disagg_col, "3TC") &
-               !stri_detect_fixed(!!reg_disagg_col, "/3TC") &
-               !stri_detect_fixed(!!reg_disagg_col, "3TCSYR") ~ "3TC",
-            stri_detect_fixed(!!reg_disagg_col, "D4T/3TC") ~ "D4T/3TC",
-            TRUE ~ NA_character_
-         ),
-         r_xtcsyr         = if_else(stri_detect_fixed(!!reg_disagg_col, "3TCSYR"), "3TCsyr", NA_character_),
-         r_nvp            = if_else(
-            stri_detect_fixed(!!reg_disagg_col, "NVP") &
-               !stri_detect_fixed(!!reg_disagg_col, "NVPSYR"),
-            "NVP",
-            NA_character_
-         ),
-         r_nvpsyr         = if_else(stri_detect_fixed(!!reg_disagg_col, "NVPSYR"), "NVPsyr", NA_character_),
-         r_efv            = if_else(
-            stri_detect_fixed(!!reg_disagg_col, "EFV") &
-               !stri_detect_fixed(!!reg_disagg_col, "/EFV") &
-               !stri_detect_fixed(!!reg_disagg_col, "EFV50MG") &
-               !stri_detect_fixed(!!reg_disagg_col, "EFV200MG") &
-               !stri_detect_fixed(!!reg_disagg_col, "EFVSYR"),
-            "EFV",
-            NA_character_
-         ),
-         r_efv50          = if_else(stri_detect_fixed(!!reg_disagg_col, "EFV50MG"), "EFV50mg", NA_character_),
-         r_efv200         = if_else(stri_detect_fixed(!!reg_disagg_col, "EFV200MG"), "EFV200mg", NA_character_),
-         r_efvsyr         = if_else(stri_detect_fixed(!!reg_disagg_col, "EFVSYR"), "EFVsyr", NA_character_),
-         r_dtg            = if_else(
-            stri_detect_fixed(!!reg_disagg_col, "DTG") &
-               !stri_detect_fixed(!!reg_disagg_col, "/DTG"),
-            "DTG",
-            NA_character_
-         ),
-         r_lpvr           = if_else(
-            (stri_detect_fixed(!!reg_disagg_col, "LPV/R") |
-               stri_detect_fixed(!!reg_disagg_col, "LPVR")) &
-               (!stri_detect_fixed(!!reg_disagg_col, "RSYR") &
-                  !stri_detect_fixed(!!reg_disagg_col, "R PEDIA")),
-            "LPV/r",
-            NA_character_
-         ),
-         r_lpvr_pedia     = if_else(
-            stri_detect_fixed(!!reg_disagg_col, "LPV") &
-               (stri_detect_fixed(!!reg_disagg_col, "RSYR") |
-                  stri_detect_fixed(!!reg_disagg_col, "R PEDIA")),
-            "LPV/rsyr",
-            NA_character_
-         ),
-         r_ril            = if_else(stri_detect_fixed(!!reg_disagg_col, "RIL"), "RIL", NA_character_),
-         r_ral            = if_else(stri_detect_fixed(!!reg_disagg_col, "RAL"), "RAL", NA_character_),
-         r_ftc            = if_else(stri_detect_fixed(!!reg_disagg_col, "FTC"), "FTC", NA_character_),
-         r_idv            = if_else(stri_detect_fixed(!!reg_disagg_col, "IDV"), "IDV", NA_character_)
-      )
-   return(data)
-}
-
 get_faci_ids <- function(harp, oh) {
    data    <- list()
    data$dx <- harp$dx %>%
       get_cid(oh$id_reg, PATIENT_ID) %>%
       # match facility ids using list consolidated with encoded dxlab_standard &
       # dx_address;
-      left_join(
-         y  = read_sheet(as_id("1WiUiB7n5qkvyeARwGV1l1ipuCknDT8wZ6Pt7662J2ms"), "Sheet1") %>%
-            rename(
-               DX_FACI     = FACI_ID,
-               DX_SUB_FACI = SUB_FACI_ID
-            ),
-         by = join_by(dx_region, dx_province, dx_muncity, dxlab_standard)
-      ) %>%
-      left_join(
-         y  = oh$dx %>%
-            mutate(
-               use_record_faci = if_else(
-                  condition = is.na(SERVICE_FACI),
-                  true      = 1,
-                  false     = 0
-               ),
-               SERVICE_FACI    = if_else(
-                  condition = use_record_faci == 1,
-                  true      = FACI_ID,
-                  false     = SERVICE_FACI
-               ),
-            ) %>%
-            distinct(REC_ID, .keep_all = TRUE),
-         by = join_by(REC_ID)
+      dxlab_to_id(
+         c("HARP_FACI", "HARP_SUB_FACI"),
+         c("dx_region", "dx_province", "dx_muncity", "dxlab_standard"),
+         ohasis$ref_faci
       ) %>%
       mutate(
-         TEST_SUB_FACI = if_else(
-            is.na(TEST_FACI),
-            SERVICE_SUB_FACI,
-            "",
-            ""
+         dxlab_standard = case_when(
+            idnum %in% c(166980, 166981, 166982, 166983) ~ "MANDAUE SHC",
+            TRUE ~ dxlab_standard
          ),
-         TEST_SUB_FACI = if_else(
-            TEST_FACI == SERVICE_FACI,
-            SERVICE_SUB_FACI,
-            TEST_SUB_FACI,
-            TEST_SUB_FACI
-         ),
-         TEST_FACI     = if_else(
-            is.na(TEST_FACI),
-            SERVICE_FACI,
-            TEST_FACI,
-            TEST_FACI
-         ),
-         confirmlab    = case_when(
-            labcode2 == "TLY22-09-01297" ~ "TLY",
+         confirmlab     = case_when(
+            confirmlab == "RITM" ~ "RIT",
             TRUE ~ confirmlab
-         )
-      ) %>%
-      left_join(
-         y  = read_sheet(as_id("1yxx1_VhomkBABJ72HgzjG7RNai5sJeZQdDZiiS0SJkU")) %>%
-            mutate(
-               unique_intra = case_when(
-                  SUB_FACI_ID == '130023_001' ~ 1,
-                  SUB_FACI_ID == '130023_003' ~ 2,
-                  TRUE ~ 1
-               )
-            ) %>%
-            arrange(unique_intra, desc(SUB_FACI_ID), FACI_ID) %>%
-            distinct(FACI_ID, unique_intra, .keep_all = TRUE) %>%
-            select(
-               confirmlab,
-               CONFIRM_FACI     = FACI_ID,
-               CONFIRM_SUB_FACI = SUB_FACI_ID
-            ),
-         by = join_by(confirmlab)
-      ) %>%
-      left_join(
-         y  = ohasis$ref_faci %>%
-            filter(!is.na(FACI_NAME_CLEAN)) %>%
-            select(
-               NHSSS_FACI     = FACI_ID,
-               NHSSS_SUB_FACI = SUB_FACI_ID,
-               dxlab_standard = FACI_NAME_CLEAN,
-               dx_region      = FACI_NHSSS_REG,
-               dx_province    = FACI_NHSSS_PROV,
-               dx_muncity     = FACI_NHSSS_MUNC,
-            ) %>%
-            arrange(desc(NHSSS_SUB_FACI), dx_region, dx_province, dx_muncity, dxlab_standard) %>%
-            distinct(dx_region, dx_province, dx_muncity, dxlab_standard, .keep_all = TRUE),
-         by = join_by(dx_region, dx_province, dx_muncity, dxlab_standard)
-      ) %>%
-      mutate(
-         faci_src      = case_when(
-            !is.na(DX_FACI) ~ "dxlab",
-            !is.na(NHSSS_FACI) ~ "nhsss",
-            !is.na(TEST_FACI) ~ "test",
          ),
-         HARP_FACI     = case_when(
-            faci_src == "dxlab" ~ DX_FACI,
-            faci_src == "nhsss" ~ NHSSS_FACI,
-            faci_src == "test" ~ TEST_FACI,
-         ),
-         HARP_FACI     = if_else(HARP_FACI == "130000", NA_character_, HARP_FACI, HARP_FACI),
-         HARP_SUB_FACI = case_when(
-            faci_src == "dxlab" ~ DX_SUB_FACI,
-            faci_src == "nhsss" ~ NHSSS_SUB_FACI,
-            faci_src == "test" ~ TEST_SUB_FACI,
-         )
+         confirm_branch = NA_character_
       ) %>%
-      distinct(idnum, .keep_all = TRUE)
+      faci_code_to_id(
+         ohasis$ref_faci_code,
+         c(CONFIRM_FACI = "confirmlab", CONFIRM_SUB_FACI = "confirm_branch")
+      )
 
    data$tx <- harp$tx %>%
       get_cid(oh$id_reg, PATIENT_ID) %>%
@@ -256,35 +77,22 @@ add_faci_info <- function(data) {
 # attach address names
 add_addr_info <- function(data) {
    data$dx %<>%
-      mutate(
-         province = case_when(
-            region == "NCR" & muncity == "UNKNOWN" ~ "UNKNOWN",
-            TRUE ~ province
+      # perm address
+      harp_addr_to_id(
+         ohasis$ref_addr,
+         c(
+            PERM_PSGC_REG  = "region",
+            PERM_PSGC_PROV = "province",
+            PERM_PSGC_MUNC = "muncity"
          )
       ) %>%
-      left_join(
-         y  = ohasis$ref_addr %>%
-            mutate(
-               drop = case_when(
-                  StrLeft(PSGC_PROV, 4) == "1339" & (PSGC_MUNC != "133900000" | is.na(PSGC_MUNC)) ~ 1,
-                  StrLeft(PSGC_REG, 4) == "1300" & PSGC_MUNC == "" ~ 1,
-                  stri_detect_fixed(NAME_PROV, "City") & NHSSS_MUNC == "UNKNOWN" ~ 1,
-                  TRUE ~ 0
-               ),
-            ) %>%
-            filter(drop == 0) %>%
-            select(
-               region         = NHSSS_REG,
-               province       = NHSSS_PROV,
-               muncity        = NHSSS_MUNC,
-               PERM_NAME_REG  = NAME_REG,
-               PERM_NAME_PROV = NAME_PROV,
-               PERM_NAME_MUNC = NAME_MUNC,
-               PERM_PSGC_REG  = PSGC_REG,
-               PERM_PSGC_PROV = PSGC_PROV,
-               PERM_PSGC_MUNC = PSGC_MUNC
-            ),
-         by = join_by(region, province, muncity)
+      ohasis$get_addr(
+         c(
+            PERM_NAME_REG  = "PERM_PSGC_REG",
+            PERM_NAME_PROV = "PERM_PSGC_PROV",
+            PERM_NAME_MUNC = "PERM_PSGC_MUNC"
+         ),
+         "nhsss"
       )
 
    return(data)
@@ -447,12 +255,7 @@ gen_disagg <- function(data, params) {
             false     = 0,
             missing   = 0
          ),
-         baseline_vl_new       = if_else(
-            condition = floor(interval(artstart_date, vl_date) / months(1)) < 6,
-            true      = 1,
-            false     = 0,
-            missing   = 0
-         ),
+         baseline_vl_new       = baseline_vl,
 
 
          artestablish          = if_else(onart == 1 & artlen_days > 92, 1, 0, 0),
@@ -466,11 +269,14 @@ gen_disagg <- function(data, params) {
             0,
             0
          ),
-         vlsuppress            = if_else(onart == 1 & baseline_vl == 0 & vlp12m == 1, 1, 0, 0),
+         vlsuppress            = if_else(onart == 1 &
+                                            baseline_vl == 0 &
+                                            vlp12m == 1 &
+                                            vl_result < 1000, 1, 0, 0),
          vlsuppress            = if_else(
             onart_new == 1 &
                baseline_vl_new == 0 &
-               vlp12m == 1,
+               (vlp12m == 1 | vl_result < 1000),
             1,
             0,
             0
@@ -478,8 +284,7 @@ gen_disagg <- function(data, params) {
          vlsuppress_50         = if_else(
             onart_new == 1 &
                baseline_vl_new == 0 &
-               vlp12m == 1 &
-               vl_result < 50,
+               vlp12m == 1,
             1,
             0,
             0
@@ -632,9 +437,6 @@ attach_tx_to_dx <- function(data) {
                PERM_NAME_REG,
                PERM_NAME_PROV,
                PERM_NAME_MUNC,
-               PERM_PSGC_REG,
-               PERM_PSGC_PROV,
-               PERM_PSGC_MUNC,
                DX_LAB,
                DX_REG,
                DX_PROV,
@@ -702,6 +504,8 @@ remove_cols <- function(data, oh) {
          -ends_with("PSGC_MUNC"),
          -ends_with("PSGC_PROV"),
          -any_of(c(
+            "PATIENT_ID",
+            "REC_ID",
             "hub",
             "branch",
             "realhub",
@@ -778,7 +582,4 @@ remove_cols <- function(data, oh) {
    p$data <- gen_disagg(p$data, p$params)
    p$data <- attach_tx_to_dx(p$data)
    p$data <- remove_cols(p$data, p$oh)
-
-   p$data$dx <- reg_disagg(p$data$dx, "latest_regimen", "regimen")
-   p$data$tx <- reg_disagg(p$data$tx, "latest_regimen", "regimen")
 }
