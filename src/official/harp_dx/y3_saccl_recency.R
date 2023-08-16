@@ -4,48 +4,68 @@ get_pdf_data <- function(file = NULL) {
    if (is.null(file))
       file <- input("Kindly provide the UNIX path to the SACCL PDF Logsheet.")
 
-   log_info("Extractinng tables from PDF.")
-   lst        <- tabulizer::extract_tables(file = file, method = "lattice")
-   recency_df <- lst %>%
-      lapply(function(data) {
-         col_need   <- c("LAB#", "RECENCYTESTDATE", "RECENCYTESTKIT", "RECENCYTESTRESULT", "VIRALLOADTESTREQUESTED", "VIRALLOADTESTDATE", "VIRALLOADTESTRESULT")
-         col_val    <- str_replace_all(toupper(data[1,]), "\\s", "")
-         col_key    <- seq_len(length(col_val))
-         col_select <- c()
-         for (i in col_key) {
-            if (col_val[i] %in% col_need)
-               col_select <- c(col_select, i)
-         }
+   if (tools::file_ext(file) == "pdf") {
+      log_info("Extractinng tables from PDF.")
+      lst        <- tabulizer::extract_tables(file = file, method = "lattice")
+      recency_df <- lst %>%
+         lapply(function(data) {
+            col_need   <- c("LAB#", "RECENCYTESTDATE", "RECENCYTESTKIT", "RECENCYTESTRESULT", "VIRALLOADTESTREQUESTED", "VIRALLOADTESTDATE", "VIRALLOADTESTRESULT")
+            col_val    <- str_replace_all(toupper(data[1,]), "\\s", "")
+            col_key    <- seq_len(length(col_val))
+            col_select <- c()
+            for (i in col_key) {
+               if (col_val[i] %in% col_need)
+                  col_select <- c(col_select, i)
+            }
 
-         data %<>%
-            as_tibble() %>%
-            select(col_select)
+            data %<>%
+               as_tibble() %>%
+               select(col_select)
 
-         col_final   <- str_replace_all(toupper(data[1,]), "\\s", "")
-         names(data) <- col_final
+            col_final   <- str_replace_all(toupper(data[1,]), "\\s", "")
+            names(data) <- col_final
 
-         data %<>%
-            slice(-1) %>%
-            rename_all(
-               ~case_when(
-                  . == "LAB#" ~ "CONFIRM_CODE",
-                  . == "RECENCYTESTDATE" ~ "RT_DATE",
-                  . == "RECENCYTESTKIT" ~ "RT_KIT",
-                  . == "RECENCYTESTRESULT" ~ "RT_RESULT",
-                  . == "VIRALLOADTESTREQUESTED" ~ "RT_VL_REQUESTED",
-                  . == "VIRALLOADTESTDATE" ~ "RT_VL_DATE",
-                  . == "VIRALLOADTESTRESULT" ~ "RT_VL_RESULT",
-                  TRUE ~ .
+            data %<>%
+               slice(-1) %>%
+               rename_all(
+                  ~case_when(
+                     . == "LAB#" ~ "CONFIRM_CODE",
+                     . == "RECENCYTESTDATE" ~ "RT_DATE",
+                     . == "RECENCYTESTKIT" ~ "RT_KIT",
+                     . == "RECENCYTESTRESULT" ~ "RT_RESULT",
+                     . == "VIRALLOADTESTREQUESTED" ~ "RT_VL_REQUESTED",
+                     . == "VIRALLOADTESTDATE" ~ "RT_VL_DATE",
+                     . == "VIRALLOADTESTRESULT" ~ "RT_VL_RESULT",
+                     TRUE ~ .
+                  )
                )
-            )
 
-         return(data)
-      }) %>%
-      bind_rows() %>%
-      mutate_if(
-         .predicate = is.character,
-         ~toupper(str_squish(.))
-      ) %>%
+            return(data)
+         }) %>%
+         bind_rows() %>%
+         mutate_if(
+            .predicate = is.character,
+            ~toupper(str_squish(.))
+         )
+
+   } else if (tools::file_ext(file) == "xlsx") {
+      recency_df <- read_xlsx(file, .name_repair = "unique_quiet") %>%
+         rename_all(~str_replace_all(toupper(.), "\\s", "")) %>%
+         rename_all(
+            ~case_when(
+               . == "LAB#" ~ "CONFIRM_CODE",
+               . == "RECENCYTESTDATE" ~ "RT_DATE",
+               . == "RECENCYTESTKIT" ~ "RT_KIT",
+               . == "RECENCYTESTRESULT" ~ "RT_RESULT",
+               . == "VIRALLOADTESTREQUESTED" ~ "RT_VL_REQUESTED",
+               . == "VIRALLOADTESTDATE" ~ "RT_VL_DATE",
+               . == "VIRALLOADTESTRESULT" ~ "RT_VL_RESULT",
+               TRUE ~ .
+            )
+         )
+   }
+
+   recency_df %<>%
       mutate(
          TEST_RESULT     = case_when(
             str_detect(RT_RESULT, "RECENT") ~ "1",
@@ -54,7 +74,6 @@ get_pdf_data <- function(file = NULL) {
          ),
          RT_AGREED       = 1,
          RT_KIT          = "1014",
-         RT_DATE         = as.Date(RT_DATE, "%m/%d/%y"),
          RT_RESULT       = case_when(
             str_detect(RT_RESULT, "RECENT") ~ "Recent Infection",
             str_detect(RT_RESULT, "LONG-TERM") ~ "Long Term Infection",
@@ -62,7 +81,13 @@ get_pdf_data <- function(file = NULL) {
             TRUE ~ RT_RESULT
          ),
          RT_VL_REQUESTED = if_else(RT_VL_REQUESTED == "Yes", 1, 0, 0),
-         RT_VL_DATE      = as.Date(RT_VL_DATE, "%m/%d/%y"),
+      ) %>%
+      mutate_at(
+         .vars = vars(RT_DATE, RT_VL_DATE),
+         ~case_when(
+            str_detect(., "/") ~ as.Date(., "%m/%d/%Y"),
+            StrIsNumeric(.) ~ excel_numeric_to_date(as.numeric(.)),
+         )
       )
 
    return(recency_df)
