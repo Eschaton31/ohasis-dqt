@@ -130,8 +130,12 @@ pepfar_disagg <- function(linelist, coverage) {
          # disaggregations
          `DISAG 2` = "Routined",
          `DISAG 3` = case_when(
-            vlp12m == 1 & is.na(baseline_vl) ~ "<1,000 copies/ml",
-            vlp12m == 0 & is.na(baseline_vl) ~ ">=1,000 copies/ml",
+            vlp12m == 1 &
+               is.na(baseline_vl) &
+               vl_result < 1000 ~ "<1,000 copies/ml",
+            vlp12m == 0 &
+               is.na(baseline_vl) &
+               vl_result >= 1000 ~ ">=1,000 copies/ml",
          ),
       ) %>%
       select(
