@@ -222,6 +222,13 @@ psgc_aem <- function(ref_addr) {
             aem_class %in% c("a", "ncr", "cebu city", "cebu province") ~ NAME_MUNC,
             rotp == 1 & !grepl("Province", NAME_PROV) ~ str_c(NAME_PROV, " Province"),
             TRUE ~ NAME_PROV
+         ),
+         NHSSS_AEM = case_when(
+            PSGC_MUNC == "031405000" ~ "BULACAN",
+            PSGC_MUNC == "129804000" ~ "COTABATO",
+            aem_class %in% c("a", "ncr", "cebu city", "cebu province") ~ NHSSS_MUNC,
+            rotp == 1 & !grepl("Province", NHSSS_PROV) ~ "ROTP",
+            TRUE ~ "ROTP"
          )
       ) %>%
       select(-aem_class_sites, -aem_class_rotp, -rotp, -drop) %>%
