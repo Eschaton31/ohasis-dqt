@@ -363,7 +363,7 @@ generate_tables <- function(import) {
       data = import %>%
          filter(EXIST_INFO == 0 |
                    EXIST_CONFIRM == 0 |
-                   EXIST_TEST == 0) %>%
+                   coalesce(EXIST_TEST, 0) == 0) %>%
          mutate(
             FACI_ID     = "130000",
             SUB_FACI_ID = NA_character_,
@@ -448,7 +448,7 @@ generate_tables <- function(import) {
       name = "px_test",
       pk   = c("REC_ID", "TEST_TYPE", "TEST_NUM"),
       data = import %>%
-         filter(EXIST_TEST == 0) %>%
+         filter(coalesce(EXIST_TEST, 0) == 0) %>%
          select(
             REC_ID,
             FACI_ID,
@@ -503,7 +503,7 @@ generate_tables <- function(import) {
       name = "px_test_hiv",
       pk   = c("REC_ID", "TEST_TYPE", "TEST_NUM"),
       data = import %>%
-         filter(EXIST_TEST == 0) %>%
+         filter(coalesce(EXIST_TEST, 0) == 0) %>%
          select(
             REC_ID,
             FACI_ID,
@@ -536,7 +536,7 @@ generate_tables <- function(import) {
                CREATED_AT,
                TEST_TYPE,
                TEST_NUM,
-               DATE_RECEIVE
+               DATE_RECEIVE,
             ),
             names_from  = VAR,
             values_from = value
