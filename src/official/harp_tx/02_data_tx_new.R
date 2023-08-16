@@ -485,7 +485,10 @@ merge_dx <- function(data, forms, params) {
    data %<>%
       select(
          -starts_with("dxreg"),
-         -starts_with("labcode2")
+         -starts_with("labcode2"),
+         -starts_with("confirm_date"),
+         -starts_with("confirm_remarks"),
+         -starts_with("ref_death_date"),
       ) %>%
       left_join(
          y          = dx %>%
