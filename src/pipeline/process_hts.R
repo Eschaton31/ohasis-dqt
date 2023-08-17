@@ -705,5 +705,192 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             src == "hts2021" ~ "(no data)",
          ),
       ) %>%
-      select(-starts_with("recent_", ignore.case = FALSE))
+      select(-starts_with("recent_", ignore.case = FALSE)) %>%
+      mutate(
+         # process reach types
+         CBS_VENUE      = toupper(str_squish(HIV_SERVICE_ADDR)),
+         ONLINE_APP     = case_when(
+            grepl("GRINDR", CBS_VENUE) ~ "GRINDR",
+            grepl("GRNDR", CBS_VENUE) ~ "GRINDR",
+            grepl("GRINDER", CBS_VENUE) ~ "GRINDR",
+            grepl("TWITTER", CBS_VENUE) ~ "TWITTER",
+            grepl("FACEBOOK", CBS_VENUE) ~ "FACEBOOK",
+            grepl("MESSENGER", CBS_VENUE) ~ "FACEBOOK",
+            grepl("\\bFB\\b", CBS_VENUE) ~ "FACEBOOK",
+            grepl("\\bGR\\b", CBS_VENUE) ~ "GRINDR",
+         ),
+         REACH_ONLINE   = if_else(!is.na(ONLINE_APP), "1_Yes", REACH_ONLINE, REACH_ONLINE),
+         REACH_CLINICAL = if_else(
+            condition = if_all(starts_with("REACH_"), ~is.na(.)) & hts_modality == "FBT",
+            true      = "1_Yes",
+            false     = REACH_CLINICAL,
+            missing   = REACH_CLINICAL
+         )
+      ) %>%
+      select(
+         -any_of(
+            c(
+               "PRIME",
+               "DISEASE",
+               "HIV_SERVICE_TYPE",
+               "HIV_SERVICE_ADDR",
+               "src",
+               "MODULE",
+               "MODALITY",
+               "FORM_VERSION",
+               "CONFIRMATORY_CODE",
+               "CHILDREN..50"
+            )
+         )
+      )
+
+   hts_risk <- data %>%
+      select(
+         REC_ID,
+         contains("risk", ignore.case = FALSE)
+      ) %>%
+      pivot_longer(
+         cols = contains("risk", ignore.case = FALSE)
+      ) %>%
+      group_by(REC_ID) %>%
+      summarise(
+         risks = stri_c(collapse = ", ", unique(sort(value)))
+      )
+
+   data %<>%
+      left_join(hts_risk, join_by(REC_ID)) %>%
+      mutate(
+         SEXUAL_RISK = case_when(
+            str_detect(risk_sexwithm, "yes") & str_detect(risk_sexwithf, "yes") ~ "M+F",
+            str_detect(risk_sexwithm, "yes") & !str_detect(risk_sexwithf, "yes") ~ "M",
+            !str_detect(risk_sexwithm, "yes") & str_detect(risk_sexwithf, "yes") ~ "F",
+         ),
+         kap_unknown = if_else(coalesce(risks, "(no data)") == "(no data)", "(no data)", NA_character_),
+         kap_msm     = if_else(SEX == "1_Male" & SEXUAL_RISK %in% c("M", "M+F"), "MSM", NA_character_),
+         kap_heterom = if_else(SEX == "1_Male" & SEXUAL_RISK == "F", "Hetero Male", NA_character_),
+         kap_heterof = if_else(SEX == "2_Female" & !is.na(SEXUAL_RISK), "Hetero Female", NA_character_),
+         kap_pwid    = if_else(str_detect(risk_injectdrug, "yes"), "PWID", NA_character_),
+         kap_pip     = if_else(str_detect(risk_paymentforsex, "yes"), "PIP", NA_character_),
+         kap_pdl     = case_when(
+            StrLeft(CLIENT_TYPE, 1) == "7" ~ "PDL",
+            StrLeft(CLIENT_TYPE, 1) == "7" ~ "PDL",
+         ),
+      )
+
+   return(data)
+}
+
+convert_hts <- function(hts_data, convert_type = c("nhsss", "name", "code")) {
+   data <- hts_data %>%
+      mutate(
+         PERM_PSGC_PROV     = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
+         PERM_PSGC_MUNC     = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
+         use_curr           = if_else(
+            condition = !is.na(CURR_PSGC_MUNC) & (is.na(PERM_PSGC_MUNC) | StrLeft(PERM_PSGC_MUNC, 2) == "99"),
+            true      = 1,
+            false     = 0
+         ),
+         PERMCURR_PSGC_REG  = if_else(
+            condition = use_curr == 1,
+            true      = CURR_PSGC_REG,
+            false     = PERM_PSGC_REG
+         ),
+         PERMCURR_PSGC_PROV = if_else(
+            condition = use_curr == 1,
+            true      = CURR_PSGC_PROV,
+            false     = PERM_PSGC_PROV
+         ),
+         PERMCURR_PSGC_MUNC = if_else(
+            condition = use_curr == 1,
+            true      = CURR_PSGC_MUNC,
+            false     = PERM_PSGC_MUNC
+         ),
+      ) %>%
+      rename(
+         CREATED                 = CREATED_BY,
+         UPDATED                 = UPDATED_BY,
+         HTS_PROVIDER_TYPE       = PROVIDER_TYPE,
+         HTS_PROVIDER_TYPE_OTHER = PROVIDER_TYPE_OTHER,
+      ) %>%
+      select(
+         -any_of(
+            c(
+               "PRIME",
+               "DISEASE",
+               "HIV_SERVICE_TYPE",
+               "HIV_SERVICE_ADDR",
+               "src",
+               "MODULE",
+               "MODALITY",
+               "FORM_VERSION",
+               "CONFIRMATORY_CODE",
+               "use_curr"
+            )
+         )
+      ) %>%
+      ohasis$get_faci(
+         list(REPORT_FACI = c("FACI_ID", "SUB_FACI_ID")),
+         convert_type
+      ) %>%
+      ohasis$get_faci(
+         list(HTS_FACI = c("SERVICE_FACI", "SERVICE_SUB_FACI")),
+         convert_type,
+         C("HTS_REG", "HTS_PROV", "HTS_MUNC")
+      ) %>%
+      ohasis$get_faci(
+         list(SPECIMEN_SOURCE_FACI = c("SPECIMEN_SOURCE", "SPECIMEN_SUB_SOURCE")),
+         convert_type
+      ) %>%
+      ohasis$get_faci(
+         list(CONFIRM_LAB = c("CONFIRM_FACI", "CONFIRM_SUB_FACI")),
+         convert_type
+      ) %>%
+      ohasis$get_addr(
+         c(
+            PERM_REG  = "PERM_PSGC_REG",
+            PERM_PROV = "PERM_PSGC_PROV",
+            PERM_MUNC = "PERM_PSGC_MUNC"
+         ),
+         convert_type
+      ) %>%
+      ohasis$get_addr(
+         c(
+            CURR_REG  = "CURR_PSGC_REG",
+            CURR_PROV = "CURR_PSGC_PROV",
+            CURR_MUNC = "CURR_PSGC_MUNC"
+         ),
+         convert_type
+      ) %>%
+      ohasis$get_addr(
+         c(
+            PERMCURR_REG  = "PERMCURR_PSGC_REG",
+            PERMCURR_PROV = "PERMCURR_PSGC_PROV",
+            PERMCURR_MUNC = "PERMCURR_PSGC_MUNC"
+         ),
+         convert_type
+      ) %>%
+      ohasis$get_addr(
+         c(
+            BIRTH_REG  = "BIRTH_PSGC_REG",
+            BIRTH_PROV = "BIRTH_PSGC_PROV",
+            BIRTH_MUNC = "BIRTH_PSGC_MUNC"
+         ),
+         convert_type
+      ) %>%
+      ohasis$get_addr(
+         c(
+            CBS_REG  = "HIV_SERVICE_PSGC_REG",
+            CBS_PROV = "HIV_SERVICE_PSGC_PROV",
+            CBS_MUNC = "HIV_SERVICE_PSGC_MUNC"
+         ),
+         convert_type
+      ) %>%
+      ohasis$get_staff(c(CREATED_BY = "CREATED")) %>%
+      ohasis$get_staff(c(UPDATED_BY = "UPDATED")) %>%
+      ohasis$get_staff(c(HTS_PROVIDER = "SERVICE_BY")) %>%
+      ohasis$get_staff(c(ANALYZED_BY = "SIGNATORY_1")) %>%
+      ohasis$get_staff(c(REVIEWED_BY = "SIGNATORY_2")) %>%
+      ohasis$get_staff(c(NOTED_BY = "SIGNATORY_3"))
+
+   return(data)
 }
