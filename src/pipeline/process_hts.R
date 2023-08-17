@@ -835,7 +835,7 @@ convert_hts <- function(hts_data, convert_type = c("nhsss", "name", "code")) {
       ohasis$get_faci(
          list(HTS_FACI = c("SERVICE_FACI", "SERVICE_SUB_FACI")),
          convert_type,
-         C("HTS_REG", "HTS_PROV", "HTS_MUNC")
+         c("HTS_REG", "HTS_PROV", "HTS_MUNC")
       ) %>%
       ohasis$get_faci(
          list(SPECIMEN_SOURCE_FACI = c("SPECIMEN_SOURCE", "SPECIMEN_SUB_SOURCE")),
