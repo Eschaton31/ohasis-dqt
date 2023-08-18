@@ -50,7 +50,7 @@ stirup$data$dx <- hs_data("harp_full", "reg", 2023, 6) %>%
    ) %>%
    select(-region, -province, -muncity) %>%
    left_join(
-      y  = ref$addr %>%
+      y  = stirup$refs$addr %>%
          select(
             RES_PSGC_REG  = PSGC_REG,
             RES_PSGC_PROV = PSGC_PROV,
@@ -223,45 +223,45 @@ faci$faci_prep <- ohasis$ref_faci %>%
 ##  Plot interactive map -------------------------------------------------------
 
 # Create a color palette for the map:
-color_dist      <- colorBin("YlOrBr", domain = spdf_eb$est, na.color = "transparent", bins = c(0, 100, 500, 1000, 2000, 5000, Inf))
-bin_dxcoverage  <- colorBin("RdYlGn", domain = spdf_eb$dx_coverage, na.color = "transparent", bins = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100))
-bin_txcoverage  <- colorBin("RdYlGn", domain = spdf_eb$tx_coverage, na.color = "transparent", bins = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100))
-bin_vlcoverage  <- colorBin("RdYlGn", domain = spdf_eb$vl_coverage, na.color = "transparent", bins = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100))
-bin_suppression <- colorBin("RdYlGn", domain = spdf_eb$vl_suppression, na.color = "transparent", bins = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100))
+color_dist      <- colorBin("YlOrBr", domain = stirup$agg$dx$est, na.color = "transparent", bins = c(0, 100, 500, 1000, 2000, 5000, Inf))
+bin_dxcoverage  <- colorBin("RdYlGn", domain = stirup$agg$dx$dx_coverage, na.color = "transparent", bins = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100))
+bin_txcoverage  <- colorBin("RdYlGn", domain = stirup$agg$dx$tx_coverage, na.color = "transparent", bins = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100))
+bin_vlcoverage  <- colorBin("RdYlGn", domain = stirup$agg$dx$vl_coverage, na.color = "transparent", bins = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100))
+bin_suppression <- colorBin("RdYlGn", domain = stirup$agg$dx$vl_suppression, na.color = "transparent", bins = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100))
 
 # Prepare the text for tooltips:
 chloropleth_text <- stri_c(
-   "<b>", spdf_eb$AEM_EN, "</b><br/>",
-   "Estimated PLHIV: <b><i>", format(spdf_eb$est, big.mark = ","), "</i></b><br/>",
-   "Diagnosed PLHIV: <b><i>", format(spdf_eb$dx_plhiv, big.mark = ","), "</i></b>"
+   "<b>", stirup$agg$dx$AEM_EN, "</b><br/>",
+   "Estimated PLHIV: <b><i>", format(stirup$agg$dx$est, big.mark = ","), "</i></b><br/>",
+   "Diagnosed PLHIV: <b><i>", format(stirup$agg$dx$dx_plhiv, big.mark = ","), "</i></b>"
 ) %>%
    lapply(htmltools::HTML)
 text_dxcoverage  <- stri_c(
-   "<b>", spdf_eb$AEM_EN, "</b><br/>",
-   "Estimated PLHIV: <b><i>", format(spdf_eb$est, big.mark = ","), "</i></b><br/>",
-   "Diagnosed PLHIV: <b><i>", format(spdf_eb$dx_plhiv, big.mark = ","), "</i></b><br/>",
-   "Diagnosis Coverage: <b><i>", format(spdf_eb$dx_coverage, digits = 2), "%</i></b>"
+   "<b>", stirup$agg$dx$AEM_EN, "</b><br/>",
+   "Estimated PLHIV: <b><i>", format(stirup$agg$dx$est, big.mark = ","), "</i></b><br/>",
+   "Diagnosed PLHIV: <b><i>", format(stirup$agg$dx$dx_plhiv, big.mark = ","), "</i></b><br/>",
+   "Diagnosis Coverage: <b><i>", format(stirup$agg$dx$dx_coverage, digits = 2), "%</i></b>"
 ) %>%
    lapply(htmltools::HTML)
 text_txcoverage  <- stri_c(
-   "<b>", spdf_eb$AEM_EN, "</b><br/>",
-   "Diagnosed PLHIV: <b><i>", format(spdf_eb$dx_plhiv, big.mark = ","), "</i></b><br/>",
-   "Alive on ARV: <b><i>", format(spdf_eb$onart, big.mark = ","), "</i></b><br/>",
-   "Treatment Coverage: <b><i>", format(spdf_eb$tx_coverage, digits = 2), "%</i></b>"
+   "<b>", stirup$agg$dx$AEM_EN, "</b><br/>",
+   "Diagnosed PLHIV: <b><i>", format(stirup$agg$dx$dx_plhiv, big.mark = ","), "</i></b><br/>",
+   "Alive on ARV: <b><i>", format(stirup$agg$dx$onart, big.mark = ","), "</i></b><br/>",
+   "Treatment Coverage: <b><i>", format(stirup$agg$dx$tx_coverage, digits = 2), "%</i></b>"
 ) %>%
    lapply(htmltools::HTML)
 text_vlcoverage  <- stri_c(
-   "<b>", spdf_eb$AEM_EN, "</b><br/>",
-   "Alive on ARV: <b><i>", format(spdf_eb$onart, big.mark = ","), "</i></b><br/>",
-   "VL Tested: <b><i>", format(spdf_eb$vl_tested, big.mark = ","), "</i></b><br/>",
-   "VL Coverage: <b><i>", format(spdf_eb$vl_coverage, digits = 2), "%</i></b>"
+   "<b>", stirup$agg$dx$AEM_EN, "</b><br/>",
+   "Alive on ARV: <b><i>", format(stirup$agg$dx$onart, big.mark = ","), "</i></b><br/>",
+   "VL Tested: <b><i>", format(stirup$agg$dx$vl_tested, big.mark = ","), "</i></b><br/>",
+   "VL Coverage: <b><i>", format(stirup$agg$dx$vl_coverage, digits = 2), "%</i></b>"
 ) %>%
    lapply(htmltools::HTML)
 text_suppression <- stri_c(
-   "<b>", spdf_eb$AEM_EN, "</b><br/>",
-   "VL Tested: <b><i>", format(spdf_eb$vl_tested, big.mark = ","), "</i></b><br/>",
-   "VL Suppressed (<50): <b><i>", format(spdf_eb$vl_suppressed, big.mark = ","), "</i></b><br/>",
-   "VL Suppression: <b><i>", format(spdf_eb$vl_suppression, digits = 2), "%</i></b>"
+   "<b>", stirup$agg$dx$AEM_EN, "</b><br/>",
+   "VL Tested: <b><i>", format(stirup$agg$dx$vl_tested, big.mark = ","), "</i></b><br/>",
+   "VL Suppressed (<50): <b><i>", format(stirup$agg$dx$vl_suppressed, big.mark = ","), "</i></b><br/>",
+   "VL Suppression: <b><i>", format(stirup$agg$dx$vl_suppression, digits = 2), "%</i></b>"
 ) %>%
    lapply(htmltools::HTML)
 
@@ -284,6 +284,9 @@ prep_text <- stri_c(
 ) %>%
    lapply(htmltools::HTML)
 
+img64_tx    <- "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pg0KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjAuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDUxMS45OTkgNTExLjk5OSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTExLjk5OSA1MTEuOTk5OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8cGF0aCBzdHlsZT0iZmlsbDojMjlhMDhjOyIgZD0iTTQ1NC44NDgsMTk4Ljg0OGMwLDE1OS4yMjUtMTc5Ljc1MSwzMDYuNjg5LTE3OS43NTEsMzA2LjY4OWMtMTAuNTAzLDguNjE3LTI3LjY5Miw4LjYxNy0zOC4xOTUsMA0KCWMwLDAtMTc5Ljc1MS0xNDcuNDY0LTE3OS43NTEtMzA2LjY4OUM1Ny4xNTMsODkuMDI3LDE0Ni4xOCwwLDI1NiwwUzQ1NC44NDgsODkuMDI3LDQ1NC44NDgsMTk4Ljg0OHoiLz4NCjxwYXRoIHN0eWxlPSJmaWxsOiNiNGUzY2M7IiBkPSJNMjU2LDI5OC44OWMtNTUuMTY0LDAtMTAwLjA0MS00NC44NzktMTAwLjA0MS0xMDAuMDQxUzIwMC44MzgsOTguODA2LDI1Niw5OC44MDYNCglzMTAwLjA0MSw0NC44NzksMTAwLjA0MSwxMDAuMDQxUzMxMS4xNjQsMjk4Ljg5LDI1NiwyOTguODl6Ii8+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8L3N2Zz4NCg=="
+img64_prep  <- "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pg0KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjAuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDUxMS45OTkgNTExLjk5OSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTExLjk5OSA1MTEuOTk5OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8cGF0aCBzdHlsZT0iZmlsbDojNDI4Y2M0OyIgZD0iTTQ1NC44NDgsMTk4Ljg0OGMwLDE1OS4yMjUtMTc5Ljc1MSwzMDYuNjg5LTE3OS43NTEsMzA2LjY4OWMtMTAuNTAzLDguNjE3LTI3LjY5Miw4LjYxNy0zOC4xOTUsMA0KCWMwLDAtMTc5Ljc1MS0xNDcuNDY0LTE3OS43NTEtMzA2LjY4OUM1Ny4xNTMsODkuMDI3LDE0Ni4xOCwwLDI1NiwwUzQ1NC44NDgsODkuMDI3LDQ1NC44NDgsMTk4Ljg0OHoiLz4NCjxwYXRoIHN0eWxlPSJmaWxsOiM4MGE4YzQ7IiBkPSJNMjU2LDI5OC44OWMtNTUuMTY0LDAtMTAwLjA0MS00NC44NzktMTAwLjA0MS0xMDAuMDQxUzIwMC44MzgsOTguODA2LDI1Niw5OC44MDYNCglzMTAwLjA0MSw0NC44NzksMTAwLjA0MSwxMDAuMDQxUzMxMS4xNjQsMjk4Ljg5LDI1NiwyOTguODl6Ii8+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8L3N2Zz4NCg=="
+img64_crcl <- "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pg0KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjAuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDUxMS45OTkgNTExLjk5OSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTExLjk5OSA1MTEuOTk5OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8cGF0aCBzdHlsZT0iZmlsbDojODY1ZWI3OyIgZD0iTTQ1NC44NDgsMTk4Ljg0OGMwLDE1OS4yMjUtMTc5Ljc1MSwzMDYuNjg5LTE3OS43NTEsMzA2LjY4OWMtMTAuNTAzLDguNjE3LTI3LjY5Miw4LjYxNy0zOC4xOTUsMA0KCWMwLDAtMTc5Ljc1MS0xNDcuNDY0LTE3OS43NTEtMzA2LjY4OUM1Ny4xNTMsODkuMDI3LDE0Ni4xOCwwLDI1NiwwUzQ1NC44NDgsODkuMDI3LDQ1NC44NDgsMTk4Ljg0OHoiLz4NCjxwYXRoIHN0eWxlPSJmaWxsOiNhMDhkYjc7IiBkPSJNMjU2LDI5OC44OWMtNTUuMTY0LDAtMTAwLjA0MS00NC44NzktMTAwLjA0MS0xMDAuMDQxUzIwMC44MzgsOTguODA2LDI1Niw5OC44MDYNCglzMTAwLjA0MSw0NC44NzksMTAwLjA0MSwxMDAuMDQxUzMxMS4xNjQsMjk4Ljg5LDI1NiwyOTguODl6Ii8+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8L3N2Zz4NCg=="
 legend_tx   <- r"(<img src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pg0KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjAuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDUxMS45OTkgNTExLjk5OSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTExLjk5OSA1MTEuOTk5OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8cGF0aCBzdHlsZT0iZmlsbDojMjlhMDhjOyIgZD0iTTQ1NC44NDgsMTk4Ljg0OGMwLDE1OS4yMjUtMTc5Ljc1MSwzMDYuNjg5LTE3OS43NTEsMzA2LjY4OWMtMTAuNTAzLDguNjE3LTI3LjY5Miw4LjYxNy0zOC4xOTUsMA0KCWMwLDAtMTc5Ljc1MS0xNDcuNDY0LTE3OS43NTEtMzA2LjY4OUM1Ny4xNTMsODkuMDI3LDE0Ni4xOCwwLDI1NiwwUzQ1NC44NDgsODkuMDI3LDQ1NC44NDgsMTk4Ljg0OHoiLz4NCjxwYXRoIHN0eWxlPSJmaWxsOiNiNGUzY2M7IiBkPSJNMjU2LDI5OC44OWMtNTUuMTY0LDAtMTAwLjA0MS00NC44NzktMTAwLjA0MS0xMDAuMDQxUzIwMC44MzgsOTguODA2LDI1Niw5OC44MDYNCglzMTAwLjA0MSw0NC44NzksMTAwLjA0MSwxMDAuMDQxUzMxMS4xNjQsMjk4Ljg5LDI1NiwyOTguODl6Ii8+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8L3N2Zz4NCg==" height=17/>&nbsp;Treatment Hubs)" %>% lapply(htmltools::HTML)
 legend_prep <- r"(<img src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pg0KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjAuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDUxMS45OTkgNTExLjk5OSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTExLjk5OSA1MTEuOTk5OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8cGF0aCBzdHlsZT0iZmlsbDojNDI4Y2M0OyIgZD0iTTQ1NC44NDgsMTk4Ljg0OGMwLDE1OS4yMjUtMTc5Ljc1MSwzMDYuNjg5LTE3OS43NTEsMzA2LjY4OWMtMTAuNTAzLDguNjE3LTI3LjY5Miw4LjYxNy0zOC4xOTUsMA0KCWMwLDAtMTc5Ljc1MS0xNDcuNDY0LTE3OS43NTEtMzA2LjY4OUM1Ny4xNTMsODkuMDI3LDE0Ni4xOCwwLDI1NiwwUzQ1NC44NDgsODkuMDI3LDQ1NC44NDgsMTk4Ljg0OHoiLz4NCjxwYXRoIHN0eWxlPSJmaWxsOiM4MGE4YzQ7IiBkPSJNMjU2LDI5OC44OWMtNTUuMTY0LDAtMTAwLjA0MS00NC44NzktMTAwLjA0MS0xMDAuMDQxUzIwMC44MzgsOTguODA2LDI1Niw5OC44MDYNCglzMTAwLjA0MSw0NC44NzksMTAwLjA0MSwxMDAuMDQxUzMxMS4xNjQsMjk4Ljg5LDI1NiwyOTguODl6Ii8+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8L3N2Zz4NCg==" height=17/>&nbsp;PrEP Sites)" %>% lapply(htmltools::HTML)
 legend_crcl <- r"(<img src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pg0KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjAuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDUxMS45OTkgNTExLjk5OSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTExLjk5OSA1MTEuOTk5OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8cGF0aCBzdHlsZT0iZmlsbDojODY1ZWI3OyIgZD0iTTQ1NC44NDgsMTk4Ljg0OGMwLDE1OS4yMjUtMTc5Ljc1MSwzMDYuNjg5LTE3OS43NTEsMzA2LjY4OWMtMTAuNTAzLDguNjE3LTI3LjY5Miw4LjYxNy0zOC4xOTUsMA0KCWMwLDAtMTc5Ljc1MS0xNDcuNDY0LTE3OS43NTEtMzA2LjY4OUM1Ny4xNTMsODkuMDI3LDE0Ni4xOCwwLDI1NiwwUzQ1NC44NDgsODkuMDI3LDQ1NC44NDgsMTk4Ljg0OHoiLz4NCjxwYXRoIHN0eWxlPSJmaWxsOiNhMDhkYjc7IiBkPSJNMjU2LDI5OC44OWMtNTUuMTY0LDAtMTAwLjA0MS00NC44NzktMTAwLjA0MS0xMDAuMDQxUzIwMC44MzgsOTguODA2LDI1Niw5OC44MDYNCglzMTAwLjA0MSw0NC44NzksMTAwLjA0MSwxMDAuMDQxUzMxMS4xNjQsMjk4Ljg5LDI1NiwyOTguODl6Ii8+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8L3N2Zz4NCg==" height=17/>&nbsp;CrCLs)" %>% lapply(htmltools::HTML)
@@ -293,7 +296,7 @@ m <- leaflet() %>%
    addTiles() %>%
    addProviderTiles("Esri.WorldGrayCanvas", group = "Gray Overlay") %>%
    addPolygons(
-      data             = spdf_eb,
+      data             = stirup$agg$dx,
       fillColor        = ~color_dist(est),
       weight           = 2,
       opacity          = 1,
@@ -319,7 +322,7 @@ m <- leaflet() %>%
       group            = "EB Data (MSM & TGW and PLHIV Estimates)"
    ) %>%
    addPolygons(
-      data             = spdf_eb,
+      data             = stirup$agg$dx,
       fillColor        = ~bin_dxcoverage(dx_coverage),
       weight           = 2,
       opacity          = 1,
@@ -345,7 +348,7 @@ m <- leaflet() %>%
       group            = "Dx Coverage"
    ) %>%
    addPolygons(
-      data             = spdf_eb,
+      data             = stirup$agg$dx,
       fillColor        = ~bin_txcoverage(tx_coverage),
       weight           = 2,
       opacity          = 1,
@@ -371,7 +374,7 @@ m <- leaflet() %>%
       group            = "Tx Coverage"
    ) %>%
    addPolygons(
-      data             = spdf_eb,
+      data             = stirup$agg$dx,
       fillColor        = ~bin_vlcoverage(vl_coverage),
       weight           = 2,
       opacity          = 1,
@@ -397,7 +400,7 @@ m <- leaflet() %>%
       group            = "VL Coverage"
    ) %>%
    addPolygons(
-      data             = spdf_eb,
+      data             = stirup$agg$dx,
       fillColor        = ~bin_suppression(vl_suppression),
       weight           = 2,
       opacity          = 1,
@@ -425,9 +428,9 @@ m <- leaflet() %>%
    addMarkers(
       ~faci$faci_tx$LONG,
       ~faci$faci_tx$LAT,
-      data         = spdf_eb,
+      data         = stirup$agg$dx,
       icon         = makeIcon(
-         iconUrl     = "H:/_QGIS/HIV Treatment Hubs/Marker - Tx Hubs.svg",
+         iconUrl     = img64_tx,
          iconWidth   = 20,
          iconHeight  = 20,
          iconAnchorX = 10,
@@ -448,9 +451,9 @@ m <- leaflet() %>%
    addMarkers(
       ~faci$faci_prep$LONG,
       ~faci$faci_prep$LAT,
-      data         = spdf_eb,
+      data         = stirup$agg$dx,
       icon         = makeIcon(
-         iconUrl     = "H:/_QGIS/HIV Treatment Hubs/Marker - Primary Care.svg",
+         iconUrl     = img64_prep,
          iconWidth   = 20,
          iconHeight  = 20,
          iconAnchorX = 10,
@@ -471,9 +474,9 @@ m <- leaflet() %>%
    addMarkers(
       ~faci$faci_crcl$LONG,
       ~faci$faci_crcl$LAT,
-      data         = spdf_eb,
+      data         = stirup$agg$dx,
       icon         = makeIcon(
-         iconUrl     = "H:/_QGIS/HIV Treatment Hubs/Marker - CrCL.svg",
+         iconUrl     = img64_crcl,
          iconWidth   = 20,
          iconHeight  = 20,
          iconAnchorX = 10,
@@ -492,7 +495,7 @@ m <- leaflet() %>%
       group        = "CrCLs"
    ) %>%
    addLegend(
-      data     = spdf_eb,
+      data     = stirup$agg$dx,
       pal      = color_dist,
       values   = ~est,
       opacity  = 0.9,
@@ -501,7 +504,7 @@ m <- leaflet() %>%
       group    = "EB Data (MSM & TGW and PLHIV Estimates)"
    ) %>%
    addLegend(
-      data      = spdf_eb,
+      data      = stirup$agg$dx,
       pal       = bin_dxcoverage,
       values    = ~dx_coverage,
       opacity   = 0.9,
@@ -513,7 +516,7 @@ m <- leaflet() %>%
       )
    ) %>%
    addLegend(
-      data      = spdf_eb,
+      data      = stirup$agg$dx,
       pal       = bin_txcoverage,
       values    = ~tx_coverage,
       opacity   = 0.9,
@@ -525,7 +528,7 @@ m <- leaflet() %>%
       )
    ) %>%
    addLegend(
-      data      = spdf_eb,
+      data      = stirup$agg$dx,
       pal       = bin_vlcoverage,
       values    = ~vl_coverage,
       opacity   = 0.9,
@@ -537,7 +540,7 @@ m <- leaflet() %>%
       )
    ) %>%
    addLegend(
-      data      = spdf_eb,
+      data      = stirup$agg$dx,
       pal       = bin_suppression,
       values    = ~vl_suppression,
       opacity   = 0.9,
@@ -567,7 +570,7 @@ m <- leaflet() %>%
 +
    m
 
-rmarkdown::find_pandoc(dir = "C:/Program Files/RStudio/bin/pandoc")
-htmlwidgets::saveWidget(m, "H:/ph_spotmap_facis_est_dx_tx_vl_2023-06.html", selfcontained = TRUE)
+rmarkdown::find_pandoc(dir = "C:/Program Files/Pandoc")
+htmlwidgets::saveWidget(m, "E:/_R/ph_map_stirup2023.html", selfcontained = TRUE)
 htmlwidgets::saveWidget(m, "//192.168.193.228/htdocs/ph_facilities/index.html", selfcontained = FALSE)
 mapshot(m, "C:/ph_facilities.html")
