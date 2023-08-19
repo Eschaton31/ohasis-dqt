@@ -225,7 +225,7 @@ psgc_aem <- function(ref_addr) {
          ),
          NHSSS_AEM = case_when(
             PSGC_MUNC == "031405000" ~ "BULACAN",
-            PSGC_MUNC == "129804000" ~ "COTABATO",
+            PSGC_MUNC == "129804000" ~ "ROTP",
             aem_class %in% c("a", "ncr", "cebu city", "cebu province") ~ NHSSS_MUNC,
             rotp == 1 & !grepl("Province", NHSSS_PROV) ~ "ROTP",
             TRUE ~ "ROTP"
