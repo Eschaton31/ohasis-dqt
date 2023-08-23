@@ -22,4 +22,5 @@ options(
       CRAN     = "https://cloud.r-project.org"
    )
 )
+rmarkdown::find_pandoc(dir = Sys.getenv("PANDOC"))
 .protected <- readLines("protected.txt")
