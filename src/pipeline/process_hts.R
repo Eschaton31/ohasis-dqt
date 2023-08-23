@@ -783,6 +783,9 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
 convert_hts <- function(hts_data, convert_type = c("nhsss", "name", "code")) {
    data <- hts_data %>%
       mutate(
+         use_record_faci    = if_else(is.na(SERVICE_FACI), 1, 0, 0),
+         SERVICE_FACI       = if_else(use_record_faci == 1, FACI_ID, SERVICE_FACI),
+
          PERM_PSGC_PROV     = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
          PERM_PSGC_MUNC     = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
          use_curr           = if_else(
