@@ -7,7 +7,8 @@ pacman::p_load(
    RColorBrewer,
    mapview,
    webshot2,
-   nngeo
+   nngeo,
+   htmlwidgets
 )
 stirup <- new.env()
 
@@ -16,6 +17,7 @@ stirup$refs <- psgc_aem(ohasis$ref_addr)
 stirup$data <- list()
 stirup$agg  <- list()
 stirup$spdf <- list(
+   regions    = read_sf(Sys.getenv("GEOJSON_REG")),
    merged_mla = read_sf(Sys.getenv("GEOJSON_PH")),
    aem        = read_sf(Sys.getenv("GEOJSON_AEM"))
 )
@@ -59,19 +61,10 @@ stirup$data$dx <- hs_data("harp_full", "reg", 2023, 6) %>%
             RES_PSGC_REG  = PSGC_REG,
             RES_PSGC_PROV = PSGC_PROV,
             RES_PSGC_MUNC = PSGC_MUNC,
+            RES_PSGC_AEM  = PSGC_AEM,
             region        = NHSSS_REG,
             province      = NHSSS_PROV,
             muncity       = NHSSS_AEM
-         ),
-      by = join_by(RES_PSGC_REG, RES_PSGC_PROV, RES_PSGC_MUNC)
-   ) %>%
-   left_join(
-      y  = stirup$refs$addr %>%
-         select(
-            RES_PSGC_REG  = PSGC_REG,
-            RES_PSGC_PROV = PSGC_PROV,
-            RES_PSGC_MUNC = PSGC_MUNC,
-            RES_PSGC_AEM  = PSGC_AEM,
          ),
       by = join_by(RES_PSGC_REG, RES_PSGC_PROV, RES_PSGC_MUNC)
    ) %>%
@@ -106,7 +99,48 @@ stirup$data$dx <- hs_data("harp_full", "reg", 2023, 6) %>%
       ~str_replace_all(., "RES_PSGC", "PSGC")
    )
 
+stirup$data$pse <- read_dta("C:/Users/Administrator/Downloads/2023 pop.dta") %>%
+   select(-starts_with("PSGC")) %>%
+   harp_addr_to_id(
+      ohasis$ref_addr,
+      c(
+         RES_PSGC_REG  = "region",
+         RES_PSGC_PROV = "province",
+         RES_PSGC_MUNC = "muncity"
+      ),
+      aem_sub_ntl = TRUE
+   ) %>%
+   mutate_at(
+      .vars = vars(contains("PSGC", ignore.case = FALSE)),
+      ~if_else(. != "", str_c("PH", .), .)
+   ) %>%
+   select(-region, -province, -muncity) %>%
+   left_join(
+      y  = stirup$refs$addr %>%
+         select(
+            RES_PSGC_REG  = PSGC_REG,
+            RES_PSGC_PROV = PSGC_PROV,
+            RES_PSGC_MUNC = PSGC_MUNC,
+            RES_PSGC_AEM  = PSGC_AEM,
+            region        = NHSSS_REG,
+            province      = NHSSS_PROV,
+            muncity       = NHSSS_AEM
+         ),
+      by = join_by(RES_PSGC_REG, RES_PSGC_PROV, RES_PSGC_MUNC)
+   ) %>%
+   rename(est_pop = y2023) %>%
+   rename_all(
+      ~str_replace_all(., "RES_PSGC", "PSGC")
+   ) %>%
+   mutate(
+      est_pop = floor(est_pop)
+   )
+
+
 stirup$agg$dx <- stirup$spdf$aem %>%
+   mutate(
+      AEM_PCODE = if_else(AEM_PCODE == "PH099700000", "PH099701000", AEM_PCODE, AEM_PCODE)
+   ) %>%
    left_join(
       y  = stirup$data$dx %>%
          group_by(PSGC_REG, PSGC_PROV, PSGC_AEM) %>%
@@ -124,6 +158,10 @@ stirup$agg$dx <- stirup$spdf$aem %>%
                   PSGC_PROV,
                   PSGC_AEM,
                   est
+               ) %>%
+               mutate_at(
+                  .vars = vars(contains("PSGC", ignore.case = FALSE)),
+                  ~if_else(. != "", str_c("PH", .), .)
                ),
             by = join_by(PSGC_REG, PSGC_PROV, PSGC_AEM)
          ) %>%
@@ -134,6 +172,25 @@ stirup$agg$dx <- stirup$spdf$aem %>%
             vl_suppression = (vl_suppressed / vl_tested) * 100,
          ),
       by = join_by(AEM_PCODE == PSGC_AEM)
+   )
+
+stirup$agg$pse <- stirup$spdf$merged_mla %>%
+   left_join(
+      y  = stirup$data$dx %>%
+         group_by(PSGC_REG, PSGC_PROV, PSGC_MUNC) %>%
+         summarise_at(
+            .vars = vars(dx, dx_plhiv, everonart, onart, vl_tested, vl_suppressed),
+            ~sum(., na.rm = TRUE)
+         ) %>%
+         ungroup(),
+      by = join_by(ADM3_PCODE == PSGC_MUNC)
+   ) %>%
+   left_join(
+      y  = stirup$data$pse,
+      by = join_by(ADM3_PCODE == PSGC_MUNC)
+   ) %>%
+   mutate(
+      case2pop_ratio = (coalesce(dx_plhiv, 0) / coalesce(est_pop, 0)) * 10000
    )
 
 ##  Process facilities information ---------------------------------------------
@@ -168,6 +225,37 @@ faci$faci_crcl <- ohasis$ref_faci %>%
       )
    ) %>%
    filter(drop == 0) %>%
+   select(FACI_ID, SUB_FACI_ID, FACI_NAME, LONG, LAT, FACI_CODE, FACI_ADDR)
+
+##  crcl facilities ------------------------------------------------------------
+
+faci$faci_newcrcl <- ohasis$ref_faci %>%
+   inner_join(
+      y  = read_sheet("1oix0x_v2g88nOVomMfX3RMIAxIBsliOP1hZc9ZAK1kM", "Sheet1") %>%
+         distinct(FACI_ID, SUB_FACI_ID) %>%
+         mutate(
+            SUB_FACI_ID = coalesce(SUB_FACI_ID, "")
+         ),
+      by = join_by(FACI_ID, SUB_FACI_ID)
+   ) %>%
+   mutate(
+      IS_HUB = if_else(nchar(FACI_CODE) >= 3, 1, 0),
+      drop   = case_when(
+         FACI_ID == "130023" & SUB_FACI_ID == "130023_002" ~ 1,
+         FACI_ID == "130023" & SUB_FACI_ID == "" ~ 1,
+         FACI_ID == "130023" & SUB_FACI_ID != "" ~ 0,
+         !(FACI_ID %in% c("130001", "130605")) & SUB_FACI_ID == "" ~ 0,
+         !(FACI_ID %in% c("130001", "130605")) & SUB_FACI_ID != "" ~ 1,
+         FACI_ID %in% c("130001", "130605") & SUB_FACI_ID != "" ~ 1,
+         TRUE ~ 9999
+      )
+   ) %>%
+   filter(drop == 0) %>%
+   anti_join(
+      y  = faci$faci_crcl %>%
+         select(FACI_ID, SUB_FACI_ID),
+      by = join_by(FACI_ID, SUB_FACI_ID)
+   ) %>%
    select(FACI_ID, SUB_FACI_ID, FACI_NAME, LONG, LAT, FACI_CODE, FACI_ADDR)
 
 ##  tx facilities --------------------------------------------------------------
@@ -218,241 +306,211 @@ faci$faci_prep <- ohasis$ref_faci %>%
 
 ##  Plot interactive map -------------------------------------------------------
 
-# assets for maps
-stirup$map$assets <- list(
-   faci = list(
-      tx   = "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pg0KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjAuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDUxMS45OTkgNTExLjk5OSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTExLjk5OSA1MTEuOTk5OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8cGF0aCBzdHlsZT0iZmlsbDojMjlhMDhjOyIgZD0iTTQ1NC44NDgsMTk4Ljg0OGMwLDE1OS4yMjUtMTc5Ljc1MSwzMDYuNjg5LTE3OS43NTEsMzA2LjY4OWMtMTAuNTAzLDguNjE3LTI3LjY5Miw4LjYxNy0zOC4xOTUsMA0KCWMwLDAtMTc5Ljc1MS0xNDcuNDY0LTE3OS43NTEtMzA2LjY4OUM1Ny4xNTMsODkuMDI3LDE0Ni4xOCwwLDI1NiwwUzQ1NC44NDgsODkuMDI3LDQ1NC44NDgsMTk4Ljg0OHoiLz4NCjxwYXRoIHN0eWxlPSJmaWxsOiNiNGUzY2M7IiBkPSJNMjU2LDI5OC44OWMtNTUuMTY0LDAtMTAwLjA0MS00NC44NzktMTAwLjA0MS0xMDAuMDQxUzIwMC44MzgsOTguODA2LDI1Niw5OC44MDYNCglzMTAwLjA0MSw0NC44NzksMTAwLjA0MSwxMDAuMDQxUzMxMS4xNjQsMjk4Ljg5LDI1NiwyOTguODl6Ii8+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8L3N2Zz4NCg==",
-      prep = "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pg0KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjAuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDUxMS45OTkgNTExLjk5OSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTExLjk5OSA1MTEuOTk5OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8cGF0aCBzdHlsZT0iZmlsbDojNDI4Y2M0OyIgZD0iTTQ1NC44NDgsMTk4Ljg0OGMwLDE1OS4yMjUtMTc5Ljc1MSwzMDYuNjg5LTE3OS43NTEsMzA2LjY4OWMtMTAuNTAzLDguNjE3LTI3LjY5Miw4LjYxNy0zOC4xOTUsMA0KCWMwLDAtMTc5Ljc1MS0xNDcuNDY0LTE3OS43NTEtMzA2LjY4OUM1Ny4xNTMsODkuMDI3LDE0Ni4xOCwwLDI1NiwwUzQ1NC44NDgsODkuMDI3LDQ1NC44NDgsMTk4Ljg0OHoiLz4NCjxwYXRoIHN0eWxlPSJmaWxsOiM4MGE4YzQ7IiBkPSJNMjU2LDI5OC44OWMtNTUuMTY0LDAtMTAwLjA0MS00NC44NzktMTAwLjA0MS0xMDAuMDQxUzIwMC44MzgsOTguODA2LDI1Niw5OC44MDYNCglzMTAwLjA0MSw0NC44NzksMTAwLjA0MSwxMDAuMDQxUzMxMS4xNjQsMjk4Ljg5LDI1NiwyOTguODl6Ii8+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8L3N2Zz4NCg==",
-      crcl = "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pg0KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjAuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDUxMS45OTkgNTExLjk5OSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTExLjk5OSA1MTEuOTk5OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8cGF0aCBzdHlsZT0iZmlsbDojODY1ZWI3OyIgZD0iTTQ1NC44NDgsMTk4Ljg0OGMwLDE1OS4yMjUtMTc5Ljc1MSwzMDYuNjg5LTE3OS43NTEsMzA2LjY4OWMtMTAuNTAzLDguNjE3LTI3LjY5Miw4LjYxNy0zOC4xOTUsMA0KCWMwLDAtMTc5Ljc1MS0xNDcuNDY0LTE3OS43NTEtMzA2LjY4OUM1Ny4xNTMsODkuMDI3LDE0Ni4xOCwwLDI1NiwwUzQ1NC44NDgsODkuMDI3LDQ1NC44NDgsMTk4Ljg0OHoiLz4NCjxwYXRoIHN0eWxlPSJmaWxsOiNhMDhkYjc7IiBkPSJNMjU2LDI5OC44OWMtNTUuMTY0LDAtMTAwLjA0MS00NC44NzktMTAwLjA0MS0xMDAuMDQxUzIwMC44MzgsOTguODA2LDI1Niw5OC44MDYNCglzMTAwLjA0MSw0NC44NzksMTAwLjA0MSwxMDAuMDQxUzMxMS4xNjQsMjk4Ljg5LDI1NiwyOTguODl6Ii8+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8L3N2Zz4NCg=="
-   )
+# layer creator
+stirup$map$fns <- list(
+   polygon = function(map, poly_data) {
+      poly_data$data %<>%
+         mutate_at(
+            .vars = vars("ADM1_EN"),
+            ~case_when(
+               . == "Region XIII" ~ "CARAGA",
+               . == "Cordillera Administrative Region" ~ "CAR",
+               . == "Autonomous Region in Muslim Mindanao" ~ "BARMM",
+               . == "National Capital Region" ~ "NCR",
+               TRUE ~ .
+            )
+         )
+      new_map <- map %>%
+         addPolygons(
+            data             = poly_data$data,
+            fillColor        = poly_data$pal(poly_data$data[[poly_data$var]]),
+            weight           = 2,
+            opacity          = 1,
+            color            = "white",
+            dashArray        = "3",
+            fillOpacity      = 0.7,
+            highlightOptions = highlightOptions(
+               weight       = 5,
+               color        = "#666",
+               dashArray    = "",
+               fillOpacity  = 0.7,
+               bringToFront = TRUE
+            ),
+            label            = poly_data$label,
+            labelOptions     = labelOptions(
+               style     = list(
+                  "font-weight" = "normal",
+                  "font-family" = "Lato",
+                  padding       = "3px 8px"
+               ),
+               textsize  = "15px",
+               direction = "auto"
+            ),
+            group            = poly_data$name,
+            layerId          = str_c(poly_data$name, "|", poly_data$data[["ADM1_EN"]], "|", poly_data$data[[poly_data$id]])
+         ) %>%
+         addLegend(
+            data     = poly_data$data,
+            pal      = poly_data$pal,
+            values   = poly_data$data[[poly_data$var]],
+            opacity  = 0.9,
+            position = "bottomleft",
+            title    = poly_data$name,
+            group    = poly_data$name,
+         )
+
+      return(new_map)
+   },
+   marker  = function(map, marker_data) {
+      marker_legend <- lapply(glue(r"(<img src="{marker_data$img}" height=17/>&nbsp;{marker_data$name})"), htmltools::HTML)
+      marker_text   <- lapply(str_c("<b>", marker_data$data$FACI_NAME, "</b><br/>", gsub(";", "<br/>", coalesce(marker_data$data$FACI_ADDR, ""))), htmltools::HTML)
+
+      new_map <- map %>%
+         addMarkers(
+            ~marker_data$data$LONG,
+            ~marker_data$data$LAT,
+            data         = marker_data$plot,
+            icon         = makeIcon(
+               iconUrl     = marker_data$img,
+               iconWidth   = 20,
+               iconHeight  = 20,
+               iconAnchorX = 10,
+               iconAnchorY = 20,
+            ),
+            label        = marker_text,
+            labelOptions = labelOptions(
+               style     = list(
+                  "font-weight" = "normal",
+                  "font-family" = "Lato",
+                  padding       = "3px 8px"
+               ),
+               textsize  = "15px",
+               direction = "auto"
+            ),
+            group        = marker_data$name
+         ) %>%
+         addControl(
+            html     = marker_legend,
+            position = "bottomleft"
+         )
+
+      return(new_map)
+   }
 )
-stirup$map$assets$img <-
 
 # Create a color palette for the map:
 stirup$map$layers <- list(
    polygon = list(
       est = list(
          data  = stirup$agg$dx,
-         label = lapply(htmltools::HTML, stri_c(
-            "<b>", stirup$agg$dx$AEM_EN, "</b><br/>",
-            "Estimated PLHIV: <b><i>", format(stirup$agg$dx$est, big.mark = ","), "</i></b><br/>",
-            "Diagnosed PLHIV: <b><i>", format(stirup$agg$dx$dx_plhiv, big.mark = ","), "</i></b>"
-         )),
-         pal   = colorBin("YlOrBr", domain = stirup$agg$dx$est, na.color = "transparent", bins = c(0, 100, 500, 1000, 2000, 5000, Inf))
+         label = lapply(
+            str_c(
+               "<b>", stirup$agg$dx$AEM_EN, "</b><br/>",
+               "Estimated PLHIV: <b><i>", format(stirup$agg$dx$est, big.mark = ","), "</i></b><br/>",
+               "Diagnosed PLHIV: <b><i>", format(stirup$agg$dx$dx_plhiv, big.mark = ","), "</i></b>"
+            ),
+            htmltools::HTML
+         ),
+         pal   = colorBin("YlOrBr", domain = stirup$agg$dx$est, na.color = "transparent", bins = quantile(stirup$agg$dx$est, seq(0, 1, 0.10), na.rm = TRUE)),
+         var   = "est",
+         id    = "AEM_PCODE",
+         name  = "PLHIV & KP Size Estimates"
+      ),
+      pse = list(
+         data  = stirup$agg$pse,
+         label = lapply(
+            str_c(
+               "<b>", stirup$agg$pse$ADM3_EN, "</b><br/>",
+               "Diagnosed PLHIV: <b><i>", format(stirup$agg$pse$dx_plhiv, big.mark = ","), "</i></b><br/>",
+               "Total Population: <b><i>", format(stirup$agg$pse$est_pop, big.mark = ","), "</i></b><br/>",
+               "Case-to-population ratio: <b><i>", format(stirup$agg$pse$case2pop_ratio, big.mark = ","), "</i></b>"
+            ),
+            htmltools::HTML
+         ),
+         pal   = colorBin("YlGnBu", domain = stirup$agg$pse, na.color = "transparent", bins = quantile(stirup$agg$pse$case2pop_ratio, seq(0, 1, 0.10), na.rm = TRUE)),
+         var   = "case2pop_ratio",
+         id    = "ADM3_PCODE",
+         name  = "Case-to-population ratio"
       )
+   ),
+   marker  = list(
+      tx      = list(name = "Treatment Hubs", plot = stirup$agg$dx, data = faci$faci_tx, img = "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pg0KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjAuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDUxMS45OTkgNTExLjk5OSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTExLjk5OSA1MTEuOTk5OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8cGF0aCBzdHlsZT0iZmlsbDojMjlhMDhjOyIgZD0iTTQ1NC44NDgsMTk4Ljg0OGMwLDE1OS4yMjUtMTc5Ljc1MSwzMDYuNjg5LTE3OS43NTEsMzA2LjY4OWMtMTAuNTAzLDguNjE3LTI3LjY5Miw4LjYxNy0zOC4xOTUsMA0KCWMwLDAtMTc5Ljc1MS0xNDcuNDY0LTE3OS43NTEtMzA2LjY4OUM1Ny4xNTMsODkuMDI3LDE0Ni4xOCwwLDI1NiwwUzQ1NC44NDgsODkuMDI3LDQ1NC44NDgsMTk4Ljg0OHoiLz4NCjxwYXRoIHN0eWxlPSJmaWxsOiNiNGUzY2M7IiBkPSJNMjU2LDI5OC44OWMtNTUuMTY0LDAtMTAwLjA0MS00NC44NzktMTAwLjA0MS0xMDAuMDQxUzIwMC44MzgsOTguODA2LDI1Niw5OC44MDYNCglzMTAwLjA0MSw0NC44NzksMTAwLjA0MSwxMDAuMDQxUzMxMS4xNjQsMjk4Ljg5LDI1NiwyOTguODl6Ii8+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8L3N2Zz4NCg=="),
+      prep    = list(name = "PrEP Sites", plot = stirup$agg$dx, data = faci$faci_prep, img = "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pg0KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjAuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDUxMS45OTkgNTExLjk5OSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTExLjk5OSA1MTEuOTk5OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8cGF0aCBzdHlsZT0iZmlsbDojNDI4Y2M0OyIgZD0iTTQ1NC44NDgsMTk4Ljg0OGMwLDE1OS4yMjUtMTc5Ljc1MSwzMDYuNjg5LTE3OS43NTEsMzA2LjY4OWMtMTAuNTAzLDguNjE3LTI3LjY5Miw4LjYxNy0zOC4xOTUsMA0KCWMwLDAtMTc5Ljc1MS0xNDcuNDY0LTE3OS43NTEtMzA2LjY4OUM1Ny4xNTMsODkuMDI3LDE0Ni4xOCwwLDI1NiwwUzQ1NC44NDgsODkuMDI3LDQ1NC44NDgsMTk4Ljg0OHoiLz4NCjxwYXRoIHN0eWxlPSJmaWxsOiM4MGE4YzQ7IiBkPSJNMjU2LDI5OC44OWMtNTUuMTY0LDAtMTAwLjA0MS00NC44NzktMTAwLjA0MS0xMDAuMDQxUzIwMC44MzgsOTguODA2LDI1Niw5OC44MDYNCglzMTAwLjA0MSw0NC44NzksMTAwLjA0MSwxMDAuMDQxUzMxMS4xNjQsMjk4Ljg5LDI1NiwyOTguODl6Ii8+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8L3N2Zz4NCg=="),
+      crcl    = list(name = "CrCLs", plot = stirup$agg$dx, data = faci$faci_crcl, img = "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pg0KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjAuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDUxMS45OTkgNTExLjk5OSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTExLjk5OSA1MTEuOTk5OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8cGF0aCBzdHlsZT0iZmlsbDojODY1ZWI3OyIgZD0iTTQ1NC44NDgsMTk4Ljg0OGMwLDE1OS4yMjUtMTc5Ljc1MSwzMDYuNjg5LTE3OS43NTEsMzA2LjY4OWMtMTAuNTAzLDguNjE3LTI3LjY5Miw4LjYxNy0zOC4xOTUsMA0KCWMwLDAtMTc5Ljc1MS0xNDcuNDY0LTE3OS43NTEtMzA2LjY4OUM1Ny4xNTMsODkuMDI3LDE0Ni4xOCwwLDI1NiwwUzQ1NC44NDgsODkuMDI3LDQ1NC44NDgsMTk4Ljg0OHoiLz4NCjxwYXRoIHN0eWxlPSJmaWxsOiNhMDhkYjc7IiBkPSJNMjU2LDI5OC44OWMtNTUuMTY0LDAtMTAwLjA0MS00NC44NzktMTAwLjA0MS0xMDAuMDQxUzIwMC44MzgsOTguODA2LDI1Niw5OC44MDYNCglzMTAwLjA0MSw0NC44NzksMTAwLjA0MSwxMDAuMDQxUzMxMS4xNjQsMjk4Ljg5LDI1NiwyOTguODl6Ii8+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8L3N2Zz4NCg=="),
+      newcrcl = list(name = "rHIVda Expansion 2023", plot = stirup$agg$dx, data = faci$faci_newcrcl, img = "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pg0KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjAuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDUxMS45OTkgNTExLjk5OSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTExLjk5OSA1MTEuOTk5OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8cGF0aCBzdHlsZT0iZmlsbDojRTA1NjUyOyIgZD0iTTQ1NC44NDgsMTk4Ljg0OGMwLDE1OS4yMjUtMTc5Ljc1MSwzMDYuNjg5LTE3OS43NTEsMzA2LjY4OWMtMTAuNTAzLDguNjE3LTI3LjY5Miw4LjYxNy0zOC4xOTUsMA0KCWMwLDAtMTc5Ljc1MS0xNDcuNDY0LTE3OS43NTEtMzA2LjY4OUM1Ny4xNTMsODkuMDI3LDE0Ni4xOCwwLDI1NiwwUzQ1NC44NDgsODkuMDI3LDQ1NC44NDgsMTk4Ljg0OHoiLz4NCjxwYXRoIHN0eWxlPSJmaWxsOiNGNkNDQ0I7IiBkPSJNMjU2LDI5OC44OWMtNTUuMTY0LDAtMTAwLjA0MS00NC44NzktMTAwLjA0MS0xMDAuMDQxUzIwMC44MzgsOTguODA2LDI1Niw5OC44MDYNCglzMTAwLjA0MSw0NC44NzksMTAwLjA0MSwxMDAuMDQxUzMxMS4xNjQsMjk4Ljg5LDI1NiwyOTguODl6Ii8+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8L3N2Zz4NCg==")
    )
 )
-color_dist        <- colorBin("YlOrBr", domain = stirup$agg$dx$est, na.color = "transparent", bins = c(0, 100, 500, 1000, 2000, 5000, Inf))
-bin_dxcoverage    <- colorBin("RdYlGn", domain = stirup$agg$dx$dx_coverage, na.color = "transparent", bins = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100))
-bin_txcoverage    <- colorBin("RdYlGn", domain = stirup$agg$dx$tx_coverage, na.color = "transparent", bins = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100))
-bin_vlcoverage    <- colorBin("RdYlGn", domain = stirup$agg$dx$vl_coverage, na.color = "transparent", bins = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100))
-bin_suppression   <- colorBin("RdYlGn", domain = stirup$agg$dx$vl_suppression, na.color = "transparent", bins = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100))
-
-# Prepare the text for tooltips:
-chloropleth_text <- stri_c(
-   "<b>", stirup$agg$dx$AEM_EN, "</b><br/>",
-   "Estimated PLHIV: <b><i>", format(stirup$agg$dx$est, big.mark = ","), "</i></b><br/>",
-   "Diagnosed PLHIV: <b><i>", format(stirup$agg$dx$dx_plhiv, big.mark = ","), "</i></b>"
-) %>%
-   lapply(htmltools::HTML)
-
-
-crcl_text <- stri_c(
-   "<b>", faci$faci_crcl$FACI_NAME, "</b><br/>",
-   gsub(";", "<br/>", faci$faci_crcl$FACI_ADDR)
-) %>%
-   lapply(htmltools::HTML)
-
-tx_text <- stri_c(
-   "<b>", faci$faci_tx$FACI_NAME, "</b><br/>",
-   gsub(";", "<br/>", faci$faci_tx$FACI_ADDR)
-) %>%
-   lapply(htmltools::HTML)
-
-prep_text <- stri_c(
-   "<b>", faci$faci_prep$FACI_NAME, "</b><br/>",
-   gsub(";", "<br/>", faci$faci_prep$FACI_ADDR)
-) %>%
-   lapply(htmltools::HTML)
-
-legend_tx   <- r"(<img src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pg0KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjAuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDUxMS45OTkgNTExLjk5OSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTExLjk5OSA1MTEuOTk5OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8cGF0aCBzdHlsZT0iZmlsbDojMjlhMDhjOyIgZD0iTTQ1NC44NDgsMTk4Ljg0OGMwLDE1OS4yMjUtMTc5Ljc1MSwzMDYuNjg5LTE3OS43NTEsMzA2LjY4OWMtMTAuNTAzLDguNjE3LTI3LjY5Miw4LjYxNy0zOC4xOTUsMA0KCWMwLDAtMTc5Ljc1MS0xNDcuNDY0LTE3OS43NTEtMzA2LjY4OUM1Ny4xNTMsODkuMDI3LDE0Ni4xOCwwLDI1NiwwUzQ1NC44NDgsODkuMDI3LDQ1NC44NDgsMTk4Ljg0OHoiLz4NCjxwYXRoIHN0eWxlPSJmaWxsOiNiNGUzY2M7IiBkPSJNMjU2LDI5OC44OWMtNTUuMTY0LDAtMTAwLjA0MS00NC44NzktMTAwLjA0MS0xMDAuMDQxUzIwMC44MzgsOTguODA2LDI1Niw5OC44MDYNCglzMTAwLjA0MSw0NC44NzksMTAwLjA0MSwxMDAuMDQxUzMxMS4xNjQsMjk4Ljg5LDI1NiwyOTguODl6Ii8+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8L3N2Zz4NCg==" height=17/>&nbsp;Treatment Hubs)" %>% lapply(htmltools::HTML)
-legend_prep <- r"(<img src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pg0KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjAuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDUxMS45OTkgNTExLjk5OSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTExLjk5OSA1MTEuOTk5OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8cGF0aCBzdHlsZT0iZmlsbDojNDI4Y2M0OyIgZD0iTTQ1NC44NDgsMTk4Ljg0OGMwLDE1OS4yMjUtMTc5Ljc1MSwzMDYuNjg5LTE3OS43NTEsMzA2LjY4OWMtMTAuNTAzLDguNjE3LTI3LjY5Miw4LjYxNy0zOC4xOTUsMA0KCWMwLDAtMTc5Ljc1MS0xNDcuNDY0LTE3OS43NTEtMzA2LjY4OUM1Ny4xNTMsODkuMDI3LDE0Ni4xOCwwLDI1NiwwUzQ1NC44NDgsODkuMDI3LDQ1NC44NDgsMTk4Ljg0OHoiLz4NCjxwYXRoIHN0eWxlPSJmaWxsOiM4MGE4YzQ7IiBkPSJNMjU2LDI5OC44OWMtNTUuMTY0LDAtMTAwLjA0MS00NC44NzktMTAwLjA0MS0xMDAuMDQxUzIwMC44MzgsOTguODA2LDI1Niw5OC44MDYNCglzMTAwLjA0MSw0NC44NzksMTAwLjA0MSwxMDAuMDQxUzMxMS4xNjQsMjk4Ljg5LDI1NiwyOTguODl6Ii8+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8L3N2Zz4NCg==" height=17/>&nbsp;PrEP Sites)" %>% lapply(htmltools::HTML)
-legend_crcl <- r"(<img src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pg0KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjAuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPg0KPHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJMYXllcl8xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCINCgkgdmlld0JveD0iMCAwIDUxMS45OTkgNTExLjk5OSIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTExLjk5OSA1MTEuOTk5OyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+DQo8cGF0aCBzdHlsZT0iZmlsbDojODY1ZWI3OyIgZD0iTTQ1NC44NDgsMTk4Ljg0OGMwLDE1OS4yMjUtMTc5Ljc1MSwzMDYuNjg5LTE3OS43NTEsMzA2LjY4OWMtMTAuNTAzLDguNjE3LTI3LjY5Miw4LjYxNy0zOC4xOTUsMA0KCWMwLDAtMTc5Ljc1MS0xNDcuNDY0LTE3OS43NTEtMzA2LjY4OUM1Ny4xNTMsODkuMDI3LDE0Ni4xOCwwLDI1NiwwUzQ1NC44NDgsODkuMDI3LDQ1NC44NDgsMTk4Ljg0OHoiLz4NCjxwYXRoIHN0eWxlPSJmaWxsOiNhMDhkYjc7IiBkPSJNMjU2LDI5OC44OWMtNTUuMTY0LDAtMTAwLjA0MS00NC44NzktMTAwLjA0MS0xMDAuMDQxUzIwMC44MzgsOTguODA2LDI1Niw5OC44MDYNCglzMTAwLjA0MSw0NC44NzksMTAwLjA0MSwxMDAuMDQxUzMxMS4xNjQsMjk4Ljg5LDI1NiwyOTguODl6Ii8+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8Zz4NCjwvZz4NCjxnPg0KPC9nPg0KPGc+DQo8L2c+DQo8L3N2Zz4NCg==" height=17/>&nbsp;CrCLs)" %>% lapply(htmltools::HTML)
 
 # Final Map
 m <- leaflet() %>%
    addTiles() %>%
    addProviderTiles("Esri.WorldGrayCanvas", group = "Gray Overlay") %>%
-   addPolygons(
-      data             = stirup$map$layers$data,
-      fillColor        = ~color_dist(est),
-      weight           = 2,
-      opacity          = 1,
-      color            = "white",
-      dashArray        = "3",
-      fillOpacity      = 0.7,
-      highlightOptions = highlightOptions(
-         weight       = 5,
-         color        = "#666",
-         dashArray    = "",
-         fillOpacity  = 0.7,
-         bringToFront = TRUE),
-      label            = chloropleth_text,
-      labelOptions     = labelOptions(
-         style     = list(
-            "font-weight" = "normal",
-            "font-family" = "Calibri",
-            padding       = "3px 8px"
-         ),
-         textsize  = "15px",
-         direction = "auto"
-      ),
-      group            = "EB Data (MSM & TGW and PLHIV Estimates)"
-   ) %>%
-   addMarkers(
-      ~faci$faci_tx$LONG,
-      ~faci$faci_tx$LAT,
-      data         = stirup$agg$dx,
-      icon         = makeIcon(
-         iconUrl     = img64_tx,
-         iconWidth   = 20,
-         iconHeight  = 20,
-         iconAnchorX = 10,
-         iconAnchorY = 20,
-      ),
-      label        = tx_text,
-      labelOptions = labelOptions(
-         style     = list(
-            "font-weight" = "normal",
-            "font-family" = "Calibri",
-            padding       = "3px 8px"
-         ),
-         textsize  = "15px",
-         direction = "auto"
-      ),
-      group        = "Treatment Hubs"
-   ) %>%
-   addMarkers(
-      ~faci$faci_prep$LONG,
-      ~faci$faci_prep$LAT,
-      data         = stirup$agg$dx,
-      icon         = makeIcon(
-         iconUrl     = img64_prep,
-         iconWidth   = 20,
-         iconHeight  = 20,
-         iconAnchorX = 10,
-         iconAnchorY = 20,
-      ),
-      label        = prep_text,
-      labelOptions = labelOptions(
-         style     = list(
-            "font-weight" = "normal",
-            "font-family" = "Calibri",
-            padding       = "3px 8px"
-         ),
-         textsize  = "15px",
-         direction = "auto"
-      ),
-      group        = "PrEP Sites"
-   ) %>%
-   addMarkers(
-      ~faci$faci_crcl$LONG,
-      ~faci$faci_crcl$LAT,
-      data         = stirup$agg$dx,
-      icon         = makeIcon(
-         iconUrl     = img64_crcl,
-         iconWidth   = 20,
-         iconHeight  = 20,
-         iconAnchorX = 10,
-         iconAnchorY = 20,
-      ),
-      label        = crcl_text,
-      labelOptions = labelOptions(
-         style     = list(
-            "font-weight" = "normal",
-            "font-family" = "Calibri",
-            padding       = "3px 8px"
-         ),
-         textsize  = "15px",
-         direction = "auto"
-      ),
-      group        = "CrCLs"
-   ) %>%
-   addLegend(
-      data     = stirup$agg$dx,
-      pal      = color_dist,
-      values   = ~est,
-      opacity  = 0.9,
-      position = "bottomleft",
-      title    = "Estimated PLHIV",
-      group    = "EB Data (MSM & TGW and PLHIV Estimates)"
-   ) %>%
-   addLegend(
-      data      = stirup$agg$dx,
-      pal       = bin_dxcoverage,
-      values    = ~dx_coverage,
-      opacity   = 0.9,
-      position  = "bottomleft",
-      title     = "Diagnosis Coverage",
-      group     = "Dx Coverage",
-      labFormat = labelFormat(
-         suffix = "%"
-      )
-   ) %>%
-   addLegend(
-      data      = stirup$agg$dx,
-      pal       = bin_txcoverage,
-      values    = ~tx_coverage,
-      opacity   = 0.9,
-      position  = "bottomleft",
-      title     = "Treatment Coverage",
-      group     = "Tx Coverage",
-      labFormat = labelFormat(
-         suffix = "%"
-      )
-   ) %>%
-   addLegend(
-      data      = stirup$agg$dx,
-      pal       = bin_vlcoverage,
-      values    = ~vl_coverage,
-      opacity   = 0.9,
-      position  = "bottomleft",
-      title     = "VL Testing Coverage",
-      group     = "VL Coverage",
-      labFormat = labelFormat(
-         suffix = "%"
-      )
-   ) %>%
-   addLegend(
-      data      = stirup$agg$dx,
-      pal       = bin_suppression,
-      values    = ~vl_suppression,
-      opacity   = 0.9,
-      position  = "bottomleft",
-      title     = "VL Suppression",
-      group     = "VL Suppression",
-      labFormat = labelFormat(
-         suffix = "%"
-      )
-   ) %>%
-   addControl(
-      html     = legend_prep,
-      position = "bottomleft"
-   ) %>%
-   addControl(
-      html     = legend_tx,
-      position = "bottomleft"
-   ) %>%
-   addControl(
-      html     = legend_crcl,
-      position = "bottomleft"
-   ) %>%
+   stirup$map$fns$polygon(stirup$map$layers$polygon$est) %>%
+   stirup$map$fns$polygon(stirup$map$layers$polygon$pse) %>%
+   stirup$map$fns$marker(stirup$map$layers$marker$tx) %>%
+   stirup$map$fns$marker(stirup$map$layers$marker$prep) %>%
+   stirup$map$fns$marker(stirup$map$layers$marker$crcl) %>%
+   stirup$map$fns$marker(stirup$map$layers$marker$newcrcl) %>%
+   # addPolylines(data = stirup$spdf$regions, color = "#3d3d3d", opacity = .9, weight = 2, dashArray = " ", group = "Region Borders") %>%
    addLayersControl(
-      overlayGroups = c("EB Data (MSM & TGW and PLHIV Estimates)", "Dx Coverage", "Tx Coverage", "VL Coverage", "VL Suppression", "CrCLs", "Treatment Hubs", "PrEP Sites", "Gray Overlay"),
-      options       = layersControlOptions(collapsed = F)
-   )
+      baseGroups    = c("PLHIV & KP Size Estimates", "Case-to-population ratio"),
+      overlayGroups = c("CrCLs", "rHIVda Expansion 2023", "Treatment Hubs", "PrEP Sites", "Gray Overlay", "Region I", "Region II", "Region III", "Region IV-A", "Region IV-B", "Region V", "Region VI", "Region VII", "Region VIII", "Region IX", "Region X", "Region XI", "Region XII", "BARMM", "CAR", "CARAGA", "NCR"),
+      options       = layersControlOptions(collapsed = FALSE)
+   ) %>%
+   htmlwidgets::onRender("
+    function(el, x) {
+      var myMap = this;
+      var baseLayer = 'PLHIV & KP Size Estimates';
+      console.log(myMap);
+      myMap.eachLayer(function(layer){
+        var id = layer.options.layerId;
+        if (id){
+          if ('PLHIV & KP Size Estimates' !== id.split('|')[0]){
+            layer.getElement().style.display = 'none';
+          }
+        }
+      })
+      myMap.on('baselayerchange',
+        function (e) {
+          baseLayer=e.name;
+          myMap.eachLayer(function (layer) {
+              var id = layer.options.layerId;
+              if (id){
+                if (e.name !== id.split('|')[0]){
+                  layer.getElement().style.display = 'none';
+                  layer.closePopup();
+                }
+                if (e.name === id.split('|')[0]){
+                  layer.getElement().style.display = 'block';
+                }
+              }
 
-rmarkdown::find_pandoc(dir = "C:/Program Files/Pandoc")
-htmlwidgets::saveWidget(m, "E:/_R/ph_map_stirup2023.html", selfcontained = TRUE)
+          });
+        })
+        myMap.on('overlayadd', function(e){
+          myMap.eachLayer(function(layer){
+            var id = layer.options.layerId;
+            if (id){
+                if (baseLayer === id.split('|')[0] && e.name === id.split('|')[1]){
+                  layer.getElement().style.display = 'block';
+                }
+            }
+          })
+        })
+        myMap.on('overlayremove', function(e){
+          myMap.eachLayer(function(layer){
+            var id = layer.options.layerId;
+            if (id){
+                if (baseLayer === id.split('|')[0] && e.name === id.split('|')[1]){
+                  layer.getElement().style.display = 'none';
+                }
+            }
+          })
+        })
+    }")
+
+m
+htmlwidgets::saveWidget(m, "H:/_R/ph_map_stirup2023.html", selfcontained = TRUE)
 htmlwidgets::saveWidget(m, "//192.168.193.228/htdocs/ph_facilities/index.html", selfcontained = FALSE)
 mapshot(m, "C:/ph_facilities.html")
+
