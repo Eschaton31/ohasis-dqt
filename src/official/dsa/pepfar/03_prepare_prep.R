@@ -95,7 +95,7 @@ generate_disagg <- function(data, coverage) {
          ),
 
          # Age Band
-         curr_age        = floor(curr_age),
+         curr_age        = floor(calc_age(birthdate, latest_ffupdate)),
          Age_Band        = case_when(
             curr_age >= 0 & curr_age < 5 ~ "01_0-4",
             curr_age >= 5 & curr_age < 10 ~ "02_5-9",
