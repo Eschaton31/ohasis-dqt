@@ -307,6 +307,7 @@ load_harp <- function(coverage, id_reg) {
       ungroup()
 
    harp$prep$new %<>%
+      select(-contains("risks")) %>%
       left_join(
          y  = risk,
          by = join_by(prep_id)

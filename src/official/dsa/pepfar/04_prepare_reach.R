@@ -75,6 +75,7 @@ consolidate_risks <- function(data) {
 
 clean_hts <- function(data, risk) {
    data %<>%
+      select(-matches("risks")) %>%
       left_join(y = risk, by = join_by(REC_ID)) %>%
       mutate(
          # tag if central to be used
@@ -336,32 +337,6 @@ generate_disagg <- function(data) {
          ),
          "name"
       ) %>%
-      mutate(
-         CBS_VENUE      = toupper(str_squish(HIV_SERVICE_ADDR)),
-         ONLINE_APP     = case_when(
-            grepl("GRINDR", CBS_VENUE) ~ "GRINDR",
-            grepl("GRNDR", CBS_VENUE) ~ "GRINDR",
-            grepl("GRINDER", CBS_VENUE) ~ "GRINDR",
-            grepl("TWITTER", CBS_VENUE) ~ "TWITTER",
-            grepl("FACEBOOK", CBS_VENUE) ~ "FACEBOOK",
-            grepl("MESSENGER", CBS_VENUE) ~ "FACEBOOK",
-            grepl("\\bFB\\b", CBS_VENUE) ~ "FACEBOOK",
-            grepl("\\bGR\\b", CBS_VENUE) ~ "GRINDR",
-         ),
-         REACH_ONLINE   = if_else(!is.na(ONLINE_APP), "1_Yes", REACH_ONLINE, REACH_ONLINE),
-         REACH_CLINICAL = if_else(
-            condition = if_all(starts_with("REACH_"), ~is.na(.)) & hts_modality == "FBT",
-            true      = "1_Yes",
-            false     = REACH_CLINICAL,
-            missing   = REACH_CLINICAL
-         ),
-         CONFIRM_LAB    = if_else(
-            CONFIRM_TYPE == "1_Central NRL",
-            "NRL-SACCL",
-            CONFIRM_LAB,
-            CONFIRM_LAB
-         )
-      ) %>%
       rename(
          CREATED = CREATED_BY,
          UPDATED = UPDATED_BY,
@@ -380,13 +355,13 @@ generate_disagg <- function(data) {
          -FACI_ID,
          -SUB_FACI_ID,
          -SERVICE_FACI,
-         -MODALITY,
-         -use_record_faci,
-         -IDNUM,
-         -PERM_ADDR,
-         -CURR_ADDR,
-         -BIRTH_ADDR,
          -any_of(c(
+            "MODALITY",
+            "use_record_faci",
+            "IDNUM",
+            "PERM_ADDR",
+            "CURR_ADDR",
+            "BIRTH_ADDR",
             "FIRST",
             "MIDDLE",
             "LAST",
