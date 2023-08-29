@@ -35,7 +35,8 @@ pse$files    <- list(
    pse_gf = "H:/Software/OHASIS/DQT/src/official/pse2023/2022-Pop-Size-estimates-with-GF.dta",
    harp   = "H:/Software/OHASIS/DQT/src/official/pse2023/harp-cases-with-psgc.dta",
    labbs  = "H:/Software/OHASIS/DQT/src/official/pse2023/labbs.dta",
-   hepc   = "H:/Software/OHASIS/DQT/src/official/pse2023/Hep-C-merged.dta"
+   hepc   = "H:/Software/OHASIS/DQT/src/official/pse2023/Hep-C-merged.dta",
+   dx     = "C:/Users/Administrator/Downloads/harpdx.dta"
 )
 
 pse$data <- lapply(pse$files, read_dta)
@@ -64,7 +65,7 @@ pse$psgc$pse_gf <- pse$data$pse_gf %>%
    ) %>%
    left_join(pse$ref_addr)
 
-pse$psgc$harp <- pse$data$harp %>%
+pse$psgc$dx <- pse$data$dx %>%
    mutate(
       overseas_addr = case_when(
          muncity == "OUT OF COUNTRY" ~ 1,
@@ -90,6 +91,39 @@ pse$psgc$harp <- pse$data$harp %>%
       ),
    ) %>%
    left_join(pse$ref_addr)
+
+pse$psgc$harp <- pse$data$harp %>%
+   select(-starts_with("RES_PSGC")) %>%
+   mutate(
+      overseas_addr = case_when(
+         muncity == "OUT OF COUNTRY" ~ 1,
+         TRUE ~ 0
+      ),
+
+      # address
+      muncity       = case_when(
+         muncity == "PINAMUNGAHAN" & province == "CEBU" ~ "PINAMUNGAJAN",
+         muncity == "SAN JUAN" & province == "BULACAN" ~ "MALOLOS",
+         overseas_addr == 1 ~ "OVERSEAS",
+         TRUE ~ muncity
+      ),
+      province      = case_when(
+         muncity == "UNKNOWN" & province == "NCR" ~ "UNKNOWN",
+         province == "COMPOSTELA VALLEY" ~ "DAVAO DE ORO",
+         overseas_addr == 1 ~ "OVERSEAS",
+         TRUE ~ province
+      ),
+      region        = case_when(
+         overseas_addr == 1 ~ "OVERSEAS",
+         TRUE ~ region
+      ),
+   ) %>%
+   left_join(pse$ref_addr) %>%
+   group_by(region, province, muncity, PSGC_REG, PSGC_PROV, PSGC_MUNC) %>%
+   summarise_at(
+      vars(-group_cols()),
+      ~sum(.)
+   )
 
 pse$psgc$labbs <- pse$data$labbs %>%
    mutate(
@@ -154,11 +188,17 @@ final <- pse$psgc$pse_gf %>%
       join_by(PSGC_REG, PSGC_PROV, PSGC_MUNC)
    ) %>%
    full_join(
+      pse$psgc$dx %>%
+         select(-region, -province, -muncity),
+      join_by(PSGC_REG, PSGC_PROV, PSGC_MUNC)
+   ) %>%
+   full_join(
       pse$psgc$labbs %>%
          select(-region, -province, -muncity),
       join_by(PSGC_REG, PSGC_PROV, PSGC_MUNC)
    ) %>%
    select(-`_merge`) %>%
+   select(-starts_with("overseas_addr")) %>%
    relocate(PSGC_REG, PSGC_PROV, PSGC_MUNC, .before = 1) %>%
    left_join(
       epictr$ref_addr %>%
@@ -177,7 +217,77 @@ final <- pse$psgc$pse_gf %>%
    ) %>%
    relocate(region, province, muncity, .before = 1)
 
-file <- "H:/20230722_pse_harp-labbs-gf_2023-05.dta"
+file <- "H:/20230724_pse_harp-dx-labbs-gf_2023-05.dta"
 final %>%
    write_dta(file)
 compress_stata(file)
+
+
+##  PSE Plots
+city <- list(
+   angeles  = c("A3:F7", "Angeles City"),
+   baguio   = c("A17:F21", "Baguio City"),
+   bacolod  = c("A27:F31", "Bacolod City"),
+   bacoor   = c("A35:F39", "Bacoor City"),
+   batangas = c("A43:F47", "Batangas City"),
+   cdo      = c("A53:F57", "Cagayan De Oro City"),
+   cebu     = c("A61:F65", "Cebu City"),
+   davao    = c("A69:F73", "Davao City"),
+   gensan   = c("A77:F81", "General Santos City"),
+   iloilo   = c("A85:F89", "Iloilo City"),
+   naga     = c("A93:F97", "Naga City"),
+   ppc      = c("A101:F105", "Puerto Princesa City"),
+   tugue    = c("A109:F113", "Tuguegarao City"),
+   zambo    = c("A119:F123", "Zamboanga City"),
+   ncr      = c("A128:F132", "National Capital Region")
+)
+
+data <- lapply(city, function(ref) {
+   cells <- ref[1]
+   city  <- ref[2]
+   df    <- read_xlsx("C:/Users/Administrator/Downloads/graph-1.xlsx", range = cells, .name_repair = "unique_quiet") %>%
+      rename(
+         est                = 1,
+         prior              = 2,
+         uo                 = 3,
+         service_multiplier = 4,
+         sspse              = 5,
+         mean               = 6
+      ) %>%
+      mutate(
+         est = toupper(est),
+         est = case_when(
+            est == "LOW ESTIMATE" ~ "low",
+            est == "POINT ESTIMATE" ~ "point",
+            est == "HIGH ESTIMATE" ~ "high",
+         )
+      ) %>%
+      pivot_longer(
+         cols = c(prior, uo, service_multiplier, sspse, mean)
+      ) %>%
+      filter(!is.na(est)) %>%
+      pivot_wider(
+         values_from = value,
+         id_cols     = name,
+         names_from  = est,
+      ) %>%
+      mutate(
+         .before = 1,
+         muncity = city
+      )
+
+   return(df)
+})
+
+p_load(plotly, quantmod)
+
+fig <- data$angeles %>%
+   plot_ly(
+      x    = ~name,
+      type = "candlestick",
+      open = ~point, close = ~point,
+      high = ~high, low = ~low
+   )
+fig <- fig %>% layout(title = "Basic Candlestick Chart")
+
+fig
