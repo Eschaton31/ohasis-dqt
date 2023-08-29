@@ -821,11 +821,9 @@ convert_hts <- function(hts_data, convert_type = c("nhsss", "name", "code")) {
                "PRIME",
                "DISEASE",
                "HIV_SERVICE_TYPE",
-               "HIV_SERVICE_ADDR",
                "src",
                "MODULE",
                "MODALITY",
-               "FORM_VERSION",
                "CONFIRMATORY_CODE",
                "use_curr"
             )
