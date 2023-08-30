@@ -733,11 +733,9 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
                "PRIME",
                "DISEASE",
                "HIV_SERVICE_TYPE",
-               "HIV_SERVICE_ADDR",
                "src",
                "MODULE",
                "MODALITY",
-               "FORM_VERSION",
                "CONFIRMATORY_CODE",
                "CHILDREN..50"
             )
