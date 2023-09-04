@@ -79,7 +79,7 @@ get_cid <- function(linelist, cid_list, pid_col) {
       ) %>%
       mutate(
          CENTRAL_ID = if_else(
-            condition = is.na(CENTRAL_ID),
+            condition = coalesce(CENTRAL_ID, "") == "",
             true      = {{pid_col}},
             false     = CENTRAL_ID
          ),
