@@ -184,8 +184,10 @@ flow_validation <- function(data_env = NULL,
 
          # acquire sheet_id
          slack_by   <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
-         drive_link <- paste0("https://docs.google.com/spreadsheets/d/", gd_step, "/|GSheets Link: ", process_step)
-         slack_msg  <- glue(">*{surv_name}*\n>Conso validation sheets for `{process_step}` have been updated by <@{slack_by}>.\n><{drive_link}>")
+         drive_link <- paste0("https://docs.google.com/spreadsheets/d/", gd_step, "/|", surv_name, "/", process_step)
+         slack_msg  <- glue(r"(
+         *[<{drive_link}>]* Validation sheets updated by <@{slack_by}>
+         )")
          for (issue in issues_list) {
             # add issue
             if (nrow(corr_list[[issue]]) > 0) {
