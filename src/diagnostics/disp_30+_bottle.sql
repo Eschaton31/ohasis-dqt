@@ -1,4 +1,4 @@
 SELECT *
-FROM px_medicine
+FROM ohasis_interim.px_medicine
 WHERE DISP_TOTAL >= 30
   AND UNIT_BASIS = 1;
