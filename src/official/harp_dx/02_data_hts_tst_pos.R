@@ -12,11 +12,7 @@ clean_data <- function(forms, dup_munc) {
          by = join_by(REC_ID)
       ) %>%
       mutate_at(
-         .vars = vars(FIRST, MIDDLE, LAST, SUFFIX),
-         ~coalesce(clean_pii(.), "")
-      ) %>%
-      mutate_at(
-         .vars = vars(PATIENT_CODE, UIC, PHILHEALTH_NO, PHILSYS_ID, CLIENT_MOBILE, CLIENT_EMAIL),
+         .vars = vars(FIRST, MIDDLE, LAST, SUFFIX, PATIENT_CODE, UIC, PHILHEALTH_NO, PHILSYS_ID, CLIENT_MOBILE, CLIENT_EMAIL),
          ~clean_pii(.)
       ) %>%
       mutate_if(
@@ -26,6 +22,36 @@ clean_data <- function(forms, dup_munc) {
       mutate_if(
          .predicate = is.Date,
          ~if_else(. <= -25567, NA_Date_, ., .)
+      ) %>%
+      get_latest_pii(
+         "CENTRAL_ID",
+         c(
+            "FIRST",
+            "MIDDLE",
+            "LAST",
+            "SUFFIX",
+            "BIRTHDATE",
+            "SEX",
+            "UIC",
+            "PHILHEALTH_NO",
+            "SELF_IDENT",
+            "SELF_IDENT_OTHER",
+            "PHILSYS_ID",
+            "CIVIL_STATUS",
+            "NATIONALITY",
+            "EDUC_LEVEL",
+            "CURR_PSGC_REG",
+            "CURR_PSGC_PROV",
+            "CURR_PSGC_MUNC",
+            "PERM_PSGC_REG",
+            "PERM_PSGC_PROV",
+            "PERM_PSGC_MUNC",
+            "BIRTH_PSGC_REG",
+            "BIRTH_PSGC_PROV",
+            "BIRTH_PSGC_MUNC",
+            "CLIENT_MOBILE",
+            "CLIENT_EMAIL"
+         )
       ) %>%
       rename(
          blood_extract_date    = DATE_COLLECT,
@@ -41,7 +67,7 @@ clean_data <- function(forms, dup_munc) {
 
          # year of labcode/date received
          lab_year       = coalesce(
-            str_c("20", str_extract(CONFIRM_CODE, "[A-Z]+([0-9][0-9])-([0-9][0-9])", 1)),
+            stri_c("20", str_extract(CONFIRM_CODE, "[A-Z]+([0-9][0-9])-([0-9][0-9])", 1)),
             stri_pad_left(year(specimen_receipt_date), 4, "0")
          ),
 
@@ -49,7 +75,7 @@ clean_data <- function(forms, dup_munc) {
          visit_date     = RECORD_DATE,
 
          # date var for keeping
-         report_date    = as.Date(str_c(sep = "-", lab_year, lab_month, "01")),
+         report_date    = as.Date(stri_c(sep = "-", lab_year, lab_month, "01")),
 
          # name
          STANDARD_FIRST = stri_trans_general(FIRST, "latin-ascii"),
@@ -1453,11 +1479,11 @@ output_dta <- function(official, params, save = "2") {
       check_dir(dir)
 
       log_info("Saving in Stata data format.")
-      period_ext <- str_c(params$yr, "-", stri_pad_left(params$mo, 2, "0"), ".dta")
+      period_ext <- stri_c(params$yr, "-", stri_pad_left(params$mo, 2, "0"), ".dta")
       files      <- list(
-         new                = file.path(dir, str_c(version, "_reg_", period_ext)),
-         dropped_notyet     = file.path(dir, str_c(version, "_dropped_notyet_", period_ext)),
-         dropped_duplicates = file.path(dir, str_c(version, "_dropped_duplicates_", period_ext))
+         new                = file.path(dir, stri_c(version, "_reg_", period_ext)),
+         dropped_notyet     = file.path(dir, stri_c(version, "_dropped_notyet_", period_ext)),
+         dropped_duplicates = file.path(dir, stri_c(version, "_dropped_duplicates_", period_ext))
       )
       for (output in intersect(names(files), names(official))) {
          if (nrow(official[[output]]) > 0) {

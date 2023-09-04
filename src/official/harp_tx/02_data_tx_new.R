@@ -9,16 +9,37 @@ get_enrollees <- function(art_first, old_reg, params) {
          by = join_by(CENTRAL_ID)
       ) %>%
       mutate_at(
-         .vars = vars(FIRST, MIDDLE, LAST, SUFFIX),
-         ~coalesce(clean_pii(.), "")
-      ) %>%
-      mutate_at(
-         .vars = vars(CONFIRMATORY_CODE, PATIENT_CODE, UIC, PHILHEALTH_NO, PHILSYS_ID),
+         .vars = vars(FIRST, MIDDLE, LAST, SUFFIX, CONFIRMATORY_CODE, PATIENT_CODE, UIC, PHILHEALTH_NO, PHILSYS_ID),
          ~clean_pii(.)
+      ) %>%
+      mutate_if(
+         .predicate = is.POSIXct,
+         ~as.Date(.)
       ) %>%
       mutate_if(
          .predicate = is.Date,
          ~if_else(. <= -25567, NA_Date_, ., .)
+      ) %>%
+      get_latest_pii(
+         "CENTRAL_ID",
+         c(
+            "FIRST",
+            "MIDDLE",
+            "LAST",
+            "SUFFIX",
+            "BIRTHDATE",
+            "SEX",
+            "UIC",
+            "PHILHEALTH_NO",
+            "SELF_IDENT",
+            "SELF_IDENT_OTHER",
+            "PHILSYS_ID",
+            "CURR_PSGC_REG",
+            "CURR_PSGC_PROV",
+            "CURR_PSGC_MUNC",
+            "CLIENT_MOBILE",
+            "CLIENT_EMAIL"
+         )
       ) %>%
       mutate(
          # name
@@ -304,8 +325,10 @@ final_conversion <- function(data) {
          birthdate               = BIRTHDATE,
          sex                     = SEX,
          initials,
-         philsys_id              = PHILSYS_ID,
          philhealth_no           = PHILHEALTH_NO,
+         philsys_id              = PHILSYS_ID,
+         mobile                  = CLIENT_MOBILE,
+         email                   = CLIENT_EMAIL,
          curr_reg,
          curr_prov,
          curr_munc,
@@ -675,7 +698,7 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
          "artstart_regimen"
       )
       check     <- check_pii(data, check, view_vars, first = first, middle = middle, last = last, birthdate = birthdate, sex = sex)
-      check     <- check_addr_psgc(data, check, view_vars, "curr")
+      check     <- check_unknown(data, check, "curr_addr", view_vars, curr_reg, curr_prov, curr_munc)
 
       # non-negotiable variables
       nonnegotiables <- c("age", "uic")

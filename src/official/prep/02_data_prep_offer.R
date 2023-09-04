@@ -18,11 +18,7 @@ get_new <- function(forms, old_reg) {
       ) %>%
       bind_rows(prep_offer) %>%
       mutate_at(
-         .vars = vars(FIRST, MIDDLE, LAST, SUFFIX),
-         ~coalesce(clean_pii(.), "")
-      ) %>%
-      mutate_at(
-         .vars = vars(PATIENT_CODE, UIC, PHILHEALTH_NO, PHILSYS_ID, CLIENT_MOBILE, CLIENT_EMAIL),
+         .vars = vars(FIRST, MIDDLE, LAST, SUFFIX, PATIENT_CODE, UIC, PHILHEALTH_NO, PHILSYS_ID, CLIENT_MOBILE, CLIENT_EMAIL),
          ~clean_pii(.)
       ) %>%
       mutate_if(
@@ -32,6 +28,31 @@ get_new <- function(forms, old_reg) {
       mutate_if(
          .predicate = is.Date,
          ~if_else(. <= -25567, NA_Date_, ., .)
+      ) %>%
+      get_latest_pii(
+         "CENTRAL_ID",
+         c(
+            "FIRST",
+            "MIDDLE",
+            "LAST",
+            "SUFFIX",
+            "BIRTHDATE",
+            "UIC",
+            "PHILHEALTH_NO",
+            "SELF_IDENT",
+            "SELF_IDENT_OTHER",
+            "PHILSYS_ID",
+            "CIVIL_STATUS",
+            "NATIONALITY",
+            "CURR_PSGC_REG",
+            "CURR_PSGC_PROV",
+            "CURR_PSGC_MUNC",
+            "PERM_PSGC_REG",
+            "PERM_PSGC_PROV",
+            "PERM_PSGC_MUNC",
+            "CLIENT_MOBILE",
+            "CLIENT_EMAIL"
+         )
       ) %>%
       mutate(
          # name
