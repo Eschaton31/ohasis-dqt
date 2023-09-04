@@ -147,6 +147,8 @@ download_tables <- function(params) {
             "SEX",
             "SELF_IDENT",
             "SELF_IDENT_OTHER",
+            "CLIENT_MOBILE",
+            "CLIENT_EMAIL",
             "CURR_PSGC_REG",
             "CURR_PSGC_PROV",
             "CURR_PSGC_MUNC",
