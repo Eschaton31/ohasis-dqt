@@ -356,7 +356,7 @@ WHERE trans.INVENTORY_ID = ?
       ) %>%
       group_by(UNIT_BASIS) %>%
       summarise(
-         TOTAL = sum(TRANSACT_QUANTITY)
+         TOTAL = sum(TRANSACT_QUANTITY, na.rm = TRUE)
       ) %>%
       ungroup() %>%
       mutate(
@@ -368,7 +368,7 @@ WHERE trans.INVENTORY_ID = ?
          )
       ) %>%
       summarise(
-         TOTAL = sum(TOTAL)
+         TOTAL = sum(TOTAL, na.rm = TRUE)
       )
 
    trxn$subtract <- trxn$data %>%
@@ -378,7 +378,7 @@ WHERE trans.INVENTORY_ID = ?
       ) %>%
       group_by(UNIT_BASIS) %>%
       summarise(
-         TOTAL = sum(TRANSACT_QUANTITY)
+         TOTAL = sum(TRANSACT_QUANTITY, na.rm = TRUE)
       ) %>%
       ungroup() %>%
       mutate(
@@ -390,7 +390,7 @@ WHERE trans.INVENTORY_ID = ?
          )
       ) %>%
       summarise(
-         TOTAL = sum(TOTAL)
+         TOTAL = sum(TOTAL, na.rm = TRUE)
       )
 
    inv$status <- ohasis$get_faci(
@@ -779,7 +779,7 @@ change_rhivda_code <- function(rec_id) {
 
    log_info("Constructing new code.")
    data_ref           <- dbGetQuery(conn, query_ref, params = code_year)
-   ctrl_num_curr      <- as.integer(data_ref[[1]])
+   ctrl_num_curr      <- ifelse(nrow(data_ref) == 0, 0, as.integer(data_ref[[1]]))
    ctrl_num_seq       <- seq(min(ctrl_num_curr), max(ctrl_num_curr))
    ctrl_num_available <- setdiff(ctrl_num_seq, ctrl_num_curr)
 
