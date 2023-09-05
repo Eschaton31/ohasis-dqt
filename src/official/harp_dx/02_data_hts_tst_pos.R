@@ -1050,7 +1050,20 @@ final_conversion <- function(data) {
          ),
          ~remove_code(.)
       ) %>%
-      # remove codes
+      # fix t1 data
+      mutate_at(
+         .vars = vars(
+            t1_result,
+            t2_result,
+            t3_result
+         ),
+         ~case_when(
+            . == 1 ~ "Positive / Reactive",
+            . == 2 ~ "Negative / Non-reactive",
+            . == 3 ~ "Indeterminate",
+            TRUE ~ NA_character_
+         )
+      ) %>%
       mutate(
          age_pregnant = if_else(
             condition = pregnant == 1,
@@ -1349,6 +1362,7 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
                t2_date < blood_extract_date ~ 1,
                t2_date < hts_date ~ 1,
                t2_date < t1_date ~ 1,
+               t2_result != 1 ~ 1,
                TRUE ~ 0
             )
          ) %>%
@@ -1372,6 +1386,7 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
                t3_date < hts_date ~ 1,
                t3_date < t1_date ~ 1,
                t3_date < t2_date ~ 1,
+               t3_result != 1 ~ 1,
                TRUE ~ 0
             )
          ) %>%
