@@ -20,6 +20,7 @@ generate_gender_identity <- function(linelist, sex, self_identity, self_identity
          )
       ) %>%
       mutate(
+         {{self_identity_text}} := if_else({{self_identity}} == "OTHERS", {{self_identity_text}}, NA_character_, NA_character_),
          {{self_identity_text}} := toupper(str_squish({{self_identity_text}})),
          SI_SIEVE               = if_else(
             condition = !is.na({{self_identity_text}}),
