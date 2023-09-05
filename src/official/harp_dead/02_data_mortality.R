@@ -295,6 +295,7 @@ final_conversion <- function(data) {
          place_of_death_region,
          place_of_death_province,
          place_of_death_muncity,
+         place_of_death_addr     = DEATH_ADDR,
          report_date,
          report_notes            = REPORT_NOTES
       ) %>%
@@ -710,7 +711,8 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
          "immediate_cause",
          "antecedentcause",
          "underlying_cause",
-         "report_notes"
+         "report_notes",
+         "place_of_death_addr"
       )
       check     <- check_pii(data, check, view_vars, first = fname, middle = mname, last = lname, birthdate = birthdate, sex = sex)
 
