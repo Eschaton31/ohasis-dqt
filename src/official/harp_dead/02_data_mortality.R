@@ -709,7 +709,8 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
          "with_death_cert",
          "immediate_cause",
          "antecedentcause",
-         "underlying_cause"
+         "underlying_cause",
+         "report_notes"
       )
       check     <- check_pii(data, check, view_vars, first = fname, middle = mname, last = lname, birthdate = birthdate, sex = sex)
 
