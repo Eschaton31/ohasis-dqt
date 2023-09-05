@@ -1355,7 +1355,7 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          filter(confirmlab != "SACCL") %>%
          mutate(
             keep = case_when(
-               !str_detect(t2_kit, "Bioline") ~ 1,
+               !str_detect(t2_kit, "Determine") ~ 1,
                !str_detect(t2_result, "Reactive") ~ 1,
                if_any(c(t2_kit, t2_result, t2_date), ~is.na(.)) ~ 1,
                t2_date > t3_date ~ 1,
@@ -1379,7 +1379,8 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          filter(confirmlab != "SACCL") %>%
          mutate(
             keep = case_when(
-               !str_detect(t3_kit, "Bioline") ~ 1,
+               !str_detect(t3_kit, "STAT-PAK") ~ 1,
+               !str_detect(t3_kit, "Geenius") ~ 1,
                !str_detect(t3_result, "Reactive") ~ 1,
                if_any(c(t3_kit, t3_result, t3_date), ~is.na(.)) ~ 1,
                t3_date > confirm_date ~ 1,
