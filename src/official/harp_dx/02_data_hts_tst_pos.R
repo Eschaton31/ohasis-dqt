@@ -1379,8 +1379,7 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          filter(confirmlab != "SACCL") %>%
          mutate(
             keep = case_when(
-               !str_detect(t3_kit, "STAT-PAK") ~ 1,
-               !str_detect(t3_kit, "Geenius") ~ 1,
+               !str_detect(t3_kit, "STAT-PAK") & !str_detect(t3_kit, "Geenius") ~ 1,
                !str_detect(t3_result, "Reactive") ~ 1,
                if_any(c(t3_kit, t3_result, t3_date), ~is.na(.)) ~ 1,
                t3_date > confirm_date ~ 1,
