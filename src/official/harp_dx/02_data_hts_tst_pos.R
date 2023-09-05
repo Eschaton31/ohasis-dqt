@@ -1034,7 +1034,10 @@ final_conversion <- function(data) {
             prev_test_result,
             clinicalpicture,
             prevtest,
-            px_type
+            px_type,
+            t1_result,
+            t2_result,
+            t3_result,
          ),
          ~as.integer(keep_code(.))
       ) %>%
@@ -1043,9 +1046,6 @@ final_conversion <- function(data) {
          .vars = vars(
             sex,
             civilstat,
-            t1_result,
-            t2_result,
-            t3_result,
             final_interpretation
          ),
          ~remove_code(.)
@@ -1279,8 +1279,7 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          "sexhow",
          "confirm_result",
          "confirm_remarks",
-         "FORM_FACI",
-         get_names(data, "risk_")
+         "FORM_FACI"
       )
       check     <- check_pii(data, check, view_vars, first = firstname, middle = middle, last = last, birthdate = bdate, sex = sex)
 
@@ -1304,23 +1303,95 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          "sample_source",
          "self_identity",
          "nationality",
-         "confirm_date",
-         "t1_date",
-         "t1_result",
-         "t2_date",
-         "t2_result",
-         "t3_date",
-         "t3_result",
-         "transmit"
+         "confirm_date"
       )
+      check          <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
       check          <- check_unknown(data, check, "perm_addr", view_vars, region, province, muncity)
       check          <- check_unknown(data, check, "curr_addr", view_vars, region_c, province_c, muncity_c)
       check          <- check_unknown(data, check, "dxlab_data", view_vars, dxlab_standard, pubpriv)
-      check          <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
       check          <- check_preggy(data, check, view_vars, sex = sex)
       check          <- check_age(data, check, view_vars, birthdate = bdate, age = age, visit_date = visit_date)
 
+      # test kits
+      log_info("Checking invalid test kits.")
+      check[["t1_data"]] <- data %>%
+         filter(confirmlab != "SACCL") %>%
+         mutate(
+            keep = case_when(
+               !str_detect(t1_kit, "Bioline") ~ 1,
+               if_any(vars(t1_kit, t1_result, t1_date), ~is.na(.)) ~ 1,
+               t1_date > t2_date ~ 1,
+               t1_date > t3_date ~ 1,
+               t1_date > confirm_date ~ 1,
+               t1_date < specimen_receipt_date ~ 1,
+               t1_date < blood_extract_date ~ 1,
+               t1_date < hts_date ~ 1,
+               TRUE ~ 0
+            )
+         ) %>%
+         filter(
+            keep == 1
+         ) %>%
+         select(
+            any_of(view_vars),
+            starts_with("t1")
+         )
+
+      check[["t2_data"]] <- data %>%
+         filter(confirmlab != "SACCL") %>%
+         mutate(
+            keep = case_when(
+               !str_detect(t2_kit, "Bioline") ~ 1,
+               if_any(vars(t2_kit, t2_result, t2_date), ~is.na(.)) ~ 1,
+               t2_date > t3_date ~ 1,
+               t2_date > confirm_date ~ 1,
+               t2_date < specimen_receipt_date ~ 1,
+               t2_date < blood_extract_date ~ 1,
+               t2_date < hts_date ~ 1,
+               t2_date < t1_date ~ 1,
+               TRUE ~ 0
+            )
+         ) %>%
+         filter(
+            keep == 1
+         ) %>%
+         select(
+            any_of(view_vars),
+            starts_with("t2")
+         )
+
+      check[["t3_data"]] <- data %>%
+         filter(confirmlab != "SACCL") %>%
+         mutate(
+            keep = case_when(
+               !str_detect(t3_kit, "Bioline") ~ 1,
+               if_any(vars(t3_kit, t3_result, t3_date), ~is.na(.)) ~ 1,
+               t3_date > confirm_date ~ 1,
+               t3_date < specimen_receipt_date ~ 1,
+               t3_date < blood_extract_date ~ 1,
+               t3_date < hts_date ~ 1,
+               t3_date < t1_date ~ 1,
+               t3_date < t2_date ~ 1,
+               TRUE ~ 0
+            )
+         ) %>%
+         filter(
+            keep == 1
+         ) %>%
+         select(
+            any_of(view_vars),
+            starts_with("t3")
+         )
+
       # special checks
+      log_info("Checking for non-standard transmission.")
+      check[["transmit"]] <- data %>%
+         filter(transmit %in% c("OTHERS", "UNKNOWN")) %>%
+         select(
+            any_of(view_vars),
+            starts_with("risk_")
+         )
+
       log_info("Checking for mismatch facilities (source != test).")
       check[["faci_diff_source_v_form"]] <- data %>%
          filter(diff_source_v_form == 1) %>%
@@ -1344,35 +1415,6 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          ) %>%
          select(
             any_of(view_vars)
-         )
-
-      # test kits
-      log_info("Checking invalid test kits.")
-      check[["T1_KIT"]] <- data %>%
-         filter(
-            !(t1_kit %in% c("SD Bioline HIV 1/2 3.0", "Abbott Bioline HIV 1/2 3.0", "SYSMEX HISCL HIV Ag + Ab Assay")) | is.na(t1_kit)
-         ) %>%
-         select(
-            any_of(view_vars),
-            t1_kit
-         )
-
-      check[["T2_KIT"]] <- data %>%
-         filter(
-            !(t2_kit %in% c("Alere Determine HIV-1/2", "Abbott Determine HIV 1/2", "VIDAS HIV DUO Ultra")) | is.na(t2_kit)
-         ) %>%
-         select(
-            any_of(view_vars),
-            t2_kit
-         )
-
-      check[["T3_KIT"]] <- data %>%
-         filter(
-            !(t3_kit %in% c("Geenius HIV 1/2 Confirmatory Assay", "HIV 1/2 STAT-PAK Assay")) | is.na(t3_kit)
-         ) %>%
-         select(
-            any_of(view_vars),
-            t3_kit
          )
 
       # pdf results
