@@ -6,16 +6,16 @@ psgc_aem <- function(ref_addr) {
    drive_download(aem_xl, tmpfile, overwrite = TRUE)
 
    # process data
-   aem <- read_xlsx(tmpfile, "Prov and City Level", col_types = "text", .name_repair = "unique_quiet") %>%
-      select(1:14) %>%
+   aem <- read_xlsx(tmpfile, "2023 Prov and City Level", col_types = "text", .name_repair = "unique_quiet") %>%
+      select(1:15) %>%
       slice(3:nrow(.)) %>%
       rename(
          province = prov,
-         est2020  = 10,
          est2021  = 11,
          est2022  = 12,
          est2023  = 13,
          est2024  = 14,
+         est2025  = 15,
       ) %>%
       mutate_at(
          .vars = vars(region),
