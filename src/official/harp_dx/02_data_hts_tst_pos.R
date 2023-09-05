@@ -1050,7 +1050,7 @@ final_conversion <- function(data) {
          ),
          ~remove_code(.)
       ) %>%
-      # fix t1 data
+      # fix test data
       mutate_at(
          .vars = vars(
             t1_result,
@@ -1332,7 +1332,7 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          mutate(
             keep = case_when(
                !str_detect(t1_kit, "Bioline") ~ 1,
-               if_any(vars(t1_kit, t1_result, t1_date), ~is.na(.)) ~ 1,
+               if_any(c(t1_kit, t1_result, t1_date), ~is.na(.)) ~ 1,
                t1_date > t2_date ~ 1,
                t1_date > t3_date ~ 1,
                t1_date > confirm_date ~ 1,
@@ -1355,7 +1355,7 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          mutate(
             keep = case_when(
                !str_detect(t2_kit, "Bioline") ~ 1,
-               if_any(vars(t2_kit, t2_result, t2_date), ~is.na(.)) ~ 1,
+               if_any(c(t2_kit, t2_result, t2_date), ~is.na(.)) ~ 1,
                t2_date > t3_date ~ 1,
                t2_date > confirm_date ~ 1,
                t2_date < specimen_receipt_date ~ 1,
@@ -1379,7 +1379,7 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          mutate(
             keep = case_when(
                !str_detect(t3_kit, "Bioline") ~ 1,
-               if_any(vars(t3_kit, t3_result, t3_date), ~is.na(.)) ~ 1,
+               if_any(c(t3_kit, t3_result, t3_date), ~is.na(.)) ~ 1,
                t3_date > confirm_date ~ 1,
                t3_date < specimen_receipt_date ~ 1,
                t3_date < blood_extract_date ~ 1,
