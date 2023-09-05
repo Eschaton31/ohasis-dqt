@@ -593,23 +593,23 @@ tag_mot <- function(data, params) {
 
          # final filtering of mot using risk_*
          mot        = case_when(
-            mot == 0 &
+            mot %in% c(8, 9, 10) &
                male == 1 &
                str_detect(risk_sexwithm, "^yes") &
                str_detect(risk_sexwithf, "^yes") ~ 22,
-            mot == 0 &
+            mot %in% c(8, 9, 10) &
                male == 1 &
                str_detect(risk_sexwithm, "^yes") &
                !str_detect(risk_sexwithf, "^yes") ~ 12,
-            mot == 0 &
+            mot %in% c(8, 9, 10) &
                male == 1 &
                !str_detect(risk_sexwithm, "^yes") &
                str_detect(risk_sexwithf, "^yes") ~ 32,
-            mot == 0 &
+            mot %in% c(8, 9, 10) &
                female == 1 &
                str_detect(risk_sexwithm, "^yes") &
                !str_detect(risk_sexwithf, "^yes") ~ 42,
-            mot == 0 & str_detect(risk_injectdrug, "^yes") ~ 52,
+            mot %in% c(8, 9, 10) & str_detect(risk_injectdrug, "^yes") ~ 52,
             TRUE ~ mot
          ),
 
