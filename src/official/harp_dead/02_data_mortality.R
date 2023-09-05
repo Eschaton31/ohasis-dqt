@@ -297,7 +297,8 @@ final_conversion <- function(data) {
          place_of_death_muncity,
          place_of_death_addr     = DEATH_ADDR,
          report_date,
-         report_notes            = REPORT_NOTES
+         report_notes            = REPORT_NOTES,
+         report_by               = REPORTED_BY,
       ) %>%
       # turn into codes
       mutate_at(
@@ -705,6 +706,7 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
          "sname",
          "birthdate",
          "sex",
+         "report_by",
          "report_date",
          "date_of_death",
          "with_death_cert",
