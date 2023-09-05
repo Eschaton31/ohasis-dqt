@@ -65,7 +65,11 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
       if (nrow(missing) > 0) {
          col_name <- as.name(col)
          pids     <- stri_c(collapse = "','", missing[[pid_col]])
-         not_null <- ifelse(!str_detect(col, "PSGC"), col, stri_c(str_extract(col, "(.*_PSGC_).*", 1), "MUNC"))
+         not_null <- case_when(
+            str_detect(col, "_PSGC_") ~ stri_c(str_extract(col, "(.*_PSGC_).*", 1), "MUNC"),
+            col == "SELF_IDENT_OTHER" ~ "SELF_IDENT",
+            TRUE ~ col
+         )
 
          lw_conn  <- ohasis$conn("lw")
          data_cid <- dbTable(
