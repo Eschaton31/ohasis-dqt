@@ -591,10 +591,32 @@ tag_mot <- function(data, params) {
          #    TRUE ~ mot
          # ),
 
+         # final filtering of mot using risk_*
+         mot        = case_when(
+            mot == 0 &
+               male == 1 &
+               str_detect(risk_sexwithm, "^yes") &
+               str_detect(risk_sexwithf, "^yes") ~ 22,
+            mot == 0 &
+               male == 1 &
+               str_detect(risk_sexwithm, "^yes") &
+               !str_detect(risk_sexwithf, "^yes") ~ 12,
+            mot == 0 &
+               male == 1 &
+               !str_detect(risk_sexwithm, "^yes") &
+               str_detect(risk_sexwithf, "^yes") ~ 32,
+            mot == 0 &
+               female == 1 &
+               str_detect(risk_sexwithm, "^yes") &
+               !str_detect(risk_sexwithf, "^yes") ~ 42,
+            mot == 0 & str_detect(risk_injectdrug, "^yes") ~ 52,
+            TRUE ~ mot
+         ),
+
          # transmit
          transmit   = case_when(
-            mot %in% c(1, 2, 3, 4, 11, 21, 31, 41) ~ "SEX",
-            mot %in% c(5, 51) ~ "IVDU",
+            mot %in% c(1, 2, 3, 4, 11, 12, 21, 22, 31, 32, 41, 42) ~ "SEX",
+            mot %in% c(5, 51, 52) ~ "IVDU",
             mot %in% c(6, 61) ~ "PERINATAL",
             mot %in% c(8, 9, 10) ~ "UNKNOWN",
             mot == 7 ~ "OTHERS",
@@ -602,9 +624,9 @@ tag_mot <- function(data, params) {
 
          # sexhow
          sexhow     = case_when(
-            mot %in% c(2, 21) ~ "BISEXUAL",
-            mot %in% c(3, 4, 31, 41) ~ "HETEROSEXUAL",
-            mot %in% c(1, 11) ~ "HOMOSEXUAL",
+            mot %in% c(1, 11, 12) ~ "HOMOSEXUAL",
+            mot %in% c(2, 21, 22) ~ "BISEXUAL",
+            mot %in% c(3, 4, 31, 32, 41, 42) ~ "HETEROSEXUAL",
          ),
       )
 
