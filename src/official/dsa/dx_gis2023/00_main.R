@@ -38,7 +38,7 @@ cbs_where <- glue(r"(
    )")
 dbname    <- "ohasis_warehouse"
 dsa$oh    <- list(
-   id_reg = dbTable(lw_conn, dbname, "id_registry"),
+   id_reg = dbTable(lw_conn, dbname, "id_registry", cols = c("PATIENT_ID", "CENTRAL_ID")),
    a      = dbTable(lw_conn, dbname, "form_a", where = hts_where, raw_where = TRUE),
    hts    = dbTable(lw_conn, dbname, "form_hts", where = hts_where, raw_where = TRUE),
    cfbs   = dbTable(lw_conn, dbname, "form_cfbs", where = cbs_where, raw_where = TRUE)
@@ -189,7 +189,8 @@ dsa$gis$data$dx <- dsa$harp$dx %>%
       ),
 
       # year dx
-      YEAR_DX   = if_else(year <= 2017, 2017, year, year) %>% as.integer()
+      YEAR_DX   = if_else(year <= 2017, 2017, year, year) %>% as.integer(),
+      MONTH_DX  = as.integer(month)
    ) %>%
    mutate(
       TEMP_REG  = PERM_PSGC_REG,
@@ -216,7 +217,8 @@ dsa$gis$data$dx <- dsa$harp$dx %>%
       DX_REGION,
       DX_PROVINCE,
       DX_MUNCITY,
-      YEAR_DX
+      YEAR_DX,
+      MONTH_DX
    ) %>%
    left_join(dsa$sites, join_by(FACILITY_CODE == FACI_ID))
 
@@ -431,14 +433,14 @@ dsa$oh$hts_all %<>%
 
       # tag which test to be used
       FINAL_FACI      = case_when(
-         old_dx == 0 & !is.na(HARPDX_FACI) ~ HARPDX_FACI,
+         # old_dx == 0 & !is.na(HARPDX_FACI) ~ HARPDX_FACI,
          use_record_faci == 1 ~ FACI_ID,
          TRUE ~ SERVICE_FACI
       ),
       FINAL_SUB_FACI  = case_when(
-         old_dx == 0 & !is.na(HARPDX_FACI) ~ HARPDX_SUB_FACI,
+         # old_dx == 0 & !is.na(HARPDX_FACI) ~ HARPDX_SUB_FACI,
          use_record_faci == 1 & FACI_ID == "130000" ~ SPECIMEN_SUB_SOURCE,
-         !(SERVICE_FACI %in% c("130001", "130605", "040200")) ~ NA_character_,
+         # !(SERVICE_FACI %in% c("130001", "130605", "040200")) ~ NA_character_,
          nchar(SERVICE_SUB_FACI) == 6 ~ NA_character_,
          TRUE ~ SERVICE_SUB_FACI
       ),
@@ -549,7 +551,7 @@ dsa$gis$data$hts <- dsa$oh$hts_all %>%
       ),
       EDUC       = factor(
          EDUC,
-         c(
+         labels = c(
             "0 - NO EDUCATION, ELEMENTARY",
             "1 - HIGH SCHOOL",
             "2 - COLLEGE LEVEL +"
@@ -560,7 +562,7 @@ dsa$gis$data$hts <- dsa$oh$hts_all %>%
       OCCUPATION = keep_code(IS_EMPLOYED),
       OCCUPATION = factor(
          OCCUPATION,
-         c(
+         labels = c(
             "0 - unemployed",
             "1 - employed"
          )
@@ -569,6 +571,7 @@ dsa$gis$data$hts <- dsa$oh$hts_all %>%
       # year dx
       year       = year(hts_date),
       YEAR_DX    = if_else(year <= 2017, 2017, year, year) %>% as.integer(),
+      MONTH_DX   = as.integer(month(hts_date)),
 
       # testing data
       MODALITY   = case_when(
@@ -578,20 +581,20 @@ dsa$gis$data$hts <- dsa$oh$hts_all %>%
       ),
       MODALITY   = factor(
          MODALITY,
-         c(
+         labels = c(
             "0 - facility-based",
             "1 - community-based",
             "2 - self-testing"
          )
       ),
       RESULT     = case_when(
-         hts_modality == "NR" ~ 0,
-         hts_modality == "R" ~ 1,
-         hts_modality == "IND" ~ 2,
+         hts_result == "NR" ~ 0,
+         hts_result == "R" ~ 1,
+         hts_result == "IND" ~ 2,
       ),
       RESULT     = factor(
          RESULT,
-         c(
+         labels = c(
             "0 - non-reactive",
             "1 - reactive",
             "2 - indeterminate"
@@ -601,9 +604,22 @@ dsa$gis$data$hts <- dsa$oh$hts_all %>%
    mutate(
       FACILITY_CODE     = FINAL_FACI,
       FACILITY_SUB_CODE = FINAL_SUB_FACI,
+      FACILITY_CODE     = if_else(
+         condition = is.na(FACILITY_CODE),
+         true      = "",
+         false     = FACILITY_CODE,
+         missing   = FACILITY_CODE
+      ),
+      FACILITY_SUB_CODE = case_when(
+         is.na(FACILITY_SUB_CODE) ~ "",
+         StrLeft(FACILITY_SUB_CODE, 6) != FACILITY_CODE ~ "",
+         FACILITY_SUB_CODE == "130023_001" ~ "130023_001",
+         !(StrLeft(FACILITY_SUB_CODE, 6) %in% c("130001", "130605", "040200")) ~ "",
+         TRUE ~ FACILITY_SUB_CODE
+      )
    ) %>%
    ohasis$get_faci(
-      list(DXLAB_STANDARD = c("HARPDX_FACI", "HARPDX_SUB_FACI")),
+      list(DXLAB_STANDARD = c("FINAL_FACI", "FINAL_SUB_FACI")),
       "name",
       c("DX_REGION", "DX_PROVINCE", "DX_MUNCITY")
    ) %>%
@@ -630,6 +646,7 @@ dsa$gis$data$hts <- dsa$oh$hts_all %>%
       DX_PROVINCE,
       DX_MUNCITY,
       YEAR_DX,
+      MONTH_DX,
       MODALITY,
       RESULT
    ) %>%
@@ -665,14 +682,20 @@ write_rds(
          .vars = vars(contains("PSGC", ignore.case = FALSE)),
          ~if_else(coalesce(., "") != "", stri_c("PH", .), ., .)
       ),
-   file.path(dsa$dirs$output, "20230904_plhiv_estimates-as_of_Oct2022.rds")
+   file.path(dsa$dirs$output, "20230906_plhiv_estimates-as_of_Oct2022.rds")
 )
 
 write_rds(
    dsa$spdf,
-   file.path(dsa$dirs$output, "20230904_shape_object-merged_mla-aem.rds")
+   file.path(dsa$dirs$output, "20230906_shape_object-merged_mla-aem.rds")
 )
 write_rds(
    dsa$gis$data,
-   file.path(dsa$dirs$output, "20230904_tab6-7_full.rds")
+   file.path(dsa$dirs$output, "20230906_tab6-7_full.rds")
 )
+write_rds(
+   ohasis$ref_faci,
+   file.path(dsa$dirs$output, "20230906_ohasis-facilities.rds")
+)
+
+dsa$gis$data <- read_rds(file.path(dsa$dirs$output, "20230905_tab6-7_full.rds"))
