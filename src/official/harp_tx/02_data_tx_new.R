@@ -502,6 +502,10 @@ merge_dx <- function(data, forms, params) {
             all_of(cols),
             ~coalesce(., pull(data, str_c("dxreg_", cur_column())))
          )
+      ) %>%
+      mutate(
+         idnum             = dxreg_idnum,
+         confirmatory_code = coalesce(dxreg_confirmatory_code, confirmatory_code)
       )
 
    # remove dx registry variables
