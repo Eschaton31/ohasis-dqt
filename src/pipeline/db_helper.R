@@ -151,8 +151,8 @@ dbTable <- function(conn, dbname, table, cols = NULL, where = NULL, join = NULL,
       join_tbls <- paste(collapse = "\n", join_txt)
    }
 
-   if (join_cols != "")
-      cols <- paste(collapse = ", ", c(cols, join_cols))
+   if (paste(join_cols, collapse = ", ") != "")
+      cols <- paste(collapse = ", ", append(cols, join_cols))
 
    # build query using previous params
    query <- glue(r"(SELECT {cols} FROM {dbname}.{table} {join_tbls} {rows};)")
@@ -171,12 +171,11 @@ dbTable <- function(conn, dbname, table, cols = NULL, where = NULL, join = NULL,
       n_chunks <- ceiling(n_rows / chunk_size)
 
       # get progress
-      if (!is.null(name))
-         pb_name <- paste0(name, ": :current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed")
-      else
-         pb_name <- ":current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed"
+      if (is.null(name))
+         name <- table
 
-      pb <- progress_bar$new(format = pb_name, total = n_chunks, width = 100, clear = FALSE)
+      pb_name <- paste0(name, ": :current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed")
+      pb      <- progress_bar$new(format = pb_name, total = n_chunks, width = 100, clear = FALSE)
       pb$tick(0)
 
       # fetch in chunks
