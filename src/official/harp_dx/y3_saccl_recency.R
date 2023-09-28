@@ -66,6 +66,10 @@ get_pdf_data <- function(file = NULL) {
    }
 
    recency_df %<>%
+      mutate_if(
+         .predicate = is.character,
+         ~str_squish(toupper(.))
+      ) %>%
       mutate(
          TEST_RESULT     = case_when(
             str_detect(RT_RESULT, "RECENT") ~ "1",
