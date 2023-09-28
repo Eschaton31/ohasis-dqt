@@ -51,7 +51,7 @@ local(envir = vlml, {
 
 ##  Import data from .pdf files ------------------------------------------------
 
-.log_info("Importing .pdf masterlists.")
+log_info("Importing .pdf masterlists.")
 local(envir = vlml, {
    if ("pdf" %in% names(files)) {
       refs$pdf <- files$pdf %>%
@@ -97,7 +97,7 @@ local(envir = vlml, {
 
 ##  Import data from .xlsx files -----------------------------------------------
 
-.log_info("Importing .xls* masterlists.")
+log_info("Importing .xls* masterlists.")
 local(envir = vlml, {
    refs$xlsx <- files$xlsx %>%
       left_join(
@@ -119,7 +119,7 @@ local(envir = vlml, {
    rm(i, password, file)
 
    if (nrow(refs$xlsx %>% filter(is.na(import_sheets)))) {
-      .log_warn("VL MLs not yet included in config.")
+      log_warn("VL MLs not yet included in config.")
       check$no_config <- filter(refs$xlsx, is.na(import_sheets))
    }
 
@@ -133,7 +133,7 @@ local(envir = vlml, {
 
       if (password == "") {
          data <- lapply(sheets, function(sheet) {
-            data <- read_xlsx(ref[i,]$path, col_types = "text", skip = start_row - 1, sheet = sheet) %>%
+            data <- read_xlsx(ref[i,]$path, col_types = "text", skip = start_row - 1, sheet = sheet, .name_repair = "unique_quiet") %>%
                remove_empty(c("rows", "cols")) %>%
                mutate(
                   row_id = paste(sep = "_", "xlsx", hub_code, ref[i,]$path, sheet, row_number())
@@ -175,11 +175,15 @@ local(envir = vlml, {
                . == "Patient code" ~ "px_code",
                . == "Patient Code" ~ "px_code",
                . == "FACILITY CODE" ~ "px_code",
+               . == "FACILITY.CODE" ~ "px_code",
                . == "Patient.code" ~ "px_code",
                . == "Confirmatory code" ~ "confirmatory_code",
                . == "Confirmatory Code" ~ "confirmatory_code",
                . == "Confirmatory.code" ~ "confirmatory_code",
                . == "CONFIRAMATORY CODE" ~ "confirmatory_code",
+               . == "CONFIRAMATORY.CODE" ~ "confirmatory_code",
+               . == "CONFIRMATORY CODE" ~ "confirmatory_code",
+               . == "CONFIRMATORY.CODE" ~ "confirmatory_code",
                . == "SACCL CODE" ~ "confirmatory_code",
                . == "SACCL Code" ~ "confirmatory_code",
                . == "Full Name" ~ "name",
@@ -198,16 +202,21 @@ local(envir = vlml, {
                . == "Latest VL Date" ~ "vl_date",
                . == "Viral load date" ~ "vl_date",
                . == "Viral Load Date" ~ "vl_date",
+               . == "Viral Load date" ~ "vl_date",
                . == "VIRAL LOAD DATE TESTED" ~ "vl_date",
+               . == "Date.of.Viral.Load.Test" ~ "vl_date",
                . == "Viral load result" ~ "vl_result",
                . == "Viral Load Result" ~ "vl_result",
                . == "Viral.load.result" ~ "vl_result",
                . == "Latest VL Result" ~ "vl_result",
+               . == "Latest VL Result" ~ "vl_result",
+               . == "Viral.Load.Result." ~ "vl_result",
                . == "RESULT" ~ "vl_result",
                . == "If baseline viral load test, put Y" ~ "baseline_vl",
                . == "If.baseline.viral.load.test..put.Y" ~ "baseline_vl",
                . == "Remarks" ~ "remarks",
                . == "REMARKS" ~ "remarks",
+               . == "Remarks." ~ "remarks",
                . == "Birth date" ~ "birthdate",
                . == "Birth Date" ~ "birthdate",
                TRUE ~ .
@@ -309,7 +318,7 @@ local(envir = vlml, {
    }
    rm(var)
    if (nrow(conso %>% filter(is.na(vl_date_2), !is.na(vl_date)))) {
-      .log_warn("Records w/ unconverted dates still exist.")
+      log_warn("Records w/ unconverted dates still exist.")
       check$date_format <- filter(conso, is.na(vl_date_2), !is.na(vl_date))
    }
 
@@ -343,7 +352,7 @@ local(envir = vlml, {
    conso %<>% distinct(row_id, .keep_all = TRUE)
 
    if (nrow(conso %>% filter(is.na(PATIENT_ID)))) {
-      .log_warn("Records w/o Patient IDs still exist.")
+      log_warn("Records w/o Patient IDs still exist.")
       check$no_pid <- filter(conso, is.na(PATIENT_ID))
    }
 })
@@ -353,20 +362,24 @@ local(envir = vlml, {
    conso %<>%
       process_vl("vl_result", "vl_result_2") %>%
       mutate(
-         drop                    = if_else(
+         drop = if_else(
             is.na(vl_date) & is.na(vl_result),
             1,
             drop,
             drop
          )
       ) %>%
-      filter(drop == 0) %>%
       as_tibble()
 
    conso %>%
-      filter(is.na(vl_result_2), VL_DROP == 0) %>%
-      distinct(vl_result, vl_result_2) %>%
-      print(n = 1000)
+      filter(
+         VL_DROP == 0,
+         VL_ERROR == 0,
+         is.na(vl_result)
+      ) %>%
+      distinct(vl_result, vl_result_2)
+
+   check$res_nodate <- filter(conso, is.na(vl_date), !is.na(vl_result))
 })
 
 ##  Save data ------------------------------------------------------------------
@@ -382,17 +395,17 @@ if (save == "1")
          select(
             -drop,
             -vl_date,
-            -vl_result,
-            -vl_result_nomeasure,
-            -starts_with("vl_result_eo"),
             -any_of(c("Last Name", "First Name", "Middle Name", "Name Ext.", "Latest Regimen")),
             -contains("."),
             -contains("-"),
             -contains("/"),
             -matches("^[0-9]")
          ) %>%
-         rename(vl_result = vl_result_2) %>%
-         rename(vl_date = vl_date_2) %>%
+         rename(
+            vl_date          = vl_date_2,
+            LAB_VIRAL_RESULT = vl_result,
+            vl_result        = vl_result_2,
+         ) %>%
          mutate_if(
             .predicate = is.Date,
             ~as.character(.)
@@ -403,11 +416,10 @@ if (save == "1")
             -contains("\r\n"),
          ) %>%
          mutate(vlml2022 = 1) %>%
-         format_stata() %>%
          write_dta(file.path(Sys.getenv("HARP_VL"), paste0(format(Sys.time(), "%Y%m%d"), "_vl_ml_", params$yr, "-", params$mo, ".dta")))
    })
 
-.log_success("Done!")
+log_success("Done!")
 
 # clean-up created objects
 rm(list = setdiff(ls(), currEnv))
