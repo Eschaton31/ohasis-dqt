@@ -4,7 +4,7 @@ process_vl <- function(data, result_old, result_new) {
 
    local_gs4_quiet()
    vl_corr <- read_sheet("1Yj-qP7sA8k-X0L9UHoXNl-TmBkPMfLkUIOlWNGJdENo", "vl_result", range = "A:B", col_types = "c") %>%
-      mutate(VL_CORRECT = as.numeric(VL_CORRECT))
+      mutate(VL_CORRECT = parse_number(VL_CORRECT))
 
    data %<>%
       # clean results
@@ -19,10 +19,12 @@ process_vl <- function(data, result_old, result_new) {
             str_replace_all(" *- *", "-") %>%
             str_replace_all(" */ *", "/") %>%
             str_replace_all("\\.+", ".") %>%
+            str_replace_all(", *", ",") %>%
             str_replace_all("\\*\\*\\*", "") %>%
             str_replace_all("LESSTHAN", "<") %>%
             str_replace_all("< +", "<") %>%
             str_replace_all("^> *", "") %>%
+            str_replace_all("\\+$", "") %>%
             # numbers
             str_replace_all("X10", " X 10") %>%
             str_squish() %>%
@@ -44,6 +46,8 @@ process_vl <- function(data, result_old, result_new) {
             str_replace_all("10 TO THE 5TH", "EO5") %>%
             str_replace_all("X 10\\^([0-9]+)", "E\\1") %>%
             str_replace_all("X E05", "E05") %>%
+            # lab jargon
+            str_replace_all("^HIV 1 M/N *. ", "") %>%
             # hiv-1
             str_replace_all("\\bHIV 1\\b", "HIV-1") %>%
             str_replace_all("HIV-!", "HIV-1") %>%
@@ -115,6 +119,7 @@ process_vl <- function(data, result_old, result_new) {
             str_replace_all(" *C/U$", "COPIES/UL") %>%
             str_replace_all(" *COPIES/M\\[", "COPIES/ML") %>%
             str_replace_all("/COPIES", "COPIES") %>%
+            str_replace_all("C/ML$", "COPIES/ML") %>%
             # results
             str_replace_all("HIV-1 VIRAL RNA DETECTED AT ", "") %>%
             str_replace_all("HIV0-1 DETECTED ", "") %>%
@@ -123,7 +128,7 @@ process_vl <- function(data, result_old, result_new) {
             str_replace_all("HIV DETECTED, ", "") %>%
             str_replace_all("HIV-1 DETECETED, ", "") %>%
             str_replace_all("HIV-1 DETECTED,", "") %>%
-            str_replace_all("HIV-DETECTED ", "") %>%
+            str_replace_all("HIV-DETECTED *", "") %>%
             str_replace_all("HIV 1DETECTED ", "") %>%
             str_replace_all("HOV-1 DETECTED ", "") %>%
             str_replace_all("HIV-1 DETECTED", "") %>%
@@ -160,12 +165,14 @@ process_vl <- function(data, result_old, result_new) {
             str_replace_all(" `", "") %>%
             stri_replace_last_regex("\\.00$", "") %>%
             stri_replace_last_regex("([:digit:])EO", "$1E0") %>%
+            stri_replace_last_regex("([:digit:])E\\+0", "$1E0") %>%
             str_replace_all("(12/11/2020) 2.51 E05 (LOG 5.40)", "2.51 E05 (LOG 5.40)") %>%
             str_replace_all(" *\\(\\)", ""),
       ) %>%
       mutate(
+         VL_RES      = na_if(VL_RES, ""),
          # tag those w/ less than data
-         less_than      = case_when(
+         less_than   = case_when(
             stri_detect_fixed(VL_RES, ">") ~ 1,
             stri_detect_fixed(VL_RES, "+") ~ 1,
             stri_detect_fixed(VL_RES, "<") ~ 1,
@@ -174,39 +181,46 @@ process_vl <- function(data, result_old, result_new) {
             stri_detect_fixed(toupper(VL_RES), "LES THAN") ~ 1,
             TRUE ~ 0
          ),
-         has_alpha      = if_else(
+         has_alpha   = if_else(
             condition = str_detect(VL_RES, "[:alpha:]"),
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         scical         = case_when(
+         scical      = case_when(
             stri_detect_fixed(VL_RES, "LOG") ~ "log",
             stri_detect_fixed(VL_RES, "^") ~ "exponent",
             stri_detect_fixed(VL_RES, "EO") ~ "eo",
             str_detect(VL_RES, "[:digit:]E *") ~ "eo",
             stri_detect_fixed(VL_RES, "X10") ~ "x10",
          ),
-         scical_x10     = if_else(scical == "x10", VL_RES, NA_character_),
-         scical_x10     = as.numeric(str_extract(scical_x10, "(.*)X10", 1)) * 10,
-         scical_eo      = if_else(scical == "eo", VL_RES, NA_character_),
-         scical_eo      = as.numeric(str_squish(str_extract(scical_eo, "(.+)E", 1))) * (10^as.numeric(str_extract(scical_eo, ".+E.+([0-9]+)", 1))),
+         scical_x10  = if_else(scical == "x10", VL_RES, NA_character_),
+         scical_x10  = parse_number(str_extract(scical_x10, "(.*)X10", 1)) * 10,
+         scical_eo   = if_else(scical == "eo", VL_RES, NA_character_),
+         scical_eo   = parse_number(str_squish(str_extract(scical_eo, "(.+)E", 1))) * (10^parse_number(str_extract(scical_eo, ".+E.+([0-9]+)", 1))),
+         pure_number = str_replace_all(VL_RES, "[^[:digit:]]", ""),
+         pure_number = if_else(StrIsNumeric(pure_number), pure_number, NA_character_, NA_character_),
+         pure_number = parse_number(pure_number),
+         mega_number = if_else(str_detect(VL_RES, "[:digit:] *M$") & less_than == 0, str_replace_all(VL_RES, "[^[:digit:]]", ""), NA_character_, NA_character_),
+         mega_number = parse_number(mega_number),
+         less_number = if_else(less_than == 1 & has_alpha == 1 & is.na(scical), str_replace_all(VL_RES, "[^[:digit:]]", ""), NA_character_, NA_character_),
+         less_number = parse_number(less_number),
 
-         VL_RES_2       = case_when(
+         VL_RES_2    = case_when(
+            str_detect(VL_RES, glue("\\bND\\b")) ~ 0,
+            VL_RES %in% c("HND", "ND", "N/D", "UD", "TND", "UNDE", "UN", "N.D", "NP", "UNDECTABLE", "UNDECTED", "UNDET", "UNDETEC") ~ 0,
+            VL_RES %in% c("TARGET NOT DETECTED", "TARGET NOT DEFECTED", "TNDD", "TNDS", "U", "UNDETACTABLE", "UNDETE", "UNTEDECTABLE", "UNDETECTABLE", "UP") ~ 0,
+            VL_RES %in% c("N", "NO DETECTED", "NO\\", "NONE DETECTED", "NOT", "NOT CONNECTED", "NOT DETECED", "NOT DTECTED", "HIV 1 NOT DTECTED") ~ 0,
+            VL_RES %in% c("BN", "BD", "JUD", "NTD", "TLD", "TN D") ~ 0,
             scical == "x10" ~ scical_x10,
             scical == "eo" ~ scical_eo,
             less_than == 1 &
                stri_detect_fixed(VL_RES, "40") &
                stri_detect_fixed(VL_RES, "1.6") ~ 39,
-            less_than == 1 & has_alpha == 0 ~ as.numeric(stri_replace_all_regex(VL_RES, "[^[:digit:]]", "")) - 1,
-            less_than == 1 & has_alpha == 1 & is.na(scical) ~ as.numeric(stri_replace_all_regex(VL_RES, "[^[:digit:]]", "")) - 1,
-            less_than == 0 &
-               has_alpha == 1 &
-               is.na(scical) &
-               stri_detect_regex(VL_RES, "M$") ~ as.numeric(stri_replace_all_regex(VL_RES, "[^[:digit:]]", "")) * 1000000,
-            StrIsNumeric(VL_RES) ~ as.numeric(VL_RES),
-            stri_detect_fixed(VL_RES, ", ") & has_alpha == 0 ~ as.numeric(str_replace_all(VL_RES, ", ", "")),
-            stri_detect_fixed(VL_RES, ",") & has_alpha == 0 ~ as.numeric(str_replace_all(VL_RES, ",", "")),
+            less_than == 1 & has_alpha == 0 ~ pure_number - 1,
+            StrIsNumeric(VL_RES) ~ pure_number,
+            !is.na(mega_number) ~ mega_number * 1000000,
+            less_than == 1 & has_alpha == 1 & is.na(scical) ~ less_number - 1,
             stri_detect_fixed(VL_RES, "NO T DET") ~ 0,
             stri_detect_fixed(VL_RES, "NOT DET") ~ 0,
             stri_detect_fixed(VL_RES, "MOT DET") ~ 0,
@@ -217,19 +231,14 @@ process_vl <- function(data, result_old, result_new) {
             stri_detect_fixed(VL_RES, "NO MEASURABLE") ~ 0,
             stri_detect_fixed(VL_RES, "NOT TEDECTED") ~ 0,
             stri_detect_fixed(VL_RES, "NOTY DETECTED") ~ 0,
-            str_detect(VL_RES, glue("\\bND\\b")) ~ 0,
-            VL_RES %in% c("HND", "ND", "N/D", "UD", "TND", "UNDE", "UN", "N.D", "NP", "UNDECTABLE", "UNDECTED", "UNDET") ~ 0,
-            VL_RES %in% c("TARGET NOT DETECTED", "TARGET NOT DEFECTED", "TNDD", "TNDS", "U", "UNDETACTABLE", "UNDETE", "UNTEDECTABLE", "UP") ~ 0,
-            VL_RES %in% c("N", "NO DETECTED", "NO\\", "NONE DETECTED", "NOT", "NOT CONNECTED", "NOT DETECED", "NOT DTECTED", "HIV 1 NOT DTECTED") ~ 0,
-            VL_RES %in% c("BN", "BD") ~ 0,
             VL_RES == "L40" ~ 39,
             VL_RES == "L70" ~ 69,
             VL_RES == "L70" ~ 69,
             VL_RES %in% c("LT 34", "LT6 34") ~ 33,
-            !is.na(as.numeric(str_replace_all(VL_RES, " ", ""))) ~ as.numeric(str_replace_all(VL_RES, " ", ""))
+            !is.na(pure_number) ~ pure_number
          ),
 
-         VL_ERRROR      = case_when(
+         VL_ERROR    = case_when(
             str_detect(VL_RES, "INVALID") ~ 1,
             str_detect(VL_RES, "ERROR") ~ 1,
             str_detect(VL_RES, "REPEAT") ~ 1,
@@ -239,11 +248,12 @@ process_vl <- function(data, result_old, result_new) {
             VL_RES == "TNS" ~ 1,
             VL_RES == "QNS" ~ 1,
             VL_RES == "NS" ~ 1,
+            VL_RES == "DRT NA CBA" ~ 1,
             TRUE ~ 0
          ),
 
          # tag for dropping
-         VL_DROP        = case_when(
+         VL_DROP     = case_when(
             VL_RES == " " ~ 1,
             VL_RES == "VL" ~ 1,
             VL_RES == "TO BE FOLLOW" ~ 1,
@@ -312,9 +322,12 @@ process_vl <- function(data, result_old, result_new) {
             stri_detect_fixed(VL_RES, "AWAITING") ~ 1,
             stri_detect_fixed(VL_RES, "CP# 09750471506") ~ 1,
             # is.na(VL_RES) & is.na(VL_RES_alt) ~ 1,
+            VL_ERROR == 1 ~ 1,
             TRUE ~ 0
          ),
-
+      ) %>%
+      # 2nd pass
+      mutate(
          # log increase
          log_raw        = if_else(
             condition = stri_detect_fixed(VL_RES, "LOG"),
@@ -329,9 +342,9 @@ process_vl <- function(data, result_old, result_new) {
             stri_replace_all_regex("[^[:digit:]]", ""),
          log_multiplier = if_else(
             condition = !is.na(log_multiplier),
-            true      = stri_pad_right("1", as.numeric(log_multiplier) + 1, "0"),
+            true      = stri_pad_right("1", parse_number(log_multiplier) + 1, "0"),
             false     = NA_character_
-         ) %>% as.numeric(),
+         ) %>% parse_number(),
          log_raw        = if_else(
             condition = stri_detect_fixed(log_raw, "E"),
             true      = substr(log_raw, 1, stri_locate_first_fixed(log_raw, "E") - 1) %>% stri_replace_all_regex("[^[:digit:]]", ""),
@@ -346,7 +359,7 @@ process_vl <- function(data, result_old, result_new) {
          log_increase   = stri_replace_all_fixed(log_increase, ")", ""),
          log_increase   = str_replace_all(log_increase, "[:alpha:]", ""),
          log_increase   = str_replace_all(log_increase, " ", ""),
-         log_increase   = as.numeric(log_increase) * 10,
+         log_increase   = parse_number(log_increase) * 10,
 
          # apply calculations
          VL_RES_2       = case_when(
@@ -355,17 +368,17 @@ process_vl <- function(data, result_old, result_new) {
                is.na(log_multiplier) &
                !stri_detect_fixed(VL_RES, "X") &
                !stri_detect_fixed(VL_RES, "E") &
-               !stri_detect_fixed(VL_RES, "^") ~ as.numeric(stri_replace_all_regex(log_raw, "[^[:digit:]]", "")) * log_increase,
+               !stri_detect_fixed(VL_RES, "^") ~ parse_number(stri_replace_all_regex(log_raw, "[^[:digit:]]", "")) * log_increase,
             !is.na(log_increase) &
                !is.na(log_multiplier) &
                stri_detect_fixed(VL_RES, "E") &
                !stri_detect_fixed(VL_RES, "X") &
-               !stri_detect_fixed(VL_RES, "^") ~ as.numeric(stri_replace_all_regex(log_raw, "[^[:digit:]]", "")) *
+               !stri_detect_fixed(VL_RES, "^") ~ parse_number(stri_replace_all_regex(log_raw, "[^[:digit:]]", "")) *
                log_increase *
                log_multiplier,
             is.na(VL_RES_2) &
                stri_count_fixed(VL_RES, ".") > 1 &
-               StrIsNumeric(str_replace_all(VL_RES, ".", "")) ~ as.numeric(stri_replace_all_regex(VL_RES, ".", "")),
+               StrIsNumeric(str_replace_all(VL_RES, ".", "")) ~ parse_number(stri_replace_all_regex(VL_RES, ".", "")),
             TRUE ~ VL_RES_2
          )
       ) %>%
@@ -374,13 +387,21 @@ process_vl <- function(data, result_old, result_new) {
          VL_RES_2 = coalesce(VL_CORRECT, VL_RES_2)
       ) %>%
       select(
-         -VL_RES,
-         -log_raw,
-         -log_multiplier,
-         -log_increase,
-         -has_alpha,
-         -less_than,
-         -starts_with("scical")
+         -any_of(c(
+            "VL_RES",
+            "less_than",
+            "has_alpha",
+            "scical",
+            "scical_x10",
+            "scical_eo",
+            "pure_number",
+            "mega_number",
+            "less_number",
+            "log_raw",
+            "log_multiplier",
+            "log_increase",
+            "VL_CORRECT"
+         ))
       ) %>%
       relocate(VL_RES_2, .after = !!vl_column_old) %>%
       rename(
