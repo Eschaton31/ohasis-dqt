@@ -180,6 +180,7 @@ clean_data <- function(forms, harp) {
          ),
          RT_INCLUDED     = case_when(
             CONFIRM_CODE != HARP_CONFIRM_CODE & year(HARP_CONFIRM_DATE) < year(DATE_CONFIRM) ~ 0,
+            interval(ART_START_DATE, hts_date) / days(1) > 28 ~ 0,
             AGE < 15 ~ 0,
             !is.na(RT_AGREED) ~ 1,
             !is.na(RT_RESULT) ~ 1,
