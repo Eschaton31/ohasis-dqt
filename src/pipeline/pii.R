@@ -31,7 +31,9 @@ remove_pii <- function(data) {
                "mobile",
                "CLIENT_EMAIL",
                "client_email",
-               "email"
+               "email",
+               "name",
+               "STANDARD_FIRST"
             )
          )
       )
