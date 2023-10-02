@@ -131,6 +131,7 @@ clean_data <- function(forms, harp) {
             missing   = REACH_CLINICAL
          ),
       ) %>%
+      select(-matches("risks")) %>%
       left_join(hts_risk, join_by(REC_ID)) %>%
       mutate(
          SEXUAL_RISK = case_when(
@@ -170,6 +171,7 @@ clean_data <- function(forms, harp) {
       left_join(harp$tx %>% select(CENTRAL_ID, ART_START_DATE = artstart_date), join_by(CENTRAL_ID)) %>%
       left_join(harp$prep %>% select(CENTRAL_ID, PREP_START_DATE = prepstart_date), join_by(CENTRAL_ID)) %>%
       relocate(HARP_INCLUSION_DATE, .after = DATE_CONFIRM) %>%
+      relocate(RT_AGREED_ACTUAL, RT_VALIDATION_REMARKS, .before = RT_AGREED) %>%
       mutate(
          RT_AGREED       = case_when(
             RT_AGREED_ACTUAL == "Y" ~ "1_Yes",
