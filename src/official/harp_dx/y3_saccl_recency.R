@@ -71,6 +71,7 @@ get_pdf_data <- function(file = NULL) {
          ~str_squish(toupper(.))
       ) %>%
       mutate(
+         CONFIRM_CODE    = str_squish(CONFIRM_CODE),
          TEST_RESULT     = case_when(
             str_detect(RT_RESULT, "RECENT") ~ "1",
             str_detect(RT_RESULT, "LONG-TERM") ~ "2",
