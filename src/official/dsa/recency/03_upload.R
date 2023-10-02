@@ -66,7 +66,30 @@ export_excel <- function(data, file) {
    p    <- envir
    vars <- as.list(list(...))
 
-   data <- p$official$recency %>% remove_pii()
+   data <- p$official$recency %>% %>%
+      remove_pii() %>%
+      mutate_if(
+         .predicate = is.labelled,
+         ~as_factor(.)
+      ) %>%
+      select(
+         -any_of(c(
+            "CREATED_BY",
+            "UPDATED_BY",
+            "CLINIC_NOTES",
+            "COUNSEL_NOTES",
+            "use_curr",
+            "AGE_DTA",
+            "risks",
+            "idnum",
+            "male",
+            "female",
+            "SELF_IDENT_OTHER_SIEVE",
+            "VL_ERROR",
+            "VL_DROP"
+         ))
+      )
+   data %>% write_sheet("1RN3JFNgWkyDf27qb3pfl_R-R_v-_lOPe8ZU_ZgS3Wtc", "PostProcessed")
 
    dir       <- Sys.getenv("TRACE_BOX")
    files     <- list(
