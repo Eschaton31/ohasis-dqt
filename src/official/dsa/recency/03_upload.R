@@ -66,11 +66,11 @@ export_excel <- function(data, file) {
    p    <- envir
    vars <- as.list(list(...))
 
-   data <- p$official$recency %>% %>%
+   data <- p$official$recency %>%
       remove_pii() %>%
       mutate_if(
          .predicate = is.labelled,
-         ~as_factor(.)
+         ~to_character(.)
       ) %>%
       select(
          -any_of(c(
