@@ -777,8 +777,11 @@ change_rhivda_code <- function(rec_id) {
    code_month   <- format(date_receive, "%m")
 
    log_info("Constructing new code.")
-   data_ref           <- dbGetQuery(conn, query_ref, params = code_year)
-   ctrl_num_curr      <- ifelse(nrow(data_ref) == 0, 0, as.integer(data_ref[[1]]))
+   data_ref      <- dbGetQuery(conn, query_ref, params = code_year)
+   ctrl_num_curr <- as.integer(data_ref[[1]])
+   if (nrow(data_ref) == 0)
+      ctrl_num_curr <- 0
+
    ctrl_num_seq       <- seq(min(ctrl_num_curr), max(ctrl_num_curr))
    ctrl_num_available <- setdiff(ctrl_num_seq, ctrl_num_curr)
 
