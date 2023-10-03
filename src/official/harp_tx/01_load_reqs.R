@@ -78,7 +78,7 @@ update_first_last_art <- function(update, params, path_to_sql) {
       db_name <- "ohasis_warehouse"
 
       # download the data
-      for (scope in c("art_first", "art_last", "art_lastdisp", "vl_last", "confirm_last")) {
+      for (scope in c("art_first", "art_last", "art_lastdisp", "confirm_last")) {
          name <- case_when(
             scope == "art_first" ~ "ART Start Dates",
             scope == "art_last" ~ "ART Latest Visits",
@@ -226,12 +226,26 @@ download_tables <- function(params) {
       left_join(forms$form_art_bc, join_by(REC_ID, VISIT_DATE))
 
    log_info("Downloading {green('Latest VL Data')}.")
-   forms$vl_last <- lw_conn %>%
-      dbTable(
-         db_name,
-         "vl_last",
-         cols = c("CENTRAL_ID", "LAB_VIRAL_DATE", "LAB_VIRAL_RESULT")
-      )
+   # forms$vl_last <- lw_conn %>%
+   #    dbTable(
+   #       db_name,
+   #       "vl_last",
+   #       cols = c("CENTRAL_ID", "LAB_VIRAL_DATE", "LAB_VIRAL_RESULT")
+   #    )
+   forms$vl_last <- hs_data("harp_vl", "all", params$yr, params$mo) %>%
+      read_dta() %>%
+      filter(
+         VL_DROP == 0, VL_ERROR == 0,
+         coalesce(CENTRAL_ID, "") != "",
+         vl_date <= params$max,
+      ) %>%
+      arrange(VL_SORT, desc(vl_date), res_tag) %>%
+      select(
+         CENTRAL_ID,
+         LAB_VIRAL_DATE   = vl_date,
+         LAB_VIRAL_RESULT = vl_result_clean
+      ) %>%
+      distinct(CENTRAL_ID, .keep_all = TRUE)
 
    log_info("Downloading {green('Latest Confirmatory Data')}.")
    forms$confirm_last <- lw_conn %>%
