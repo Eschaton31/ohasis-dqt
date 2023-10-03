@@ -252,8 +252,8 @@ standardize_data <- function(initial, params) {
 
          CIVIL_STATUS              = stri_trans_toupper(CIVIL_STATUS),
          nationalit                = case_when(
-            NATIONALITY == "Philippines" ~ "FILIPINO",
-            NATIONALITY != "Philippines" ~ "NON-FILIPINO",
+            toupper(NATIONALITY) == "PHILIPPINES" ~ "FILIPINO",
+            toupper(NATIONALITY) != "PHILIPPINES" ~ "NON-FILIPINO",
             TRUE ~ "UNKNOWN"
          ),
          current_school_level      = if_else(
@@ -641,7 +641,7 @@ tag_class <- function(data, corr) {
       mutate(
          # cd4 tagging
          days_cd4_confirm     = interval(CD4_DATE, confirm_date) / days(1),
-         cd4_is_baseline      = if_else(condition = days_cd4_confirm <= 182, 1, 0, 0),
+         cd4_is_baseline      = if_else(abs(days_cd4_confirm) <= 182, 1, 0, 0),
          CD4_DATE             = case_when(
             cd4_is_baseline == 0 ~ NA_Date_,
             is.na(CD4_RESULT) ~ NA_Date_,
@@ -651,10 +651,7 @@ tag_class <- function(data, corr) {
             cd4_is_baseline == 0 ~ NA_character_,
             TRUE ~ CD4_RESULT
          ),
-         CD4_RESULT           = stri_replace_all_charclass(CD4_RESULT, "[:alpha:]", "") %>%
-            stri_replace_all_fixed(" ", "") %>%
-            stri_replace_all_fixed("<", "") %>%
-            as.numeric(),
+         CD4_RESULT           = parse_number(CD4_RESULT),
          baseline_cd4         = case_when(
             CD4_RESULT >= 500 ~ 1,
             CD4_RESULT >= 350 & CD4_RESULT < 500 ~ 2,
@@ -740,7 +737,9 @@ tag_class <- function(data, corr) {
          # combi prev (HTS)
          SERVICE_CONDOMS      = if_else(SERVICE_CONDOMS == 0, NA_integer_, as.integer(SERVICE_CONDOMS), NA_integer_),
          SERVICE_LUBES        = if_else(SERVICE_LUBES == 0, NA_integer_, as.integer(SERVICE_LUBES), NA_integer_),
-      )
+      ) %>%
+      arrange(CENTRAL_ID, desc(cd4_is_baseline), days_cd4_confirm, CD4_DATE) %>%
+      distinct(CENTRAL_ID, .keep_all = TRUE)
 
    return(data)
 }
@@ -1127,6 +1126,19 @@ append_data <- function(old, new) {
       mutate(
          drop_notyet     = 0,
          drop_duplicates = 0,
+      ) %>%
+      mutate(
+         nodata_hiv_stage = if_else(
+            is.na(ahd) &
+               is.na(baseline_cd4) &
+               ((coalesce(description_symptoms, "") == "" & clinicalpicture == 1) | is.na(clinicalpicture)) &
+               is.na(tbpatient1) &
+               is.na(who_staging) &
+               class2022 == "HIV",
+            1,
+            0,
+            0
+         )
       )
 
    return(data)
@@ -1179,7 +1191,15 @@ remove_drops <- function(data, params) {
             missing   = labcode2
          ),
          drop        = drop_duplicates + drop_notyet,
-         who_staging = as.integer(who_staging)
+         who_staging = as.integer(who_staging),
+         transmit    = if_else(
+            year == params$yr &
+               month == params$mo &
+               transmit == "OTHERS",
+            "UNKNOWN",
+            transmit,
+            transmit
+         )
       ) %>%
       filter(drop == 0) %>%
       select(
@@ -1474,6 +1494,9 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          ) %>%
          select(
             any_of(view_vars),
+         ) %>%
+         mutate(
+            age_in_months = interval(bdate, confirm_date) / months(1)
          )
 
       log_info("Checking for missing gender identity.")
@@ -1592,6 +1615,7 @@ output_dta <- function(official, params, save = "2") {
    data <- tag_class(data, p$corr)
    data <- convert_faci_addr(data)
    data <- final_conversion(data)
+   data <- label_stata(data, p$corr$stata_labels)
 
    new_reg <- append_data(p$official$old, data)
    new_reg <- tag_fordrop(new_reg, p$corr)
