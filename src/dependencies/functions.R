@@ -127,27 +127,30 @@ check_dir <- function(dir) {
    for (var in unique(cleaning_list$VARIABLE)) {
       var_clean <- cleaning_list %>%
          filter(VARIABLE == var) %>%
-         rowwise() %>%
          mutate(
             {{corr_id_name}} := eval(parse(text = glue("as.{id_type}({corr_id_name})"))),
-            NEW_VALUE        = if_else(
-               NEW_VALUE == "NULL",
-               eval(parse(text = glue("as.{FORMAT}(NA)"))),
-               eval(parse(text = glue("as.{FORMAT}('{NEW_VALUE}')"))),
-            ),
-         ) %>%
-         ungroup() %>%
-         select(
-            {{eb_id}} := {{corr_id_name}},
-            NEW_VALUE
-         ) %>%
-         mutate(
-            update = 1,
+            NEW_VALUE        = na_if(NEW_VALUE, "NULL")
          )
+
+      var_clean$NEW_VALUE <- switch(
+         var_clean[1,]$FORMAT,
+         character = as.character(var_clean$NEW_VALUE),
+         numeric   = as.numeric(var_clean$NEW_VALUE),
+         integer   = as.integer(var_clean$NEW_VALUE),
+         Date      = as.Date(var_clean$NEW_VALUE),
+      )
+
       data %<>%
          select(-matches("NEW_VALUE", ignore.case = FALSE)) %>%
          left_join(
-            y  = var_clean,
+            y  = var_clean %>%
+               select(
+                  {{eb_id}} := {{corr_id_name}},
+                  NEW_VALUE
+               ) %>%
+               mutate(
+                  update = 1,
+               ),
             by = eb_id
          ) %>%
          mutate(
