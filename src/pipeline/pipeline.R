@@ -195,7 +195,7 @@ flow_validation <- function(data_env = NULL,
                corr_list[[issue]] %>%
                   mutate_if(
                      .predicate = is.labelled,
-                     ~as_factor(.)
+                     ~to_character(.)
                   ) %>%
                   sheet_write(gd_step, issue)
             }
