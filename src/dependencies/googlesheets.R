@@ -233,9 +233,34 @@ sheet_autofit <- function(ss) {
    local_gs4_quiet()
    ss     <- as_id(ss)
    sheets <- sheet_names(ss)
-   invisible(lapply(sheets, function (sheet) {
+   invisible(lapply(sheets, function(sheet) {
       log_info("Resizing = {green(sheet)}.")
       range_autofit(ss, sheet)
    }))
    log_success("Done.")
+}
+
+sheet_info <- function(ss) {
+   req <- googlesheets4::request_generate(
+      endpoint = "sheets.spreadsheets.get",
+      params   = list(spreadsheetId = ss)
+   )
+   val <- googlesheets4::request_make(req)
+   res <- httr::content(val)
+
+   sheets        <- res$sheets
+   sheets        <- lapply(sheets, function(list) list[["properties"]])
+   sheets        <- lapply(sheets, unlist)
+   names(sheets) <- lapply(sheets, function(properties) properties[["title"]])
+
+   sheets <- sheets %>%
+      bind_rows() %>%
+      rename_all(
+         ~str_replace_all(., "gridProperties\\.", "")
+      ) %>%
+      mutate(
+         sheet_url = stri_c("https://docs.google.com/spreadsheets/d/", ss, "/edit#gid=", sheetId)
+      )
+
+   return(sheets)
 }
