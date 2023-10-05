@@ -9,16 +9,16 @@ faci_code_to_id <- function(data, ref_faci_code, faci_branch) {
       mutate(
          main_faci   = if_else({{col_hub}} == "", NA_character_, {{col_hub}}, {{col_hub}}),
          branch_faci = if_else({{col_sub}} == "", NA_character_, {{col_sub}}, {{col_sub}}),
+         branch_faci = case_when(
+            nchar(branch_faci) == 3 ~ NA_character_,
+            main_faci == "BGN" ~ "TLY-BAGANI",
+            TRUE ~ branch_faci
+         ),
          main_faci   = case_when(
             stri_detect_regex(branch_faci, "^HASH") ~ "HASH",
             stri_detect_regex(branch_faci, "^SAIL") ~ "SAIL",
             stri_detect_regex(branch_faci, "^TLY") ~ "TLY",
             TRUE ~ main_faci
-         ),
-         branch_faci = if_else(
-            condition = nchar(branch_faci) == 3,
-            true      = NA_character_,
-            false     = branch_faci
          ),
          branch_faci = case_when(
             main_faci == "HASH" & is.na(branch_faci) ~ "HASH-QC",
@@ -34,16 +34,16 @@ faci_code_to_id <- function(data, ref_faci_code, faci_branch) {
             mutate(
                main_faci   = if_else(FACI_CODE == "", NA_character_, FACI_CODE, FACI_CODE),
                branch_faci = if_else(SUB_FACI_CODE == "", NA_character_, SUB_FACI_CODE, SUB_FACI_CODE),
+               branch_faci = case_when(
+                  nchar(branch_faci) == 3 ~ NA_character_,
+                  main_faci == "BGN" ~ "TLY-BAGANI",
+                  TRUE ~ branch_faci
+               ),
                main_faci   = case_when(
                   stri_detect_regex(branch_faci, "^HASH") ~ "HASH",
                   stri_detect_regex(branch_faci, "^SAIL") ~ "SAIL",
                   stri_detect_regex(branch_faci, "^TLY") ~ "TLY",
                   TRUE ~ main_faci
-               ),
-               branch_faci = if_else(
-                  condition = nchar(branch_faci) == 3,
-                  true      = NA_character_,
-                  false     = branch_faci
                ),
                branch_faci = case_when(
                   main_faci == "HASH" & is.na(branch_faci) ~ "HASH-QC",
