@@ -734,7 +734,18 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
       log_info("Checking for new clients that are not enrollees.")
       check[["non_enrollee"]] <- data %>%
          filter(
-            artstart_date < params$min
+            artstart_date < params$min,
+            coalesce(StrLeft(tx_status, 1), "") != "1"
+         ) %>%
+         select(
+            any_of(view_vars),
+         )
+
+      log_info("Checking for late reported clients.")
+      check[["late_report"]] <- data %>%
+         filter(
+            artstart_date < params$min,
+            coalesce(StrLeft(tx_status, 1), "") == "1"
          ) %>%
          select(
             any_of(view_vars),
@@ -767,6 +778,36 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
          select(
             any_of(view_vars),
          )
+
+      all_issues <- combine_validations(data, check, "REC_ID") %>%
+         mutate(
+            reg_order = artstart_reg,
+            reg_order = case_when(
+               reg_order == "1" ~ 1,
+               reg_order == "2" ~ 2,
+               reg_order == "CAR" ~ 3,
+               reg_order == "3" ~ 4,
+               reg_order == "NCR" ~ 5,
+               reg_order == "4A" ~ 6,
+               reg_order == "4B" ~ 7,
+               reg_order == "5" ~ 8,
+               reg_order == "6" ~ 9,
+               reg_order == "7" ~ 10,
+               reg_order == "8" ~ 11,
+               reg_order == "9" ~ 12,
+               reg_order == "10" ~ 13,
+               reg_order == "11" ~ 14,
+               reg_order == "12" ~ 15,
+               reg_order == "CARAGA" ~ 16,
+               reg_order == "ARMM" ~ 17,
+               reg_order == "BARMM" ~ 17,
+               TRUE ~ 9999
+            ),
+         ) %>%
+         arrange(reg_order, artstart_realhub, artstart_realhub_branch, REC_ID) %>%
+         select(-reg_order)
+
+      check <- list(all_issues = all_issues)
 
       # range-median
       tabstat <- c(
