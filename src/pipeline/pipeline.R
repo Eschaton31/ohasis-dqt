@@ -179,8 +179,9 @@ flow_validation <- function(data_env = NULL,
          # )
 
          # list of validations
-         issues_list <- names(corr_list)
-         sheets_list <- sheet_names(gd_step)
+         current_list <- sheet_names(gd_step)
+         upload_list  <- corr_list[which(lapply(corr_list, nrow) != 0)]
+         delete_list  <- setdiff(current_list, names(upload_list))
 
          # acquire sheet_id
          slack_by   <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
@@ -188,32 +189,24 @@ flow_validation <- function(data_env = NULL,
          slack_msg  <- glue(r"(
          *[<{drive_link}>]* Validation sheets updated by <@{slack_by}>
          )")
-         for (issue in issues_list) {
-            # add issue
-            if (nrow(corr_list[[issue]]) > 0) {
-               log_info("Uploadinng {green(issue)}.")
-               corr_list[[issue]] %>%
-                  mutate_if(
-                     .predicate = is.labelled,
-                     ~to_character(.)
-                  ) %>%
-                  sheet_write(gd_step, issue)
-            }
+         for (issue in names(upload_list)) {
+            log_info("Uploading {green(issue)}.")
+            upload_list[[issue]] %>%
+               mutate_if(
+                  .predicate = is.labelled,
+                  ~to_character(.)
+               ) %>%
+               sheet_write(gd_step, issue)
          }
 
-         log_info("Deleting empty sheets.")
-         empty_sheets <- names(corr_list[sapply(corr_list, nrow) == 0])
-         empty_sheets <- append(intersect(sheets_list, empty_sheets), setdiff(sheets_list, issues_list))
-         empty_sheets <- empty_sheets[empty_sheets != "Validations done"]
-
          # delete if existing sheet no longer has values in new run
-         if (length(empty_sheets) > 0) {
-            if (length(setdiff(sheets_list, empty_sheets)) == 0) {
+         log_info("Deleting empty sheets.")
+         if (length(delete_list) > 0) {
+            if (length(upload_list) == 0) {
                sheet_write(tibble(MSG = "Validations empty."), gd_step, "Validations done")
-               sheet_delete(gd_step, empty_sheets)
-            } else {
-               sheet_delete(gd_step, empty_sheets)
             }
+
+            sheet_delete(gd_step, delete_list)
          }
          if (corr_status == "new")
             sheet_autofit(gd_step)
@@ -235,4 +228,30 @@ flow_register <- function() {
    files <- fs::dir_info(file.path(getwd(), "src"), recurse = TRUE, regexp = "[/]+_init.") %>%
       arrange(path)
    invisible(lapply(files$path, source))
+}
+
+combine_validations <- function(data_src, corr_list, row_ids) {
+   appended <- corr_list %>%
+      bind_rows(.id = "sheet_name") %>%
+      filter(sheet_name != "tabstat") %>%
+      mutate(
+         issue = 1
+      )
+
+   cols     <- names(appended)
+   col_id   <- intersect(names(data_src), row_ids)
+   combined <- appended %>%
+      select(all_of(row_ids), sheet_name, issue) %>%
+      left_join(
+         y  = data_src %>%
+            select(any_of(cols)),
+         by = col_id
+      ) %>%
+      pivot_wider(
+         names_from   = sheet_name,
+         values_from  = issue,
+         names_prefix = "issue_"
+      )
+
+   return(combined)
 }
