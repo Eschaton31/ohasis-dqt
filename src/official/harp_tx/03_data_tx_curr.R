@@ -314,9 +314,14 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
 
          # check for multi-month clients
          days_to_pickup = case_when(
-            use_db == 1 ~ abs(as.numeric(difftime(LATEST_NEXT_DATE, LATEST_VISIT, units = "days"))),
-            use_db == 2 ~ abs(as.numeric(difftime(LASTDISP_NEXT_DATE, LASTDISP_VISIT, units = "days"))),
-            use_db == 0 ~ abs(as.numeric(difftime(prev_nextpickup, prev_ffupdate, units = "days"))),
+            use_db == 1 ~ floor(interval(LATEST_VISIT, LATEST_NEXT_DATE) / days(1)),
+            use_db == 2 ~ floor(interval(LASTDISP_VISIT, LASTDISP_NEXT_DATE) / days(1)),
+            use_db == 0 ~ floor(interval(prev_ffupdate, prev_nextpickup) / days(1)),
+         ),
+         months_to_pickup = case_when(
+            use_db == 1 ~ floor(interval(LATEST_VISIT, LATEST_NEXT_DATE) / months(1)),
+            use_db == 2 ~ floor(interval(LASTDISP_VISIT, LASTDISP_NEXT_DATE) / months(1)),
+            use_db == 0 ~ floor(interval(prev_ffupdate, prev_nextpickup) / months(1)),
          ),
          arv_worth      = case_when(
             days_to_pickup == 0 ~ '0_No ARVs',
@@ -472,7 +477,7 @@ final_conversion <- function(data) {
          real_reg,
          real_prov,
          real_munc,
-         days_to_pickup,
+         months_to_pickup,
          arv_worth,
          ref_death_date,
          confirm_date,
@@ -1106,11 +1111,6 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
          "artstart_rec",
          "oh_artstart",
          "oh_artstart_rec",
-         "prev_hub",
-         "prev_realhub",
-         "prev_realhub_branch",
-         "curr_hub",
-         "prev_class",
          "prev_ffupdate",
          "prev_nextpickup",
          "prev_regimen",
@@ -1118,19 +1118,16 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
          "curr_ffupdate",
          "curr_nextpickup",
          "curr_regimen",
-         "lastdisp_hub",
-         "lastdisp_ffupdate",
-         "lastdisp_nextpickup",
-         "lastdisp_regimen",
-         "lastdisp_rec",
          "curr_outcome",
+         "curr_vl_date",
+         "curr_vl_result",
          "ref_death_date"
       )
-      check     <- check_pii(step_data, check, view_vars, first = first, middle = middle, last = last, birthdate = birthdate, sex = sex)
+      # check     <- check_pii(step_data, check, view_vars, first = first, middle = middle, last = last, birthdate = birthdate, sex = sex)
 
       # non-negotiable variables
-      nonnegotiables <- c("curr_age", "uic")
-      check          <- check_nonnegotiables(step_data, check, view_vars, nonnegotiables)
+      # nonnegotiables <- c("curr_age", "uic")
+      # check          <- check_nonnegotiables(step_data, check, view_vars, nonnegotiables)
 
       # special checks
       log_info("Checking for missing dispensing data.")
@@ -1192,11 +1189,8 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
       # special checks
       log_info("Checking for extreme dispensing.")
       check[["mmd"]] <- step_data %>%
-         mutate(
-            months_to_pickup = floor(days_to_pickup / 30)
-         ) %>%
          filter(
-            months_to_pickup >= 7
+            months_to_pickup > 12
          ) %>%
          select(
             any_of(view_vars),
@@ -1277,7 +1271,7 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
       log_info("Checking for no confirmatories.")
       check[["not_confirmed"]] <- step_data %>%
          filter(
-            is.na(idnum) | is.na(confirm_result),
+            is.na(idnum) & is.na(confirm_result),
             curr_outcome == "alive on arv"
          ) %>%
          select(
@@ -1309,7 +1303,36 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
             any_of(view_vars),
          )
 
-      data <- new_outcome %>%
+      pre_issues <- combine_validations(step_data, check, "art_id") %>%
+         mutate(
+            reg_order = real_reg,
+            reg_order = case_when(
+               reg_order == "1" ~ 1,
+               reg_order == "2" ~ 2,
+               reg_order == "CAR" ~ 3,
+               reg_order == "3" ~ 4,
+               reg_order == "NCR" ~ 5,
+               reg_order == "4A" ~ 6,
+               reg_order == "4B" ~ 7,
+               reg_order == "5" ~ 8,
+               reg_order == "6" ~ 9,
+               reg_order == "7" ~ 10,
+               reg_order == "8" ~ 11,
+               reg_order == "9" ~ 12,
+               reg_order == "10" ~ 13,
+               reg_order == "11" ~ 14,
+               reg_order == "12" ~ 15,
+               reg_order == "CARAGA" ~ 16,
+               reg_order == "ARMM" ~ 17,
+               reg_order == "BARMM" ~ 17,
+               TRUE ~ 9999
+            ),
+         ) %>%
+         arrange(reg_order, curr_realhub, curr_realhub_branch, art_id) %>%
+         select(-reg_order)
+
+      check <- list()
+      data  <- new_outcome %>%
          left_join(
             y  = new_reg %>%
                select(
@@ -1404,6 +1427,36 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
             onart == 1
          )
 
+      post_issues <- combine_validations(data, check, "art_id") %>%
+         mutate(
+            reg_order = real_reg,
+            reg_order = case_when(
+               reg_order == "1" ~ 1,
+               reg_order == "2" ~ 2,
+               reg_order == "CAR" ~ 3,
+               reg_order == "3" ~ 4,
+               reg_order == "NCR" ~ 5,
+               reg_order == "4A" ~ 6,
+               reg_order == "4B" ~ 7,
+               reg_order == "5" ~ 8,
+               reg_order == "6" ~ 9,
+               reg_order == "7" ~ 10,
+               reg_order == "8" ~ 11,
+               reg_order == "9" ~ 12,
+               reg_order == "10" ~ 13,
+               reg_order == "11" ~ 14,
+               reg_order == "12" ~ 15,
+               reg_order == "CARAGA" ~ 16,
+               reg_order == "ARMM" ~ 17,
+               reg_order == "BARMM" ~ 17,
+               TRUE ~ 9999
+            ),
+         ) %>%
+         arrange(reg_order, realhub, realhub_branch, art_id) %>%
+         select(-reg_order)
+
+      check <- list(`pre-process` = pre_issues, `post-issues` = post_issues)
+
       # range-median
       tabstat <- c(
          "curr_age",
@@ -1414,7 +1467,7 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
          "prev_nextpickup",
          "curr_ffupdate",
          "curr_nextpickup",
-         "days_to_pickup",
+         "months_to_pickup",
          "ref_death_date",
          "prev_num_drugs",
          "curr_num_drugs"

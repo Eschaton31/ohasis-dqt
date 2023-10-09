@@ -52,7 +52,7 @@ dedup_group_ids <- function(data) {
          group_by(across(all_of(dedup_id))) %>%
          mutate(
             # generate a group id to identify groups of duplicates
-            group_id = cur_group_id(),
+            grp_id = str_c(collapse = ",", sort(art_id)),
          ) %>%
          ungroup() %>%
          mutate(DUP_IDS = paste(collapse = ', ', dedup_id))
@@ -60,6 +60,9 @@ dedup_group_ids <- function(data) {
       # if any found, include in list for review
       dedup_new[[dedup_name]] <- df
    }
+
+   all_dedup <- combine_validations(data, dedup_new, c("grp_id", "CENTRAL_ID"))
+   dedup_new <- list(group_dedup = all_dedup)
 
    return(dedup_new)
 }

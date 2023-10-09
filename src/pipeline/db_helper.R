@@ -561,6 +561,74 @@ oh_rec_id <- function(db_conn = NULL, user_id = NULL) {
    return(record_id)
 }
 
+batch_rec_ids <- function(data, rec_id, user_id, row_ids) {
+   rid_col <- deparse(substitute(rec_id))
+   set.seed(1)
+   data %<>%
+      select(-matches(rid_col)) %>%
+      mutate(
+         CREDS_ID = {{user_id}}
+      )
+
+   gen_rid <- function(data) {
+      data %<>%
+         mutate(
+            letter    = stri_c(collapse = "", strrep(LETTERS[1:26], 5)),
+            letter    = stri_rand_shuffle(letter),
+            letter    = StrLeft(letter, 1),
+            number    = strrep("0123456789", 5),
+            number    = stri_rand_shuffle(number),
+            number    = StrLeft(number, 2),
+
+            RECORD_ID = stri_c(letter, number),
+            RECORD_ID = stri_rand_shuffle(RECORD_ID),
+            RECORD_ID = stri_c(format(Sys.time(), "%Y%m%d%H%M"), RECORD_ID, CREDS_ID)
+         ) %>%
+         select(-number, -letter)
+
+      return(data)
+   }
+
+   get_issues <- function(data, conn) {
+      dupes   <- get_dupes(data, RECORD_ID)
+      already <- data %>%
+         inner_join(dbxSelect(db_conn, "SELECT REC_ID AS RECORD_ID FROM ohasis_interim.px_record WHERE REC_ID IN (?)", list(data$RECORD_ID)), join_by(RECORD_ID))
+
+      issues <- dupes %>%
+         select(-dupe_count) %>%
+         bind_rows(already) %>%
+         distinct_all()
+
+      return(issues)
+   }
+
+   db_conn <- ohasis$conn("db")
+   data    <- gen_rid(data)
+   issues  <- get_issues(data, db_conn)
+   while (nrow(issues) > 0) {
+      new <- gen_rid(issues) %>%
+         select(all_of(row_ids), NEW_REC = RECORD_ID)
+      data %<>%
+         left_join(new, by = row_ids, na_matches = "never") %>%
+         mutate(
+            RECORD_ID = coalesce(NEW_REC, RECORD_ID)
+         ) %>%
+         select(-NEW_REC)
+
+      issues <- get_issues(data, db_conn)
+   }
+   dbDisconnect(db_conn)
+
+   data %<>%
+      select(-CREDS_ID) %>%
+      rename(
+         {{rec_id}} := RECORD_ID
+      )
+
+   return(data)
+}
+
+
 dup_faci_id <- function(keep_faci, drop_faci, reason = NA_character_) {
    # get dupes
    dupes <- ohasis$ref_faci %>%

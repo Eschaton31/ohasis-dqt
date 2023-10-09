@@ -109,6 +109,10 @@ dedup_prep <- function(
          PHILHEALTH_NO     = stri_trans_general(stri_trans_toupper({{phic}}), "latin-ascii"),
          PHILSYS_ID        = stri_trans_general(stri_trans_toupper({{philsys}}), "latin-ascii"),
       ) %>%
+      mutate_at(
+         .vars = vars(LAST, MIDDLE, FIRST, SUFFIX, UIC, CONFIRMATORY_CODE, PATIENT_CODE, PHILHEALTH_NO, PHILSYS_ID),
+         ~clean_pii(.)
+      ) %>%
       mutate(
          # get components of birthdate
          BIRTH_YR      = year({{birthdate}}),
