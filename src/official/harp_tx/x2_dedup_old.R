@@ -275,23 +275,23 @@ dedup_group_ids <- function(data, params, non_dupes) {
       `issue_PhilSys.Fixed`      = 1,
       `issue_ConfirmCode.Base`   = 3,
       `issue_ConfirmCode.Fixed`  = 3,
-      `issue_PxCode.Base`        = 2,
-      `issue_PxCode.Fixed`       = 2,
-      `issue_PxConfirm.Base`     = 4,
-      `issue_PxConfirm.Fixed`    = 4,
+      `issue_PxCode.Base`        = 1,
+      `issue_PxCode.Fixed`       = 1,
+      `issue_PxConfirm.Base`     = 3,
+      `issue_PxConfirm.Fixed`    = 3,
       `issue_ConfirmUIC.Base`    = 4,
       `issue_ConfirmUIC.Fixed`   = 4,
       `issue_PxUIC.Base`         = 3,
       `issue_PxUIC.Fixed`        = 3,
       `issue_FirstUIC.Base`      = 3,
       `issue_FirstUIC.Fixed`     = 3,
-      `issue_FirstUIC.Partial`   = 2,
+      `issue_FirstUIC.Partial`   = 1,
       `issue_FirstUIC.Sort`      = 3,
-      `issue_PxBD.Base`          = 2,
+      `issue_PxBD.Base`          = 1,
       `issue_PxBD.Fixed`         = 1,
       `issue_Name.Base`          = 4,
       `issue_Name.Fixed`         = 4,
-      `issue_Name.Partial`       = 2,
+      `issue_Name.Partial`       = 1,
       `issue_Name.Sort`          = 3,
       `issue_YM.BD-Name.Base`    = 3,
       `issue_YD.BD-Name.Base`    = 3,
@@ -318,7 +318,10 @@ dedup_group_ids <- function(data, params, non_dupes) {
    all_dedup %<>%
       mutate(score = rowMeans(select(., starts_with("issue")), na.rm = TRUE)) %>%
       arrange(desc(score), grp_sort, grp_id) %>%
-      select(-grp_sort)
+      select(-grp_sort) %>%
+      mutate(
+         ym = stri_c(year, "-", stri_pad_left(month, 2, "0"))
+      )
    dedup_old <- list(group_dedup = all_dedup)
 
    return(dedup_old)
