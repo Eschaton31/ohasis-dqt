@@ -361,7 +361,7 @@ standardize_data <- function(initial) {
       ) %>%
       # services provided (HTS)
       mutate_at(
-         .vars = vars(starts_with("SERVICE_")),
+         .vars = vars(starts_with("SERVICE_") & !ends_with("FACI")),
          ~if_else(
             condition = !is.na(.),
             true      = StrLeft(., 1),
@@ -713,7 +713,12 @@ tag_class <- function(data) {
 
          # no data for stAGE of hiv
          nodata_hiv_stage     = if_else(
-            if_all(c(WHO_CLASS, description_symptoms, MED_TB_PX, CLINICAL_PIC), ~is.na(.)),
+            is.na(ahd) &
+               is.na(BASELINE_CD4) &
+               ((coalesce(description_symptoms, "") == "" & StrLeft(CLINICAL_PIC, 1) == "1") | is.na(CLINICAL_PIC)) &
+               is.na(MED_TB_PX) &
+               is.na(WHO_CLASS) &
+               HIV_STAGE == "HIV",
             1,
             0,
             0
