@@ -205,7 +205,11 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
       # get ohasis latest vl
       left_join(
          y  = last_vl %>%
-            select(CENTRAL_ID, LAST_VL_DATE = LAB_VIRAL_DATE, LAST_VL_RESULT = LAB_VIRAL_RESULT) %>%
+            select(
+               CENTRAL_ID,
+               LAST_VL_DATE   = LAB_VIRAL_DATE,
+               LAST_VL_RESULT = LAB_VIRAL_RESULT
+            ) %>%
             arrange(desc(LAST_VL_DATE)) %>%
             distinct(CENTRAL_ID, .keep_all = TRUE),
          by = join_by(CENTRAL_ID)
@@ -240,19 +244,19 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
       ) %>%
       mutate(
          # clinical pic
-         who_staging    = as.integer(keep_code(WHO_CLASS)),
+         who_staging      = as.integer(keep_code(WHO_CLASS)),
 
          # pregnant
-         pregnant       = as.integer(keep_code(IS_PREGNANT)),
+         pregnant         = as.integer(keep_code(IS_PREGNANT)),
 
          # tag if new data is to be used
-         new_report     = if_else(is.na(prev_outcome), 1, 0, 0),
-         use_type       = case_when(
+         new_report       = if_else(is.na(prev_outcome), 1, 0, 0),
+         use_type         = case_when(
             !is.na(MEDICINE_SUMMARY) & LATEST_NEXT_DATE >= -25567 ~ "latest",
             !is.na(LASTDISP_ARV) & LASTDISP_NEXT_DATE >= -25567 ~ "lastdisp",
             TRUE ~ NA_character_
          ),
-         use_db         = case_when(
+         use_db           = case_when(
             new_report == 1 & use_type == "latest" ~ 1,
             new_report == 1 & use_type == "lastdisp" ~ 2,
             LATEST_VISIT > prev_ffupdate & use_type == "latest" ~ 1,
@@ -264,7 +268,7 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
          ),
 
          # current age for class
-         curr_age       = case_when(
+         curr_age         = case_when(
             !is.na(birthdate) & use_db == 1 ~ calc_age(birthdate, LATEST_VISIT),
             is.na(birthdate) & use_db == 1 & !is.na(age) ~ age + (year(LATEST_VISIT) - year(artstart_date)),
             is.na(birthdate) & use_db == 1 & is.na(age) ~ prev_age + (year(LATEST_VISIT) - year(prev_ffupdate)),
@@ -275,14 +279,14 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
             is.na(birthdate) & use_db == 0 & !is.na(age) ~ age + (year(prev_ffupdate) - year(artstart_date)),
             is.na(birthdate) & use_db == 0 & is.na(age) ~ prev_age + (year(prev_ffupdate) - year(artstart_date)),
          ),
-         curr_age       = as.integer(floor(age)),
-         curr_class     = case_when(
+         curr_age         = as.integer(floor(age)),
+         curr_class       = case_when(
             curr_age >= 10 ~ "Adult Patient",
             curr_age < 10 ~ "Pediatric Patient",
          ),
 
          # current outcome
-         curr_outcome   = case_when(
+         curr_outcome     = case_when(
             use_db == 1 & (LATEST_VISIT <= ref_death_date) ~ "dead",
             use_db == 1 & LATEST_NEXT_DATE >= params$max ~ "alive on arv",
             use_db == 1 & LATEST_NEXT_DATE < params$max ~ "lost to follow up",
@@ -301,19 +305,19 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
          ),
 
          # count number of drugs in regimen
-         prev_num_drugs = if_else(
+         prev_num_drugs   = if_else(
             condition = !is.na(prev_regimen),
             true      = stri_count_fixed(prev_regimen, "+") + 1,
             false     = 0
          ),
-         curr_num_drugs = if_else(
+         curr_num_drugs   = if_else(
             condition = !is.na(MEDICINE_SUMMARY),
             true      = stri_count_fixed(MEDICINE_SUMMARY, "+") + 1,
             false     = 0
          ),
 
          # check for multi-month clients
-         days_to_pickup = case_when(
+         days_to_pickup   = case_when(
             use_db == 1 ~ floor(interval(LATEST_VISIT, LATEST_NEXT_DATE) / days(1)),
             use_db == 2 ~ floor(interval(LASTDISP_VISIT, LASTDISP_NEXT_DATE) / days(1)),
             use_db == 0 ~ floor(interval(prev_ffupdate, prev_nextpickup) / days(1)),
@@ -323,7 +327,7 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
             use_db == 2 ~ floor(interval(LASTDISP_VISIT, LASTDISP_NEXT_DATE) / months(1)),
             use_db == 0 ~ floor(interval(prev_ffupdate, prev_nextpickup) / months(1)),
          ),
-         arv_worth      = case_when(
+         arv_worth        = case_when(
             days_to_pickup == 0 ~ '0_No ARVs',
             days_to_pickup > 0 & days_to_pickup < 90 ~ '1_<3 months worth of ARVs',
             days_to_pickup >= 90 &
@@ -334,20 +338,20 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
          ),
 
          # regimen disagg
-         arv_reg        = stri_trans_tolower(MEDICINE_SUMMARY),
-         azt1           = if_else(stri_detect_fixed(arv_reg, "azt"), "azt", NA_character_),
-         tdf1           = if_else(stri_detect_fixed(arv_reg, "tdf"), "tdf", NA_character_),
-         d4t1           = if_else(stri_detect_fixed(arv_reg, "d4t"), "d4t", NA_character_),
-         xtc1           = if_else(stri_detect_fixed(arv_reg, "3tc"), "3tc", NA_character_),
-         efv1           = if_else(stri_detect_fixed(arv_reg, "efv"), "efv", NA_character_),
-         nvp1           = if_else(stri_detect_fixed(arv_reg, "nvp"), "nvp", NA_character_),
-         lpvr1          = if_else(stri_detect_fixed(arv_reg, "lpv/r"), "lpv/r", NA_character_),
-         lpvr1          = if_else(stri_detect_fixed(arv_reg, "lpvr"), "lpvr", lpvr1),
-         ind1           = if_else(stri_detect_fixed(arv_reg, "ind"), "ind", NA_character_),
-         ral1           = if_else(stri_detect_fixed(arv_reg, "ral"), "ral", NA_character_),
-         abc1           = if_else(stri_detect_fixed(arv_reg, "abc"), "abc", NA_character_),
-         ril1           = if_else(stri_detect_fixed(arv_reg, "ril"), "ril", NA_character_),
-         dtg1           = if_else(stri_detect_fixed(arv_reg, "dtg"), "dtg", NA_character_),
+         arv_reg          = stri_trans_tolower(MEDICINE_SUMMARY),
+         azt1             = if_else(stri_detect_fixed(arv_reg, "azt"), "azt", NA_character_),
+         tdf1             = if_else(stri_detect_fixed(arv_reg, "tdf"), "tdf", NA_character_),
+         d4t1             = if_else(stri_detect_fixed(arv_reg, "d4t"), "d4t", NA_character_),
+         xtc1             = if_else(stri_detect_fixed(arv_reg, "3tc"), "3tc", NA_character_),
+         efv1             = if_else(stri_detect_fixed(arv_reg, "efv"), "efv", NA_character_),
+         nvp1             = if_else(stri_detect_fixed(arv_reg, "nvp"), "nvp", NA_character_),
+         lpvr1            = if_else(stri_detect_fixed(arv_reg, "lpv/r"), "lpv/r", NA_character_),
+         lpvr1            = if_else(stri_detect_fixed(arv_reg, "lpvr"), "lpvr", lpvr1),
+         ind1             = if_else(stri_detect_fixed(arv_reg, "ind"), "ind", NA_character_),
+         ral1             = if_else(stri_detect_fixed(arv_reg, "ral"), "ral", NA_character_),
+         abc1             = if_else(stri_detect_fixed(arv_reg, "abc"), "abc", NA_character_),
+         ril1             = if_else(stri_detect_fixed(arv_reg, "ril"), "ril", NA_character_),
+         dtg1             = if_else(stri_detect_fixed(arv_reg, "dtg"), "dtg", NA_character_),
       )
 
    return(data)
@@ -536,6 +540,7 @@ finalize_outcomes <- function(data, params) {
          curr_outcome = case_when(
             prev_outcome == "dead" ~ "dead",
             confirm_date >= latest_ffupdate & confirm_result == "2_Negative" ~ "stopped - negative",
+            curr_outcome == "lost to follow up" & confirm_result == "2_Negative" ~ "stopped - negative",
             TRUE ~ curr_outcome
          ),
          newonart     = if_else(
@@ -555,6 +560,40 @@ finalize_outcomes <- function(data, params) {
             false     = 0,
             missing   = 0
          ),
+      ) %>%
+      # vl data
+      rename(
+         vl_date   = curr_vl_date,
+         vl_result = curr_vl_result
+      ) %>%
+      mutate(
+         baseline_vl   = if_else(
+            condition = floor(interval(artstart_date, vl_date) / days()) <= 82,
+            true      = as.integer(1),
+            false     = NA_integer_,
+            missing   = NA_integer_
+         ),
+         vl_suppressed = if_else(
+            condition = vl_result < 50,
+            true      = 1,
+            false     = 0,
+            missing   = 0
+         ),
+
+         vlp12m        = if_else(
+            vl_date %within% interval(params$max %m-% months(12) %m+% days(1), params$max),
+            as.integer(0),
+            NA_integer_
+         ),
+         vlp12m        = if_else(
+            condition = vlp12m == 0 & vl_suppressed == 1,
+            true      = as.integer(1),
+            false     = vlp12m,
+            missing   = vlp12m
+         ),
+
+         vl_yr         = year(vl_date),
+         vl_mo         = month(vl_date)
       )
 
    return(data)
@@ -583,12 +622,22 @@ finalize_faci <- function(data) {
       ) %>%
       mutate(
          branch         = case_when(
+            hub == "BGN" ~ "TLY-BAGANI",
             hub == "TLY" & is.na(branch) ~ "TLY-ANGLO",
             TRUE ~ branch
          ),
          realhub_branch = case_when(
+            realhub == "BGN" ~ "TLY-BAGANI",
             realhub == "TLY" & is.na(realhub_branch) ~ "TLY-ANGLO",
             TRUE ~ realhub_branch
+         ),
+         hub         = case_when(
+            hub == "BGN" ~ "TLY",
+            TRUE ~ hub
+         ),
+         realhub = case_when(
+            realhub == "BGN" ~ "TLY",
+            TRUE ~ realhub
          ),
       ) %>%
       mutate_at(
@@ -678,7 +727,8 @@ finalize_faci <- function(data) {
          previous_nextpickup = prev_nextpickup,
          previous_regimen    = prev_regimen,
          newonart,
-         onart
+         onart,
+         contains("vl")
       ) %>%
       distinct_all() %>%
       arrange(art_id, desc(latest_nextpickup)) %>%
@@ -1227,6 +1277,9 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
       check[["oh_startrec_diff"]] <- step_data %>%
          filter(
             artstart_rec != oh_artstart_rec | is.na(artstart_rec)
+         ) %>%
+         select(
+            any_of(view_vars),
          )
 
       check[["oh_later_start"]] <- step_data %>%
@@ -1515,7 +1568,7 @@ output_dta <- function(official, params, save = "2") {
       period_ext <- str_c(params$yr, "-", stri_pad_left(params$mo, 2, "0"), ".dta")
       files      <- list(
          new_reg            = file.path(dir, str_c(version, "_reg-art_", period_ext)),
-         new_outcome        = file.path(dir, str_c(version, "_onart_", period_ext)),
+         new_outcome        = file.path(dir, str_c(version, "_onart-vl_", period_ext)),
          dropped_notyet     = file.path(dir, str_c(version, "_dropped_notyet_", period_ext)),
          dropped_duplicates = file.path(dir, str_c(version, "_dropped_duplicates_", period_ext))
       )
@@ -1550,6 +1603,44 @@ output_dta <- function(official, params, save = "2") {
    data <- final_conversion(data)
 
    new_outcome <- finalize_outcomes(data, p$params)
+   # add adjusted regimens
+   adjust_reg  <- new_outcome %>%
+      select(CENTRAL_ID, art_id, latest_ffupdate, latest_nextpickup) %>%
+      mutate(
+         before = latest_ffupdate %m-% days(15),
+         after  = latest_ffupdate %m+% days(15),
+      ) %>%
+      left_join(
+         y  = p$forms$form_art_bc %>%
+            get_cid(p$forms$id_registry, PATIENT_ID) %>%
+            select(
+               CENTRAL_ID,
+               VISIT_DATE,
+               MEDICINE_SUMMARY,
+               LATEST_NEXT_DATE
+            ),
+         by = join_by(CENTRAL_ID)
+      ) %>%
+      mutate(
+         between_any = if_else(VISIT_DATE %within% interval(before, after), 1, 0, 0),
+         pickup      = coalesce(LATEST_NEXT_DATE, latest_nextpickup)
+      ) %>%
+      filter(between_any == 1, !is.na(MEDICINE_SUMMARY)) %>%
+      group_by(CENTRAL_ID) %>%
+      summarise(
+         regimen_grp = stri_c(collapse = "+", MEDICINE_SUMMARY),
+         pickup_grp  = max(pickup, na.rm = TRUE)
+      ) %>%
+      ungroup()
+
+   new_outcome %<>%
+      left_join(adjust_reg, join_by(CENTRAL_ID)) %>%
+      mutate(
+         latest_regimen    = coalesce(regimen_grp, latest_regimen),
+         latest_nextpickup = coalesce(pickup_grp, latest_nextpickup),
+      ) %>%
+      select(-regimen_grp, -pickup_grp)
+
    new_outcome <- finalize_faci(new_outcome)
    new_outcome <- new_outcome %>%
       get_reg_order("latest_regimen") %>%
