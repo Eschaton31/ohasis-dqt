@@ -405,7 +405,7 @@ merge_dead <- function(data, forms, params) {
 
    # get idnum
    data %<>%
-      select(-any_of("mort_id")) %>%
+      select(-any_of(c("mort_id", "ref_death_date"))) %>%
       left_join(
          y  = dead %>%
             distinct(CENTRAL_ID, .keep_all = TRUE),
