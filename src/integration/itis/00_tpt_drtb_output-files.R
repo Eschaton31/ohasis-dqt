@@ -35,7 +35,7 @@ itis <- list(
       xl  = "D:/Downloads/Documents/2023_DRTB_Patient_List_AS_OF_JULY_01_2023.xlsx",
       pw  = "@cc3$$@2023D@T@",
       ver = "2023.07.01"
-   ),
+   )
 )
 
 # ! functions
@@ -652,7 +652,7 @@ itis_harp <- function(itis, harp) {
                ) %>%
                select(
                   MATCH_ID,
-                  USING_CID       = ITIS_CENTRAL_ID,
+                  USING_CID       = HARP_CENTRAL_ID,
                   USING_FIRST     = FIRST_NAME,
                   USING_MIDDLE    = MIDDLE_NAME,
                   USING_LAST      = LAST_NAME,
@@ -921,3 +921,176 @@ for (i in 1:22) {
 
 check %>%
    write_xlsx("H:/20230702_itis-tpt_reference_dupes.xlsx")
+
+
+##  match with tx data
+tx      <- read_dta(hs_data("harp_tx", "reg", 2023, 6))
+check   <- itis_harp(
+   itis$refs$linelist %>%
+      anti_join(
+         y = id_itis %>% select(ITIS_CENTRAL_ID = ITIS_PATIENT_ID)
+      ) %>%
+      mutate(
+         BIRTH_YR = year(BIRTH_DATE),
+         BIRTH_MO = month(BIRTH_DATE),
+         BIRTH_DY = day(BIRTH_DATE),
+      ),
+   tx %>%
+      rename(
+         FIRST_NAME  = first,
+         MIDDLE_NAME = middle,
+         LAST_NAME   = last
+      ) %>%
+      mutate(
+         BIRTH_YR = year(birthdate),
+         BIRTH_MO = month(birthdate),
+         BIRTH_DY = day(birthdate),
+      )
+)
+check   <- quick_reclink(
+   itis$refs$linelist %>%
+      anti_join(
+         y = id_itis %>% select(ITIS_CENTRAL_ID = ITIS_PATIENT_ID)
+      ) %>%
+      mutate_at(
+         .vars = vars(FIRST_NAME, MIDDLE_NAME, LAST_NAME, NAME_EXTENSION),
+         ~coalesce(clean_pii(.), "")
+      ) %>%
+      mutate(
+         # name
+         name = str_squish(stri_c(LAST_NAME, ", ", FIRST_NAME, " ", MIDDLE_NAME, " ", NAME_EXTENSION)),
+      ),
+   tx %>%
+      rename(
+         FIRST_NAME     = first,
+         MIDDLE_NAME    = middle,
+         LAST_NAME      = last,
+         NAME_EXTENSION = suffix,
+         BIRTH_DATE     = birthdate
+      ) %>%
+      mutate(
+         name = str_squish(stri_c(LAST_NAME, ", ", FIRST_NAME, " ", MIDDLE_NAME, " ", NAME_EXTENSION)),
+      ),
+   "ITIS_CENTRAL_ID",
+   "CENTRAL_ID",
+   # c("name", "BIRTH_DATE"),
+   "name",
+   "name"
+)
+lw_conn <- ohasis$conn("lw")
+id_itis <- dbxSelect(lw_conn, "SELECT PATIENT_ID, ITIS_PATIENT_ID FROM ohasis_warehouse.id_itis")
+dbDisconnect(lw_conn)
+for_match <- itis$refs$linelist %>%
+   mutate(
+      CENTRAL_ID        = ITIS_CENTRAL_ID,
+      BIRTH_DATE        = as.Date(BIRTH_DATE),
+      philsys_id        = NA_character_,
+      uic               = str_c(
+         "XXXX99",
+         stri_pad_left(month(BIRTH_DATE), 2, "0"),
+         stri_pad_left(day(BIRTH_DATE), 2, "0"),
+         stri_pad_left(year(BIRTH_DATE), 4, "0")
+      ),
+      confirmatory_code = NA_character_,
+   ) %>%
+   anti_join(
+      y = id_itis %>% select(ITIS_CENTRAL_ID = ITIS_PATIENT_ID)
+   ) %>%
+   dedup_prep(
+      FIRST_NAME,
+      MIDDLE_NAME,
+      LAST_NAME,
+      NAME_EXTENSION,
+      uic,
+      BIRTH_DATE,
+      confirmatory_code,
+      PATIENT_CODE,
+      PHILHEALTH_NUMBER,
+      philsys_id
+   ) %>%
+   select(-CENTRAL_ID) %>%
+   mutate_at(
+      .vars = vars(FIRST_NAME, MIDDLE_NAME, LAST_NAME, NAME_EXTENSION),
+      ~coalesce(clean_pii(.), "")
+   ) %>%
+   mutate(
+      MASTER_NAME = str_squish(stri_c(LAST_NAME, ", ", FIRST_NAME, " ", MIDDLE_NAME, " ", NAME_EXTENSION)),
+   )
+ref_match <- tx %>%
+   dedup_prep(
+      first,
+      middle,
+      last,
+      suffix,
+      uic,
+      birthdate,
+      confirmatory_code,
+      px_code,
+      philhealth_no,
+      philsys_id
+   ) %>%
+   rename(
+      FIRST_NAME     = first,
+      MIDDLE_NAME    = middle,
+      LAST_NAME      = last,
+      NAME_EXTENSION = suffix,
+      BIRTH_DATE     = birthdate
+   ) %>%
+   mutate(
+      USING_NAME = str_squish(stri_c(LAST_NAME, ", ", FIRST_NAME, " ", MIDDLE_NAME, " ", NAME_EXTENSION)),
+   )
+
+ref_match %>%
+   inner_join(
+      y = for_match,
+      join_by(FIRST_NY, LAST_NY, BIRTH_MO, BIRTH_DY)
+   ) %>%
+   select(
+      CENTRAL_ID,
+      MASTER_NAME,
+      BIRTH_DATE.x,
+      ITIS_CENTRAL_ID,
+      USING_NAME,
+      BIRTH_DATE.y
+   ) %>%
+   # Additional sift through of matches
+   mutate(
+      # levenshtein
+      LV       = stringsim(MASTER_NAME, USING_NAME, method = 'lv'),
+      # jaro-winkler
+      JW       = stringsim(MASTER_NAME, USING_NAME, method = 'jw'),
+      # qgram
+      QGRAM    = stringsim(MASTER_NAME, USING_NAME, method = 'qgram', q = 3),
+      AVG_DIST = (LV + QGRAM + JW) / 3,
+   ) %>%
+   # choose 60% and above match
+   filter(AVG_DIST >= 0.85) %>%
+   select(
+      CENTRAL_ID,
+      ITIS_CENTRAL_ID,
+   ) %>%
+   write_clip()
+
+itis$tpt$data %>%
+   rename_all(
+      ~str_replace_all(., "__", "_") %>%
+         str_replace_all("LABORATORY", "LAB") %>%
+         str_replace_all("FACILITY", "FACI") %>%
+         str_replace_all("CITY_MUNICIPALITY", "MUNCITY")
+   ) %>%
+   format_stata() %>%
+   write_dta("H:/_R/library/itis_tpt/20230701_itis-tpt_2023-06.dta")
+
+itis$drtb$data %>%
+   rename_all(
+      ~str_replace_all(., "__", "_") %>%
+         str_replace_all("LABORATORY", "LAB") %>%
+         str_replace_all("FACILITY", "FACI") %>%
+         str_replace_all("CITY_MUNICIPALITY", "MUNCITY")
+   ) %>%
+   format_stata() %>%
+   write_dta("H:/_R/library/itis_tbtx/20230701_itis-drtb_2023-06.dta")
+
+drtb_sql <- r"(
+SELECT caseID, scrngLocation, gender, age, classification, screening_date, registrationDate, registrationCode, starttxDate, screeningUnit, treatmentUnit, sourceofReferral, tbContact, transin, category, tb_kind, patientType, bact_status, outcome, outcome_reason, outcome_comment, outcomeDate, pictDate, no_hiv_reason, no_art_reason, validated, txPartner, socialClass, birthDate, nationality, drType, regimenCode, screening_date, study_participation, AES_DECRYPT(last_name,'grtjw48957hfsd63fj3je0rwpdkqdjdw23948fsqfu') AS dec_lastname, AES_DECRYPT(first_name,'grtjw48957hfsd63fj3je0rwpdkqdjdw23948fsqfu') AS dec_firstname, AES_DECRYPT(middle_name,'grtjw48957hfsd63fj3je0rwpdkqdjdw23948fsqfu') AS dec_middlename, birthPlace, religion, occupation, philHealth, AES_DECRYPT(street_address,'grtjw48957hfsd63fj3je0rwpdkqdjdw23948fsqfu') AS dec_address, screeningCode, specific_source, presumptive_drtb, endtxDate, continuationTx, ipt_type, gLocation, civilStatus, name_suffix, datetime_created, diagnosis_date, mode_of_screening, txPartner, tx_supporter_location, dat, tb_case.userID, tb_case.dateEncoded FROM `tb_case` JOIN `patient` ON tb_case.patientID = patient.patientID WHERE (registrationDate BETWEEN '2023-06-01' AND '2023-06-30') AND registrationCode != '' AND outcome != 'NULL' AND outcome != '0' AND tb_kind = 1 AND validated = '1'
+)"
