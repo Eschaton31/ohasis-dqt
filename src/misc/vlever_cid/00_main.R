@@ -2,16 +2,35 @@
 
 start_vl    <- "2004-01-01"
 lw_conn     <- ohasis$conn("lw")
-form_art_bc <- dbTable(
+# form_art_bc <- dbTable(
+#    lw_conn,
+#    "ohasis_warehouse",
+#    "form_art_bc",
+#    cols      = c("PATIENT_ID", "VISIT_DATE", "LAB_VIRAL_DATE", "LAB_VIRAL_RESULT"),
+#    raw_where = TRUE,
+#    where     = glue(r"(
+# (LAB_VIRAL_DATE IS NOT NULL OR LAB_VIRAL_RESULT IS NOT NULL) AND
+# (VISIT_DATE >= '{start_vl}' OR LAB_VIRAL_DATE >= '{start_vl}')
+#    )")
+# )
+form_art_bc <- tracked_select(
    lw_conn,
-   "ohasis_warehouse",
-   "form_art_bc",
-   cols      = c("PATIENT_ID", "VISIT_DATE", "LAB_VIRAL_DATE", "LAB_VIRAL_RESULT"),
-   raw_where = TRUE,
-   where     = glue(r"(
-(LAB_VIRAL_DATE IS NOT NULL OR LAB_VIRAL_RESULT IS NOT NULL) AND
-(VISIT_DATE >= '{start_vl}' OR LAB_VIRAL_DATE >= '{start_vl}')
-   )")
+   glue(r"(
+SELECT px_pii.PATIENT_ID,
+       px_pii.RECORD_DATE AS VISIT_DATE,
+       LAB_VIRAL_DATE,
+       LAB_VIRAL_RESULT,
+       px_pii.FACI_ID,
+       px_pii.SUB_FACI_ID,
+       px_faci_info.SERVICE_FACI,
+       px_faci_info.SERVICE_SUB_FACI
+FROM ohasis_lake.lab_wide
+         JOIN ohasis_lake.px_pii ON lab_wide.REC_ID = px_pii.REC_ID
+         LEFT JOIN ohasis_lake.px_faci_info ON lab_wide.REC_ID = px_faci_info.REC_ID
+WHERE (LAB_VIRAL_DATE IS NOT NULL OR LAB_VIRAL_RESULT IS NOT NULL)
+  AND (RECORD_DATE >= '{start_vl}' OR LAB_VIRAL_DATE >= '{start_vl}')
+   )"),
+   "vl results"
 )
 id_registry <- dbTable(
    lw_conn,
@@ -25,17 +44,7 @@ dbDisconnect(lw_conn)
 .log_info("Processing forms data.")
 data_forms <- form_art_bc %>%
    # get latest central ids
-   left_join(
-      y  = id_registry,
-      by = "PATIENT_ID"
-   ) %>%
-   mutate(
-      CENTRAL_ID = if_else(
-         condition = is.na(CENTRAL_ID),
-         true      = PATIENT_ID,
-         false     = CENTRAL_ID
-      ),
-   ) %>%
+   get_cid(id_registry, PATIENT_ID) %>%
    select(
       CENTRAL_ID,
       vl_date_2 = LAB_VIRAL_DATE,
@@ -471,8 +480,8 @@ vl_last  <- vl_filtered %>%
 vl_final <- vl_first %>%
    full_join(vl_last)
 
-dx    <- read_dta(hs_data("harp_full", "reg", 2023, 2))
-tx    <- read_dta(hs_data("harp_tx", "reg", 2023, 2))
+dx    <- read_dta(hs_data("harp_full", "reg", 2023, 6))
+tx    <- read_dta(hs_data("harp_tx", "reg", 2023, 6))
 vl_dx <- dx %>%
    select(-contains("CENTRAL_ID")) %>%
    # get latest central ids
@@ -528,7 +537,7 @@ vl_dx <- dx %>%
 vl_tx <- tx %>%
    select(-contains("CENTRAL_ID")) %>%
    left_join(
-      y  = read_dta(hs_data("harp_tx", "outcome", 2023, 2), col_select = c(art_id, vl_date, vl_result)),
+      y  = read_dta(hs_data("harp_tx", "outcome", 2023, 6), col_select = c(art_id, vl_date, vl_result)),
       by = "art_id"
    ) %>%
    # get latest central ids
@@ -581,5 +590,5 @@ vl_tx <- tx %>%
    ) %>%
    distinct(art_id, .keep_all = TRUE)
 
-write_dta(vl_dx, file.path(Sys.getenv("HARP_VL"), stri_c( format(Sys.time(), "%Y%m%d_vlnaive-dx_"), "2023-02.dta")))
-write_dta(vl_tx, file.path(Sys.getenv("HARP_VL"), stri_c( format(Sys.time(), "%Y%m%d_vlnaive-tx_"), "2023-02.dta")))
+write_dta(format_stata(vl_dx), file.path(Sys.getenv("HARP_VL"), stri_c( format(Sys.time(), "%Y%m%d_vlnaive-dx_"), "2023-06.dta")))
+write_dta(format_stata(vl_tx), file.path(Sys.getenv("HARP_VL"), stri_c( format(Sys.time(), "%Y%m%d_vlnaive-tx_"), "2023-06.dta")))
