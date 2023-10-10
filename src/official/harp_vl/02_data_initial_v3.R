@@ -13,6 +13,7 @@ vl_yr     <- input(prompt = "What is the reporting year?", max.char = 4)
 vl_mo     <- vl_mo %>% stri_pad_left(width = 2, pad = "0")
 vl_yr     <- vl_yr %>% stri_pad_left(width = 4, pad = "0")
 vl_report <- glue("{vl_yr}-{vl_mo}")
+vl_tly    <- input(prompt = "What is the UNIX path for the TLY VL dataset?")
 
 # reference dates
 end_vl   <- as.character(ceiling_date(as.Date(glue("{vl_yr}-{vl_mo}-01")), "months") - 1)
@@ -96,6 +97,23 @@ data_ml <- bind_rows(data_ml) %>%
             LAB_VIRAL_RESULT = as.character(vl_result)
          )
    )
+
+if (vl_tly != "") {
+   data_ml %<>%
+      filter(hub != "TLY") %>%
+      bind_rows(
+         read_dta(vl_tly) %>%
+            select(
+               PATIENT_ID,
+               vl_date          = VL_DATE,
+               LAB_VIRAL_RESULT = VL_RESULT
+            ) %>%
+            mutate(
+               hub = "TLY"
+            ) %>%
+            process_vl("LAB_VIRAL_RESULT", "vl_result")
+      )
+}
 
 # get only needed columns
 data_ml %<>%
