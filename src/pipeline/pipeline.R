@@ -242,16 +242,18 @@ combine_validations <- function(data_src, corr_list, row_ids) {
    col_id   <- intersect(names(data_src), row_ids)
    combined <- appended %>%
       select(all_of(row_ids), sheet_name, issue) %>%
+      pivot_wider(
+         id_cols      = all_of(row_ids),
+         names_from   = sheet_name,
+         values_from  = issue,
+         names_prefix = "issue_"
+      ) %>%
       left_join(
          y  = data_src %>%
             select(any_of(cols)),
          by = col_id
       ) %>%
-      pivot_wider(
-         names_from   = sheet_name,
-         values_from  = issue,
-         names_prefix = "issue_"
-      )
+      relocate(starts_with("issue_"), .after = tail(names(.), 1))
 
    return(combined)
 }
