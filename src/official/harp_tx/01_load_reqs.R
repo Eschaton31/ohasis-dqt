@@ -235,7 +235,8 @@ download_tables <- function(params) {
    forms$vl_last <- hs_data("harp_vl", "all", params$yr, params$mo) %>%
       read_dta() %>%
       filter(
-         VL_DROP == 0, VL_ERROR == 0,
+         VL_DROP == 0,
+         VL_ERROR == 0,
          coalesce(CENTRAL_ID, "") != "",
          vl_date <= params$max,
       ) %>%
