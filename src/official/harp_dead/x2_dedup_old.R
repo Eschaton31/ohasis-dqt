@@ -241,7 +241,13 @@ dedup_group_ids <- function(data) {
          group_by(across(all_of(dedup_id))) %>%
          mutate(
             # generate a group id to identify groups of duplicates
-            group_id = cur_group_id(),
+            .before  = mort_id,
+            grp_id   = str_c(collapse = ",", sort(mort_id)),
+            grp_sort = case_when(
+               any(year == params$yr & month == params$mo) ~ 1,
+               any(is.na(idnum)) ~ 2,
+               TRUE ~ 9
+            )
          ) %>%
          ungroup() %>%
          mutate(DUP_IDS = paste(collapse = ', ', dedup_id))
@@ -249,6 +255,72 @@ dedup_group_ids <- function(data) {
       # if any found, include in list for review
       dedup_old[[dedup_name]] <- df
    }
+   all_dedup <- combine_validations(data, dedup_old, c("grp_id", "mort_id")) %>%
+      group_by(grp_id) %>%
+      mutate(
+         grp_sort = case_when(
+            any(year == params$yr & month == params$mo) ~ 1,
+            any(is.na(idnum)) ~ 2,
+            TRUE ~ 9
+         ),
+      ) %>%
+      ungroup()
+
+   adjust_score <- c(
+      `issue_UIC.Base`           = 3,
+      `issue_UIC.Fixed`          = 3,
+      `issue_PhilHealth.Fixed`   = 1,
+      `issue_PhilSys.Fixed`      = 1,
+      `issue_ConfirmCode.Base`   = 3,
+      `issue_ConfirmCode.Fixed`  = 3,
+      `issue_PxCode.Base`        = 1,
+      `issue_PxCode.Fixed`       = 1,
+      `issue_PxConfirm.Base`     = 3,
+      `issue_PxConfirm.Fixed`    = 3,
+      `issue_ConfirmUIC.Base`    = 4,
+      `issue_ConfirmUIC.Fixed`   = 4,
+      `issue_PxUIC.Base`         = 3,
+      `issue_PxUIC.Fixed`        = 3,
+      `issue_FirstUIC.Base`      = 3,
+      `issue_FirstUIC.Fixed`     = 3,
+      `issue_FirstUIC.Partial`   = 1,
+      `issue_FirstUIC.Sort`      = 3,
+      `issue_PxBD.Base`          = 1,
+      `issue_PxBD.Fixed`         = 1,
+      `issue_Name.Base`          = 4,
+      `issue_Name.Fixed`         = 4,
+      `issue_Name.Partial`       = 1,
+      `issue_Name.Sort`          = 3,
+      `issue_YM.BD-Name.Base`    = 3,
+      `issue_YD.BD-Name.Base`    = 3,
+      `issue_MD.BD-Name.Base`    = 3,
+      `issue_YM.BD-Name.Fixed`   = 2,
+      `issue_YD.BD-Name.Fixed`   = 2,
+      `issue_MD.BD-Name.Fixed`   = 2,
+      `issue_YM.BD-Name.Partial` = 1,
+      `issue_YD.BD-Name.Partial` = 1,
+      `issue_MD.BD-Name.Partial` = 1,
+      `issue_YM.BD-Name.Sort`    = 2,
+      `issue_YD.BD-Name.Sort`    = 2,
+      `issue_MD.BD-Name.Sort`    = 2
+   )
+   adjust_only  <- intersect(names(adjust_score), names(all_dedup))
+   for (var in adjust_only) {
+      all_dedup %<>%
+         mutate_at(
+            .vars = vars(matches(var)),
+            ~if_else(. == 1, adjust_score[[var]], 0, 0)
+         )
+   }
+
+   all_dedup %<>%
+      mutate(score = rowMeans(select(., starts_with("issue")), na.rm = TRUE)) %>%
+      arrange(desc(score), grp_sort, grp_id) %>%
+      select(-grp_sort) %>%
+      mutate(
+         ym = stri_c(year, "-", stri_pad_left(month, 2, "0"))
+      )
+   dedup_old <- list(group_dedup = all_dedup)
 
    return(dedup_old)
 }
