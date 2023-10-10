@@ -147,90 +147,110 @@ WHERE pii.DELETED_AT IS NULL
 dedup_linelist <- function(dedup) {
 
    # columns to be included in the final linelist
-   cols <- c(
-      "FIRST",
-      "MIDDLE",
-      "LAST",
-      "SUFFIX",
-      "UIC",
-      "CONFIRMATORY_CODE",
-      "PATIENT_CODE",
-      "BIRTHDATE",
-      "PHILSYS_ID",
-      "PHILHEALTH_NO",
-      "CLIENT_EMAIL",
-      "CLIENT_MOBILE",
-      "SEX",
-      get_names(dedup$pii, "PERM_"),
-      get_names(dedup$pii, "CURR_")
-   )
-
+   # cols <- c(
+   #    "FIRST",
+   #    "MIDDLE",
+   #    "LAST",
+   #    "SUFFIX",
+   #    "UIC",
+   #    "CONFIRMATORY_CODE",
+   #    "PATIENT_CODE",
+   #    "BIRTHDATE",
+   #    "PHILSYS_ID",
+   #    "PHILHEALTH_NO",
+   #    "CLIENT_EMAIL",
+   #    "CLIENT_MOBILE",
+   #    "SEX",
+   #    get_names(dedup$pii, "PERM_"),
+   #    get_names(dedup$pii, "CURR_")
+   # )
+   # 
    # arrange descendingly based on latest record
    dedup$pii %<>%
       ungroup() %>%
-      get_cid(dedup$id_registry, PATIENT_ID) %>%
-      arrange(desc(SNAPSHOT))
+      get_cid(dedup$id_registry, PATIENT_ID)
 
-   # get latest non-missing data from column
-   for (col in cols) {
-      .log_info("Getting latest data for {green(col)}.")
-      col_name <- as.name(col)
-
-      # remove values denoting missing data
-      if (col %in% c("FIRST", "LAST", "CLIENT_EMAIL"))
-         dedup$vars[[col]] <- dedup$pii %>%
-            select(
-               CENTRAL_ID,
-               !!col_name
-            ) %>%
-            mutate(
-               !!col_name := str_squish(toupper(!!col_name)),
-               !!col_name := case_when(
-                  !!col_name == "XXX" ~ NA_character_,
-                  !!col_name == "N/A" ~ NA_character_,
-                  !!col_name == "NA" ~ NA_character_,
-                  !!col_name == "NULL" ~ NA_character_,
-                  !!col_name == "NONE" ~ NA_character_,
-                  nchar(!!col_name) == 1 ~ NA_character_,
-                  TRUE ~ !!col_name
-               ),
-               !!col_name := clean_pii(!!col_name)
-            ) %>%
-            filter(!is.na(!!col_name))
-      else
-         dedup$vars[[col]] <- dedup$pii %>%
-            select(
-               CENTRAL_ID,
-               !!col_name
-            ) %>%
-            mutate(
-               !!col_name := str_squish(toupper(!!col_name)),
-               !!col_name := if_else(!!col_name == "", NA_character_, !!col_name, !!col_name),
-               !!col_name := clean_pii(!!col_name)
-            ) %>%
-            filter(!is.na(!!col_name))
-
-      # deduplicate based on central id
-      dedup$vars[[col]] %<>%
-         distinct(CENTRAL_ID, .keep_all = TRUE) %>%
-         # rename columns for reshaping
-         rename(
-            DATA = 2
-         ) %>%
-         mutate(
-            VAR = col
-         ) %>%
-         mutate_all(~as.character(.))
-   }
-
-   # append list of latest variablkes and reshape to created
-   # final dataset/linelist
-   .log_info("Consolidating variables.")
-   dedup$linelist <- bind_rows(dedup$vars) %>%
+   # # get latest non-missing data from column
+   # for (col in cols) {
+   #    .log_info("Getting latest data for {green(col)}.")
+   #    col_name <- as.name(col)
+   # 
+   #    # remove values denoting missing data
+   #    if (col %in% c("FIRST", "LAST", "CLIENT_EMAIL"))
+   #       dedup$vars[[col]] <- dedup$pii %>%
+   #          select(
+   #             CENTRAL_ID,
+   #             !!col_name
+   #          ) %>%
+   #          mutate(
+   #             !!col_name := str_squish(toupper(!!col_name)),
+   #             !!col_name := case_when(
+   #                !!col_name == "XXX" ~ NA_character_,
+   #                !!col_name == "N/A" ~ NA_character_,
+   #                !!col_name == "NA" ~ NA_character_,
+   #                !!col_name == "NULL" ~ NA_character_,
+   #                !!col_name == "NONE" ~ NA_character_,
+   #                nchar(!!col_name) == 1 ~ NA_character_,
+   #                TRUE ~ !!col_name
+   #             ),
+   #             !!col_name := clean_pii(!!col_name)
+   #          ) %>%
+   #          filter(!is.na(!!col_name))
+   #    else
+   #       dedup$vars[[col]] <- dedup$pii %>%
+   #          select(
+   #             CENTRAL_ID,
+   #             !!col_name
+   #          ) %>%
+   #          mutate(
+   #             !!col_name := str_squish(toupper(!!col_name)),
+   #             !!col_name := if_else(!!col_name == "", NA_character_, !!col_name, !!col_name),
+   #             !!col_name := clean_pii(!!col_name)
+   #          ) %>%
+   #          filter(!is.na(!!col_name))
+   # 
+   #    # deduplicate based on central id
+   #    dedup$vars[[col]] %<>%
+   #       distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+   #       # rename columns for reshaping
+   #       rename(
+   #          DATA = 2
+   #       ) %>%
+   #       mutate(
+   #          VAR = col
+   #       ) %>%
+   #       mutate_all(~as.character(.))
+   # }
+   # 
+   # # append list of latest variablkes and reshape to created
+   # # final dataset/linelist
+   # .log_info("Consolidating variables.")
+   # dedup$linelist <- bind_rows(dedup$vars) %>%
+   #    pivot_wider(
+   #       id_cols     = CENTRAL_ID,
+   #       names_from  = VAR,
+   #       values_from = DATA
+   #    )
+   log_info("Getting latest data per column.")
+   dedup$linelist <- dedup$pii %>%
+      select(-REC_ID, -FACI_ID, -SUB_FACI_ID, -PATIENT_ID, -DELETED_AT) %>%
+      mutate_if(
+         .predicate = is.character,
+         ~clean_pii(.)
+      ) %>%
+      mutate(BIRTHDATE = as.character(BIRTHDATE)) %>%
+      pivot_longer(
+         cols = c(FIRST, MIDDLE, LAST, SUFFIX, UIC, CONFIRMATORY_CODE, PATIENT_CODE, BIRTHDATE, PHILSYS_ID, PHILHEALTH_NO, CLIENT_EMAIL, CLIENT_MOBILE, SEX, PERM_REG, PERM_PROV, PERM_MUNC, CURR_REG, CURR_PROV, CURR_MUNC)
+      ) %>%
+      mutate(
+         sort = if_else(!is.na(value), 1, 9999, 9999)
+      ) %>%
+      arrange(sort, desc(SNAPSHOT)) %>%
+      distinct(CENTRAL_ID, name, .keep_all = TRUE) %>%
       pivot_wider(
          id_cols     = CENTRAL_ID,
-         names_from  = VAR,
-         values_from = DATA
+         names_from  = name,
+         values_from = value
       )
 
    # load harp diagnosis
