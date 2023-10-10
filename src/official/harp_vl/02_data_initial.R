@@ -92,16 +92,35 @@ nhsss$harp_dx$official$new <- hs_data("harp_dx", "reg", ohasis$yr, ohasis$mo) %>
 # Form BC + Lab Data
 .log_info("Processing forms data.")
 lw_conn    <- ohasis$conn("lw")
-data_forms <- dbTable(
+# data_forms <- dbTable(
+#    lw_conn,
+#    "ohasis_warehouse",
+#    "form_art_bc",
+#    raw_where = TRUE,
+#    where     = glue1(r"(
+# (LAB_VIRAL_DATE IS NOT NULL OR LAB_VIRAL_RESULT IS NOT NULL) AND
+#   (VISIT_DATE >= '{start_vl}' OR LAB_VIRAL_DATE >= '{start_vl}')
+# )"),
+#    cols      = c("PATIENT_ID", "VISIT_DATE", "LAB_VIRAL_DATE", "LAB_VIRAL_RESULT", "FACI_ID", "SUB_FACI_ID", "SERVICE_FACI", "SERVICE_SUB_FACI")
+# )
+data_forms <- tracked_select(
    lw_conn,
-   "ohasis_warehouse",
-   "form_art_bc",
-   raw_where = TRUE,
-   where     = glue(r"(
-(LAB_VIRAL_DATE IS NOT NULL OR LAB_VIRAL_RESULT IS NOT NULL) AND
-  (VISIT_DATE >= '{start_vl}' OR LAB_VIRAL_DATE >= '{start_vl}')
-)"),
-   cols      = c("PATIENT_ID", "VISIT_DATE", "LAB_VIRAL_DATE", "LAB_VIRAL_RESULT", "FACI_ID", "SUB_FACI_ID", "SERVICE_FACI", "SERVICE_SUB_FACI")
+   glue(r"(
+SELECT px_pii.PATIENT_ID,
+       px_pii.RECORD_DATE AS VISIT_DATE,
+       LAB_VIRAL_DATE,
+       LAB_VIRAL_RESULT,
+       px_pii.FACI_ID,
+       px_pii.SUB_FACI_ID,
+       px_faci_info.SERVICE_FACI,
+       px_faci_info.SERVICE_SUB_FACI
+FROM ohasis_lake.lab_wide
+         JOIN ohasis_lake.px_pii ON lab_wide.REC_ID = px_pii.REC_ID
+         LEFT JOIN ohasis_lake.px_faci_info ON lab_wide.REC_ID = px_faci_info.REC_ID
+WHERE (LAB_VIRAL_DATE IS NOT NULL OR LAB_VIRAL_RESULT IS NOT NULL)
+  AND (RECORD_DATE >= '{start_vl}' OR LAB_VIRAL_DATE >= '{start_vl}')
+   )"),
+   "vl results"
 )
 dbDisconnect(lw_conn)
 
@@ -600,7 +619,7 @@ vl_data %>%
       vl_result_clean   = vl_result_2
    ) %>%
    format_stata() %>%
-   write_dta("H:/20230504_vldata_2023-04.dta")
+   write_dta("H:/20230829_vldata_2023-06.dta")
 
 ##  Merge w/ onart dataset -----------------------------------------------------
 
