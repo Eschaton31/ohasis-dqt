@@ -449,6 +449,8 @@ local(envir = vlml, {
             vl_result_nomeasure == "NOT DETECTED" ~ "0",
             vl_result_nomeasure == "NOT DTECTED" ~ "0",
             vl_result_nomeasure == "ND" ~ "0",
+            vl_result_nomeasure == "N.D" ~ "0",
+            vl_result_nomeasure == "HIV2 NOT DETECTED" ~ "0",
             vl_result_nomeasure == "HIV NOT DETEDCTD" ~ "0",
             vl_result_nomeasure == "HIV NOT DTECTED" ~ "0",
             vl_result_nomeasure == "HIV1 UNDETECTED" ~ "0",
