@@ -412,6 +412,10 @@ merge_dx <- function(data, forms, params) {
             all_of(cols),
             ~coalesce(., pull(data, str_c("dxreg_", cur_column())))
          )
+      ) %>%
+      mutate(
+         idnum          = dxreg_idnum,
+         saccl_lab_code = coalesce(dxreg_saccl_lab_code, saccl_lab_code)
       )
 
    data %<>%
