@@ -265,6 +265,10 @@ DB <- setRefClass(
             index <- ", INDEX `CENTRAL_ID` (`CENTRAL_ID`)"
          if (!("PATIENT_ID" %in% id_col) & "PATIENT_ID" %in% names(data))
             index <- ", INDEX `PATIENT_ID` (`PATIENT_ID`)"
+         if ("SOURCE_REC" %in% names(data))
+            index <- ", INDEX `SOURCE_REC` (`SOURCE_REC`)"
+         if ("DESTINATION_REC" %in% names(data))
+            index <- ", INDEX `DESTINATION_REC` (`DESTINATION_REC`)"
 
          # implode into query
          pk_sql     <- paste(collapse = "`,`", id_col)
