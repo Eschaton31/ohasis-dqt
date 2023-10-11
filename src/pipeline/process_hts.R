@@ -48,14 +48,14 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
       ) %>%
       # results
       mutate(
-         hts_date     = case_when(
+         hts_date        = case_when(
             T0_DATE >= -25567 & interval(RECORD_DATE, T0_DATE) / years(1) <= -2 ~ as.Date(RECORD_DATE),
             T0_DATE >= -25567 & interval(RECORD_DATE, T0_DATE) / years(1) > -2 ~ as.Date(T0_DATE),
             !is.na(DATE_COLLECT) ~ as.Date(DATE_COLLECT),
             T1_DATE < RECORD_DATE ~ as.Date(T1_DATE),
             TRUE ~ RECORD_DATE
          ),
-         hts_result   = case_when(
+         hts_result      = case_when(
             CONFIRM_RESULT == 1 ~ "R",
             CONFIRM_RESULT == 2 ~ "NR",
             CONFIRM_RESULT == 3 ~ "IND",
@@ -73,7 +73,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             grepl("HIV-NR", toupper(COUNSEL_NOTES)) ~ "NR",
             TRUE ~ "(no data)"
          ),
-         hts_modality = case_when(
+         hts_modality    = case_when(
             SCREEN_AGREED == 0 ~ "REACH",
             is.na(SCREEN_AGREED) & is.na(hts_result) ~ "REACH",
             CONFIRM_RESULT != 4 & is.na(MODALITY) ~ "FBT",
@@ -90,12 +90,22 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             MODALITY == "101304" ~ "REACH",
             TRUE ~ "(no data)"
          ),
-         test_agreed  = case_when(
+         test_agreed     = case_when(
             SCREEN_AGREED == 0 ~ 0,
             SCREEN_AGREED == 1 ~ 1,
             !(hts_modality %in% c("REACH", "(no data)")) ~ 1,
             hts_result != "(no data)" ~ 1,
             TRUE ~ 0
+         ),
+         hts_client_type = case_when(
+            StrLeft(CLIENT_TYPE, 1) == "1" ~ "Inpatient",
+            hts_modality == "ST" ~ "ST",
+            hts_modality %in% c("CBS", "FBS") ~ "CBS",
+            StrLeft(CLIENT_TYPE, 1) == "3" ~ "CBS",
+            StrLeft(CLIENT_TYPE, 1) == "7" ~ "PDL",
+            StrLeft(CLIENT_TYPE, 1) == "2" ~ "Walk-in",
+            StrLeft(CLIENT_TYPE, 1) == "4" ~ "Walk-in",
+            TRUE ~ "Walk-in"
          )
       ) %>%
       # risk information
