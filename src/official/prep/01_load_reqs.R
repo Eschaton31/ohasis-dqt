@@ -98,18 +98,26 @@ update_prep_rec_link <- function(update, path_to_sql) {
       )
    )
    if (update == "1") {
-      lw_conn <- ohasis$conn("lw")
-      sql     <- read_file(file.path(path_to_sql, "prep_link.sql"))
-
-      log_info("Downloading data.")
-      data <- dbGetQuery(lw_conn, sql)
+      lw_conn     <- ohasis$conn("lw")
+      nolink_hts  <- tracked_select(lw_conn, read_file(file.path(path_to_sql, "nolink_hts.sql")), "Non-linked HTS")
+      nolink_prep <- tracked_select(lw_conn, read_file(file.path(path_to_sql, "nolink_prep.sql")), "Non-linked PrEP")
       dbDisconnect(lw_conn)
 
-      df <- data %>%
-         arrange(PREP_REC, sort, days_from_test) %>%
-         distinct(PREP_REC, .keep_all = TRUE)
-
-      df %<>%
+      df <- nolink_prep %>%
+         mutate(
+            HTS_PREP_BEFORE = PREP_DATE %m-% days(7),
+            HTS_PREP_AFTER  = PREP_DATE %m+% days(7),
+         ) %>%
+         left_join(
+            y  = nolink_hts,
+            by = join_by(CENTRAL_ID, between(y$HTS_DATE, x$HTS_PREP_BEFORE, x$HTS_PREP_AFTER))
+         ) %>%
+         mutate(
+            HTS_PREP_DIFF = abs(interval(HTS_DATE, PREP_DATE) / days(1))
+         ) %>%
+         filter(HTS_PREP_DIFF <= 7) %>%
+         arrange(PREP_REC, HTS_PREP_DIFF) %>%
+         distinct(PREP_REC, .keep_all = TRUE) %>%
          select(
             SOURCE_REC      = HTS_REC,
             DESTINATION_REC = PREP_REC,
@@ -134,6 +142,8 @@ update_prep_rec_link <- function(update, path_to_sql) {
             c("SOURCE_REC", "DESTINATION_REC")
          )
          dbDisconnect(db_conn)
+
+         ohasis$data_factory("warehouse", "rec_link", "upsert", TRUE)
       }
       log_info(r"(Total New Linkage: {green(nrow(df))} rows.)")
    }
