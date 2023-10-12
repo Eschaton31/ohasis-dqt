@@ -32,7 +32,7 @@ update_warehouse <- function(update) {
    if (update == "1") {
       log_info("Updating data lake and data warehouse.")
       tables           <- list()
-      tables$warehouse <- c("form_prep", "id_registry", "rec_link", "form_hts", "form_a", "form_cfbs")
+      tables$warehouse <- c("form_prep", "id_registry", "form_hts", "form_a", "form_cfbs")
 
       lapply(tables$warehouse, function(table) ohasis$data_factory("warehouse", table, "upsert", TRUE))
    }
@@ -98,6 +98,21 @@ update_prep_rec_link <- function(update, path_to_sql) {
       )
    )
    if (update == "1") {
+      db_conn    <- ohasis$conn("db")
+      delete_sql <- r"(
+      DELETE ohasis_interim.rec_link
+      FROM ohasis_interim.rec_link
+               LEFT JOIN ohasis_interim.px_record
+                         ON rec_link.{replace} = px_record.REC_ID
+      WHERE px_record.DELETED_AT IS NOT NULL;
+      )"
+      dbExecute(db_conn, stri_replace_all_fixed(delete_sql, "{replace}", "DESTINATION_REC"))
+      dbExecute(db_conn, stri_replace_all_fixed(delete_sql, "{replace}", "SOURCE_REC"))
+      dbDisconnect(db_conn)
+      # refresh once to remove deleted records from live; figure out upsert in
+      # future processing
+      ohasis$data_factory("warehouse", "rec_link", "refresh", TRUE)
+
       lw_conn     <- ohasis$conn("lw")
       nolink_hts  <- tracked_select(lw_conn, read_file(file.path(path_to_sql, "nolink_hts.sql")), "Non-linked HTS")
       nolink_prep <- tracked_select(lw_conn, read_file(file.path(path_to_sql, "nolink_prep.sql")), "Non-linked PrEP")
@@ -143,7 +158,8 @@ update_prep_rec_link <- function(update, path_to_sql) {
          )
          dbDisconnect(db_conn)
 
-         ohasis$data_factory("warehouse", "rec_link", "upsert", TRUE)
+         # refresh again to get new data
+         ohasis$data_factory("warehouse", "rec_link", "refresh", TRUE)
       }
       log_info(r"(Total New Linkage: {green(nrow(df))} rows.)")
    }
