@@ -1,5 +1,7 @@
 ---
 title: "My document"
+execute:
+  echo: false
 format:
   pdf:
     documentclass: article
@@ -21,3 +23,45 @@ format:
         \bigskip
         \bigskip
 ---
+\begingroup
+\setstretch{1.5}
+\setlength{\tabcolsep}{9pt}
+\setlength\arrayrulewidth{.75pt}
+\renewcommand{\arraystretch}{.25}
+\begin{longtable}{%
+    m{\dimexpr.02\linewidth-2\tabcolsep-1.3333\arrayrulewidth}%
+    m{\dimexpr.30\linewidth-2\tabcolsep-1.3333\arrayrulewidth}%
+    m{\dimexpr.02\linewidth-2\tabcolsep-1.3333\arrayrulewidth}%
+    m{\dimexpr.11\linewidth-2\tabcolsep-1.3333\arrayrulewidth}%
+    m{\dimexpr.11\linewidth-2\tabcolsep-1.3333\arrayrulewidth}%
+    m{\dimexpr.11\linewidth-2\tabcolsep-1.3333\arrayrulewidth}%
+    m{\dimexpr.11\linewidth-2\tabcolsep-1.3333\arrayrulewidth}%
+    m{\dimexpr.11\linewidth-2\tabcolsep-1.3333\arrayrulewidth}%
+    m{\dimexpr.11\linewidth-2\tabcolsep-1.3333\arrayrulewidth}%
+}
+    \arrayrulecolor{black}\toprule\arrayrulecolor{table_gray}
+    \multicolumn{9}{c}{\centering\fontsize{7.5}{15}\selectfont \textcolor{ohasis_dark}{\semibf{TREATMENT FACILITIES REPORTING TB-HIV DATA}}} \tabularnewline[1pt]
+\midrule
+    \multicolumn{3}{l}{\multirow{2}{*}[-2pt]{\raggedright\fontsize{5.5}{5.5}\selectfont \fontspec{ChronicaPro-Medium} \textbf{Facility Name}}} &
+    \multicolumn{3}{c}{\centering\fontsize{5.5}{5.5}\selectfont \fontspec{ChronicaPro-Medium} \textbf{TB Screening among PLHIV on ART}} &
+    \multicolumn{3}{c}{\centering\fontsize{5.5}{5.5}\selectfont \fontspec{ChronicaPro-Medium} \textbf{TPT coverage among new PLHIV on ART}} \tabularnewline[1pt]
+\cmidrule{4-9}
+
+    {} & {} & {} &
+    \centering\fontsize{5.5}{5.5}\selectfont \fontspec{ChronicaPro-Medium} \textbf{Clients who visited during the period} &
+    \centering\fontsize{5.5}{5.5}\selectfont \fontspec{ChronicaPro-Medium} \textbf{Screened for TB} &
+    \centering\fontsize{5.5}{5.5}\selectfont \fontspec{ChronicaPro-Medium} \textbf{\%} &
+    \centering\fontsize{5.5}{5.5}\selectfont \fontspec{ChronicaPro-Medium} \textbf{Enrollees with no active TB} &
+    \centering\fontsize{5.5}{5.5}\selectfont \fontspec{ChronicaPro-Medium} \textbf{Provided TPT} &
+    \centering\fontsize{5.5}{5.5}\selectfont \fontspec{ChronicaPro-Medium} \textbf{\%} \tabularnewline[1pt]
+    \arrayrulecolor{ohasis_dark}\toprule\arrayrulecolor{table_gray}
+\endhead
+```{r}
+#| output: asis
+library(readr)
+latex <- read_file("try.txt")
+cat(latex)
+# knitr::raw_latex(read_file("try.txt"))
+```
+\end{longtable}
+\endgroup
