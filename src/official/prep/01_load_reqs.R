@@ -32,8 +32,36 @@ update_warehouse <- function(update) {
    if (update == "1") {
       log_info("Updating data lake and data warehouse.")
       tables           <- list()
+      tables$lake      <- c(
+         "px_pii",
+         "px_faci_info",
+         "px_ob",
+         "px_hiv_testing",
+         "px_consent",
+         "px_occupation",
+         "px_ofw",
+         "px_risk",
+         "px_expose_profile",
+         "px_test_reason",
+         "px_test_refuse",
+         "px_test_previous",
+         "px_med_profile",
+         "px_staging",
+         "px_cfbs",
+         "px_reach",
+         "px_linkage",
+         "px_other_service",
+         "px_key_pop",
+         "px_vitals",
+         "px_ars_sx",
+         "px_sti_sx",
+         "px_prep",
+         "lab_wide",
+         "disp_meds"
+      )
       tables$warehouse <- c("form_prep", "id_registry", "form_hts", "form_a", "form_cfbs")
 
+      lapply(tables$lake, function(table) ohasis$data_factory("lake", table, "upsert", TRUE))
       lapply(tables$warehouse, function(table) ohasis$data_factory("warehouse", table, "upsert", TRUE))
    }
 }
