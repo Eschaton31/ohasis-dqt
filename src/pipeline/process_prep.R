@@ -148,6 +148,21 @@ process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_
             ) %>%
             mutate(with_hts = 1),
          by = "HTS_REC"
+      ) %>%
+      mutate(
+         CURR_PSGC_REG  = coalesce(CURR_PSGC_REG.x, CURR_PSGC_REG.y),
+         CURR_PSGC_PROV = coalesce(CURR_PSGC_PROV.x, CURR_PSGC_PROV.y),
+         CURR_PSGC_MUNC = coalesce(CURR_PSGC_MUNC.x, CURR_PSGC_MUNC.y),
+      ) %>%
+      select(
+         -any_of(c(
+            "CURR_PSGC_REG.x",
+            "CURR_PSGC_REG.y",
+            "CURR_PSGC_PROV.x",
+            "CURR_PSGC_PROV.y",
+            "CURR_PSGC_MUNC.x",
+            "CURR_PSGC_MUNC.y"
+         )),
       )
 
    # generate subsets for rowSums
