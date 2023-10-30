@@ -231,7 +231,7 @@ final_conversion <- function(data) {
          self_identity_other,
          gender_identity,
          weight             = WEIGHT,
-         body_temp          = FEVER,
+         body_temp          = BODY_TEMP,
          perm_reg,
          perm_prov,
          perm_munc,
@@ -596,6 +596,35 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
             any_of(view_vars),
             prep_first_arv,
          )
+      all_issues            <- combine_validations(data, check, "prep_id") %>%
+         mutate(
+            reg_order = prep_first_reg,
+            reg_order = case_when(
+               reg_order == "1" ~ 1,
+               reg_order == "2" ~ 2,
+               reg_order == "CAR" ~ 3,
+               reg_order == "3" ~ 4,
+               reg_order == "NCR" ~ 5,
+               reg_order == "4A" ~ 6,
+               reg_order == "4B" ~ 7,
+               reg_order == "5" ~ 8,
+               reg_order == "6" ~ 9,
+               reg_order == "7" ~ 10,
+               reg_order == "8" ~ 11,
+               reg_order == "9" ~ 12,
+               reg_order == "10" ~ 13,
+               reg_order == "11" ~ 14,
+               reg_order == "12" ~ 15,
+               reg_order == "CARAGA" ~ 16,
+               reg_order == "ARMM" ~ 17,
+               reg_order == "BARMM" ~ 17,
+               TRUE ~ 9999
+            ),
+         ) %>%
+         arrange(reg_order, prep_first_faci, prep_id) %>%
+         select(-reg_order)
+
+      check <- list(all_issues = all_issues)
 
       # range-median
       tabstat <- c(
@@ -651,7 +680,7 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
    step$check <- get_checks(data, p$params, p$corr, run_checks = vars$run_checks, exclude_drops = vars$exclude_drops)
    step$data  <- data
 
-   p$official$new_reg <- new_reg
+   p$official$new_reg <- new_reg %>% arrange(prep_id)
    append(p$official, drops)
 
    flow_validation(p, "prep_offer", p$params$ym, upload = vars$upload)
