@@ -1,6 +1,6 @@
 ##  Append to the previous art registry ----------------------------------------
 
-get_latest_record <- function(form_data, new_reg) {
+get_records <- function(form_data, new_reg) {
    log_info("Processing latest visit.")
    data <- new_reg %>%
       rename(
@@ -22,7 +22,13 @@ get_latest_record <- function(form_data, new_reg) {
                "sti_visit",
                "eligible",
                "with_hts",
-               "dispensed"
+               "dispensed",
+               "curr_reg",
+               "curr_prov",
+               "curr_munc",
+               "perm_reg",
+               "perm_prov",
+               "perm_munc"
             )
          )
       ) %>%
@@ -38,6 +44,19 @@ get_latest_record <- function(form_data, new_reg) {
          .predicate = is.Date,
          ~if_else(. <= -25567, NA_Date_, ., .)
       ) %>%
+      get_latest_pii(
+         "CENTRAL_ID",
+         c(
+            "SELF_IDENT",
+            "SELF_IDENT_OTHER",
+            "CURR_PSGC_REG",
+            "CURR_PSGC_PROV",
+            "CURR_PSGC_MUNC",
+            "PERM_PSGC_REG",
+            "PERM_PSGC_PROV",
+            "PERM_PSGC_MUNC"
+         )
+      ) %>%
       mutate(
          # Age
          AGE             = coalesce(AGE, AGE_MO / 12),
@@ -51,12 +70,25 @@ get_latest_record <- function(form_data, new_reg) {
    return(data)
 }
 
-##  Sort by earliest visit of client for the report ----------------------------
+##  Sort by earliest/latest visit of client for the report ----------------------------
 
 get_final_visit <- function(data) {
    log_info("Using last visited facility.")
    data %<>%
       arrange(desc(VISIT_DATE), desc(LATEST_NEXT_DATE), CENTRAL_ID) %>%
+      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      rename(
+         PREP_FACI     = SERVICE_FACI,
+         PREP_SUB_FACI = SERVICE_SUB_FACI,
+      )
+
+   return(data)
+}
+
+get_first_visit <- function(data) {
+   log_info("Using first visited facility.")
+   data %<>%
+      arrange(VISIT_DATE, desc(LATEST_NEXT_DATE), CENTRAL_ID) %>%
       distinct(CENTRAL_ID, .keep_all = TRUE) %>%
       rename(
          PREP_FACI     = SERVICE_FACI,
@@ -92,6 +124,22 @@ convert_faci_addr <- function(data) {
             names(select(., ends_with("_BRANCH", ignore.case = FALSE))),
             ~if_else(nchar(.) > 3, ., NA_character_)
          )
+      ) %>%
+      ohasis$get_addr(
+         c(
+            perm_reg  = "PERM_PSGC_REG",
+            perm_prov = "PERM_PSGC_PROV",
+            perm_munc = "PERM_PSGC_MUNC"
+         ),
+         "nhsss"
+      ) %>%
+      ohasis$get_addr(
+         c(
+            curr_reg  = "CURR_PSGC_REG",
+            curr_prov = "CURR_PSGC_PROV",
+            curr_munc = "CURR_PSGC_MUNC"
+         ),
+         "nhsss"
       )
 
    data %<>%
@@ -296,16 +344,7 @@ tag_curr_data <- function(data, prev_outcome, prep_first, prepdisp_first, prep_l
             TRUE ~ '5_(no data)'
          ),
       ) %>%
-      generate_gender_identity(SEX, SELF_IDENT, SELF_IDENT_OTHER, gender_identity)
-
-   return(data)
-}
-
-##  Finalize -------------------------------------------------------------------
-
-final_conversion <- function(data) {
-   log_info("Selecting final dataset structure.")
-   data %<>%
+      generate_gender_identity(SEX, SELF_IDENT, SELF_IDENT_OTHER, gender_identity) %>%
       rename_at(
          .vars = vars(
             prep_plan,
@@ -347,7 +386,13 @@ final_conversion <- function(data) {
          mobile,
          email,
          weight              = WEIGHT,
-         body_temp           = FEVER,
+         body_temp           = BODY_TEMP,
+         perm_reg,
+         perm_prov,
+         perm_munc,
+         curr_reg,
+         curr_prov,
+         curr_munc,
          risk_screen,
          ars_screen,
          sti_screen,
@@ -398,6 +443,128 @@ final_conversion <- function(data) {
          days_to_pickup,
          arv_worth,
          ref_death_date,
+      ) %>%
+      distinct_all()
+
+   return(data)
+}
+
+# first outcomes
+tag_first_data <- function(data) {
+   log_info("Converting to final HARP variables.")
+   data %<>%
+      # prepare screening taggings
+      mutate(
+         # demographics
+         initials                  = str_squish(stri_c(StrLeft(FIRST, 1), StrLeft(MIDDLE, 1), StrLeft(LAST, 1))),
+         SEX                       = remove_code(stri_trans_toupper(SEX)),
+         self_identity             = remove_code(stri_trans_toupper(SELF_IDENT)),
+         self_identity_other       = toupper(SELF_IDENT_OTHER),
+         self_identity             = remove_code(stri_trans_toupper(SELF_IDENT)),
+         self_identity             = case_when(
+            self_identity == "OTHER" ~ "OTHERS",
+            self_identity == "MAN" ~ "MALE",
+            self_identity == "WOMAN" ~ "FEMALE",
+            self_identity == "MALE" ~ "MALE",
+            self_identity == "FEMALE" ~ "FEMALE",
+            TRUE ~ self_identity
+         ),
+         self_identity_other       = stri_trans_toupper(SELF_IDENT_OTHER),
+         self_identity_other_sieve = str_replace_all(self_identity_other, "[^[:alnum:]]", ""),
+
+         FIRST_TIME                = as.integer(keep_code(FIRST_TIME)),
+         FIRST_TIME                = case_when(
+            FIRST_TIME == 1 ~ FIRST_TIME,
+            FIRST_TIME == 0 ~ NA_integer_,
+            TRUE ~ NA_integer_
+         )
+      ) %>%
+      mutate(
+         use_db         = 1,
+
+         prepstart_rec  = REC_ID,
+         prepstart_date = VISIT_DATE,
+
+         # current age for class
+         prepstart_age  = calc_age(birthdate, VISIT_DATE),
+      ) %>%
+      generate_gender_identity(SEX, SELF_IDENT, SELF_IDENT_OTHER, gender_identity) %>%
+      rename_at(
+         .vars = vars(
+            prep_plan,
+            prep_type
+         ),
+         ~paste0("curr_", .)
+      ) %>%
+      rename_at(
+         .vars = vars(starts_with("KP_", ignore.case = FALSE)),
+         ~tolower(.)
+      ) %>%
+      # same vars as registry
+      select(
+         REC_ID,
+         CENTRAL_ID,
+         PATIENT_ID,
+         prep_id,
+         idnum,
+         art_id,
+         mort_id,
+         year,
+         month,
+         px_code,
+         uic,
+         first,
+         middle,
+         last,
+         suffix,
+         birthdate,
+         sex,
+         initials,
+         philsys_id,
+         philhealth_no,
+         initials,
+         self_identity,
+         self_identity_other,
+         gender_identity,
+         mobile,
+         email,
+         weight               = WEIGHT,
+         body_temp            = BODY_TEMP,
+         perm_reg,
+         perm_prov,
+         perm_munc,
+         curr_reg,
+         curr_prov,
+         curr_munc,
+         risk_screen,
+         ars_screen,
+         sti_screen,
+         sti_visit,
+         starts_with("lab_", ignore.case = FALSE),
+         clin_screen,
+         dispensed,
+         eligible,
+         with_hts,
+         HTS_REC,
+         hts_form,
+         hts_modality,
+         hts_result,
+         hts_date,
+         prep_hts_date        = PREP_HIV_DATE,
+         contains("risk_", ignore.case = FALSE),
+         starts_with("kp_", ignore.case = FALSE),
+         # add prepstart_rec
+         prepstart_date,
+         prep_first_time      = FIRST_TIME,
+         starts_with("curr_", ignore.case = FALSE),
+         prepstart_faci       = PREP_FACI_CODE,
+         prepstart_branch     = PREP_BRANCH,
+         prepstart_ffupdate   = VISIT_DATE,
+         prepstart_nextpickup = LATEST_NEXT_DATE,
+         prepstart_regimen    = MEDICINE_SUMMARY,
+         prepstart_reg        = prep_reg,
+         prepstart_prov       = prep_prov,
+         prepstart_munc       = prep_munc,
       ) %>%
       distinct_all()
 
@@ -550,7 +717,7 @@ get_checks <- function(data, run_checks = NULL) {
                TRUE ~ 9999
             ),
          ) %>%
-         arrange(reg_order, curr_faci, curr_branch, art_id) %>%
+         arrange(reg_order, curr_faci, curr_branch, prep_id) %>%
          select(-reg_order)
 
       view_vars <- c(
@@ -597,11 +764,11 @@ get_checks <- function(data, run_checks = NULL) {
          "prev_prep_plan",
          "prev_prep_type"
       )
-      check     <- check_pii(data, check, view_vars, first = first, middle = middle, last = last, birthdate = birthdate, sex = sex)
+      # check     <- check_pii(data, check, view_vars, first = first, middle = middle, last = last, birthdate = birthdate, sex = sex)
 
       # non-negotiable variables
-      nonnegotiables <- c("curr_age", "uic")
-      check          <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
+      # nonnegotiables <- c("curr_age", "uic")
+      # check          <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
 
       # special checks
       log_info("Checking for missing dispensing data.")
@@ -784,6 +951,36 @@ get_checks <- function(data, run_checks = NULL) {
             any_of(view_vars),
          )
 
+      all_issues <- combine_validations(data, check, "prep_id") %>%
+         mutate(
+            reg_order = prep_reg,
+            reg_order = case_when(
+               reg_order == "1" ~ 1,
+               reg_order == "2" ~ 2,
+               reg_order == "CAR" ~ 3,
+               reg_order == "3" ~ 4,
+               reg_order == "NCR" ~ 5,
+               reg_order == "4A" ~ 6,
+               reg_order == "4B" ~ 7,
+               reg_order == "5" ~ 8,
+               reg_order == "6" ~ 9,
+               reg_order == "7" ~ 10,
+               reg_order == "8" ~ 11,
+               reg_order == "9" ~ 12,
+               reg_order == "10" ~ 13,
+               reg_order == "11" ~ 14,
+               reg_order == "12" ~ 15,
+               reg_order == "CARAGA" ~ 16,
+               reg_order == "ARMM" ~ 17,
+               reg_order == "BARMM" ~ 17,
+               TRUE ~ 9999
+            ),
+         ) %>%
+         arrange(reg_order, curr_faci, curr_branch, prep_id) %>%
+         select(-reg_order)
+
+      check <- list(all_issues = all_issues)
+
       # range-median
       tabstat <- c(
          "curr_ffupdate",
@@ -810,6 +1007,7 @@ output_dta <- function(official, params, save = "2") {
       files      <- list(
          new_reg            = file.path(dir, str_c(version, "_reg-prep_", period_ext)),
          new_outcome        = file.path(dir, str_c(version, "_onprep_", period_ext)),
+         prepstart          = file.path(dir, str_c(version, "_prepstart_", period_ext)),
          dropped_notyet     = file.path(dir, str_c(version, "_dropped_notyet_", period_ext)),
          dropped_duplicates = file.path(dir, str_c(version, "_dropped_duplicates_", period_ext))
       )
@@ -832,11 +1030,15 @@ output_dta <- function(official, params, save = "2") {
    p    <- envir
    vars <- as.list(list(...))
 
-   last_disp <- get_latest_record(p$forms$prepdisp_last, p$official$new_reg)
+   first_disp <- get_records(p$forms$prepdisp_first, p$official$new_reg)
+   first_disp <- get_final_visit(first_disp)
+   first_disp <- convert_faci_addr(first_disp)
+
+   last_disp <- get_records(p$forms$prepdisp_last, p$official$new_reg)
    last_disp <- get_final_visit(last_disp)
    last_disp <- convert_faci_addr(last_disp)
 
-   last_disc <- get_latest_record(p$forms$prepdisc_last, p$official$new_reg)
+   last_disc <- get_records(p$forms$prepdisc_last, p$official$new_reg)
    last_disc <- get_final_visit(last_disc)
    last_disc <- convert_faci_addr(last_disc)
 
@@ -846,12 +1048,11 @@ output_dta <- function(official, params, save = "2") {
             get_cid(p$forms$id_registry, PATIENT_ID) %>%
             anti_join(select(p$forms$prep_last, CENTRAL_ID), join_by(CENTRAL_ID))
       )
-   last_visit <- get_latest_record(last_visit, p$official$new_reg)
+   last_visit <- get_records(last_visit, p$official$new_reg)
    last_visit <- get_final_visit(last_visit)
    last_visit <- convert_faci_addr(last_visit)
 
    data <- tag_curr_data(last_visit, p$official$old_outcome, p$forms$prep_first, p$forms$prepdisp_first, last_disp, last_disc, p$forms$prep_init_p12m, p$params)
-   data <- final_conversion(data)
 
    new_outcome <- finalize_outcomes(data, p$params)
    new_outcome <- finalize_faci(new_outcome)
@@ -859,7 +1060,8 @@ output_dta <- function(official, params, save = "2") {
    step$check <- get_checks(data, run_checks = vars$run_checks)
    step$data  <- data
 
-   p$official$new_outcome <- new_outcome
+   p$official$new_outcome <- new_outcome %>% arrange(prep_id)
+   p$official$prepstart   <- tag_first_data(first_disp) %>% arrange(prep_id)
    output_dta(p$official, p$params, vars$save)
 
    flow_validation(p, "prep_curr", p$params$ym, upload = vars$upload)
