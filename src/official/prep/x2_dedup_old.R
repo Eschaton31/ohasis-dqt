@@ -194,16 +194,22 @@ dedup_group_ids <- function(data) {
    group_pii <- list(
       "UIC.Base"           = "uic",
       "UIC.Fixed"          = "UIC_SORT",
+      "PhilHealth.Fixed"   = "PHIC",
+      "PhilSys.Fixed"      = "PHILSYS",
       "PxCode.Base"        = "PATIENT_CODE",
       "PxCode.Fixed"       = "PXCODE_SIEVE",
       "PxUIC.Base"         = c("PATIENT_CODE", "UIC"),
       "PxUIC.Fixed"        = c("PXCODE_SIEVE", "UIC_SORT"),
+      "FirstUIC.Base"      = c("FIRST_SIEVE", "UIC"),
+      "FirstUIC.Fixed"     = c("FIRST_NY", "UIC_SORT"),
+      "FirstUIC.Partial"   = c("FIRST_A", "UIC_SORT"),
+      "FirstUIC.Sort"      = c("NAMESORT_FIRST", "UIC_SORT"),
       "PxBD.Base"          = c("PATIENT_CODE", "birthdate"),
       "PxBD.Fixed"         = c("PXCODE_SIEVE", "birthdate"),
-      "Email.Mobile"       = c("email", "mobile"),
       "Name.Base"          = c("FIRST_SIEVE", "LAST_SIEVE", "birthdate"),
       "Name.Fixed"         = c("FIRST_NY", "LAST_NY", "birthdate"),
       "Name.Partial"       = c("FIRST_A", "LAST_A", "birthdate"),
+      "Name.Sort"          = c("NAMESORT_FIRST", "NAMESORT_LAST", "birthdate"),
       "YM.BD-Name.Base"    = c("FIRST_SIEVE", "LAST_SIEVE", "BIRTH_YR", "BIRTH_MO"),
       "YD.BD-Name.Base"    = c("FIRST_SIEVE", "LAST_SIEVE", "BIRTH_YR", "BIRTH_DY"),
       "MD.BD-Name.Base"    = c("FIRST_SIEVE", "LAST_SIEVE", "BIRTH_MO", "BIRTH_DY"),
@@ -212,7 +218,10 @@ dedup_group_ids <- function(data) {
       "MD.BD-Name.Fixed"   = c("FIRST_NY", "LAST_NY", "BIRTH_MO", "BIRTH_DY"),
       "YM.BD-Name.Partial" = c("FIRST_A", "LAST_A", "BIRTH_YR", "BIRTH_MO"),
       "YD.BD-Name.Partial" = c("FIRST_A", "LAST_A", "BIRTH_YR", "BIRTH_DY"),
-      "MD.BD-Name.Partial" = c("FIRST_A", "LAST_A", "BIRTH_MO", "BIRTH_DY")
+      "MD.BD-Name.Partial" = c("FIRST_A", "LAST_A", "BIRTH_MO", "BIRTH_DY"),
+      "YM.BD-Name.Sort"    = c("NAMESORT_FIRST", "NAMESORT_LAST", "BIRTH_YR", "BIRTH_MO"),
+      "YD.BD-Name.Sort"    = c("NAMESORT_FIRST", "NAMESORT_LAST", "BIRTH_YR", "BIRTH_DY"),
+      "MD.BD-Name.Sort"    = c("NAMESORT_FIRST", "NAMESORT_LAST", "BIRTH_MO", "BIRTH_DY")
    )
    for (i in seq_len(length(group_pii))) {
       dedup_name <- names(group_pii)[[i]]
@@ -226,7 +235,11 @@ dedup_group_ids <- function(data) {
          group_by(across(all_of(dedup_id))) %>%
          mutate(
             # generate a group id to identify groups of duplicates
-            group_id = cur_group_id(),
+            grp_id   = str_c(collapse = ",", sort(prep_id)),
+            grp_sort = case_when(
+               any(year == params$yr & month == params$mo) ~ 1,
+               TRUE ~ 9
+            )
          ) %>%
          ungroup() %>%
          mutate(DUP_IDS = paste(collapse = ', ', dedup_id))
@@ -234,6 +247,71 @@ dedup_group_ids <- function(data) {
       # if any found, include in list for review
       dedup_old[[dedup_name]] <- df
    }
+   all_dedup <- combine_validations(data, dedup_old, c("grp_id", "prep_id")) %>%
+      group_by(grp_id) %>%
+      mutate(
+         grp_sort = case_when(
+            any(year == params$yr & month == params$mo) ~ 1,
+            TRUE ~ 9
+         ),
+      ) %>%
+      ungroup()
+
+   adjust_score <- c(
+      `issue_UIC.Base`           = 3,
+      `issue_UIC.Fixed`          = 3,
+      `issue_PhilHealth.Fixed`   = 1,
+      `issue_PhilSys.Fixed`      = 1,
+      `issue_ConfirmCode.Base`   = 3,
+      `issue_ConfirmCode.Fixed`  = 3,
+      `issue_PxCode.Base`        = 1,
+      `issue_PxCode.Fixed`       = 1,
+      `issue_PxConfirm.Base`     = 3,
+      `issue_PxConfirm.Fixed`    = 3,
+      `issue_ConfirmUIC.Base`    = 4,
+      `issue_ConfirmUIC.Fixed`   = 4,
+      `issue_PxUIC.Base`         = 3,
+      `issue_PxUIC.Fixed`        = 3,
+      `issue_FirstUIC.Base`      = 3,
+      `issue_FirstUIC.Fixed`     = 3,
+      `issue_FirstUIC.Partial`   = 1,
+      `issue_FirstUIC.Sort`      = 3,
+      `issue_PxBD.Base`          = 1,
+      `issue_PxBD.Fixed`         = 1,
+      `issue_Name.Base`          = 4,
+      `issue_Name.Fixed`         = 4,
+      `issue_Name.Partial`       = 1,
+      `issue_Name.Sort`          = 3,
+      `issue_YM.BD-Name.Base`    = 3,
+      `issue_YD.BD-Name.Base`    = 3,
+      `issue_MD.BD-Name.Base`    = 3,
+      `issue_YM.BD-Name.Fixed`   = 2,
+      `issue_YD.BD-Name.Fixed`   = 2,
+      `issue_MD.BD-Name.Fixed`   = 2,
+      `issue_YM.BD-Name.Partial` = 1,
+      `issue_YD.BD-Name.Partial` = 1,
+      `issue_MD.BD-Name.Partial` = 1,
+      `issue_YM.BD-Name.Sort`    = 2,
+      `issue_YD.BD-Name.Sort`    = 2,
+      `issue_MD.BD-Name.Sort`    = 2
+   )
+   adjust_only  <- intersect(names(adjust_score), names(all_dedup))
+   for (var in adjust_only) {
+      all_dedup %<>%
+         mutate_at(
+            .vars = vars(matches(var)),
+            ~if_else(. == 1, adjust_score[[var]], 0, 0)
+         )
+   }
+
+   all_dedup %<>%
+      mutate(score = rowMeans(select(., starts_with("issue")), na.rm = TRUE)) %>%
+      arrange(desc(score), grp_sort, grp_id) %>%
+      select(-grp_sort) %>%
+      mutate(
+         ym = stri_c(year, "-", stri_pad_left(month, 2, "0"))
+      )
+   dedup_old <- list(group_dedup = all_dedup)
 
    return(dedup_old)
 }
@@ -266,9 +344,9 @@ dedup_group_ids <- function(data) {
       philsys_id
    )
 
-   reclink    <- prep_data(old, new)
-   check      <- dedup_old(reclink)
-   check      <- append(check, dedup_group_ids(data))
+   reclink <- prep_data(old, new)
+   check   <- dedup_old(reclink)
+   check   <- append(check, dedup_group_ids(data))
 
    step$check <- check
    flow_validation(p, "dedup_old", p$params$ym, upload = vars$upload)
