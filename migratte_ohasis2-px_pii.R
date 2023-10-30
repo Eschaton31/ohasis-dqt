@@ -1,11 +1,10 @@
 ##  db data --------------------------------------------------------------------
-conn <- ohasis$conn("db")
-db   <- "ohasis_interim"
-data <- list()
-tbls <- c("px_record", "px_name", "px_info", "px_contact", "id_registry")
-for (tbl in tbls) {
-   data[[tbl]] <- dbTable(conn, db, tbl)
-}
+conn        <- ohasis$conn("lw")
+db          <- "ohasis_interim"
+data        <- list()
+tbls        <- c("px_record", "px_name", "px_info", "px_addr", "px_contact", "registry")
+data        <- lapply(tbls, dbTable, conn = conn, dbname = db)
+names(data) <- tbls
 data$px_contact %<>%
    mutate(
       CONTACT_TYPE = case_when(
@@ -27,6 +26,38 @@ data$px_contact %<>%
    select(
       REC_ID,
       starts_with("CLIENT_") & !matches("\\d")
+   )
+
+data$px_addr %<>%
+   rename(
+      REG  = ADDR_REG,
+      PROV = ADDR_PROV,
+      MUNC = ADDR_MUNC,
+      ADDR = ADDR_TEXT
+   ) %>%
+   mutate(
+      ADDR_TYPE = case_when(
+         ADDR_TYPE == 1 ~ "CURR",
+         ADDR_TYPE == 2 ~ "PERM",
+         ADDR_TYPE == 3 ~ "BIRTH",
+         ADDR_TYPE == 4 ~ "DEATH",
+         ADDR_TYPE == 5 ~ "SERVICE",
+         TRUE ~ as.character(ADDR_TYPE)
+      )
+   ) %>%
+   pivot_wider(
+      id_cols     = REC_ID,
+      names_from  = ADDR_TYPE,
+      values_from = c(REG, PROV, MUNC, ADDR),
+      names_glue  = "{ADDR_TYPE}_{.value}"
+   ) %>%
+   select(
+      REC_ID,
+      starts_with("CURR_"),
+      starts_with("PERM_"),
+      starts_with("BIRTH_"),
+      starts_with("DEATH_"),
+      starts_with("SERVICE_")
    )
 
 dbDisconnect(conn)
@@ -87,17 +118,19 @@ pii_ref <- data$px_record %>%
       y  = data$px_name %>%
          select(
             REC_ID,
+            PATIENT_ID,
             FIRST,
             MIDDLE,
             LAST,
             SUFFIX
          ),
-      by = "REC_ID"
+      by = join_by(REC_ID, PATIENT_ID)
    ) %>%
    left_join(
       y  = data$px_info %>%
          select(
             REC_ID,
+            PATIENT_ID,
             CONFIRMATORY_CODE,
             UIC,
             PHILHEALTH_NO,
@@ -106,60 +139,52 @@ pii_ref <- data$px_record %>%
             PATIENT_CODE,
             PHILSYS_ID
          ),
-      by = "REC_ID"
+      by = join_by(REC_ID, PATIENT_ID)
    ) %>%
    left_join(
       y  = data$px_contact %>%
          select(
             REC_ID,
-            MOBILE = CLIENT_MOBILE,
-            EMAIL  = CLIENT_EMAIL
+            CLIENT_MOBILE,
+            CLIENT_EMAIL
          ),
-      by = "REC_ID"
+      by = join_by(REC_ID)
+   ) %>%
+   left_join(
+      y  = data$px_addr,
+      by = join_by(REC_ID)
    ) %>%
    arrange(desc(UPDATED_AT), desc(CREATED_AT))
 
-cols <- c(
-      "FIRST",
-      "MIDDLE",
-      "LAST",
-      "SUFFIX",
-      "CONFIRMATORY_CODE",
-      "UIC",
-      "PHILHEALTH_NO",
-      "SEX",
-      "BIRTHDATE",
-      "PATIENT_CODE",
-      "PHILSYS_ID"
-)
-
-clean <- list()
-for (col in cols) {
-   .log_info("Getting latest data for {green(col)}.")
-   col_name          <- as.name(col)
-   clean$vars[[col]] <- pii_ref %>%
-      select(
-         PATIENT_ID,
-         FACI_ID,
-         !!col_name
-      ) %>%
-      filter(!is.na(!!col_name)) %>%
-      distinct(PATIENT_ID, FACI_ID, .keep_all = TRUE) %>%
-      rename(
-         DATA = 3
-      ) %>%
-      mutate(
-         VAR = col
-      ) %>%
-      mutate_all(~as.character(.))
-}
-
-
-
-.log_info("Consolidating variables.")
-pid_registry <- bind_rows(clean$vars) %>%
+pid_registry <- pii_ref %>%
+   select(-REC_ID, -DELETED_AT) %>%
+   mutate_if(
+      .predicate = is.character,
+      ~clean_pii(.)
+   ) %>%
+   mutate(
+      BIRTHDATE = as.character(BIRTHDATE),
+      SEX       = as.character(SEX),
+      SNAPSHOT  = coalesce(UPDATED_AT, CREATED_AT)
+   ) %>%
+   pivot_longer(
+      cols = c(FIRST, MIDDLE, LAST, SUFFIX, UIC, CONFIRMATORY_CODE, PATIENT_CODE, BIRTHDATE, PHILSYS_ID, PHILHEALTH_NO, CLIENT_EMAIL, CLIENT_MOBILE, SEX, PERM_REG, PERM_PROV, PERM_MUNC, CURR_REG, CURR_PROV, CURR_MUNC)
+   ) %>%
+   mutate(
+      sort = if_else(!is.na(value), 1, 9999, 9999)
+   ) %>%
+   arrange(sort, desc(SNAPSHOT)) %>%
+   distinct(PATIENT_ID, FACI_ID, SUB_FACI_ID, name, .keep_all = TRUE) %>%
    pivot_wider(
-      id_cols     = c(PATIENT_ID, FACI_ID),
-      names_from  = VAR,
-      values_from = DATA
+      id_cols     = c(PATIENT_ID, FACI_ID, SUB_FACI_ID),
+      names_from  = name,
+      values_from = value
    )
+
+lw_conn     <- ohasis$conn("lw")
+table_space <- Id(schema = "ohasis_interim", table = "px_pii")
+dbCreateTable(lw_conn, table_space, pid_registry)
+dbxUpsert(lw_conn, table_space, pid_registry, "PATIENT_ID")
+dbExecute(lw_conn, "ALTER TABLE ohasis_interim.px_pii ADD FULLTEXT(FIRST, MIDDLE, LAST, SUFFIX, UIC, CONFIRMATORY_CODE, PATIENT_CODE, PHILSYS_ID, PHILHEALTH_NO, CLIENT_EMAIL, CLIENT_MOBILE)")
+dbDisconnect(lw_conn)
+
