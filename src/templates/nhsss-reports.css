@@ -1,0 +1,198 @@
+@page {
+    size: A4;
+    margin: 0;
+}
+
+@media print {
+    body {
+        margin: 0
+    }
+}
+
+div {
+    display: block;
+}
+
+h1, h2, h3, h4, h5 {
+    margin: 0;
+    font-family: "Montserrat";
+
+}
+
+p, b, a, span {
+    font-family: "Lato";
+}
+
+.header-main {
+    background-color: #bb2930;
+    width: 100%;
+    height: 1in;
+}
+
+.temp-box {
+    background-color: #d9dadb;
+    border-radius: 10px;
+    width: 100%;
+}
+
+.logo-doh {
+    content: url("{{logo_doh}}");
+}
+
+.logo-eb {
+    content: url("{{logo_eb}}");
+}
+
+.title-page {
+    font-size: 10pt;
+    font-family: "Times New Roman";
+}
+
+.heading-section {
+    color: #3B7A80;
+    width: 100%;
+    text-align: center;
+}
+
+.full-width {
+    width: 100%;
+    display: flex;
+}
+
+.content {
+    padding: 0 .5in;
+    margin: 3mm 0 3mm 0;
+}
+
+.column-left {
+    width: 50%;
+    padding-left: 12mm;
+    padding-right: 3mm;
+    display: inline-block;
+}
+
+.column-right {
+    width: 50%;
+    padding-right: 12mm;
+    padding-left: 3mm;
+    display: inline-block;
+}
+
+.narrative {
+    font-family: "Lato";
+    font-size: 9pt;
+    text-align: justify;
+    margin: 0;
+}
+
+table.indicator-title {
+    font-family: "Lato";
+    font-size: 11pt;
+    font-weight: 600;
+    border-collapse: collapse;
+    width: 100%;
+}
+
+table.indicator-title td.ind-name {
+    width: 20%;
+    padding: .75mm;
+    font-weight: 700;
+}
+
+table.indicator-title td.ind-data {
+    width: 80%;
+    padding: .75mm;
+    font-weight: 400;
+}
+
+table.figure-label {
+    font-family: "Lato";
+    font-size: 8.5pt;
+    font-weight: 600;
+    border-collapse: collapse;
+    width: 100%;
+}
+
+td.tabfig-num {
+    width: 12mm;
+    color: #d83029;
+    padding: 0;
+}
+
+td.tabfig-colon {
+    width: 3mm;
+    color: #d83029;
+    padding: 0;
+}
+
+td.tabfig-title {
+    width: auto;
+    padding: 0;
+}
+
+table.data-table {
+    font-family: "Montserrat";
+    font-size: 8pt;
+    border-collapse: collapse;
+    width: 100%;
+}
+
+table.data-table thead th {
+    font-weight: 700;
+    padding: 1.8mm 3mm;
+}
+
+table.data-table thead tr:first-of-type {
+    border-top: 2.3pt solid #3d3d3d;
+    border-bottom: 1.4pt solid #dee0e0;
+    color: #3B7A80;
+}
+
+table.data-table thead tr:last-of-type {
+    border-bottom: 1.8pt solid #3B7A80;
+}
+
+table.data-table tbody td {
+    font-weight: 500;
+    padding: 1.8mm 3mm;
+}
+
+table.data-table tbody td.text {
+    text-align: left;
+}
+
+table.data-table tbody td.data {
+    text-align: center;
+}
+
+table.data-table tbody.group tr:first-of-type {
+    border-bottom: 1.4pt solid #dedede;
+}
+
+table.data-table tbody.group tr:last-of-type {
+    border-bottom: 1.4pt solid #dedede;
+}
+
+table.data-table tbody.group tr:first-of-type td {
+    font-weight: 600;
+}
+
+table.data-table tbody.group tr:first-of-type td:first-of-type {
+    color: #29a08c;
+}
+
+table.data-table tbody.group:not(:first-of-type) tr:first-of-type td {
+    padding-top: 4mm !important;
+}
+
+table.data-table tbody.group tr:not(:first-of-type) td {
+    border-bottom: 1px solid #dedede;
+}
+
+table.data-table tbody.group tr:not(:first-of-type) td:first-of-type {
+    border-bottom: none;
+}
+
+table.data-table tfoot tr {
+    border-bottom: 1.8pt solid #b4b4b4;
+}
