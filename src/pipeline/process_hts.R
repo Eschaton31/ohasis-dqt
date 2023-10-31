@@ -25,6 +25,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
                ~stri_replace_first_fixed(., "RISK_", "EXPOSE_")
             )
       ) %>%
+      distinct(REC_ID, .keep_all = TRUE) %>%
       # make simplified tagging for source form
       mutate(
          src = FORM_VERSION,
