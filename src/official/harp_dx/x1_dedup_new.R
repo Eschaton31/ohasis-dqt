@@ -5,10 +5,24 @@ dedup_group_ids <- function(data) {
    group_pii <- list(
       "UIC.Base"           = "uic",
       "UIC.Fixed"          = "UIC_SORT",
-      "FirstUIC.Base"      = c("FIRST_SIEVE", "UIC_SORT"),
+      "PhilHealth.Fixed"   = "PHIC",
+      "PhilSys.Fixed"      = "PHILSYS",
+      "ConfirmCode.Base"   = "CONFIRMATORY_CODE",
+      "ConfirmCode.Fixed"  = "CONFIRM_SIEVE",
+      "PxCode.Base"        = "PATIENT_CODE",
+      "PxCode.Fixed"       = "PXCODE_SIEVE",
+      "PxConfirm.Base"     = c("PATIENT_CODE", "CONFIRMATORY_CODE"),
+      "PxConfirm.Fixed"    = c("PXCODE_SIEVE", "CONFIRM_SIEVE"),
+      "ConfirmUIC.Base"    = c("CONFIRMATORY_CODE", "UIC"),
+      "ConfirmUIC.Fixed"   = c("CONFIRM_SIEVE", "UIC"),
+      "PxUIC.Base"         = c("PATIENT_CODE", "UIC"),
+      "PxUIC.Fixed"        = c("PXCODE_SIEVE", "UIC_SORT"),
+      "FirstUIC.Base"      = c("FIRST_SIEVE", "UIC"),
       "FirstUIC.Fixed"     = c("FIRST_NY", "UIC_SORT"),
       "FirstUIC.Partial"   = c("FIRST_A", "UIC_SORT"),
       "FirstUIC.Sort"      = c("NAMESORT_FIRST", "UIC_SORT"),
+      "PxBD.Base"          = c("PATIENT_CODE", "bdate"),
+      "PxBD.Fixed"         = c("PXCODE_SIEVE", "bdate"),
       "Name.Base"          = c("FIRST_SIEVE", "LAST_SIEVE", "bdate"),
       "Name.Fixed"         = c("FIRST_NY", "LAST_NY", "bdate"),
       "Name.Partial"       = c("FIRST_A", "LAST_A", "bdate"),
@@ -38,7 +52,7 @@ dedup_group_ids <- function(data) {
          group_by(across(all_of(dedup_id))) %>%
          mutate(
             # generate a group id to identify groups of duplicates
-            group_id = cur_group_id(),
+            grp_id = str_c(collapse = ",", sort(idnum)),
          ) %>%
          ungroup() %>%
          mutate(DUP_IDS = paste(collapse = ', ', dedup_id))
@@ -46,6 +60,9 @@ dedup_group_ids <- function(data) {
       # if any found, include in list for review
       dedup_new[[dedup_name]] <- df
    }
+
+   all_dedup <- combine_validations(data, dedup_new, c("grp_id", "CENTRAL_ID"))
+   dedup_new <- list(group_dedup = all_dedup)
 
    return(dedup_new)
 }
