@@ -1,0 +1,178 @@
+<html>
+<head>
+    <meta http-equiv="Access-Control-Allow-Origin" content="*"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap"
+          rel="stylesheet">
+    <!--    <link rel="stylesheet" type="text/css" href="harp.css">-->
+    <script src="paged.polyfill.js"></script>
+    <style>
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
+        @media print {
+            body {
+                margin: 0
+            }
+        }
+
+        div {
+            display: block;
+        }
+
+        h1, h2, h3, h4, h5 {
+            margin: 0;
+            font-family: "Barlow";
+
+        }
+
+        .header-main {
+            background-color: #bb2930;
+            width: 100%;
+            height: 1in;
+        }
+
+        .temp-box {
+            background-color: #d9dadb;
+            border-radius: 10px;
+            width: 100%;
+        }
+
+        .logo-doh {
+            content: url("D:/ohasis-conso/src/reports/harp/logo_doh.png");
+        }
+
+        .title-page {
+            font-size: 14pt;
+            font-family: "Barlow";
+        }
+
+        h1.heading-section {
+            font-size: 14pt;
+            color: #c12428;
+            width: 100%;
+            text-align: center;
+        }
+
+        .full-width {
+            width: 100%;
+            display: flex;
+        }
+
+        .column-left {
+            width: 50%;
+            padding-left: 12mm;
+            padding-right: 3mm;
+            display: inline-block;
+        }
+
+        .column-right {
+            width: 50%;
+            padding-right: 12mm;
+            padding-left: 3mm;
+            display: inline-block;
+        }
+
+        .narrative {
+            font-family: "Lora";
+            font-size: 7.85pt;
+            text-align: justify;
+            margin: 0;
+        }
+
+        table.figure-label {
+            font-family: "Barlow";
+            font-size: 8.5pt;
+            font-weight: 600;
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        td.tabfig-num {
+            width: 12mm;
+            color: #d83029;
+            padding: 0;
+        }
+
+        td.tabfig-colon {
+            width: 3mm;
+            color: #d83029;
+            padding: 0;
+        }
+
+        td.tabfig-title {
+            width: auto;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+<!--<img src="D:/ohasis-conso/src/reports/harp/template_p1.png" style="width: 100%; opacity: .4; position: absolute;">-->
+<div class="header-main" style="height: 1in; padding: .07in 12mm; margin-bottom: 1mm">
+    <img class="logo-doh" style="height: .9in; float: left">
+    <div style="padding: .12in 0 .12in .95in; display: block; width: 100%">
+        <div style="display: block; width: 100%">
+            <div style="float: left">
+                <h1 class="title-page" style="color: #fed340">Department of Health | Epidemiology Bureau</h1>
+            </div>
+            <div style="float: right">
+                <h1 class="title-page" style="color: #f9f5e8; text-align: right; font-size: 13pt">APRIL-JUNE 2023</h1>
+            </div>
+        </div>
+        <div style="display: flex; width: 100%">
+            <h1 class="title-page" style="color: #f9f5e8; font-size: 21.7pt">
+                HIV & AIDS SURVEILLANCE OF THE PHILIPPINES
+            </h1>
+        </div>
+    </div>
+</div>
+<h1 class="heading-section">HIV & AIDS CONTINUUM OF CARE</h1>
+<div class="full-width" style="margin-bottom: 4mm">
+    <div class="column-left">
+        <p class="narrative" style="margin-bottom: 2.5mm">
+            The latest Philippine HIV estimates show that by the end of 2023,
+            there will be 189,000 estimated People Living with HIV (PLHIV)
+            in the country.
+            <br>
+            <br>
+            Of the estimated PLHIV, 111,031 (59%) cases have been diagnosed or
+            laboratory-confirmed and currently living or not reported to have
+            died, as of June 2023. Further, 70,916 PLHIV are currently on lifesaving
+            Anti-retroviral Therapy (ART), of which, 26,006 (37%) PLHIV have
+            been tested for viral load (VL) in the past 12 months. Among those tested
+            for VL, 22,690 (87%) are virally suppressed [Figure 1].
+        </p>
+
+        <table class="figure-label" style="margin-bottom: 2.5mm">
+            <td class="tabfig-num">Figure 1</td>
+            <td class="tabfig-colon">:</td>
+            <td class="tabfig-title">National HIV Care Cascade, as of June 2023</td>
+        </table>
+
+        <div class="temp-box" style="height: 280px"></div>
+    </div>
+    <div class="column-right">
+        <h1 class="narrative">
+            95-95-95 ACCOMPLISHMENT, as of June 2023
+        </h1>
+    </div>
+</div>
+<div class="full-width" style="padding: 0 12mm">
+    <p class="narrative">
+        Eighty percent of the estimated PLHIV cases in the country are concentrated in six regions: National Capital
+        Region (NCR), CALABARZON (Region 4A),
+        Central Luzon (Region 3), Central Visayas (Region 7), Western Visayas (Region 6), and Davao Region (Region 11).
+        The diagnosis and treatment coverage
+        varied by region of residence. As of June 2023, all regions have ≥50% diagnosis coverage among estimated PLHIV;
+        while treatment coverage across
+        the regions was >55% except for Regions 7, 9, and BARMM. The viral load testing coverage among PLHIV on ART
+        ranged from 15% to 47%; while viral
+        suppression among tested ranged from 75% - 92% (Table 2).
+    </p>
+</div>
+</body>
+</html>
+

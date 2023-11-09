@@ -1,0 +1,24 @@
+@page {
+    size: A4;
+}
+
+@media print {
+    body {
+        margin: 0
+    }
+}
+
+.header-main {
+    color: #bb2930;
+    width: 100%;
+    height: 1in;
+}
+
+.logo-doh {
+    content: url("D:/ohasis-conso/src/reports/harp/logo_doh.png");
+}
+
+.title-page {
+    font-size: 26pt;
+    font-family: "Barlow";
+}
