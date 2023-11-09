@@ -1104,15 +1104,15 @@ output_dta <- function(official, params, save = "2") {
    p    <- envir
    vars <- as.list(list(...))
 
-   data <- clean_data(p$forms, p$harp)
-   data <- prioritize_reports(data)
-   data <- get_cd4(data, p$forms)
-   data <- standardize_data(data)
-   data <- tag_mot(data, p$params)
-   data <- tag_class(data)
-   data <- convert_faci_addr(data)
-   data <- final_conversion(data)
-   data %<>%
+   data       <- clean_data(p$forms, p$harp)
+   data       <- get_cd4(data, p$forms)
+   data       <- standardize_data(data)
+   data       <- tag_mot(data, p$params)
+   data       <- tag_class(data)
+   data       <- convert_faci_addr(data)
+   final_data <- prioritize_reports(data)
+   final_data <- final_conversion(final_data)
+   final_data %<>%
       left_join(
          y  = p$params$sites %>%
             mutate(rt_activation_date = as.Date(rt_activation_date)) %>%
@@ -1123,10 +1123,10 @@ output_dta <- function(official, params, save = "2") {
          by = join_by(RT_FACI_ID)
       )
 
-   step$check <- get_checks(data, run_checks = vars$run_checks)
+   step$check <- get_checks(final_data, run_checks = vars$run_checks)
    step$data  <- data
 
-   p$official$recency <- data
+   p$official$recency <- final_data
    # output_dta(p$official, p$params, vars$save)
 
    flow_validation(p, "hts_recent", p$params$ym, upload = vars$upload)
