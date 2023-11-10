@@ -88,6 +88,23 @@ harp$tx        <- lapply(harp$yrs, function(yr) {
 })
 names(harp$tx) <- harp$yrs
 
+lw_conn <- ohasis$conn("lw")
+prep    <- list(
+   id_reg = dbTable(lw_conn, "ohasis_warehouse", "id_registry", cols = c("PATIENT_ID", "CENTRAL_ID")),
+   oh     = dbTable(lw_conn, "ohasis_warehouse", "form_prep"),
+   start  = read_dta(hs_data("prep", "prepstart", 2023, 8)),
+   reg    = read_dta(hs_data("prep", "reg", 2023, 8)),
+   disp   = dbTable(
+      lw_conn,
+      "ohasis_lake",
+      "disp_meds",
+      join = list(
+         "ohasis_warehouse.form_prep" = list(by = c("REC_ID" = "REC_ID"), cols = "VISIT_DATE", type = "inner")
+      )
+   )
+)
+dbDisconnect(lw_conn)
+
 harp$dead <- read_dta(hs_data("harp_dead", "reg", 2023, 8)) %>%
    mutate(
       proxy_death_date = as.Date(ceiling_date(as.Date(paste(sep = '-', year, month, '01')), unit = 'month')) - 1,
@@ -98,7 +115,7 @@ harp$dead <- read_dta(hs_data("harp_dead", "reg", 2023, 8)) %>%
       )
    )
 
-harp$dx <- read_dta(hs_data("harp_dx", "reg", 2023, 8))
+harp$dx <- read_dta(hs_data("harp_full", "reg", 2023, 8))
 
 tx_all <- harp$tx %>%
    bind_rows(.id = "yr") %>%
@@ -187,6 +204,11 @@ mega <- tx_all %>%
       tx_sex = sex_2023
    ) %>%
    filter(!is.na(art_id)) %>%
+   left_join(
+      y  = harp$tx$`2023` %>%
+         select(art_id, art_bdate = birthdate),
+      by = join_by(art_id)
+   ) %>%
    select(
       -starts_with("art_id_"),
       -starts_with("idnum_"),
@@ -194,8 +216,13 @@ mega <- tx_all %>%
    ) %>%
    full_join(
       y          = harp$dx %>%
+         mutate(
+            rep_date = end_ym(year, month),
+         ) %>%
          select(
             idnum,
+            rep_date,
+            class2022,
             region,
             province,
             muncity,
@@ -204,11 +231,17 @@ mega <- tx_all %>%
             sexhow,
             dx_sex = sex,
             age,
-            year
+            year,
+            month,
+            class2022,
+            dead,
+            mort,
+            everonart
          ),
       by         = join_by(idnum),
       na_matches = "never"
    ) %>%
+   select(-any_of("ref_death_date")) %>%
    left_join(
       y          = harp$dead %>%
          select(
@@ -224,6 +257,7 @@ mega <- tx_all %>%
    ) %>%
    mutate(
       sex           = coalesce(dx_sex, tx_sex),
+      birthdate     = coalesce(bdate, art_bdate),
       end_date_2015 = "2015-12-31",
       end_date_2016 = "2016-12-31",
       end_date_2017 = "2017-12-31",
@@ -269,6 +303,32 @@ mega <- tx_all %>%
          ),
       by = join_by(PERM_PSGC_REG, PERM_PSGC_PROV, PERM_PSGC_MUNC)
    ) %>%
+   harp_addr_to_id(
+      ohasis$ref_addr,
+      c(
+         TX_PSGC_REG  = "txreg_2023",
+         TX_PSGC_PROV = "txprov_2023",
+         TX_PSGC_MUNC = "txmunc_2023"
+      ),
+      aem_sub_ntl = FALSE
+   ) %>%
+   mutate(
+      use_tx            = if_else(is.na(PERM_PSGC_MUNC) & !is.na(TX_PSGC_MUNC), 1, 0, 0),
+      TX_PERM_PSGC_REG  = if_else(use_tx == 1, TX_PSGC_REG, PERM_PSGC_REG, PERM_PSGC_REG),
+      TX_PERM_PSGC_PROV = if_else(use_tx == 1, TX_PSGC_PROV, PERM_PSGC_PROV, PERM_PSGC_PROV),
+      TX_PERM_PSGC_MUNC = if_else(use_tx == 1, TX_PSGC_MUNC, PERM_PSGC_MUNC, PERM_PSGC_MUNC),
+   ) %>%
+   left_join(
+      y  = ref %>%
+         select(
+            TX_PERM_PSGC_REG  = PSGC_REG,
+            TX_PERM_PSGC_PROV = PSGC_PROV,
+            TX_PERM_PSGC_MUNC = PSGC_MUNC,
+            aemclass_2019_art = aemclass_2019,
+            aemclass_2023_art = aemclass_2023,
+         ),
+      by = join_by(TX_PERM_PSGC_REG, TX_PERM_PSGC_PROV, TX_PERM_PSGC_MUNC)
+   ) %>%
    select(-region, -province, -muncity) %>%
    ohasis$get_addr(
       c(
@@ -278,7 +338,48 @@ mega <- tx_all %>%
       ),
       "nhsss"
    ) %>%
-   select(-starts_with("end_date_"), -overseas_addr, -year, -age, -dx_sex, -tx_sex, -bdate)
+   ohasis$get_addr(
+      c(
+         region_art   = "TX_PERM_PSGC_REG",
+         province_art = "TX_PERM_PSGC_PROV",
+         muncity_art  = "TX_PERM_PSGC_MUNC"
+      ),
+      "nhsss"
+   ) %>%
+   select(-contains("PSGC"), -overseas_addr, -age, -dx_sex, -tx_sex, -bdate) %>%
+   # mutate_at(
+   #    .vars = vars(ref_death_date),
+   #    ~if_else(. == "1900-01-31", as.Date("2011-12-31"), ., .)
+   # ) %>%
+   mutate_at(
+      .vars = vars(starts_with("end_date_")),
+      ~as.Date(.)
+   )
+
+
+for (yr in seq(1984, 2023)) {
+   mo        <- ifelse(yr <= 2022, 12, 8)
+   yrdead    <- as.name(stri_c("dead_", yr))
+   yrpresume <- as.name(stri_c("presumedead_", yr))
+   end_date  <- end_ym(yr, mo)
+   mega %<>%
+      mutate(
+         {{yrdead}}    := if_else(ref_death_date <= end_date, 1, 0, 0),
+         {{yrpresume}} := if_else({{yrdead}} == 1 | (is.na(everonart) & interval(rep_date, end_date) / years(1) >= 10), 1, 0, 0),
+      )
+}
+for (yr in seq(2015, 2023)) {
+   yrplhiv   <- as.name(stri_c("plhiv_", yr))
+   yrdead    <- as.name(stri_c("dead_", yr))
+   yrpresume <- as.name(stri_c("presumedead_", yr))
+   mega %<>%
+      mutate(
+         {{yrdead}}    := if_else({{yrdead}} == 1 & {{yrplhiv}} == 1, 0, {{yrdead}}),
+         {{yrdead}}    := if_else({{yrdead}} == 1 & {{yrplhiv}} == 0, 1, {{yrdead}}),
+         {{yrpresume}} := if_else({{yrpresume}} == 1 & {{yrplhiv}} == 1, 0, {{yrpresume}}),
+         {{yrpresume}} := if_else({{yrpresume}} == 1 & {{yrplhiv}} == 0, 1, {{yrpresume}}),
+      )
+}
 
 pse <- read_dta("C:/Users/johnb/Downloads/2022 PSE 10312023.dta") %>%
    select(-starts_with("PSGC")) %>%
@@ -304,4 +405,156 @@ pse <- read_dta("C:/Users/johnb/Downloads/2022 PSE 10312023.dta") %>%
 
 write_dta(pse, "H:/20231031_pse-final.dta")
 
-write_dta(mega, "H:/20231103_mega-harp_2015-2023-08.dta")
+write_dta(mega %>% format_stata(), "H:/20231109_mega-harp_2015-2023-08_dead-presumed.dta")
+
+prep_per_yr <- prep$oh %>%
+   left_join(prep$disp %>% select(REC_ID, DISP_TOTAL, DISP_DATE), join_by(REC_ID)) %>%
+   get_cid(prep$id_reg, PATIENT_ID) %>%
+   filter(!is.na(MEDICINE_SUMMARY)) %>%
+   filter(VISIT_DATE <= "2023-08-31") %>%
+   arrange(desc(LATEST_NEXT_DATE)) %>%
+   distinct(CENTRAL_ID, VISIT_DATE, .keep_all = TRUE) %>%
+   mutate(
+      prep_yr    = year(VISIT_DATE),
+      prep_total = coalesce(DISP_TOTAL, 30) / 30,
+      prep_total = abs(floor(prep_total))
+   ) %>%
+   filter(prep_total %in% seq(1, 14)) %>%
+   group_by(CENTRAL_ID, prep_yr) %>%
+   summarise(
+      prep_total = sum(prep_total, na.rm = TRUE)
+   ) %>%
+   ungroup() %>%
+   pivot_wider(
+      id_cols      = CENTRAL_ID,
+      names_from   = prep_yr,
+      values_from  = prep_total,
+      names_prefix = "prep_"
+   )
+
+prep_reg <- prep$reg %>%
+   get_cid(prep$id_reg, PATIENT_ID)
+
+try <- prep_reg %>%
+   left_join(
+      y  = prep$start %>%
+         select(prepstart_date, prep_id, prepstart_plan = curr_prep_plan, prepstart_type = curr_prep_type),
+      by = join_by(prep_id)
+   ) %>%
+   left_join(
+      y  = read_dta(hs_data("prep", "outcome", 2023, 8), col_select = c(prep_id, prep_reg, prep_prov, prep_munc)),
+      by = join_by(prep_id)
+   ) %>%
+   select(-curr_reg, -curr_munc, -curr_prov) %>%
+   left_join(
+      y  = prep_addr %>%
+         select(prep_id, curr_reg, curr_prov, curr_munc),
+      by = join_by(prep_id)
+   ) %>%
+   left_join(
+      y  = prep_per_yr %>%
+         inner_join(
+            prep_reg %>%
+               select(CENTRAL_ID, prep_id) %>%
+               left_join(prep$start %>% select(-CENTRAL_ID), join_by(prep_id)) %>%
+               filter(!is.na(prepstart_date)) %>%
+               select(CENTRAL_ID),
+            join_by(CENTRAL_ID)
+         ),
+      by = join_by(CENTRAL_ID)
+   ) %>%
+   mutate(
+      permcurr_reg  = case_when(
+         curr_reg == "UNKNOWN" ~ perm_reg,
+         curr_reg == "OVERSEAS" ~ perm_reg,
+         curr_reg == "" ~ perm_reg,
+         TRUE ~ curr_reg
+      ),
+      permcurr_prov = case_when(
+         curr_reg == "UNKNOWN" ~ perm_prov,
+         curr_reg == "OVERSEAS" ~ perm_prov,
+         curr_reg == "" ~ perm_prov,
+         TRUE ~ curr_prov
+      ),
+      permcurr_munc = case_when(
+         curr_reg == "UNKNOWN" ~ perm_munc,
+         curr_reg == "OVERSEAS" ~ perm_munc,
+         curr_reg == "" ~ perm_munc,
+         TRUE ~ curr_munc
+      )
+   ) %>%
+   harp_addr_to_id(
+      ohasis$ref_addr,
+      c(
+         PERM_PSGC_REG  = "permcurr_reg",
+         PERM_PSGC_PROV = "permcurr_prov",
+         PERM_PSGC_MUNC = "permcurr_munc"
+      ),
+      aem_sub_ntl = FALSE
+   ) %>%
+   left_join(
+      y  = ref %>%
+         select(
+            PERM_PSGC_REG  = PSGC_REG,
+            PERM_PSGC_PROV = PSGC_PROV,
+            PERM_PSGC_MUNC = PSGC_MUNC,
+            aemclass_2019,
+            aemclass_2023,
+         ),
+      by = join_by(PERM_PSGC_REG, PERM_PSGC_PROV, PERM_PSGC_MUNC)
+   ) %>%
+   harp_addr_to_id(
+      ohasis$ref_addr,
+      c(
+         PREP_PSGC_REG  = "prep_reg",
+         PREP_PSGC_PROV = "prep_prov",
+         PREP_PSGC_MUNC = "prep_munc"
+      ),
+      aem_sub_ntl = FALSE
+   ) %>%
+   mutate(
+      use_prep            = if_else(permcurr_munc %in% c("", "UNKNOWN", "OVERSEAS") & !is.na(PREP_PSGC_MUNC), 1, 0, 0),
+      PREP_PERM_PSGC_REG  = if_else(use_prep == 1, PREP_PSGC_REG, PERM_PSGC_REG, PERM_PSGC_REG),
+      PREP_PERM_PSGC_PROV = if_else(use_prep == 1, PREP_PSGC_PROV, PERM_PSGC_PROV, PERM_PSGC_PROV),
+      PREP_PERM_PSGC_MUNC = if_else(use_prep == 1, PREP_PSGC_MUNC, PERM_PSGC_MUNC, PERM_PSGC_MUNC),
+   ) %>%
+   left_join(
+      y  = ref %>%
+         select(
+            PREP_PERM_PSGC_REG  = PSGC_REG,
+            PREP_PERM_PSGC_PROV = PSGC_PROV,
+            PREP_PERM_PSGC_MUNC = PSGC_MUNC,
+            aemclass_2019_prep  = aemclass_2019,
+            aemclass_2023_prep  = aemclass_2023,
+         ),
+      by = join_by(PREP_PERM_PSGC_REG, PREP_PERM_PSGC_PROV, PREP_PERM_PSGC_MUNC)
+   ) %>%
+   select(-permcurr_reg, -permcurr_prov, -permcurr_munc) %>%
+   ohasis$get_addr(
+      c(
+         currperm_reg  = "PERM_PSGC_REG",
+         currperm_prov = "PERM_PSGC_PROV",
+         currperm_munc = "PERM_PSGC_MUNC"
+      ),
+      "nhsss"
+   ) %>%
+   ohasis$get_addr(
+      c(
+         region_prep   = "PREP_PERM_PSGC_REG",
+         province_prep = "PREP_PERM_PSGC_PROV",
+         muncity_prep  = "PREP_PERM_PSGC_MUNC"
+      ),
+      "nhsss"
+   )
+
+
+prep_start <- prep$start %>%
+   select(prep_id, -any_of(setdiff(names(try), "prep_id"))) %>%
+   left_join(
+      y  = try,
+      by = join_by(prep_id)
+   )
+
+prep_start
+
+write_dta(prep_start %>% format_stata(), "H:/20231109_prepstart_2023-08_AEM.dta")
