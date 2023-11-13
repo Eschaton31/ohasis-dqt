@@ -3,12 +3,49 @@ library(scales)
 font_add_google("Inter", family = "Inter")
 showtext_auto()
 
-cols <- c("art_id", "outcome", "artstart_date", "real_reg", "realhub", "realhub_branch")
-old  <- read_dta(hs_data("harp_tx", "outcome", 2023, 7), col_select = any_of(cols))
-new  <- read_dta(hs_data("harp_tx", "outcome", 2023, 8), col_select = any_of(cols))
+sites <- read_sheet("1qunK5aO5-TDj7mAz7rQzCpN1plLGS3kSJArptcFtfsw", col_types = "c", .name_repair = "unique_quiet")
+cols  <- c("art_id", "outcome", "artstart_date", "real_reg", "realhub", "realhub_branch")
+old   <- read_dta(hs_data("harp_tx", "outcome", 2023, 8), col_select = any_of(cols)) %>%
+   faci_code_to_id(
+      ohasis$ref_faci_code,
+      list(FACI_ID = "realhub", SUB_FACI_ID = "realhub_branch")
+   ) %>%
+   left_join(
+      sites %>%
+         distinct(FACI_ID, .keep_all = TRUE) %>%
+         select(
+            FACI_ID,
+            site_epic_2023,
+            site_icap_2023
+         ),
+      join_by(FACI_ID)
+   ) %>%
+   ohasis$get_faci(
+      list(site_name = c("FACI_ID", "SUB_FACI_ID")),
+      "name",
+   )
+new   <- read_dta(hs_data("harp_tx", "outcome", 2023, 9), col_select = any_of(cols)) %>%
+   faci_code_to_id(
+      ohasis$ref_faci_code,
+      list(FACI_ID = "realhub", SUB_FACI_ID = "realhub_branch")
+   ) %>%
+   left_join(
+      sites %>%
+         distinct(FACI_ID, .keep_all = TRUE) %>%
+         select(
+            FACI_ID,
+            site_epic_2023,
+            site_icap_2023
+         ),
+      join_by(FACI_ID)
+   ) %>%
+   ohasis$get_faci(
+      list(site_name = c("FACI_ID", "SUB_FACI_ID")),
+      "name",
+   )
 
-old <- read_dta(hs_data("harp_tx", "outcome", 2023, 8), col_select = any_of(cols))
-new <- harp_tx$official$new_outcome %>% select(any_of(cols))
+old     <- read_dta(hs_data("harp_tx", "outcome", 2023, 8), col_select = any_of(cols))
+new     <- harp_tx$official$new_outcome %>% select(any_of(cols))
 data    <- list()
 regions <- unique(new$real_reg)
 for (reg in regions) {
@@ -156,10 +193,11 @@ waterfall_tx <- function(new, old, yr, mo, title) {
       ifelse(net_diff < 0, "neg", "pos")
    )
 
-   max_y   <- potential_onart + floor((potential_onart * .1))
+   offset  <- ifelse(potential_onart <= 20, floor((potential_onart * .2)), floor((potential_onart * .1)))
+   offset  <- ifelse(offset < 10, 10, offset)
+   max_y   <- potential_onart + offset
    lim     <- c(0, max_y)
-   data_wf <- tibble(label = factor(group, levels = group), value, measure)
-   plot_wf <- data_wf %>%
+   data_wf <- tibble(label = factor(group, levels = group), value, measure) %>%
       mutate(
          start     = case_when(
             row_number() == 1 ~ 0,
@@ -173,9 +211,18 @@ waterfall_tx <- function(new, old, yr, mo, title) {
          end       = start + value,
          id        = row_number(),
          new_value = if_else(row_number() == n(), value * -1, value)
-      ) %>%
-      ggplot(aes(label, fill = measure, label = scales::comma(new_value))) +
-      geom_rect(aes(x = label, xmin = id - 0.45, xmax = id + 0.45, ymin = end, ymax = start)) +
+      )
+
+   plot_wf <- ggplot(data_wf, aes(label, fill = measure, label = scales::comma(new_value))) +
+      suppress_warnings(geom_rect(
+         aes(
+            x    = label,
+            xmin = id - 0.45,
+            xmax = id + 0.45,
+            ymin = end,
+            ymax = start
+         )
+      ), "Ignoring unknown") +
       geom_segment(
          aes(
             x    = id - .45,
@@ -228,7 +275,7 @@ new %<>%
       site = coalesce(na_if(realhub_branch, ""), realhub)
    )
 
-data    <- list()
+data  <- list()
 sites <- unique(new$site)
 sites <- sites[!is.na(sites)]
 for (hub in sites) {
@@ -237,7 +284,8 @@ for (hub in sites) {
       new = new %>% filter(site == hub)
    )
 }
-dir   <- "C:/Users/johnb/Downloads/tx-waterfall_2023-09/site-level"
+
+dir <- "C:/Users/Administrator/Downloads/waterfall_2023-09/site-level"
 plot_bmp(plot, file.path(dir, "PH.bmp"))
 plots <- list()
 for (reg in regions) {
@@ -246,9 +294,19 @@ for (reg in regions) {
    plot_bmp(plots[[reg]], file)
 }
 
-plots <- list()
+dir   <- "D:/waterfall_2023-09/Hubs"
+sites <- new %>%
+   # filter(site_icap_2023 == 1) %>%
+   select(site_name)
+sites <- sites$site_name
+sites <- sites[!is.na(sites)]
+sites <- unique(sites)
 for (hub in sites) {
-   plots[[hub]] <- waterfall_tx(data[[hub]]$new, data[[hub]]$old, 2023, 9, hub)
-   file         <- file.path(dir, stri_c(hub, ".bmp"))
-   plot_bmp(plots[[hub]], file)
+   plot <- waterfall_tx(new %>% filter(site_name == hub), old %>% filter(site_name == hub), 2023, 9, hub)
+   region <- ohasis$ref_faci %>% filter(FACI_NAME == hub) %>% distinct(FACI_ID, .keep_all = TRUE)
+   region <- region$FACI_NAME_REG[1]
+   subdir <- file.path(dir, region)
+   check_dir(subdir)
+   file <- file.path(subdir, stri_c(path_sanitize(hub), ".bmp"))
+   plot_bmp(plot, file)
 }
