@@ -812,12 +812,13 @@ convert_faci_addr <- function(data) {
       ) %>%
       left_join(
          na_matches = "never",
-         y          = ohasis$ref_faci %>%
+         y          = read_sheet("1aOqYjx5wbc403xy-64YHJU6NzhEBRUu6Ldg59yDEUMw", "Sheet1", range = "A:D", col_types = "c") %>%
             select(
-               TEST_FACI     = FACI_ID,
-               TEST_SUB_FACI = SUB_FACI_ID,
-               pubpriv       = PUBPRIV
-            ),
+               TEST_FACI     = HARP_FACI,
+               TEST_SUB_FACI = HARP_SUB_FACI,
+               pubpriv       = FINAL_PUBPRIV
+            ) %>%
+            mutate_all(~toupper(coalesce(., ""))),
          by         = join_by(TEST_FACI, TEST_SUB_FACI)
       ) %>%
       mutate(
