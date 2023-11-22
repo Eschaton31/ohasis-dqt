@@ -814,12 +814,12 @@ convert_faci_addr <- function(data) {
          na_matches = "never",
          y          = read_sheet("1aOqYjx5wbc403xy-64YHJU6NzhEBRUu6Ldg59yDEUMw", "Sheet1", range = "A:D", col_types = "c") %>%
             select(
-               TEST_FACI     = HARP_FACI,
-               TEST_SUB_FACI = HARP_SUB_FACI,
-               pubpriv       = FINAL_PUBPRIV
+               TEST_FACI = HARP_FACI,
+               pubpriv   = FINAL_PUBPRIV
             ) %>%
+            distinct(TEST_FACI, .keep_all = TRUE) %>%
             mutate_all(~toupper(coalesce(., ""))),
-         by         = join_by(TEST_FACI, TEST_SUB_FACI)
+         by         = join_by(TEST_FACI)
       ) %>%
       mutate(
          FORM_FACI_2        = TEST_FACI,
