@@ -593,7 +593,12 @@ finalize_outcomes <- function(data, params) {
          ),
 
          vl_yr         = year(vl_date),
-         vl_mo         = month(vl_date)
+         vl_mo         = month(vl_date),
+
+         curr_age      = case_when(
+            !is.na(birthdate) ~ calc_age(birthdate, LATEST_VISIT),
+            TRUE ~ curr_age
+         ),
       )
 
    return(data)
