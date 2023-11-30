@@ -904,3 +904,347 @@ convert_hts <- function(hts_data, convert_type = c("nhsss", "name", "code")) {
 
    return(data)
 }
+
+deconstruct_hts <- function(hts) {
+   tables <- c(
+      "px_record",
+      "px_name",
+      "px_info",
+      "px_profile",
+      "px_addr",
+      "px_contact",
+      "px_faci",
+      "px_form",
+      "px_test",
+      "px_ob",
+      "px_occupation",
+      "px_cfbs",
+      "px_consent",
+      "px_ofw",
+      "px_expose_hist",
+      "px_expose_profile",
+      "px_test_reason",
+      "px_prev_test",
+      "px_med_profile",
+      "px_staging",
+      "px_reach",
+      "px_other_service",
+      "px_test_refuse",
+      "px_linkage"
+   )
+
+   conn <- ohasis$conn("db")
+
+   # primary keys
+   log_info("Obtaining {green('Primary Keys')}.")
+   pks        <- lapply(tables, function(table) dbGetQuery(conn, glue("SHOW KEYS FROM ohasis_interim.{table} WHERE Key_name = 'PRIMARY'")))
+   pks        <- lapply(pks, function(data) return(data$Column_name))
+   names(pks) <- tables
+
+
+   # columns
+   log_info("Obtaining {green('Column Names')}.")
+   cols        <- lapply(tables, function(table) dbGetQuery(conn, glue("SHOW COLUMNS FROM ohasis_interim.{table}")))
+   cols        <- lapply(cols, function(data) return(data$Field))
+   names(cols) <- tables
+
+   dbDisconnect(conn)
+
+   log_info("Creating tables using obtained schema.")
+   data        <- lapply(tables, function(table, data, cols) {
+      col_need      <- cols[[table]]
+      col_not_found <- setdiff(col_need, names(data))
+
+      schema <- data %>%
+         mutate(
+            !!!setNames(rep(NA_character_, length(col_not_found)), col_not_found)
+         ) %>%
+         select(any_of(col_need))
+
+      return(schema)
+   }, data = hts, cols = cols)
+   names(data) <- tables
+
+   log_info("Manually creating long tables.")
+   # long tables
+   data$px_addr <- hts %>%
+      select(
+         any_of(cols$px_addr),
+         ends_with("_REG"),
+         ends_with("_PROV"),
+         ends_with("_MUNC"),
+         ends_with("_ADDR")
+      ) %>%
+      rename_all(~str_replace(., "HIV_SERVICE", "SERVICE")) %>%
+      pivot_longer(
+         cols      = c(
+            ends_with("_REG"),
+            ends_with("_PROV"),
+            ends_with("_MUNC"),
+            ends_with("_ADDR")
+         ),
+         names_to  = "ADDR_DATA",
+         values_to = "ADDR_VALUE"
+      ) %>%
+      mutate(
+         ADDR_TYPE = str_extract(ADDR_DATA, "^[^_]*"),
+         PIECE     = str_extract(ADDR_DATA, "_(?!.*_)(.*)", 1)
+      ) %>%
+      mutate(
+         ADDR_TYPE = case_when(
+            ADDR_TYPE == "CURR" ~ "1",
+            ADDR_TYPE == "PERM" ~ "2",
+            ADDR_TYPE == "BIRTH" ~ "3",
+            ADDR_TYPE == "DEATH" ~ "4",
+            ADDR_TYPE == "SERVICE" ~ "5",
+            ADDR_TYPE == "HIV_SERVICE" ~ "5",
+            TRUE ~ ADDR_TYPE
+         ),
+         PIECE     = case_when(
+            PIECE == "ADDR" ~ "TEXT",
+            TRUE ~ PIECE
+         ),
+      ) %>%
+      select(-ADDR_DATA) %>%
+      pivot_wider(
+         names_from   = PIECE,
+         values_from  = ADDR_VALUE,
+         names_prefix = "ADDR_"
+      ) %>%
+      select(any_of(cols$px_addr))
+
+   data$px_contact <- hts %>%
+      select(
+         any_of(cols$px_contact),
+         CLIENT_MOBILE,
+         CLIENT_EMAIL
+      ) %>%
+      pivot_longer(
+         cols      = c(CLIENT_MOBILE, CLIENT_EMAIL),
+         names_to  = "CONTACT_TYPE",
+         values_to = "CONTACT"
+      ) %>%
+      mutate(
+         CONTACT_TYPE = case_when(
+            CONTACT_TYPE == "CLIENT_MOBILE" ~ "1",
+            CONTACT_TYPE == "CLIENT_EMAIL" ~ "2",
+            TRUE ~ CONTACT_TYPE
+         )
+      ) %>%
+      select(any_of(cols$px_contact))
+
+   data$px_expose_hist <- hts %>%
+      select(
+         any_of(cols$px_expose_hist),
+         starts_with("EXPOSE_")
+      ) %>%
+      pivot_longer(
+         cols      = starts_with("EXPOSE_"),
+         names_to  = "EXPOSURE",
+         values_to = "EXPOSE_VALUE"
+      ) %>%
+      mutate(
+         EXPOSE_DATA = if_else(str_detect(EXPOSURE, "_DATE"), "DATE_LAST_EXPOSE", "IS_EXPOSED"),
+         EXPOSURE    = str_replace(EXPOSURE, "^EXPOSE_", ""),
+         EXPOSURE    = str_replace(EXPOSURE, "_DATE$", ""),
+         EXPOSURE    = case_when(
+            EXPOSURE == "HIV_MOTHER" ~ "120000",
+            EXPOSURE == "SEX_M" ~ "217000",
+            EXPOSURE == "SEX_M_AV" ~ "216000",
+            EXPOSURE == "SEX_M_AV_NOCONDOM" ~ "216200",
+            EXPOSURE == "SEX_F" ~ "227000",
+            EXPOSURE == "SEX_F_AV" ~ "226000",
+            EXPOSURE == "SEX_F_AV_NOCONDOM" ~ "226200",
+            EXPOSURE == "SEX_PAYING" ~ "200010",
+            EXPOSURE == "SEX_PAYMENT" ~ "200020",
+            EXPOSURE == "SEX_DRUGS" ~ "200300",
+            EXPOSURE == "DRUG_INJECT" ~ "301010",
+            EXPOSURE == "BLOOD_TRANSFUSE" ~ "530000",
+            EXPOSURE == "OCCUPATION" ~ "510000",
+            TRUE ~ EXPOSURE
+         )
+      ) %>%
+      pivot_wider(
+         names_from  = EXPOSE_DATA,
+         values_from = EXPOSE_VALUE,
+      ) %>%
+      select(any_of(cols$px_expose_hist)) %>%
+      mutate(
+         IS_EXPOSED = keep_code(IS_EXPOSED),
+         IS_EXPOSED = if_else(!is.na(DATE_LAST_EXPOSE), "1", IS_EXPOSED, IS_EXPOSED)
+      )
+
+   data$px_test_reason <- hts %>%
+      select(
+         any_of(cols$px_test_reason),
+         starts_with("TEST_REASON")
+      ) %>%
+      pivot_longer(
+         cols      = starts_with("TEST_REASON_"),
+         names_to  = "REASON",
+         values_to = "IS_REASON"
+      ) %>%
+      mutate(
+         REASON_OTHER = if_else(str_detect(REASON, "OTHER_TEXT$"), IS_REASON, NA_character_),
+         IS_REASON    = if_else(!is.na(REASON_OTHER), "1_Yes", IS_REASON, IS_REASON),
+         REASON       = str_replace(REASON, "^TEST_REASON_", ""),
+         REASON       = str_replace(REASON, "_TEXT$", ""),
+         REASON       = case_when(
+            REASON == "HIV_EXPOSE" ~ "1",
+            REASON == "PHYSICIAN" ~ "2",
+            REASON == "PEER_ED" ~ "8",
+            REASON == "EMPLOY_OFW" ~ "3",
+            REASON == "EMPLOY_LOCAL" ~ "4",
+            REASON == "TEXT_EMAIL" ~ "9",
+            REASON == "INSURANCE" ~ "5",
+            REASON == "OTHER" ~ "8888",
+            TRUE ~ REASON
+         ),
+         IS_REASON    = coalesce(keep_code(IS_REASON), "0"),
+      ) %>%
+      select(any_of(cols$px_test_reason))
+
+   data$px_med_profile <- hts %>%
+      select(
+         any_of(cols$px_med_profile),
+         starts_with("MED_")
+      ) %>%
+      pivot_longer(
+         cols      = starts_with("MED_"),
+         names_to  = "PROFILE",
+         values_to = "IS_PROFILE"
+      ) %>%
+      mutate(
+         PROFILE    = str_replace(PROFILE, "^MED_", ""),
+         PROFILE    = case_when(
+            PROFILE == "TB_PX" ~ "1",
+            PROFILE == "STI" ~ "8",
+            PROFILE == "HEP_B" ~ "3",
+            PROFILE == "HEP_C" ~ "4",
+            PROFILE == "PREP_PX" ~ "6",
+            PROFILE == "PEP_PX" ~ "7",
+            TRUE ~ PROFILE
+         ),
+         IS_PROFILE = coalesce(keep_code(IS_PROFILE), "0"),
+      ) %>%
+      select(any_of(cols$px_med_profile))
+
+   data$px_reach <- hts %>%
+      select(
+         any_of(cols$px_reach),
+         starts_with("REACH_")
+      ) %>%
+      pivot_longer(
+         cols      = starts_with("REACH_"),
+         names_to  = "REACH",
+         values_to = "IS_REACH"
+      ) %>%
+      mutate(
+         REACH    = str_replace(REACH, "^REACH_", ""),
+         REACH    = case_when(
+            REACH == "ONLINE" ~ "2",
+            REACH == "SSNT" ~ "4",
+            REACH == "VENUE" ~ "5",
+            TRUE ~ REACH
+         ),
+         IS_REACH = coalesce(keep_code(IS_REACH), "0"),
+      ) %>%
+      select(any_of(cols$px_reach))
+
+   data$px_reach <- hts %>%
+      select(
+         any_of(cols$px_reach),
+         starts_with("REACH_")
+      ) %>%
+      pivot_longer(
+         cols      = starts_with("REACH_"),
+         names_to  = "REACH",
+         values_to = "IS_REACH"
+      ) %>%
+      mutate(
+         REACH    = str_replace(REACH, "^REACH_", ""),
+         REACH    = case_when(
+            REACH == "ONLINE" ~ "2",
+            REACH == "SSNT" ~ "4",
+            REACH == "VENUE" ~ "5",
+            TRUE ~ REACH
+         ),
+         IS_REACH = coalesce(keep_code(IS_REACH), "0"),
+      ) %>%
+      select(any_of(cols$px_reach))
+
+   data$px_other_service <- hts %>%
+      select(
+         any_of(cols$px_other_service),
+         starts_with("SERVICE_")
+      ) %>%
+      select(-SERVICE_TYPE) %>%
+      pivot_longer(
+         cols      = starts_with("SERVICE_"),
+         names_to  = "SERVICE",
+         values_to = "GIVEN"
+      ) %>%
+      mutate(
+         OTHER_SERVICE = case_when(
+            SERVICE == "SERVICE_CONDOMS" ~ GIVEN,
+            SERVICE == "SERVICE_LUBES" ~ GIVEN,
+            TRUE ~ NA_character_
+         ),
+         GIVEN         = if_else(!is.na(OTHER_SERVICE), "1_Yes", GIVEN, GIVEN),
+         SERVICE       = str_replace(SERVICE, "^SERVICE_", ""),
+         SERVICE       = case_when(
+            SERVICE == "HIV_101" ~ "1013",
+            SERVICE == "IEC_MATS" ~ "1004",
+            SERVICE == "RISK_COUNSEL" ~ "1002",
+            SERVICE == "PREP_REFER" ~ "5001",
+            SERVICE == "SSNT_OFFER" ~ "5002",
+            SERVICE == "SSNT_ACCEPT" ~ "5003",
+            SERVICE == "CONDOMS" ~ "2001",
+            SERVICE == "LUBES" ~ "2002",
+            TRUE ~ SERVICE
+         ),
+         GIVEN         = coalesce(keep_code(GIVEN), "0"),
+      ) %>%
+      select(any_of(cols$px_other_service))
+   
+   data$px_test_refuse <- hts %>%
+      select(
+         any_of(cols$px_test_refuse),
+         starts_with("TEST_REFUSE_")
+      ) %>%
+      pivot_longer(
+         cols      = starts_with("TEST_REFUSE_"),
+         names_to  = "REASON",
+         values_to = "IS_REASON"
+      ) %>%
+      mutate(
+         REASON_OTHER = case_when(
+            REASON == "TEST_REFUSE_CONDOMS" ~ IS_REASON,
+            REASON == "TEST_REFUSE_LUBES" ~ IS_REASON,
+            TRUE ~ NA_character_
+         ),
+         REASON_OTHER = if_else(str_detect(REASON, "OTHER_TEXT$"), IS_REASON, NA_character_),
+         IS_REASON    = if_else(!is.na(REASON_OTHER), "1_Yes", IS_REASON, IS_REASON),
+         REASON       = str_replace(REASON, "^TEST_REFUSE_", ""),
+         REASON       = str_replace(REASON, "_TEXT$", ""),
+         REASON       = case_when(
+            REASON == "OTHER" ~ "8888",
+            TRUE ~ REASON
+         ),
+         IS_REASON         = coalesce(keep_code(IS_REASON), "0"),
+      ) %>%
+      select(any_of(cols$px_test_refuse))
+
+   log_info("Finalizing upload schema.")
+   schema <- list()
+   for (table in tables) {
+      schema[[table]] <- list(
+         name = table,
+         pk = cols[[table]],
+         data = data[[table]]
+      )
+   }
+
+   log_success("Done!")
+   return(schema)
+}
