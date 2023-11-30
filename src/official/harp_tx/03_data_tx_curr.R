@@ -636,11 +636,11 @@ finalize_faci <- function(data) {
             realhub == "TLY" & is.na(realhub_branch) ~ "TLY-ANGLO",
             TRUE ~ realhub_branch
          ),
-         hub         = case_when(
+         hub            = case_when(
             hub == "BGN" ~ "TLY",
             TRUE ~ hub
          ),
-         realhub = case_when(
+         realhub        = case_when(
             realhub == "BGN" ~ "TLY",
             TRUE ~ realhub
          ),
