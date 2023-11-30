@@ -7,8 +7,7 @@ aiha <- list(
    path    = "O:/My Drive/Data Sharing/AIHA",
    convert = list(
       addr  = read_sheet("1_o861XcjkgIm0HuV71Zy5xvQI5TmwYhHNK8mmMWNsTM", "addr", range = "A:F", col_types = "c"),
-      staff = read_sheet("1_o861XcjkgIm0HuV71Zy5xvQI5TmwYhHNK8mmMWNsTM", "staff", range = "A:B", col_types = "c"),
-      pid   = read_sheet("1_o861XcjkgIm0HuV71Zy5xvQI5TmwYhHNK8mmMWNsTM", "pid", range = "A:M", col_types = "c")
+      staff = read_sheet("1_o861XcjkgIm0HuV71Zy5xvQI5TmwYhHNK8mmMWNsTM", "staff", range = "A:B", col_types = "c")
    )
 )
 
@@ -51,24 +50,34 @@ aiha$prev_upload %<>%
    mutate_if(
       .predicate = is.POSIXct,
       ~as.Date(.)
-   )
+   ) %>%
+   mutate_all(~as.character(.))
 TIMESTAMP <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 dbDisconnect(lw_conn)
 
 ##  new data -------------------------------------------------------------------
 
-aiha$hts <- bind_rows(raw, .id = "region") %>%
-   rename_all(
-      ~stri_replace_all_fixed(., " ", " ") %>%
-         stri_replace_all_fixed("/", " ") %>%
-         stri_replace_all_fixed(".", " ") %>%
-         str_replace_all("[^[:alnum:]]", " ") %>%
-         str_squish() %>%
-         str_replace_all(" ", "_")
-   ) %>%
+aiha$hts <- raw %>%
+   lapply(function(data) {
+      data %<>%
+         mutate_all(~as.character(.)) %>%
+         rename_all(
+            ~stri_replace_all_fixed(., " ", " ") %>%
+               stri_replace_all_fixed("/", " ") %>%
+               stri_replace_all_fixed(".", " ") %>%
+               str_replace_all("[^[:alnum:]]", " ") %>%
+               str_squish() %>%
+               str_replace_all(" ", "_")
+         )
+      return(data)
+   }) %>%
+   bind_rows(.id = "region") %>%
    mutate_if(
       .predicate = is.character,
-      ~na_if(., "N/A")
+      ~str_squish(.) %>%
+         na_if("N/A") %>%
+         na_if("n/a") %>%
+         na_if("-")
    ) %>%
    mutate_at(
       .vars = vars(RECORD_FACI, TESTING_FACILITY),
@@ -97,6 +106,7 @@ aiha$hts <- bind_rows(raw, .id = "region") %>%
       WORK                          = OCCUPATION_JOB,
       IS_EMPLOYED                   = IS_CLIENT_EMPLOYED,
       IS_OFW                        = IS_CLIENT_AN_OFW,
+      OFW_COUNTRY                   = FROM_WHAT_COUNTRY,
       OFW_YR_RET                    = IF_YES_YEAR_OF_RETURN,
       OFW_STATION                   = SHIP_OR_LAND,
       EXPOSE_HIV_MOTHER             = DID_BIRTH_MOTHER_HAVE_HIV,
@@ -328,7 +338,7 @@ aiha$hts <- bind_rows(raw, .id = "region") %>%
    select(-starts_with("CORR_PSGC")) %>%
    mutate_at(
       .vars = vars(contains("DATE")),
-      ~if_else(is.character(.) & StrIsNumeric(.), as.character(excel_numeric_to_date(as.numeric(.))), as.character(.))
+      ~if_else(StrIsNumeric(.), as.Date(excel_numeric_to_date(as.numeric(.))), as.Date(parse_date_time(., c("YmdHMS", "Ymd", "mdY", "mdy", "mY")))) %>% as.character()
    ) %>%
    mutate(
       T0_RESULT        = case_when(
@@ -355,17 +365,13 @@ aiha$hts <- bind_rows(raw, .id = "region") %>%
          TRUE ~ CLIENT_TYPE
       ),
       MODALITY         = "101103_Community-based (CBS)",
-      row_id           = row_number()
+      row_id           = row_number(),
    ) %>%
    mutate_at(
       .vars = vars(FIRST, MIDDLE, LAST, SUFFIX, PHILHEALTH_NO, UIC, PATIENT_CODE, CONFIRMATORY_CODE),
       ~na_if(clean_pii(.), "0")
    ) %>%
    select(-PATIENT_ID) %>%
-   mutate_at(
-      .vars = vars(contains("DATE")),
-      ~as.Date(.)
-   ) %>%
    # get records id if existing
    left_join(
       y  = aiha$prev_upload %>%
@@ -429,7 +435,8 @@ aiha$hts <- bind_rows(raw, .id = "region") %>%
    mutate(
       CREATED_BY   = coalesce(CREATED_BY, STAFF_ID),
       CREATED_AT   = coalesce(CREATED_AT, RECORD_DATE),
-      CREATED_AT   = format(CREATED_AT, "%Y-%m-%d 00:00:00"),
+      # CREATED_AT   = format(CREATED_AT, "%Y-%m-%d 00:00:00"),
+      CREATED_AT   = if_else(str_length(CREATED_AT) == 10, stri_c(CREATED_AT, " 00:00:00"), CREATED_AT, CREATED_AT),
 
       HTS_SUB_FACI = ""
    ) %>%
@@ -449,6 +456,26 @@ aiha$hts <- bind_rows(raw, .id = "region") %>%
       HIV_SERVICE_PSGC_REG  = if_else(use_faci_location == 1, FACI_PSGC_REG, HIV_SERVICE_PSGC_MUNC),
       HIV_SERVICE_PSGC_PROV = if_else(use_faci_location == 1, FACI_PSGC_PROV, HIV_SERVICE_PSGC_MUNC),
       HIV_SERVICE_PSGC_MUNC = if_else(use_faci_location == 1, FACI_PSGC_MUNC, HIV_SERVICE_PSGC_MUNC),
+   ) %>%
+   # fix risk
+   mutate_at(
+      .vars = vars(starts_with("EXPOSE_") & !contains("DATE"), LIVING_WITH_PARTNER, REFER_RETEST, REFER_CONFIRM, REFER_ART),
+      ~case_when(
+         . == "0" ~ "0_No",
+         . == "No" ~ "0_No",
+         . == "1" ~ "1_Yes",
+         . == "Yes" ~ "1_Yes",
+         TRUE ~ .
+      )
+   ) %>%
+   mutate(
+      CIVIL_STATUS = case_when(
+         CIVIL_STATUS == "Single" ~ "1_Single",
+         CIVIL_STATUS == "Married" ~ "2_Married",
+         CIVIL_STATUS == "Separated" ~ "3_Separated",
+         CIVIL_STATUS == "1_Yes" ~ NA_character_,
+         TRUE ~ CIVIL_STATUS
+      )
    )
 
 aiha$check <- list(
@@ -504,14 +531,72 @@ aiha$check <- list(
 
 aiha$import <- aiha$hts %>%
    select(row_id, HTS_FACI, any_of(names(aiha$prev_upload))) %>%
+   left_join(
+      y  = ohasis$ref_country %>%
+         select(
+            NATIONALITY = COUNTRY_NAME,
+            COUNTRY_CODE
+         ),
+      by = join_by(NATIONALITY)
+   ) %>%
+   select(-NATIONALITY) %>%
+   rename(NATIONALITY = COUNTRY_CODE) %>%
+   left_join(
+      y  = ohasis$ref_country %>%
+         select(
+            OFW_COUNTRY = COUNTRY_NAME,
+            COUNTRY_CODE
+         ),
+      by = join_by(OFW_COUNTRY)
+   ) %>%
+   select(-OFW_COUNTRY) %>%
+   rename(OFW_COUNTRY = COUNTRY_CODE) %>%
    mutate(
-      FACI_ID    = "990005",
-      old_rec    = if_else(!is.na(REC_ID), 1, 0, 0),
-      UPDATED_BY = if_else(old_rec == 1, "1300000048", NA_character_),
-      UPDATED_AT = if_else(old_rec == 1, TIMESTAMP, NA_character_)
+      WORK_TEXT    = WORK,
+      MODULE       = "2_Testing",
+      DISEASE      = "101000",
+      FACI_ID      = "990005",
+      old_rec      = if_else(!is.na(REC_ID), 1, 0, 0),
+      UPDATED_BY   = if_else(old_rec == 1, "1300000048", NA_character_),
+      UPDATED_AT   = if_else(old_rec == 1, TIMESTAMP, NA_character_),
+      PROVIDER_ID  = CREATED_BY,
+      SERVICE_TYPE = MODALITY,
+      TEST_TYPE    = "10",
+      TEST_NUM     = 1,
+      RESULT       = T0_RESULT,
+      DATE_PERFORM = T0_DATE,
+      PERFORM_BY   = CREATED_BY,
+      FORM         = "HTS Form",
+      VERSION      = "2021",
+   ) %>%
+   mutate_at(
+      .vars = vars(
+         SEX,
+         SELF_IDENT,
+         CIVIL_STATUS,
+         EDUC_LEVEL,
+         LIVING_WITH_PARTNER,
+         CLIENT_TYPE,
+         PROVIDER_TYPE,
+         MODALITY,
+         T0_RESULT,
+         PREV_TEST_RESULT,
+         IS_PREGNANT,
+         IS_STUDENT,
+         IS_EMPLOYED,
+         IS_OFW,
+         SCREEN_AGREED,
+         CLINICAL_PIC,
+         WHO_CLASS,
+         REFER_ART,
+         REFER_CONFIRM,
+         REFER_RETEST,
+         OFW_STATION,
+         PREV_TESTED
+      ),
+      ~keep_code(.)
    ) %>%
    anti_join(aiha$prev_upload, join_by(PATIENT_ID, RECORD_DATE))
-
 
 aiha$import %<>%
    filter(!is.na(PATIENT_ID)) %>%
@@ -525,3 +610,5 @@ aiha$import %<>%
       batch_rec_ids(aiha$import %>% filter(is.na(REC_ID)), REC_ID, CREATED_BY, "row_id")
    )
 
+
+aiha$tables <- deconstruct_hts(aiha$import)
