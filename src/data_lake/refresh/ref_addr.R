@@ -81,8 +81,10 @@ object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_reg")) %>%
             POPCEN_MUNC_2020 = NA_integer_,
          )
    ) %>%
-   union(
-      y = tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_reg")) %>%
+   collect() %>%
+   mutate_all(~as.character(.)) %>%
+   bind_rows(
+      tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_reg")) %>%
          head(n = 1) %>%
          mutate(
             PSGC_REG         = NA_character_,
@@ -114,7 +116,9 @@ object   <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "addr_reg")) %>%
             POPCEN_MUNC_2015,
             POPCEN_MUNC_2020,
             CREATED_AT
-         )
+         ) %>%
+         collect() %>%
+         mutate_all(~as.character(.))
    ) %>%
    mutate(
       LABEL_REG  = if_else(
