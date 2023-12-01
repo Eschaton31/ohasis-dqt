@@ -433,7 +433,7 @@ aiha$hts <- raw %>%
       by = join_by(PATIENT_ID, RECORD_DATE)
    ) %>%
    mutate(
-      CREATED_BY   = coalesce(CREATED_BY, STAFF_ID),
+      CREATED_BY   = coalesce(CREATED_BY, STAFF_ID, "1300000048"),
       CREATED_AT   = coalesce(CREATED_AT, RECORD_DATE),
       # CREATED_AT   = format(CREATED_AT, "%Y-%m-%d 00:00:00"),
       CREATED_AT   = if_else(str_length(CREATED_AT) == 10, stri_c(CREATED_AT, " 00:00:00"), CREATED_AT, CREATED_AT),
@@ -453,8 +453,8 @@ aiha$hts <- raw %>%
    ) %>%
    mutate(
       use_faci_location     = if_else(coalesce(HIV_SERVICE_PSGC_MUNC, "") == "", 1, 0, 0),
-      HIV_SERVICE_PSGC_REG  = if_else(use_faci_location == 1, FACI_PSGC_REG, HIV_SERVICE_PSGC_MUNC),
-      HIV_SERVICE_PSGC_PROV = if_else(use_faci_location == 1, FACI_PSGC_PROV, HIV_SERVICE_PSGC_MUNC),
+      HIV_SERVICE_PSGC_REG  = if_else(use_faci_location == 1, FACI_PSGC_REG, HIV_SERVICE_PSGC_REG),
+      HIV_SERVICE_PSGC_PROV = if_else(use_faci_location == 1, FACI_PSGC_PROV, HIV_SERVICE_PSGC_PROV),
       HIV_SERVICE_PSGC_MUNC = if_else(use_faci_location == 1, FACI_PSGC_MUNC, HIV_SERVICE_PSGC_MUNC),
    ) %>%
    # fix risk
@@ -571,6 +571,7 @@ aiha$import <- aiha$hts %>%
    ) %>%
    mutate_at(
       .vars = vars(
+         MODULE,
          SEX,
          SELF_IDENT,
          CIVIL_STATUS,
@@ -610,5 +611,23 @@ aiha$import %<>%
       batch_rec_ids(aiha$import %>% filter(is.na(REC_ID)), REC_ID, CREATED_BY, "row_id")
    )
 
+aiha$import %<>%
+   mutate(
+      UPDATED_BY = "1300000048",
+      UPDATED_AT = TIMESTAMP,
+      SERVICE_TYPE = keep_code(SERVICE_TYPE)
+   )
 
 aiha$tables <- deconstruct_hts(aiha$import)
+wide        <- c("px_test_refuse", "px_other_service", "px_reach", "px_med_profile", "px_test_reason")
+
+db_conn <- ohasis$conn("db")
+lapply(wide, function(table) dbExecute(conn = db_conn, statement = glue("DELETE FROM ohasis_interim.{table} WHERE REC_ID IN (?)"), params = list(aiha$import$REC_ID)))
+
+lapply(aiha$tables, function(ref, db_conn) {
+   log_info("Uploading {green(ref$name)}.")
+   table_space <- Id(schema = "ohasis_interim", table = ref$name)
+   dbxUpsert(db_conn, table_space, ref$data, ref$pk)
+   # dbExecute(db_conn, glue("DELETE FROM ohasis_interim.{ref$name} WHERE REC_ID IN (?)"), params = list(unique(ref$data$REC_ID)))
+}, db_conn)
+dbDisconnect(db_conn)
