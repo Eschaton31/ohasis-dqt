@@ -930,7 +930,8 @@ deconstruct_hts <- function(hts) {
       "px_reach",
       "px_other_service",
       "px_test_refuse",
-      "px_linkage"
+      "px_linkage",
+      "px_remarks"
    )
 
    conn <- ohasis$conn("db")
@@ -1071,7 +1072,8 @@ deconstruct_hts <- function(hts) {
       select(any_of(cols$px_expose_hist)) %>%
       mutate(
          IS_EXPOSED = keep_code(IS_EXPOSED),
-         IS_EXPOSED = if_else(!is.na(DATE_LAST_EXPOSE), "1", IS_EXPOSED, IS_EXPOSED)
+         IS_EXPOSED = if_else(!is.na(DATE_LAST_EXPOSE), "1", IS_EXPOSED, IS_EXPOSED),
+         IS_EXPOSED = coalesce(IS_EXPOSED, "0"),
       )
 
    data$px_test_reason <- hts %>%
@@ -1102,6 +1104,7 @@ deconstruct_hts <- function(hts) {
          ),
          IS_REASON    = coalesce(keep_code(IS_REASON), "0"),
       ) %>%
+      filter(IS_REASON == 1) %>%
       select(any_of(cols$px_test_reason))
 
    data$px_med_profile <- hts %>%
@@ -1127,6 +1130,7 @@ deconstruct_hts <- function(hts) {
          ),
          IS_PROFILE = coalesce(keep_code(IS_PROFILE), "0"),
       ) %>%
+      filter(IS_PROFILE == 1) %>%
       select(any_of(cols$px_med_profile))
 
    data$px_reach <- hts %>%
@@ -1149,28 +1153,7 @@ deconstruct_hts <- function(hts) {
          ),
          IS_REACH = coalesce(keep_code(IS_REACH), "0"),
       ) %>%
-      select(any_of(cols$px_reach))
-
-   data$px_reach <- hts %>%
-      select(
-         any_of(cols$px_reach),
-         starts_with("REACH_")
-      ) %>%
-      pivot_longer(
-         cols      = starts_with("REACH_"),
-         names_to  = "REACH",
-         values_to = "IS_REACH"
-      ) %>%
-      mutate(
-         REACH    = str_replace(REACH, "^REACH_", ""),
-         REACH    = case_when(
-            REACH == "ONLINE" ~ "2",
-            REACH == "SSNT" ~ "4",
-            REACH == "VENUE" ~ "5",
-            TRUE ~ REACH
-         ),
-         IS_REACH = coalesce(keep_code(IS_REACH), "0"),
-      ) %>%
+      filter(IS_REACH == 1) %>%
       select(any_of(cols$px_reach))
 
    data$px_other_service <- hts %>%
@@ -1205,8 +1188,9 @@ deconstruct_hts <- function(hts) {
          ),
          GIVEN         = coalesce(keep_code(GIVEN), "0"),
       ) %>%
+      filter(GIVEN == 1) %>%
       select(any_of(cols$px_other_service))
-   
+
    data$px_test_refuse <- hts %>%
       select(
          any_of(cols$px_test_refuse),
@@ -1231,16 +1215,43 @@ deconstruct_hts <- function(hts) {
             REASON == "OTHER" ~ "8888",
             TRUE ~ REASON
          ),
-         IS_REASON         = coalesce(keep_code(IS_REASON), "0"),
+         IS_REASON    = coalesce(keep_code(IS_REASON), "0"),
       ) %>%
+      filter(IS_REASON == 1) %>%
       select(any_of(cols$px_test_refuse))
+
+   data$px_remarks <- hts %>%
+      select(
+         any_of(cols$px_remarks),
+         CLINIC_NOTES,
+         COUNSEL_NOTES,
+         SYMPTOMS
+      ) %>%
+      pivot_longer(
+         cols      = c(
+            CLINIC_NOTES,
+            COUNSEL_NOTES,
+            SYMPTOMS
+         ),
+         names_to  = "REMARK_TYPE",
+         values_to = "REMARKS"
+      ) %>%
+      mutate(
+         REMARK_TYPE       = case_when(
+            REMARK_TYPE == "CLINIC_NOTES" ~ "1",
+            REMARK_TYPE == "COUNSEL_NOTES" ~ "2",
+            REMARK_TYPE == "SYMPTOMS" ~ "10",
+            TRUE ~ REMARK_TYPE
+         ),
+      ) %>%
+      select(any_of(cols$px_remarks))
 
    log_info("Finalizing upload schema.")
    schema <- list()
    for (table in tables) {
       schema[[table]] <- list(
          name = table,
-         pk = cols[[table]],
+         pk   = pks[[table]],
          data = data[[table]]
       )
    }
