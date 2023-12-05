@@ -9,7 +9,7 @@ template_replace <- function(template, key_val) {
    vals <- key_val
 
    pairs <- length(key_val)
-   for (i in pairs) {
+   for (i in 1:pairs) {
       template <- stri_replace_all_fixed(template, stri_c("{{", keys[[i]], "}}"), vals[[i]])
    }
 
