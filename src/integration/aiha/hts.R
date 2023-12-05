@@ -1,6 +1,6 @@
 ##  inputs ---------------------------------------------------------------------
 
-qr <- 2
+qr <- 3
 yr <- 2023
 
 aiha <- list(
@@ -31,29 +31,6 @@ regions    <- case_when(
 )
 raw        <- lapply(report_files, read_excel)
 names(raw) <- regions
-
-#  uploaded --------------------------------------------------------------------
-
-db               <- "ohasis_warehouse"
-lw_conn          <- ohasis$conn("lw")
-aiha$prev_upload <- dbTable(
-   lw_conn,
-   db,
-   "form_hts",
-   raw_where = TRUE,
-   where     = glue(r"(
-         (RECORD_DATE BETWEEN '{min}' AND '{max}') AND
-            FACI_ID = '990005'
-   )")
-)
-aiha$prev_upload %<>%
-   mutate_if(
-      .predicate = is.POSIXct,
-      ~as.Date(.)
-   ) %>%
-   mutate_all(~as.character(.))
-TIMESTAMP <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-dbDisconnect(lw_conn)
 
 ##  new data -------------------------------------------------------------------
 
@@ -341,6 +318,14 @@ aiha$hts <- raw %>%
       ~if_else(StrIsNumeric(.), as.Date(excel_numeric_to_date(as.numeric(.))), as.Date(parse_date_time(., c("YmdHMS", "Ymd", "mdY", "mdy", "mY")))) %>% as.character()
    ) %>%
    mutate(
+      SELF_IDENT_OTHER = case_when(
+         is.na(SELF_IDENT_OTHER) & SELF_IDENT == "TGW" ~ "TGW",
+         TRUE ~ SELF_IDENT_OTHER
+      ),
+      SELF_IDENT = case_when(
+         SELF_IDENT == "TGW" ~ "3_Other",
+         TRUE ~ SELF_IDENT
+      ),
       T0_RESULT        = case_when(
          T0_RESULT == "Reactive" ~ "1_Reactive",
          T0_RESULT == "Non-reactive" ~ "2_Non-reactive",
@@ -370,8 +355,38 @@ aiha$hts <- raw %>%
    mutate_at(
       .vars = vars(FIRST, MIDDLE, LAST, SUFFIX, PHILHEALTH_NO, UIC, PATIENT_CODE, CONFIRMATORY_CODE),
       ~na_if(clean_pii(.), "0")
+   )
+
+#  uploaded --------------------------------------------------------------------
+
+db               <- "ohasis_warehouse"
+lw_conn          <- ohasis$conn("lw")
+aiha$prev_upload <- dbTable(
+   lw_conn,
+   db,
+   "form_hts",
+   raw_where = TRUE,
+   where     = glue(r"(
+         (RECORD_DATE BETWEEN '{min(as.character(aiha$hts$RECORD_DATE))}' AND '{max(as.character(aiha$hts$RECORD_DATE))}') AND
+            FACI_ID = '990005'
+   )")
+)
+aiha$prev_upload %<>%
+   mutate_if(
+      .predicate = is.POSIXct,
+      ~as.Date(.)
    ) %>%
+   mutate_all(~as.character(.))
+TIMESTAMP <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+dbDisconnect(lw_conn)
+
+#  uploaded --------------------------------------------------------------------
+
+aiha$hts %<>%
    select(-PATIENT_ID) %>%
+   mutate(
+      UIC = StrLeft(UIC, 14)
+   ) %>%
    # get records id if existing
    left_join(
       y  = aiha$prev_upload %>%
@@ -459,12 +474,32 @@ aiha$hts <- raw %>%
    ) %>%
    # fix risk
    mutate_at(
-      .vars = vars(starts_with("EXPOSE_") & !contains("DATE"), LIVING_WITH_PARTNER, REFER_RETEST, REFER_CONFIRM, REFER_ART),
+      .vars = vars(
+         starts_with("EXPOSE") & !contains("DATE"),
+         starts_with("TEST_REASON") & !contains("TEXT"),
+         starts_with("SERVICE") &
+            !contains("TYPE") &
+            !contains("LUBE") &
+            !contains("CONDOM"),
+         PREV_TESTED,
+         LIVING_WITH_PARTNER,
+         REFER_RETEST,
+         REFER_CONFIRM,
+         REFER_ART,
+         IS_EMPLOYED,
+         IS_OFW,
+         IS_STUDENT,
+         IS_PREGNANT,
+      ),
       ~case_when(
          . == "0" ~ "0_No",
          . == "No" ~ "0_No",
+         . == "NO" ~ "0_No",
+         . == "no" ~ "0_No",
          . == "1" ~ "1_Yes",
          . == "Yes" ~ "1_Yes",
+         . == "YES" ~ "1_Yes",
+         . == "yes" ~ "1_Yes",
          TRUE ~ .
       )
    ) %>%
@@ -473,6 +508,7 @@ aiha$hts <- raw %>%
          CIVIL_STATUS == "Single" ~ "1_Single",
          CIVIL_STATUS == "Married" ~ "2_Married",
          CIVIL_STATUS == "Separated" ~ "3_Separated",
+         CIVIL_STATUS == "Widowed" ~ "4_Widowed",
          CIVIL_STATUS == "1_Yes" ~ NA_character_,
          TRUE ~ CIVIL_STATUS
       )
@@ -520,7 +556,8 @@ aiha$check <- list(
             ENCODED_PROV = HIV_SERVICE_FACILITY_PROVINCE,
             ENCODED_MUNC = HIV_SERVICE_FACILITY_MUNICTY
          )
-   ),
+   ) %>%
+      distinct_all(),
    staff = aiha$hts %>%
       filter(
          is.na(STAFF_ID),
@@ -613,16 +650,19 @@ aiha$import %<>%
 
 aiha$import %<>%
    mutate(
-      UPDATED_BY = "1300000048",
-      UPDATED_AT = TIMESTAMP,
-      SERVICE_TYPE = keep_code(SERVICE_TYPE)
+      UPDATED_BY   = "1300000048",
+      UPDATED_AT   = TIMESTAMP,
+      SERVICE_TYPE = keep_code(SERVICE_TYPE),
+      PRIME        = 0
    )
 
 aiha$tables <- deconstruct_hts(aiha$import)
 wide        <- c("px_test_refuse", "px_other_service", "px_reach", "px_med_profile", "px_test_reason")
+delete      <- aiha$tables$px_record$data %>% select(REC_ID)
 
 db_conn <- ohasis$conn("db")
-lapply(wide, function(table) dbExecute(conn = db_conn, statement = glue("DELETE FROM ohasis_interim.{table} WHERE REC_ID IN (?)"), params = list(aiha$import$REC_ID)))
+lapply(wide, function(table) dbxDelete(db_conn, Id(schema = "ohasis_interim", table = table), delete))
+# lapply(wide, function(table) dbExecute(conn = db_conn, statement = glue("DELETE FROM ohasis_interim.{table} WHERE REC_ID IN (?)"), params = list(aiha$import$REC_ID)))
 
 lapply(aiha$tables, function(ref, db_conn) {
    log_info("Uploading {green(ref$name)}.")
