@@ -1,9 +1,9 @@
-@page {
-    size: A4;
-    margin: 0;
-}
 
 @media print {
+    @page {
+        size: A4;
+        margin: .5in !important;
+    }
     body {
         margin: 0
     }
@@ -61,7 +61,7 @@ p, b, a, span {
 
 .content {
     padding: 0 .5in;
-    margin: 3mm 0 3mm 0;
+    margin: 0;
 }
 
 .column-left {
