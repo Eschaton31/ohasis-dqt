@@ -34,6 +34,6 @@ p_load_gh(
 )
 
 # nhsss unique functions
-# p_unload("nhsss")
-# remotes::install_git("http://192.168.193.228:3000/jrpalo.doh/nhsss.git", upgrade = "never", quiet = TRUE)
+p_unload("nhsss")
+remotes::install_github("Eschaton31/nhsss", upgrade = "never", quiet = TRUE)
 require(nhsss)
