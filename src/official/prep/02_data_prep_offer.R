@@ -596,7 +596,7 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
             any_of(view_vars),
             prep_first_arv,
          )
-      all_issues            <- combine_validations(data, check, "prep_id") %>%
+      all_issues            <- combine_validations(data, check, "REC_ID") %>%
          mutate(
             reg_order = prep_first_reg,
             reg_order = case_when(
@@ -621,7 +621,7 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
                TRUE ~ 9999
             ),
          ) %>%
-         arrange(reg_order, prep_first_faci, prep_id) %>%
+         arrange(reg_order, prep_first_faci, REC_ID) %>%
          select(-reg_order)
 
       check <- list(all_issues = all_issues)
