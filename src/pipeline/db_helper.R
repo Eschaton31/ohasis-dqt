@@ -567,24 +567,40 @@ batch_px_ids <- function(data, px_id, faci_id, row_ids) {
    data %<>%
       select(-matches(pid_col)) %>%
       mutate(
-         SEED_FACI = {{faci_id}}
+         SEED_FACI = { { faci_id } }
       )
 
    gen_pid <- function(data) {
-      data %<>%
-         mutate(
-            letter    = stri_c(collapse = "", strrep(LETTERS[1:26], 5)),
-            letter    = stri_rand_shuffle(letter),
-            letter    = StrLeft(letter, 1),
-            number    = strrep("0123456789", 5),
-            number    = stri_rand_shuffle(number),
-            number    = StrLeft(number, 3),
+      data %<>% mutate(OHASIS_ID = NA_character_)
+      letters <- stri_c(collapse = "", strrep(LETTERS[1:26], 5))
+      numbers <- strrep("0123456789", 5)
+      for (i in seq_len(nrow(data))) {
+         letters <- stri_rand_shuffle(letters)
+         letter  <- StrLeft(letters, 1)
+         numbers <- stri_rand_shuffle(numbers)
+         number  <- StrLeft(numbers, 3)
 
-            OHASIS_ID = stri_c(letter, number),
-            OHASIS_ID = stri_rand_shuffle(OHASIS_ID),
-            OHASIS_ID = stri_c(format(Sys.time(), "%Y%m%d"), SEED_FACI, OHASIS_ID)
-         ) %>%
-         select(-number, -letter)
+         ohasis_id <- stri_c(letter, number)
+         ohasis_id <- stri_rand_shuffle(ohasis_id)
+         ohasis_id <- stri_c(format(Sys.time(), "%Y%m%d"), data[i,]$SEED_FACI, ohasis_id)
+
+         data[i,]$OHASIS_ID <- ohasis_id
+      }
+
+      # data %<>%
+      #    mutate(
+      #       letter    = stri_c(collapse = "", strrep(LETTERS[1:26], 5)),
+      #       letter    = stri_rand_shuffle(letter),
+      #       letter    = StrLeft(letter, 1),
+      #       number    = strrep("0123456789", 5),
+      #       number    = stri_rand_shuffle(number),
+      #       number    = StrLeft(number, 3),
+      #
+      #       OHASIS_ID = stri_c(letter, number),
+      #       OHASIS_ID = stri_rand_shuffle(OHASIS_ID),
+      #       OHASIS_ID = stri_c(format(Sys.time(), "%Y%m%d"), SEED_FACI, OHASIS_ID)
+      #    ) %>%
+      #    select(-number, -letter)
 
       return(data)
    }
@@ -598,6 +614,8 @@ batch_px_ids <- function(data, px_id, faci_id, row_ids) {
          select(-dupe_count) %>%
          bind_rows(already) %>%
          distinct_all()
+
+      log_info("Duplicate PATIENT_IDs = {green(nrow(issues))}.")
 
       return(issues)
    }
@@ -622,7 +640,7 @@ batch_px_ids <- function(data, px_id, faci_id, row_ids) {
    data %<>%
       select(-SEED_FACI) %>%
       rename(
-         {{px_id}} := OHASIS_ID
+         { { px_id } } := OHASIS_ID
       )
 
    return(data)
@@ -634,25 +652,25 @@ batch_rec_ids <- function(data, rec_id, user_id, row_ids) {
    data %<>%
       select(-matches(rid_col)) %>%
       mutate(
-         CREDS_ID = {{user_id}}
+         CREDS_ID = { { user_id } }
       )
 
    gen_rid <- function(data) {
-      data %<>%
-         mutate(
-            letter    = stri_c(collapse = "", strrep(LETTERS[1:26], 5)),
-            letter    = stri_rand_shuffle(letter),
-            letter    = StrLeft(letter, 1),
-            number    = strrep("0123456789", 5),
-            number    = stri_rand_shuffle(number),
-            number    = StrLeft(number, 2),
+      data %<>% mutate(RECORD_ID = NA_character_)
+      letters <- stri_c(collapse = "", strrep(LETTERS[1:26], 5))
+      numbers <- strrep("0123456789", 5)
+      for (i in seq_len(nrow(data))) {
+         letters <- stri_rand_shuffle(letters)
+         letter  <- StrLeft(letters, 2)
+         numbers <- stri_rand_shuffle(numbers)
+         number  <- StrLeft(numbers, 3)
 
-            RECORD_ID = stri_c(letter, number),
-            RECORD_ID = stri_rand_shuffle(RECORD_ID),
-            RECORD_ID = stri_c(format(Sys.time(), "%Y%m%d%H%M"), RECORD_ID, CREDS_ID)
-         ) %>%
-         select(-number, -letter)
+         rec_id <- stri_c(letter, number)
+         rec_id <- stri_rand_shuffle(rec_id)
+         rec_id <- stri_c(format(Sys.time(), "%Y%m%d%H"), rec_id, data[i,]$CREDS_ID)
 
+         data[i,]$RECORD_ID <- rec_id
+      }
       return(data)
    }
 
@@ -665,6 +683,8 @@ batch_rec_ids <- function(data, rec_id, user_id, row_ids) {
          select(-dupe_count) %>%
          bind_rows(already) %>%
          distinct_all()
+
+      log_info("Duplicate REC_IDs = {green(nrow(issues))}.")
 
       return(issues)
    }
@@ -689,7 +709,7 @@ batch_rec_ids <- function(data, rec_id, user_id, row_ids) {
    data %<>%
       select(-CREDS_ID) %>%
       rename(
-         {{rec_id}} := RECORD_ID
+         { { rec_id } } := RECORD_ID
       )
 
    return(data)
