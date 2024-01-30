@@ -137,8 +137,18 @@ WHERE pii.DELETED_AT IS NULL
          .vars = vars(ends_with("_REG"), ends_with("_PROV"), ends_with("_MUNC")),
          ~if_else(. == "UNKNOWN", NA_character_, ., .)
       ) %>%
+      mutate_if(
+         .predicate = is.character,
+         ~clean_pii(.)
+      ) %>%
       mutate(
-         CLIENT_MOBILE = str_replace_all(CLIENT_MOBILE, "[^[:digit:]]", "")
+         CLIENT_MOBILE = str_replace_all(CLIENT_MOBILE, "[^[:digit:]]", ""),
+         CLIENT_MOBILE = case_when(
+            StrLeft(CLIENT_MOBILE, 1) == "9" ~ stri_c("0", CLIENT_MOBILE),
+            StrLeft(CLIENT_MOBILE, 2) == "63" ~ str_replace(CLIENT_MOBILE, "^63", "0"),
+            TRUE ~ CLIENT_MOBILE
+         ),
+         BIRTHDATE     = as.character(BIRTHDATE)
       )
 
    return(dedup)
@@ -164,7 +174,7 @@ dedup_linelist <- function(dedup) {
    #    get_names(dedup$pii, "PERM_"),
    #    get_names(dedup$pii, "CURR_")
    # )
-   # 
+   #
    # arrange descendingly based on latest record
    dedup$pii %<>%
       ungroup() %>%
@@ -174,7 +184,7 @@ dedup_linelist <- function(dedup) {
    # for (col in cols) {
    #    .log_info("Getting latest data for {green(col)}.")
    #    col_name <- as.name(col)
-   # 
+   #
    #    # remove values denoting missing data
    #    if (col %in% c("FIRST", "LAST", "CLIENT_EMAIL"))
    #       dedup$vars[[col]] <- dedup$pii %>%
@@ -208,7 +218,7 @@ dedup_linelist <- function(dedup) {
    #             !!col_name := clean_pii(!!col_name)
    #          ) %>%
    #          filter(!is.na(!!col_name))
-   # 
+   #
    #    # deduplicate based on central id
    #    dedup$vars[[col]] %<>%
    #       distinct(CENTRAL_ID, .keep_all = TRUE) %>%
@@ -221,7 +231,7 @@ dedup_linelist <- function(dedup) {
    #       ) %>%
    #       mutate_all(~as.character(.))
    # }
-   # 
+   #
    # # append list of latest variablkes and reshape to created
    # # final dataset/linelist
    # .log_info("Consolidating variables.")
@@ -234,13 +244,28 @@ dedup_linelist <- function(dedup) {
    log_info("Getting latest data per column.")
    dedup$linelist <- dedup$pii %>%
       select(-REC_ID, -FACI_ID, -SUB_FACI_ID, -PATIENT_ID, -DELETED_AT) %>%
-      mutate_if(
-         .predicate = is.character,
-         ~clean_pii(.)
-      ) %>%
-      mutate(BIRTHDATE = as.character(BIRTHDATE)) %>%
       pivot_longer(
-         cols = c(FIRST, MIDDLE, LAST, SUFFIX, UIC, CONFIRMATORY_CODE, PATIENT_CODE, BIRTHDATE, PHILSYS_ID, PHILHEALTH_NO, CLIENT_EMAIL, CLIENT_MOBILE, SEX, PERM_REG, PERM_PROV, PERM_MUNC, CURR_REG, CURR_PROV, CURR_MUNC)
+         cols = c(
+            FIRST,
+            MIDDLE,
+            LAST,
+            SUFFIX,
+            UIC,
+            CONFIRMATORY_CODE,
+            PATIENT_CODE,
+            BIRTHDATE,
+            PHILSYS_ID,
+            PHILHEALTH_NO,
+            CLIENT_EMAIL,
+            CLIENT_MOBILE,
+            SEX,
+            PERM_REG,
+            PERM_PROV,
+            PERM_MUNC,
+            CURR_REG,
+            CURR_PROV,
+            CURR_MUNC,
+         )
       ) %>%
       mutate(
          sort = if_else(!is.na(value), 1, 9999, 9999)
@@ -314,7 +339,32 @@ dedup_linelist <- function(dedup) {
          NUM_LINKED = n()
       ) %>%
       ungroup()
-   # })
 
+   return(dedup)
+}
+
+dedup_linelist2 <- function(dedup) {
+   log_info("Deduplication standard.")
+   dedup$standard %<>%
+      select(-any_of("PATIENT_ID")) %>%
+      rename(PATIENT_ID = CENTRAL_ID) %>%
+      get_cid(dedup$id_registry, PATIENT_ID) %>%
+      arrange(CENTRAL_ID, labcode2) %>%
+      distinct(CENTRAL_ID, .keep_all = TRUE)
+
+   log_info("Attaching new CID to dx.")
+   dedup$dx %<>%
+      select(idnum, PATIENT_ID, labcode2) %>%
+      get_cid(dedup$id_registry, PATIENT_ID)
+
+   log_info("Getting new number of matches.")
+   dedup$num_linked <- dedup$id_registry %>%
+      group_by(CENTRAL_ID) %>%
+      summarise(
+         NUM_LINKED = n()
+      ) %>%
+      ungroup()
+
+   log_success("Done.")
    return(dedup)
 }
