@@ -7,13 +7,13 @@ ohasis$data_factory("warehouse", "id_registry", "upsert", TRUE, to = format(Sys.
 dedup <- dedup_download()
 dedup <- dedup_linelist(dedup)
 
-check_dupes <- ohasis_dupes(FIRST, MIDDLE, LAST, UIC)
-check_dupes <- ohasis_dupes(FIRST, LAST, UIC)
-check_dupes <- ohasis_dupes(FIRST, MIDDLE, LAST, UIC_SORT)
-check_dupes <- ohasis_dupes(FIRST, LAST, UIC_SORT)
+check_dupes <- ohasis_dupes(FIRST_SIEVE, MIDDLE_SIEVE, LAST_SIEVE, UIC)
+check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_SIEVE, UIC)
+check_dupes <- ohasis_dupes(FIRST_SIEVE, MIDDLE_SIEVE, LAST_SIEVE, UIC_SORT)
+check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_SIEVE, UIC_SORT)
 check_dupes <- ohasis_dupes(FIRST_NY, MIDDLE_NY, LAST_NY, UIC)
 check_dupes <- ohasis_dupes(FIRST_NY, LAST_NY, UIC)
-check_dupes <- ohasis_dupes(FIRST, MIDDLE, LAST, BIRTHDATE, UIC_ORDER)
+check_dupes <- ohasis_dupes(FIRST_SIEVE, MIDDLE_SIEVE, LAST_SIEVE, BIRTHDATE, UIC_ORDER)
 check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_SIEVE, BIRTHDATE, CONFIRM_SIEVE)
 check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_SIEVE, BIRTHDATE, PXCODE_SIEVE)
 check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_SIEVE, BIRTHDATE, PHIC)
@@ -22,11 +22,15 @@ check_dupes <- ohasis_dupes(FIRST_NY, LAST_NY, BIRTHDATE, CONFIRM_SIEVE)
 check_dupes <- ohasis_dupes(FIRST_NY, LAST_NY, BIRTHDATE, PXCODE_SIEVE)
 check_dupes <- ohasis_dupes(FIRST_NY, LAST_NY, BIRTHDATE, PHIC)
 check_dupes <- ohasis_dupes(FIRST_NY, LAST_NY, BIRTHDATE, PHILSYS)
-check_dupes <- ohasis_dupes(FIRST, MIDDLE, LAST_A, UIC)
-check_dupes <- ohasis_dupes(FIRST, LAST_A, UIC)
-check_dupes <- ohasis_dupes(FIRST_A, MIDDLE, LAST, UIC)
-check_dupes <- ohasis_dupes(FIRST_A, LAST, UIC)
-check_dupes <- ohasis_dupes(FIRST_A, MIDDLE, LAST_A, UIC)
+check_dupes <- ohasis_dupes(FIRST_A, LAST_A, BIRTHDATE, CONFIRM_SIEVE)
+check_dupes <- ohasis_dupes(FIRST_A, LAST_A, BIRTHDATE, PXCODE_SIEVE)
+check_dupes <- ohasis_dupes(FIRST_A, LAST_A, BIRTHDATE, PHIC)
+check_dupes <- ohasis_dupes(FIRST_A, LAST_A, BIRTHDATE, PHILSYS)
+check_dupes <- ohasis_dupes(FIRST_SIEVE, MIDDLE_SIEVE, LAST_A, UIC)
+check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC)
+check_dupes <- ohasis_dupes(FIRST_A, MIDDLE_SIEVE, LAST_SIEVE, UIC)
+check_dupes <- ohasis_dupes(FIRST_A, LAST_SIEVE, UIC)
+check_dupes <- ohasis_dupes(FIRST_A, MIDDLE_SIEVE, LAST_A, UIC)
 
 check_dupes <- ohasis_dupes(FIRST_SIEVE, MIDDLE_SIEVE, LAST_SIEVE, UIC)
 check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_SIEVE, UIC)
@@ -73,22 +77,56 @@ check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_2, BIRTH_MO, BIRTH_DY, CURR
 check_dupes <- ohasis_dupes(FIRST_SIEVE, CONFIRM_SIEVE)
 check_dupes <- ohasis_dupes(FIRST_NY, CONFIRM_SIEVE)
 check_dupes <- ohasis_dupes(FIRST_SIEVE, PXCODE_SIEVE)
-check_dupes <- ohasis_dupes(FIRST_NY, PXCODE_SIEVE)
+check_dupes <- ohasis_dupes(FIRST_NY, PXCODE_SIEVE, BIRTH_YR, BIRTH_MO)
 check_dupes <- ohasis_dupes(LAST_SIEVE, CONFIRM_SIEVE, BIRTH_YR)
 check_dupes <- ohasis_dupes(LAST_SIEVE, CONFIRM_SIEVE)
 check_dupes <- ohasis_dupes(LAST_NY, CONFIRM_SIEVE, BIRTH_YR)
 check_dupes <- ohasis_dupes(LAST_NY, CONFIRM_SIEVE)
+check_dupes <- ohasis_dupes(UIC, CLIENT_MOBILE)
+
+check_dupes <- ohasis_dupes(FIRST_SIEVE, CLIENT_MOBILE, BIRTH_YR)
+check_dupes <- ohasis_dupes(FIRST_NY, CLIENT_MOBILE, BIRTH_YR)
+check_dupes <- ohasis_dupes(FIRST_A, CLIENT_MOBILE, BIRTH_YR)
+check_dupes <- ohasis_dupes(FIRST_SIEVE, CLIENT_MOBILE, BIRTH_MO)
+check_dupes <- ohasis_dupes(FIRST_NY, CLIENT_MOBILE, BIRTH_MO)
+check_dupes <- ohasis_dupes(FIRST_A, CLIENT_MOBILE, BIRTH_MO)
+check_dupes <- ohasis_dupes(FIRST_SIEVE, CLIENT_MOBILE, BIRTH_DY)
+check_dupes <- ohasis_dupes(FIRST_NY, CLIENT_MOBILE, BIRTH_DY)
+check_dupes <- ohasis_dupes(FIRST_A, CLIENT_MOBILE, BIRTH_DY)
+
+check_dupes <- ohasis_dupes(FIRST_SIEVE, CLIENT_EMAIL, BIRTH_YR)
+check_dupes <- ohasis_dupes(FIRST_NY, CLIENT_EMAIL, BIRTH_YR)
+check_dupes <- ohasis_dupes(FIRST_A, CLIENT_EMAIL, BIRTH_YR)
+check_dupes <- ohasis_dupes(FIRST_SIEVE, CLIENT_EMAIL, BIRTH_MO)
+check_dupes <- ohasis_dupes(FIRST_NY, CLIENT_EMAIL, BIRTH_MO)
+check_dupes <- ohasis_dupes(FIRST_A, CLIENT_EMAIL, BIRTH_MO)
+check_dupes <- ohasis_dupes(FIRST_SIEVE, CLIENT_EMAIL, BIRTH_DY)
+check_dupes <- ohasis_dupes(FIRST_NY, CLIENT_EMAIL, BIRTH_DY)
+check_dupes <- ohasis_dupes(FIRST_A, CLIENT_EMAIL, BIRTH_DY)
 
 # upload
 upload_dupes(check_dupes$registry_up)
 upload_dupes(check_dupes$normal_up)
 
 # new process
-from              <- "2023-07-10 11:00:00"
 dedup$id_registry <- upload_dupes2(check_dupes$registry_up, dedup$id_registry)
 dedup$id_registry <- upload_dupes2(check_dupes$normal_up, dedup$id_registry)
+dedup <- dedup_linelist2(dedup)
 
+from <- "2024-01-28 12:30:00"
 dedup$id_registry <- upload_dupes2(check_dupes$normal_up, dedup$id_registry, TRUE, from)
 
-check_dupes$registry %>% View("reg")
-check_dupes$normal %>% View("norm")
+check_dupes$registry %>%
+   mutate(
+      type = "reg",
+      .before = 1
+   ) %>%
+   bind_rows(
+      check_dupes$normal %>%
+         mutate(
+            type = "norm",
+            .before = 1
+         )
+   ) %>%
+   select(-PATIENT_ID) %>%
+   View()
