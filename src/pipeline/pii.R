@@ -48,6 +48,7 @@ clean_pii <- function(pii_col) {
       str_detect(clean, "^PENDING") ~ NA_character_,
       str_detect(clean, "^NOT\\b") ~ NA_character_,
       str_detect(clean, "^NO\\b") ~ NA_character_,
+      !str_detect(clean, "[^-]") ~ NA_character_,
       clean == "" ~ NA_character_,
       clean == "NONE" ~ NA_character_,
       clean == "N/A" ~ NA_character_,
