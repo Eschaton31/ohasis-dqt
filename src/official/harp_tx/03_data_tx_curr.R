@@ -1313,7 +1313,7 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
       log_info("Checking for weird vl date.")
       check[["vl_data"]] <- step_data %>%
          filter(
-            curr_vl_date > curr_ffupdate |
+            # curr_vl_date > curr_ffupdate |
                curr_vl_date > params$max |
                year(curr_vl_date) < 2002
          ) %>%
