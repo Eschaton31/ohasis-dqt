@@ -42,6 +42,7 @@ local(envir = pepfar, {
       ip_data$dir      <- file.path(Sys.getenv("DSA"), program, coverage$type, coverage$curr$ym)
       ip_data$file_agg <- file.path(ip_data$dir, stri_c(program, " ", coverage$type, " Indicators (", coverage$curr$ym, ").xlsx"))
       ip_data$file_rds <- file.path(ip_data$dir, stri_c(partner, ".rds"))
+      ip_data$file_xl  <- file.path(ip_data$dir, stri_c(partner, ".xlsx"))
       check_dir(ip_data$dir)
 
       xlsx          <- list()
@@ -93,6 +94,16 @@ local(envir = pepfar, {
 
          exp %>%
             write_dta(file.path(ip_data$dir, glue("{surv}.dta")))
+
+         write_xlsx(
+            ip_data$linelist[[surv]] %>%
+               rename_all(
+                  ~stri_replace_all_fixed(., " ", "_") %>%
+                     stri_replace_all_fixed("/", "_") %>%
+                     stri_replace_all_fixed(".", "_")
+               ),
+            file.path(ip_data$dir, glue("{surv}.xlsx"))
+         )
       }
 
       ip[[program]] <- ip_data
