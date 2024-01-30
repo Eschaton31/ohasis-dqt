@@ -3,6 +3,7 @@
 import             <- new.env()
 import$encoding_ss <- as_id("18hh6GZzjnNBidMg9sxOworj2IhbwTUak")
 import$STAFF       <- read_sheet(as_id("1BRohoSaBE73zwRMXQNcWeRf5rC2OcePS64A67ODfxXI"))
+import$ym          <- "2023.10"
 
 
 local(envir = import, {
@@ -11,9 +12,10 @@ local(envir = import, {
       local_drive_quiet()
       local_gs4_quiet()
 
-      encode_mo     <- as_id(drive_ls(import$encoding_ss, pattern = ohasis$ym)$id)
+      encode_yr     <- as_id(drive_ls(import$encoding_ss, pattern = substr(import$ym, 1, 4))$id)
+      encode_mo     <- as_id(drive_ls(encode_yr, pattern = import$ym)$id)
       encode_surv   <- as_id(drive_ls(encode_mo, pattern = "TREATMENT")$id)
-      encode_sheets <- drive_ls(encode_surv, pattern = ohasis$ym)
+      encode_sheets <- drive_ls(encode_surv, pattern = import$ym)
       data          <- list()
       for (sheet in c("FORMS", "DISPENSE", "DISCONTINUE", "ref_faci", "ref_addr", "ref_meds")) {
          log_info("GSheet = {red(sheet)}.")
@@ -1021,7 +1023,7 @@ local(envir = import, {
          inner_join(
             y          = encoded$DISCONTINUE %>%
                mutate(
-                  encoder = stri_replace_all_fixed(encoder, glue("{ohasis$ym}_"), ""),
+                  encoder = stri_replace_all_fixed(encoder, glue("{import$ym}_"), ""),
                ),
             by         = c("encoder", "PAGE_ID"),
             na_matches = "never"
