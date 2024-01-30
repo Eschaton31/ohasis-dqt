@@ -239,9 +239,13 @@ dedup_group_ids <- function(data, params, non_dupes) {
          filter(if_all(any_of(dedup_id), ~!is.na(.))) %>%
          get_dupes(all_of(dedup_id)) %>%
          filter(dupe_count > 0) %>%
+         mutate(
+            ym = stri_c(sep = "-", year, stri_pad_left(month, 2, "0"))
+         ) %>%
          group_by(across(all_of(dedup_id))) %>%
          mutate(
             .before  = art_id,
+            grp_ym   = str_c(collapse = ", ", sort(ym)),
             grp_id   = str_c(collapse = ",", sort(art_id)),
             grp_sort = case_when(
                any(year == params$yr & month == params$mo) ~ 1,
@@ -257,8 +261,8 @@ dedup_group_ids <- function(data, params, non_dupes) {
       dedup_old[[dedup_name]] <- df %>%
          anti_join(non_dupes, join_by(grp_id))
    }
-   all_dedup <- combine_validations(data, dedup_old, c("grp_id", "art_id")) %>%
-      group_by(grp_id) %>%
+   all_dedup <- combine_validations(data, dedup_old, c("grp_id", "art_id", "grp_ym")) %>%
+      group_by(grp_id, grp_ym) %>%
       mutate(
          grp_sort = case_when(
             any(year == params$yr & month == params$mo) ~ 1,
@@ -319,8 +323,42 @@ dedup_group_ids <- function(data, params, non_dupes) {
       mutate(score = rowMeans(select(., starts_with("issue")), na.rm = TRUE)) %>%
       arrange(desc(score), grp_sort, grp_id) %>%
       select(-grp_sort) %>%
-      mutate(
-         ym = stri_c(year, "-", stri_pad_left(month, 2, "0"))
+      select(
+         -any_of(c(
+            'LAST',
+            'MIDDLE',
+            'FIRST',
+            'SUFFIX',
+            'UIC',
+            'CONFIRMATORY_CODE',
+            'PATIENT_CODE',
+            'PHILHEALTH_NO',
+            'PHILSYS_ID',
+            'BIRTH_YR',
+            'BIRTH_MO',
+            'BIRTH_DY',
+            'UIC_MOM',
+            'UIC_DAD',
+            'UIC_ORDER',
+            'FIRST_A',
+            'MIDDLE_A',
+            'LAST_A',
+            'CONFIRM_SIEVE',
+            'PXCODE_SIEVE',
+            'FIRST_SIEVE',
+            'MIDDLE_SIEVE',
+            'LAST_SIEVE',
+            'PHIC',
+            'PHILSYS',
+            'FIRST_NY',
+            'MIDDLE_NY',
+            'LAST_NY',
+            'UIC_1',
+            'UIC_2',
+            'UIC_SORT',
+            'NAMESORT_FIRST',
+            'NAMESORT_LAST'
+         ))
       )
    dedup_old <- list(group_dedup = all_dedup)
 
