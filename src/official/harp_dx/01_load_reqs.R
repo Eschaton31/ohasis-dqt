@@ -81,7 +81,7 @@ download_tables <- function(path_to_sql) {
    data$form_cfbs    <- tracked_select(lw_conn, sql$form_cfbs, "New CFBS Form")
    data$px_confirmed <- tracked_select(lw_conn, sql$px_confirmed, "New Confirmed w/ no Form")
    data$cd4          <- tracked_select(lw_conn, sql$cd4, "Baseline CD4", list(as.character(params$max)))
-   data$non_dupes    <- tracked_select(lw_conn, "SELECT PATIENT_ID, NON_PAIR_ID FROM ohasis_warehouse.non_dupes", "Baseline CD4")
+   data$non_dupes    <- tracked_select(lw_conn, "SELECT PATIENT_ID, NON_PAIR_ID FROM ohasis_warehouse.non_dupes", "Non-dupes")
 
    dbDisconnect(lw_conn)
 
@@ -92,7 +92,7 @@ download_tables <- function(path_to_sql) {
 
 get_rhivda_pdf <- function(params) {
    log_info("Loading list of rHIVda PDF Results.")
-   rhivda <- dir_info(file.path(Sys.getenv("DRIVE_DROPBOX"), "File requests/rHIVda Submission/FORMS", params$ym), recurse = TRUE)
+   rhivda <- dir_info(file.path(Sys.getenv("DRIVE_DROPBOX"), "File requests/rHIVda Submission/FORMS", params$yr, params$ym), recurse = TRUE)
    rhivda %<>%
       filter(type == "file") %>%
       mutate(
