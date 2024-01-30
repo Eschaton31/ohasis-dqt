@@ -1,3 +1,5 @@
+BiocManager
+devtools
 remotes
 magrittr
 ggplot2
@@ -33,7 +35,6 @@ progress
 gmailr
 googledrive
 googlesheets4
-rdrop2
 slackr
 fastLink
 stringdist
