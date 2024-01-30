@@ -406,6 +406,22 @@ upload_dupes2 <- function(dedup_upload, id_reg, upload = FALSE, from = NULL) {
    return(new_reg)
 }
 
+upload_non_dupes <- function(data) {
+   lw_conn <- ohasis$conn("lw")
+   schema  <- Id(schema = "ohasis_warehouse", table = "non_dupes")
+
+   upload <- data %>%
+      select(
+         PATIENT_ID  = 1,
+         NON_PAIR_ID = 2
+      )
+
+   dbxUpsert(lw_conn, schema, upload, c("PATIENT_ID", "NON_PAIR_ID"))
+
+   dbDisconnect(lw_conn)
+}
+
+
 quick_reclink <- function(data_match, data_ref, id_find, id_ref, match_cols, distance_col) {
    distance_x <- as.name(paste0(distance_col, ".x"))
    distance_y <- as.name(paste0(distance_col, ".y"))
