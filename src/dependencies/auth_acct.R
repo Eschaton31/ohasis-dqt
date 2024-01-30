@@ -11,16 +11,16 @@ gs4_auth(cache = ".secrets")
 
 # Dropbox
 # trigger auth on purpose --> store a token in the specified cache
-if (!file.exists(".secrets/hivregistry.nec@gmail.com.RDS") & !is.null(drop_acc()$error_summary)) {
-   token <- drop_auth(new_user = TRUE)
-   saveRDS(token, ".secrets/hivregistry.nec@gmail.com.RDS")
-   rm("token")
-
-} else if (file.exists(".secrets/hivregistry.nec@gmail.com.RDS") & !is.null(drop_acc()$error_summary)) {
-   token <- readRDS(".secrets/hivregistry.nec@gmail.com.RDS")
-   drop_acc(dtoken = token)
-   rm("token")
-}
+# if (!file.exists(".secrets/hivregistry.nec@gmail.com.RDS") & !is.null(drop_acc()$error_summary)) {
+#    token <- drop_auth(new_user = TRUE)
+#    saveRDS(token, ".secrets/hivregistry.nec@gmail.com.RDS")
+#    rm("token")
+#
+# } else if (file.exists(".secrets/hivregistry.nec@gmail.com.RDS") & !is.null(drop_acc()$error_summary)) {
+#    token <- readRDS(".secrets/hivregistry.nec@gmail.com.RDS")
+#    drop_acc(dtoken = token)
+#    rm("token")
+# }
 options(
    browser = function(url) {
       if (grepl('^https?:', url)) {

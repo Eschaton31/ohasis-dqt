@@ -1,14 +1,16 @@
 ##  inputs ---------------------------------------------------------------------
 
-file <- "H:/20231007_tly-arv_disp.rds"
+file <- "D:/20240128_tly-arv_disp.rds"
 mo   <- "08"
 yr   <- "2023"
 
 ##  processing -----------------------------------------------------------------
 
 tly <- read_rds(file)
-min <- as.Date(stri_c(sep = "-", stri_pad_left(yr, 4, "0"), stri_pad_left(mo, 2, "0"), "01"))
-max <- min %m+% months(1) %m-% days(1)
+# min <- as.Date(stri_c(sep = "-", stri_pad_left(yr, 4, "0"), stri_pad_left(mo, 2, "0"), "01"))
+# max <- min %m+% months(1) %m-% days(1)
+min <- min(tly$visits$DISP_DATE, na.rm = TRUE)
+max <- max(tly$visits$DISP_DATE, na.rm = TRUE)
 
 #  uploaded --------------------------------------------------------------------
 
@@ -75,10 +77,12 @@ tly$records <- tly$visits %>%
             VISIT_DATE
          ),
       by = join_by(PATIENT_CODE, VISIT_DATE)
-   )
+   ) %>%
+   select(-PROPH_FLUCANO)
 
 TIMESTAMP <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 tly$records %<>%
+   mutate(BIRTHDATE = as.Date(BIRTHDATE)) %>%
    # retain only not uploaded and those with changes
    filter(!is.na(PATIENT_ID), !is.na(MEDICINE_SUMMARY)) %>%
    anti_join(
@@ -101,6 +105,12 @@ tly$import <- tly$records %>%
       batch_rec_ids(tly$records %>% filter(is.na(REC_ID)), REC_ID, CREATED_BY, c("PATIENT_ID", "VISIT_DATE"))
    )
 
+
+tly$import %<>%
+   mutate(
+      UPDATED_BY = "1300000048",
+      UPDATED_AT = TIMESTAMP
+   )
 ##  table formats
 tables           <- list()
 tables$px_record <- list(
