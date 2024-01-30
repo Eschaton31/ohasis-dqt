@@ -1081,9 +1081,7 @@ output_dta <- function(official, params, save = "2") {
       log_info("Saving in Stata data format.")
       period_ext <- str_c(params$yr, "-", stri_pad_left(params$mo, 2, "0"), ".dta")
       files      <- list(
-         new                = file.path(dir, str_c(version, "_reg_", period_ext)),
-         dropped_notyet     = file.path(dir, str_c(version, "_dropped_notyet_", period_ext)),
-         dropped_duplicates = file.path(dir, str_c(version, "_dropped_duplicates_", period_ext))
+         recency = file.path(dir, str_c(version, "_recency_", period_ext)),
       )
       for (output in intersect(names(files), names(official))) {
          if (nrow(official[[output]]) > 0) {
