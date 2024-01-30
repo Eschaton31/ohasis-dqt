@@ -84,7 +84,7 @@ dedup_by <- function(ss, sheet, col_start, col_end) {
 
    # columns must be letters
    col_start <- xlcolconv(col_start) - 1
-   col_end   <- xlcolconv(col_end) - 1
+   col_end   <- xlcolconv(col_end)
 
    # get sheet properties
    req <- googlesheets4::request_generate(
