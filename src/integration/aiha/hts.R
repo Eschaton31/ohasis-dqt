@@ -1,6 +1,6 @@
 ##  inputs ---------------------------------------------------------------------
 
-qr <- 3
+qr <- 4
 yr <- 2023
 
 aiha <- list(
@@ -26,8 +26,10 @@ regions    <- basename(report_files)
 regions    <- case_when(
    str_detect(toupper(regions), "REGION 6") ~ "6",
    str_detect(toupper(regions), "REG 6") ~ "6",
+   str_detect(toupper(regions), "R6") ~ "6",
    str_detect(toupper(regions), "REGION 7") ~ "7",
    str_detect(toupper(regions), "REG 7") ~ "7",
+   str_detect(toupper(regions), "R7") ~ "7",
 )
 raw        <- lapply(report_files, read_excel)
 names(raw) <- regions
@@ -112,6 +114,7 @@ aiha$hts <- raw %>%
       TEST_REASON_EMPLOY_LOCAL      = REASON_FOR_HIV_TESTING_LOCAL_EMPLOYMENT,
       TEST_REASON_TEXT_EMAIL        = REASON_FOR_HIV_TESTING_RECEIVED_A_TEXT_EMAIL_TO_GET_TESTED,
       TEST_REASON_INSURANCE         = REASON_FOR_HIV_TESTING_INSURANCE_REQUIREMENT,
+      TEST_REASON_NO_REASON         = REASON_FOR_HIV_TESTING_NO_REASON,
       TEST_REASON_OTHER_TEXT        = WHAT_IS_THE_OTHER_REASON_FOR_HIV_TESTING,
       PREV_TESTED                   = HAS_CLIENT_BEEN_PREVIOUSLY_TESTED,
       PREV_TEST_DATE                = MOST_RECENT_TEST_DATE,
@@ -318,22 +321,38 @@ aiha$hts <- raw %>%
       ~if_else(StrIsNumeric(.), as.Date(excel_numeric_to_date(as.numeric(.))), as.Date(parse_date_time(., c("YmdHMS", "Ymd", "mdY", "mdy", "mY")))) %>% as.character()
    ) %>%
    mutate(
+      RECORD_DATE      = coalesce(RECORD_DATE, T0_DATE, CREATED_DATE),
       SELF_IDENT_OTHER = case_when(
          is.na(SELF_IDENT_OTHER) & SELF_IDENT == "TGW" ~ "TGW",
          TRUE ~ SELF_IDENT_OTHER
       ),
-      SELF_IDENT = case_when(
+      SELF_IDENT       = case_when(
          SELF_IDENT == "TGW" ~ "3_Other",
          TRUE ~ SELF_IDENT
       ),
+
+      EDUC_LEVEL       = case_when(
+         EDUC_LEVEL %in% c("High School", "High Scool") ~ "3_High School",
+         EDUC_LEVEL %in% c("Post Graduate", "Post-Graduate") ~ "6_Post-Graduate",
+         EDUC_LEVEL == "college" ~ "4_College",
+         EDUC_LEVEL == "Vocational" ~ "5_Vocational",
+         TRUE ~ EDUC_LEVEL
+      ),
+
       T0_RESULT        = case_when(
          T0_RESULT == "Reactive" ~ "1_Reactive",
+         T0_RESULT == "REACTIVE" ~ "1_Reactive",
          T0_RESULT == "Non-reactive" ~ "2_Non-reactive",
          TRUE ~ T0_RESULT
       ),
       PREV_TEST_RESULT = case_when(
          PREV_TEST_RESULT == "Reactive" ~ "1_Positive",
+         PREV_TEST_RESULT == "POSITIVE" ~ "1_Positive",
          PREV_TEST_RESULT == "Non-reactive" ~ "2_Negative",
+         PREV_TEST_RESULT == "NEGATIVE" ~ "2_Negative",
+         PREV_TEST_RESULT == "Negative" ~ "2_Negative",
+         PREV_TEST_RESULT == "NR" ~ "2_Negative",
+         PREV_TEST_RESULT == "DON'T KNOW" ~ "4_Was not able to get result",
          TRUE ~ PREV_TEST_RESULT
       ),
       PREV_TEST_FACI   = remove_code(PREV_TEST_FACI),
@@ -342,6 +361,8 @@ aiha$hts <- raw %>%
          PROVIDER_TYPE == "HIV Counselor" ~ "2_HIV Counselor",
          PROVIDER_TYPE == "Others" ~ "8888_Other",
          PROVIDER_TYPE == "PN" ~ "8888_Other",
+         PROVIDER_TYPE == "Peer Navigator" ~ "8888_Other",
+         PROVIDER_TYPE == "PeerNavegator" ~ "8888_Other",
          TRUE ~ PROVIDER_TYPE
       ),
       CLIENT_TYPE      = case_when(
@@ -383,7 +404,7 @@ dbDisconnect(lw_conn)
 #  uploaded --------------------------------------------------------------------
 
 aiha$hts %<>%
-   select(-PATIENT_ID) %>%
+   select(-any_of("PATIENT_ID")) %>%
    mutate(
       UIC = StrLeft(UIC, 14)
    ) %>%
@@ -451,7 +472,6 @@ aiha$hts %<>%
       CREATED_BY   = coalesce(CREATED_BY, STAFF_ID, "1300000048"),
       CREATED_AT   = coalesce(CREATED_AT, RECORD_DATE),
       # CREATED_AT   = format(CREATED_AT, "%Y-%m-%d 00:00:00"),
-      CREATED_AT   = if_else(str_length(CREATED_AT) == 10, stri_c(CREATED_AT, " 00:00:00"), CREATED_AT, CREATED_AT),
 
       HTS_SUB_FACI = ""
    ) %>%
@@ -477,6 +497,8 @@ aiha$hts %<>%
       .vars = vars(
          starts_with("EXPOSE") & !contains("DATE"),
          starts_with("TEST_REASON") & !contains("TEXT"),
+         starts_with("MED_") & !contains("TEXT"),
+         starts_with("REFER_") & !contains("TEXT"),
          starts_with("SERVICE") &
             !contains("TYPE") &
             !contains("LUBE") &
@@ -503,20 +525,61 @@ aiha$hts %<>%
          TRUE ~ .
       )
    ) %>%
+   # fix risk
+   mutate_at(
+      .vars = vars(
+         starts_with("MED_") & !contains("TEXT"),
+         starts_with("TEST_REASON") & !contains("OTHER"),
+         starts_with("SERVICE") &
+            !contains("TYPE") &
+            !contains("LUBE") &
+            !contains("CONDOM"),
+         PREV_TESTED,
+         LIVING_WITH_PARTNER,
+         REFER_RETEST,
+         REFER_CONFIRM,
+         REFER_ART,
+         IS_EMPLOYED,
+         IS_STUDENT,
+         IS_PREGNANT,
+      ),
+      ~na_if(., "0_No")
+   ) %>%
    mutate(
-      CIVIL_STATUS = case_when(
+      SCREEN_AGREED = case_when(
+         SCREEN_AGREED == "1_Agreed" ~ "1_Yes",
+         SCREEN_AGREED == "Accepted HIV Testing" ~ "1_Yes",
+      ),
+      CIVIL_STATUS  = case_when(
          CIVIL_STATUS == "Single" ~ "1_Single",
          CIVIL_STATUS == "Married" ~ "2_Married",
          CIVIL_STATUS == "Separated" ~ "3_Separated",
          CIVIL_STATUS == "Widowed" ~ "4_Widowed",
          CIVIL_STATUS == "1_Yes" ~ NA_character_,
          TRUE ~ CIVIL_STATUS
+      ),
+      NATIONALITY   = case_when(
+         NATIONALITY == 'Austrian' ~ 'Austria',
+         NATIONALITY == 'Cambodian' ~ 'Cambodia',
+         NATIONALITY == 'Filipino' ~ 'Philippines',
+         TRUE ~ NATIONALITY
+      ),
+      OFW_STATION   = case_when(
+         OFW_STATION == 'Ship' ~ '1_On a ship',
+         OFW_STATION == 'SHIP' ~ '1_On a ship',
+         OFW_STATION == 'Land' ~ '2_Land',
+         TRUE ~ OFW_STATION
       )
    )
 
 aiha$check <- list(
    addr  = bind_rows(
       aiha$hts %>%
+         mutate(
+            PERMANENT_ADDRESS_REGION = coalesce(PERMANENT_ADDRESS_REGION, PERM_NAME_REG),
+            PERMANENT_ADDRESS_PROVINCE = coalesce(PERMANENT_ADDRESS_PROVINCE, PERM_NAME_PROV),
+            PERMANENT_ADDRESS_MUNICITY = coalesce(PERMANENT_ADDRESS_REGION, PERM_NAME_MUNC),
+         ) %>%
          filter(
             is.na(PERM_PSGC_REG),
             if_any(c(PERMANENT_ADDRESS_REGION, PERMANENT_ADDRESS_PROVINCE, PERMANENT_ADDRESS_MUNICITY), ~!is.na(.))
@@ -591,11 +654,11 @@ aiha$import <- aiha$hts %>%
    mutate(
       WORK_TEXT    = WORK,
       MODULE       = "2_Testing",
-      DISEASE      = "101000",
+      DISEASE      = "HIV",
       FACI_ID      = "990005",
       old_rec      = if_else(!is.na(REC_ID), 1, 0, 0),
-      UPDATED_BY   = if_else(old_rec == 1, "1300000048", NA_character_),
-      UPDATED_AT   = if_else(old_rec == 1, TIMESTAMP, NA_character_),
+      # UPDATED_BY   = if_else(old_rec == 1, "1300000048", NA_character_),
+      # UPDATED_AT   = if_else(old_rec == 1, TIMESTAMP, NA_character_),
       PROVIDER_ID  = CREATED_BY,
       SERVICE_TYPE = MODALITY,
       TEST_TYPE    = "10",
@@ -605,7 +668,121 @@ aiha$import <- aiha$hts %>%
       PERFORM_BY   = CREATED_BY,
       FORM         = "HTS Form",
       VERSION      = "2021",
+   )
+
+aiha$import %<>%
+   filter(!is.na(PATIENT_ID)) %>%
+   bind_rows(
+      batch_px_ids(aiha$import %>% filter(is.na(PATIENT_ID)), PATIENT_ID, FACI_ID, "row_id")
+   )
+
+aiha$import %<>%
+   filter(!is.na(REC_ID)) %>%
+   bind_rows(
+      batch_rec_ids(aiha$import %>% filter(is.na(REC_ID)), REC_ID, CREATED_BY, "row_id")
+   )
+
+match_vars <- intersect(names(aiha$import), names(aiha$prev_upload))
+# aiha$import %<>%
+#    anti_join(aiha$prev_upload, join_by(PATIENT_ID, RECORD_DATE))
+aiha$import %<>%
+   select(-HTS_FACI) %>%
+   anti_join(
+      y  = aiha$prev_upload %>%
+         left_join(
+            y  = ohasis$ref_country %>%
+               select(
+                  NATIONALITY = COUNTRY_NAME,
+                  COUNTRY_CODE
+               ),
+            by = join_by(NATIONALITY)
+         ) %>%
+         select(-NATIONALITY) %>%
+         rename(NATIONALITY = COUNTRY_CODE) %>%
+         left_join(
+            y  = ohasis$ref_country %>%
+               select(
+                  OFW_COUNTRY = COUNTRY_NAME,
+                  COUNTRY_CODE
+               ),
+            by = join_by(OFW_COUNTRY)
+         ) %>%
+         select(-OFW_COUNTRY) %>%
+         rename(OFW_COUNTRY = COUNTRY_CODE) %>%
+         # fix risk
+         mutate_at(
+            .vars = vars(
+               starts_with("REFER_"),
+               starts_with("TEST_REASON") & !contains("OTHER"),
+               starts_with("SERVICE") &
+                  !contains("TYPE") &
+                  !contains("LUBE") &
+                  !contains("CONDOM"),
+               PREV_TESTED,
+               LIVING_WITH_PARTNER,
+               REFER_RETEST,
+               REFER_CONFIRM,
+               REFER_ART,
+               IS_EMPLOYED,
+               IS_STUDENT,
+               IS_PREGNANT,
+            ),
+            ~na_if(., "0_No")
+         ),
+      by = match_vars
+   )
+
+aiha$prev_upload %>%
+   left_join(
+      y  = ohasis$ref_country %>%
+         select(
+            NATIONALITY = COUNTRY_NAME,
+            COUNTRY_CODE
+         ),
+      by = join_by(NATIONALITY)
    ) %>%
+   select(-NATIONALITY) %>%
+   rename(NATIONALITY = COUNTRY_CODE) %>%
+   left_join(
+      y  = ohasis$ref_country %>%
+         select(
+            OFW_COUNTRY = COUNTRY_NAME,
+            COUNTRY_CODE
+         ),
+      by = join_by(OFW_COUNTRY)
+   ) %>%
+   select(-OFW_COUNTRY) %>%
+   rename(OFW_COUNTRY = COUNTRY_CODE) %>%
+   # fix risk
+   mutate_at(
+      .vars = vars(
+         starts_with("REFER_"),
+         starts_with("TEST_REASON") & !contains("OTHER"),
+         starts_with("SERVICE") &
+            !contains("TYPE") &
+            !contains("LUBE") &
+            !contains("CONDOM"),
+         PREV_TESTED,
+         LIVING_WITH_PARTNER,
+         REFER_RETEST,
+         REFER_CONFIRM,
+         REFER_ART,
+         IS_EMPLOYED,
+         IS_STUDENT,
+         IS_PREGNANT,
+      ),
+      ~na_if(., "0_No")
+   ) %>%
+   select(any_of(match_vars)) %>%
+   filter(PATIENT_ID == "20231201990005003E") %>%
+   write_clip()
+
+aiha$import %>%
+   select(any_of(match_vars)) %>%
+   filter(PATIENT_ID == "20231201990005003E") %>%
+   write_clip()
+
+aiha$import %<>%
    mutate_at(
       .vars = vars(
          MODULE,
@@ -634,22 +811,8 @@ aiha$import <- aiha$hts %>%
       ),
       ~keep_code(.)
    ) %>%
-   anti_join(aiha$prev_upload, join_by(PATIENT_ID, RECORD_DATE))
-
-aiha$import %<>%
-   filter(!is.na(PATIENT_ID)) %>%
-   bind_rows(
-      batch_px_ids(aiha$import %>% filter(is.na(PATIENT_ID)), PATIENT_ID, FACI_ID, "row_id")
-   )
-
-aiha$import %<>%
-   filter(!is.na(REC_ID)) %>%
-   bind_rows(
-      batch_rec_ids(aiha$import %>% filter(is.na(REC_ID)), REC_ID, CREATED_BY, "row_id")
-   )
-
-aiha$import %<>%
    mutate(
+      CREATED_AT   = if_else(str_length(CREATED_AT) == 10, stri_c(CREATED_AT, " 00:00:00"), CREATED_AT, CREATED_AT),
       UPDATED_BY   = "1300000048",
       UPDATED_AT   = TIMESTAMP,
       SERVICE_TYPE = keep_code(SERVICE_TYPE),
