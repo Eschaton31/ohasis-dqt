@@ -360,3 +360,17 @@ end_ym <- function(year, month) {
 
    return(end_of_month)
 }
+
+add_missing_columns <- function(data, ref) {
+   cols_data <- names(data)
+   cols_ref  <- names(ref)
+
+   cols_keep <- setdiff(cols_ref, cols_data)
+   append    <- matrix(NA, nrow = nrow(data), ncol = length(cols_keep), dimnames = list(NULL, cols_keep))
+
+   new <- cbind(data, append)
+   new %<>%
+      relocate(any_of(cols_ref), .before = 1)
+
+   return(new)
+}
