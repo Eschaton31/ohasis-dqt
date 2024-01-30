@@ -1,5 +1,4 @@
 BiocManager
-devtools
 remotes
 magrittr
 ggplot2
