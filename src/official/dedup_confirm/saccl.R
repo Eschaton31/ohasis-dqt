@@ -419,7 +419,9 @@ local(envir = dedup_confirm, {
             ) %>%
             select(
                CENTRAL_ID,
-               PATIENT_ID
+               PATIENT_ID,
+               CREATED_BY,
+               CREATED_AT,
             )
       )
    }
