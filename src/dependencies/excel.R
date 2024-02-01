@@ -16,9 +16,9 @@ read_worksheet <- function(file, sheet, password = NULL, ...) {
 }
 
 write_flat_file <- function(sheet_data, file) {
-   xlsx          <- list()
-   xlsx$wb       <- createWorkbook()
-   xlsx$hs       <- createStyle(
+   xlsx           <- list()
+   xlsx$wb        <- createWorkbook()
+   xlsx$hs        <- createStyle(
       fontName       = "Calibri",
       fontSize       = 10,
       halign         = "center",
@@ -26,7 +26,7 @@ write_flat_file <- function(sheet_data, file) {
       textDecoration = "bold",
       fgFill         = "#ffe699"
    )
-   xlsx$hs_disag <- createStyle(
+   xlsx$hs_disag  <- createStyle(
       fontName       = "Calibri",
       fontSize       = 10,
       halign         = "center",
@@ -34,10 +34,15 @@ write_flat_file <- function(sheet_data, file) {
       textDecoration = "bold",
       fgFill         = "#92d050"
    )
-   xlsx$cs       <- createStyle(
+   xlsx$cs_normal <- createStyle(
       fontName = "Calibri",
       fontSize = 10,
       numFmt   = openxlsx_getOp("numFmt", "COMMA")
+   )
+   xlsx$cs_date   <- createStyle(
+      fontName = "Calibri",
+      fontSize = 10,
+      numFmt   = "yyyy-mm-dd"
    )
 
    ## Sheet 1
@@ -46,7 +51,19 @@ write_flat_file <- function(sheet_data, file) {
       addWorksheet(xlsx$wb, names(sheet_data)[i])
       writeData(xlsx$wb, sheet = i, x = sheet_data[[i]])
       addStyle(xlsx$wb, sheet = i, xlsx$hs, rows = 1, cols = seq_len(ncol(sheet_data[[i]])), gridExpand = TRUE)
-      addStyle(xlsx$wb, sheet = i, xlsx$cs, rows = 2:(nrow(sheet_data[[i]]) + 1), cols = seq_len(ncol(sheet_data[[i]])), gridExpand = TRUE)
+
+      # style normally
+      rows <- 2:(nrow(sheet_data[[i]]) + 1)
+      cols <- seq_len(ncol(sheet_data[[i]]))
+      for (col in cols) {
+         type <- class(sheet_data[[i]][[col]])
+         if (type == "Date") {
+            addStyle(xlsx$wb, sheet = i, xlsx$cs_date, rows = rows, cols = col, gridExpand = TRUE)
+         } else {
+            addStyle(xlsx$wb, sheet = i, xlsx$cs_normal, rows = rows, cols = col, gridExpand = TRUE)
+         }
+      }
+
       setColWidths(xlsx$wb, sheet = i, cols = seq_len(ncol(sheet_data[[i]])), widths = 'auto')
       setRowHeights(xlsx$wb, sheet = i, rows = seq_len(nrow(sheet_data[[i]]) + 1), heights = 14)
       freezePane(xlsx$wb, sheet = i, firstRow = TRUE)
