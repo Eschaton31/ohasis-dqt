@@ -157,8 +157,6 @@ local(envir = dedup_confirm, {
    data           <- list()
    data$for_dedup <- data_from_files(params$dir, params$pattern) %>%
       mutate(
-         PATIENT_ID  = NA_character_,
-         REC_ID      = NA_character_,
          FACI_ID     = "130023",
          SUB_FACI_ID = "130023_001",
          CREATED_BY  = "1300000048",
@@ -187,8 +185,9 @@ local(envir = dedup_confirm, {
    dbDisconnect(conn)
 
    data$for_dedup %<>%
-      anti_join(
-         y  = data$prev_uploaded,
+      left_join(
+         y  = data$prev_uploaded %>%
+            select(REC_ID, PATIENT_ID, CONFIRM_CODE),
          by = join_by(LABCODE == CONFIRM_CODE)
       )
 
@@ -407,7 +406,7 @@ local(envir = dedup_confirm, {
          name = "registry",
          pk   = "PATIENT_ID",
          data = reclink$for_match %>%
-            select(REC_ID, PATIENT_ID) %>%
+            select(REC_ID, PATIENT_ID, CREATED_BY, CREATED_AT) %>%
             inner_join(
                y  = reclink$matched %>%
                   inner_join(
@@ -422,6 +421,10 @@ local(envir = dedup_confirm, {
                PATIENT_ID,
                CREATED_BY,
                CREATED_AT,
+            ) %>%
+            mutate(
+               UPDATED_BY = "1300000048",
+               UPDATED_AT = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
             )
       )
    }
@@ -540,11 +543,15 @@ excel_data <- dedup_confirm$reclink$final %>%
       by = join_by(LABCODE)
    ) %>%
    mutate(
-      FINDINGS     = case_when(
+      FINDINGS = case_when(
          FINAL_RESULT == "Duplicate" ~ "Duplicate",
          TRUE ~ "No existing positive result found."
       ),
-      confirm_date = substr(confirm_date, 1, 1)
+      SEX      = substr(SEX, 1, 1),
+   ) %>%
+   mutate_if(
+      .predicate = is.POSIXct,
+      ~as.Date(.)
    ) %>%
    arrange(FINDINGS, LABCODE) %>%
    select(
