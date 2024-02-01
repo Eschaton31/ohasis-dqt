@@ -101,6 +101,7 @@ read_saccl <- function(file) {
 
 data_from_files <- function(dir, pattern) {
    submission <- dir_info(dir, regexp = stri_c("EPI.*", pattern, ".*.xlsx"))
+
    submission %<>%
       filter(!str_detect(path, "~")) %>%
       mutate(
@@ -119,6 +120,20 @@ data_from_files <- function(dir, pattern) {
          y  = validated,
          by = join_by(submit_date)
       )
+
+   if (nrow(files) == 0) {
+      slackr_msg(
+         stri_c(
+            ">*ATTENTION!*\n",
+            ">No new files for deduplication were found..\n",
+            ">The next iteration will run on `",
+            format(Sys.time() %m+% days(1), "%b %d, %Y @ %Y %X"), "`."
+         ),
+         mrkdwn  = "true",
+         channel = "#data-pipeline"
+      )
+      stop()
+   }
 
    data        <- lapply(files$path, read_saccl)
    names(data) <- files$submit_date
