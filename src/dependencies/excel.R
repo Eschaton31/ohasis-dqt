@@ -57,7 +57,7 @@ write_flat_file <- function(sheet_data, file) {
       cols <- seq_len(ncol(sheet_data[[i]]))
       for (col in cols) {
          type <- class(sheet_data[[i]][[col]])
-         if (type == "Date") {
+         if (type[1] == "Date") {
             addStyle(xlsx$wb, sheet = i, xlsx$cs_date, rows = rows, cols = col, gridExpand = TRUE)
          } else {
             addStyle(xlsx$wb, sheet = i, xlsx$cs_normal, rows = rows, cols = col, gridExpand = TRUE)
