@@ -504,19 +504,17 @@ local(envir = dedup_confirm, {
 
 ##  Update live records --------------------------------------------------------
 
-if (!dedup_confirm$same_rows) {
-   log_info("Updating live records with linked data.")
-   local(envir = dedup_confirm, {
-      conn <- ohasis$conn("db")
-      lapply(upsert, function(ref, db_conn) {
-         log_info("Uploading {green(ref$name)}.")
-         table_space <- Id(schema = "ohasis_interim", table = ref$name)
-         dbxUpsert(db_conn, table_space, ref$data, ref$pk)
-      }, db_conn)
-      dbDisconnect(conn)
-      rm(conn)
-   })
-}
+log_info("Updating live records with linked data.")
+local(envir = dedup_confirm, {
+   conn <- ohasis$conn("db")
+   lapply(upsert, function(ref, conn) {
+      log_info("Uploading {green(ref$name)}.")
+      table_space <- Id(schema = "ohasis_interim", table = ref$name)
+      dbxUpsert(conn, table_space, ref$data, ref$pk)
+   }, conn)
+   dbDisconnect(conn)
+   rm(conn)
+})
 gc()
 
 slackr_msg(
