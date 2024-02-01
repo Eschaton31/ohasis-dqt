@@ -453,7 +453,7 @@ local(envir = dedup_confirm, {
          select(
             REC_ID,
             PATIENT_ID,
-            CONFIRMATORY_CODE = labcode2,
+            CONFIRMATORY_CODE = LABCODE,
             SEX               = sex,
             BIRTHDATE         = bdate,
             CREATED_BY,
@@ -491,7 +491,7 @@ local(envir = dedup_confirm, {
             FACI_ID,
             SUB_FACI_ID,
             CONFIRM_TYPE,
-            CONFIRM_CODE = labcode2,
+            CONFIRM_CODE = LABCODE,
             SOURCE,
             SUB_SOURCE,
             FINAL_RESULT,
