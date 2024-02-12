@@ -10,11 +10,11 @@ QB <- setRefClass(
       main   = "ANY"
    ),
    methods  = list(
-      initialize   = function(db_conn, table) {
+      initialize   = function(db_conn = NULL, table = NULL) {
          "This method is called when you create an instance of this class."
 
          main   <<- table
-         left   <<- .self$alias(table)
+         left   <<- ifelse(!is.null(table), .self$alias(table), "")
          conn   <<- db_conn
          cols   <<- "*"
          filter <<- list()
@@ -25,8 +25,28 @@ QB <- setRefClass(
          .self$cols <- as.character(match.call(expand.dots = FALSE)$`...`)
       },
 
-      where        = function(col, operator, value) {
-         .self$filter <- append(.self$filter, stri_c(sep = " ", col, operator, dbQuoteString(con, value)))
+      where        = function(col, operator = NULL, value = NULL) {
+         if (class(col) != "function") {
+            col <- stri_c(sep = " ", col, operator, dbQuoteString(.self$conn, value))
+         } else {
+            col <- do.call(col, list())
+         }
+
+         if (length(.self$filter) > 0) {
+            col <- stri_c("AND ", col)
+         }
+
+         .self$filter <- append(.self$filter, col)
+      },
+
+      orWhere      = function(col, operator = NULL, value = NULL) {
+         col <- stri_c(sep = " ", col, operator, dbQuoteString(.self$conn, value))
+
+         if (length(.self$filter) > 0) {
+            col <- stri_c("OR ", col)
+         }
+
+         .self$filter <- append(.self$filter, col)
       },
 
       whereIn      = function(col, value) {
@@ -37,11 +57,11 @@ QB <- setRefClass(
          .self$filter <- append(.self$filter, stri_c(col, " NOT IN ('", stri_c(collapse = "','", value), "')"))
       },
 
-      whereNull    = function(col, value) {
+      whereNull    = function(col) {
          .self$filter <- append(.self$filter, stri_c(col, " IS NULL"))
       },
 
-      whereNotNull = function(col, value) {
+      whereNotNull = function(col) {
          .self$filter <- append(.self$filter, stri_c(col, " IS NOT NULL"))
       },
 
@@ -81,13 +101,17 @@ QB <- setRefClass(
 
          where <- ""
          if (length(.self$filter) > 0) {
-            where <- stri_c(collapse = " AND ", .self$filter)
+            where <- stri_c(collapse = " ", .self$filter)
             where <- stri_c("WHERE ", where)
          }
 
          join <- ""
          if (length(.self$joins) > 0) {
             join <- stri_c(collapse = "\n ", .self$joins)
+         }
+
+         if (is.null(.self$main)) {
+            return(stri_c("(", substr(where, 7, nchar(where)), ")"))
          }
 
          query$results <- stri_c(sep = " ", select, .self$main, join, where)
