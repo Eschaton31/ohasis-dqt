@@ -1,4 +1,5 @@
 Sys.setenv(TZ = "Asia/Hong_Kong")
+Sys.setlocale(category = "LC_ALL", locale = "en_US.utf8")
 options(
    # browser = Sys.getenv("BROWSER"),
    browser             = function(url) {
