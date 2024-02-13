@@ -20,7 +20,7 @@ QB <- R6Class(
       select       = function(...) {
          columns      <- match.call(expand.dots = FALSE)$`...`
          columns      <- as.character(columns)
-         self$columns <- private$quoteIdentifier(columns)
+         self$columns <- lapply(columns, private$quoteIdentifier)
 
          invisible(self)
       },
@@ -181,6 +181,7 @@ QB <- R6Class(
          actual <- str_split(pieces[1], "\\.", simplify = TRUE)
          actual <- dbQuoteIdentifier(private$conn, as.character(actual))
          actual <- str_flatten(collapse = ".", actual)
+         actual <- str_replace(actual, "`\\*`", "*")
 
          alias <- NA_character_
          if (length(pieces) == 2) {
