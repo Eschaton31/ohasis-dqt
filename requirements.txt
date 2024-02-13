@@ -54,6 +54,4 @@ tabulizer
 bigrquery
 ExPanDaR
 labelled
-survey
-srvyr
-labelled
+R6
