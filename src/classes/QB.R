@@ -10,19 +10,8 @@ QB <- R6Class(
          private$conn <- db_conn
       },
 
-      table        = function(table, as = NULL, database = NULL) {
-         as       <- private$quoteIdentifier(as)
-         database <- private$quoteIdentifier(database)
-         table    <- private$quoteIdentifier(table)
-
-         actual <- str_flatten(collapse = ".", na.rm = TRUE, c(database, table))
-         alias  <- str_flatten(collapse = " AS ", na.rm = TRUE, c(actual, as))
-
-         return(alias)
-      },
-
-      from         = function(table, as = NULL, database = NULL) {
-         private$main <- self$table(table, as = as, database = database)
+      from         = function(table) {
+         private$main <- private$quoteIdentifier(table)
          self$title   <- private$getAlias(private$main)
 
          invisible(self)
@@ -31,14 +20,16 @@ QB <- R6Class(
       select       = function(...) {
          columns      <- match.call(expand.dots = FALSE)$`...`
          columns      <- as.character(columns)
-         self$columns <- columns
+         self$columns <- private$quoteIdentifier(columns)
 
          invisible(self)
       },
 
       where        = function(column, operator = NULL, value = NULL) {
          if (class(column) != "function") {
-            column <- stri_c(sep = " ", column, operator, dbQuoteString(private$conn, value))
+            value  <- dbQuoteString(private$conn, value)
+            column <- private$quoteIdentifier(column)
+            column <- stri_c(sep = " ", column, operator, value)
          } else {
             column <- do.call(column, list())
          }
@@ -53,7 +44,9 @@ QB <- R6Class(
       },
 
       orWhere      = function(column, operator = NULL, value = NULL) {
-         column <- stri_c(sep = " ", column, operator, dbQuoteString(private$conn, value))
+         value  <- dbQuoteString(private$conn, value)
+         column <- private$quoteIdentifier(column)
+         column <- stri_c(sep = " ", column, operator, value)
 
          if (length(self$wheres) > 0) {
             column <- stri_c("OR ", column)
@@ -65,25 +58,53 @@ QB <- R6Class(
       },
 
       whereIn      = function(column, value) {
-         self$wheres <- append(self$wheres, stri_c(column, " IN ('", str_flatten(collapse = "','", value), "')"))
+         column      <- private$quoteIdentifier(column)
+         column      <- stri_c(column, " IN ('", str_flatten(collapse = "','", value), "')")
+
+         if (length(self$wheres) > 0) {
+            column <- stri_c("AND ", column)
+         }
+
+         self$wheres <- append(self$wheres, column)
 
          invisible(self)
       },
 
       whereNotIn   = function(column, value) {
-         self$wheres <- append(self$wheres, stri_c(column, " NOT IN ('", str_flatten(collapse = "','", value), "')"))
+         column      <- private$quoteIdentifier(column)
+         column      <- stri_c(column, " NOT IN ('", str_flatten(collapse = "','", value), "')")
+
+         if (length(self$wheres) > 0) {
+            column <- stri_c("AND ", column)
+         }
+
+         self$wheres <- append(self$wheres, column)
 
          invisible(self)
       },
 
       whereNull    = function(column) {
-         self$wheres <- append(self$wheres, stri_c(column, " IS NULL"))
+         column      <- private$quoteIdentifier(column)
+         column      <- stri_c(column, " IS NULL")
+
+         if (length(self$wheres) > 0) {
+            column <- stri_c("AND ", column)
+         }
+
+         self$wheres <- append(self$wheres, column)
 
          invisible(self)
       },
 
       whereNotNull = function(column) {
-         self$wheres <- append(self$wheres, stri_c(column, " IS NOT NULL"))
+         column      <- private$quoteIdentifier(column)
+         column      <- stri_c(column, " IS NOT NULL")
+
+         if (length(self$wheres) > 0) {
+            column <- stri_c("AND ", column)
+         }
+
+         self$wheres <- append(self$wheres, column)
 
          invisible(self)
       },
@@ -152,11 +173,33 @@ QB <- R6Class(
             return()
          }
 
-         return(dbQuoteIdentifier(private$conn, identifier))
+         identifier <- str_replace(identifier, " as ", " AS ")
+         pieces     <- str_split(identifier, " AS ", simplify = TRUE)
+         pieces     <- as.character(pieces)
+
+         actual <- NA_character_
+         actual <- str_split(pieces[1], "\\.", simplify = TRUE)
+         actual <- dbQuoteIdentifier(private$conn, as.character(actual))
+         actual <- str_flatten(collapse = ".", actual)
+
+         alias <- NA_character_
+         if (length(pieces) == 2) {
+            alias <- dbQuoteIdentifier(private$conn, pieces[2])
+         }
+
+         query <- str_flatten(collapse = " AS ", na.rm = TRUE, c(actual, alias))
+
+         return(query)
       },
 
       getAlias        = function(identifier) {
-         return(ifelse(str_detect(identifier, " AS "), str_extract(identifier, " AS (.*)", 1), identifier))
+         if (!str_detect(identifier, " AS ")) {
+            pieces <- str_split(identifier, "\\.", simplify = TRUE)
+            pieces <- as.character(pieces)
+            return(pieces[length(pieces)])
+         }
+
+         return(str_extract(identifier, " AS (.*)", 1))
       },
 
       joinOn          = function(right, col_left, operator, col_right) {
@@ -164,19 +207,18 @@ QB <- R6Class(
          col_left  <- private$quoteIdentifier(col_left)
          col_right <- private$quoteIdentifier(col_right)
 
-         if (col_left == col_right & operator == "=") {
-            join_on <- stri_c("USING (", col_left, ")")
+         if (private$getAlias(col_left) == private$getAlias(col_right) & operator == "=") {
+            join_on <- stri_c("USING (", private$getAlias(col_left), ")")
          } else {
-            col_left  <- stri_c(private$getAlias(private$main), ".", col_left)
-            col_right <- stri_c(private$getAlias(right), ".", col_right)
-            join_on   <- stri_c(sep = " ", "ON", col_left, operator, col_right)
+            join_on <- stri_c(sep = " ", "ON", col_left, operator, col_right)
          }
 
          return(join_on)
       },
 
       joinQuery       = function(right, col_left, operator, col_right) {
-         on <- private$joinOn(right, col_left, operator, col_right)
+         right <- private$quoteIdentifier(right)
+         on    <- private$joinOn(right, col_left, operator, col_right)
          return(stri_c(sep = " ", "JOIN", right, on))
       }
    ),
@@ -192,6 +234,7 @@ QB <- R6Class(
          query$results <- c(select, private$main, join, where)
          query$nrow    <- c("SELECT COUNT(*) AS nrow FROM", private$main, join, where)
          query         <- lapply(query, str_flatten, collapse = " ", na.rm = TRUE)
+         query         <- lapply(query, stri_c, ";")
 
          return(query)
       },
