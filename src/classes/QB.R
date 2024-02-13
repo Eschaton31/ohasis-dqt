@@ -113,13 +113,13 @@ QB <- R6Class(
       get          = function() {
          query <- self$query
 
-         n_rows <- dbGetQuery(conn, query$nrow)
+         n_rows <- dbGetQuery(private$conn, query$nrow)
          n_rows <- sum(as.numeric(n_rows$nrow), na.rm = TRUE)
 
          results <- list()
 
          # get actual result set
-         rs         <- dbSendQuery(conn, query$results)
+         rs         <- dbSendQuery(private$conn, query$results)
          chunk_size <- 1000
          if (n_rows >= chunk_size) {
             # upload in chunks to monitor progress
