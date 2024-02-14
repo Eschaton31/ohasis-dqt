@@ -4,6 +4,7 @@ QB <- R6Class(
       columns      = "*",
       wheres       = list(),
       joins        = list(),
+      limits       = NULL,
       title        = NULL,
 
       initialize   = function(db_conn = NULL) {
@@ -25,8 +26,19 @@ QB <- R6Class(
          invisible(self)
       },
 
-      where        = function(column, operator = NULL, value = NULL) {
+      selectRaw    = function(expression) {
+         self$columns <- append(self$columns, expression)
+
+         invisible(self)
+      },
+
+      where        = function(column, operator = NULL, value = NULL, boolean = "and") {
          if (class(column) != "function") {
+            if (!is.null(operator) & is.null(value)) {
+               value    <- operator
+               operator <- "="
+            }
+
             value  <- dbQuoteString(private$conn, value)
             column <- private$quoteIdentifier(column)
             column <- stri_c(sep = " ", column, operator, value)
@@ -34,77 +46,55 @@ QB <- R6Class(
             column <- do.call(column, list())
          }
 
-         if (length(self$wheres) > 0) {
-            column <- stri_c("AND ", column)
-         }
-
-         self$wheres <- append(self$wheres, column)
+         private$addWhere(column, boolean)
 
          invisible(self)
       },
 
-      orWhere      = function(column, operator = NULL, value = NULL) {
-         value  <- dbQuoteString(private$conn, value)
+      whereIn      = function(column, value, boolean = "and") {
          column <- private$quoteIdentifier(column)
-         column <- stri_c(sep = " ", column, operator, value)
+         column <- stri_c(column, " IN ('", str_flatten(collapse = "','", value), "')")
 
-         if (length(self$wheres) > 0) {
-            column <- stri_c("OR ", column)
-         }
-
-         self$wheres <- append(self$wheres, column)
+         private$addWhere(column, boolean)
 
          invisible(self)
       },
 
-      whereIn      = function(column, value) {
-         column      <- private$quoteIdentifier(column)
-         column      <- stri_c(column, " IN ('", str_flatten(collapse = "','", value), "')")
+      whereNotIn   = function(column, value, boolean = "and") {
+         column <- private$quoteIdentifier(column)
+         column <- stri_c(column, " NOT IN ('", str_flatten(collapse = "','", value), "')")
 
-         if (length(self$wheres) > 0) {
-            column <- stri_c("AND ", column)
-         }
-
-         self$wheres <- append(self$wheres, column)
+         private$addWhere(column, boolean)
 
          invisible(self)
       },
 
-      whereNotIn   = function(column, value) {
-         column      <- private$quoteIdentifier(column)
-         column      <- stri_c(column, " NOT IN ('", str_flatten(collapse = "','", value), "')")
+      whereNull    = function(column, boolean = "and") {
+         column <- private$quoteIdentifier(column)
+         column <- stri_c(column, " IS NULL")
 
-         if (length(self$wheres) > 0) {
-            column <- stri_c("AND ", column)
-         }
-
-         self$wheres <- append(self$wheres, column)
+         private$addWhere(column, boolean)
 
          invisible(self)
       },
 
-      whereNull    = function(column) {
-         column      <- private$quoteIdentifier(column)
-         column      <- stri_c(column, " IS NULL")
+      whereNotNull = function(column, boolean = "and") {
+         column <- private$quoteIdentifier(column)
+         column <- stri_c(column, " IS NOT NULL")
 
-         if (length(self$wheres) > 0) {
-            column <- stri_c("AND ", column)
-         }
-
-         self$wheres <- append(self$wheres, column)
+         private$addWhere(column, boolean)
 
          invisible(self)
       },
 
-      whereNotNull = function(column) {
-         column      <- private$quoteIdentifier(column)
-         column      <- stri_c(column, " IS NOT NULL")
+      whereBetween = function(column, values, boolean = "and") {
+         start <- dbQuoteString(private$conn, values[1])
+         end   <- dbQuoteString(private$conn, values[2])
 
-         if (length(self$wheres) > 0) {
-            column <- stri_c("AND ", column)
-         }
+         column <- private$quoteIdentifier(column)
+         column <- stri_c(sep = " ", column, "BETWEEN", start, "AND", end)
 
-         self$wheres <- append(self$wheres, column)
+         private$addWhere(column, boolean)
 
          invisible(self)
       },
@@ -131,16 +121,19 @@ QB <- R6Class(
          invisible(self)
       },
 
-      get          = function() {
-         query <- self$query
+      limit        = function(value) {
+         self$limits <- stri_c(sep = " ", "LIMIT", value)
 
-         n_rows <- dbGetQuery(private$conn, query$nrow)
-         n_rows <- sum(as.numeric(n_rows$nrow), na.rm = TRUE)
+         invisible(self)
+      },
+
+      get          = function() {
+         n_rows <- self$count()
 
          results <- list()
 
          # get actual result set
-         rs         <- dbSendQuery(private$conn, query$results)
+         rs         <- dbSendQuery(private$conn, self$query$results)
          chunk_size <- 1000
          if (n_rows >= chunk_size) {
             # upload in chunks to monitor progress
@@ -162,6 +155,13 @@ QB <- R6Class(
          dbClearResult(rs)
 
          return(results)
+      },
+
+      count        = function() {
+         n_rows <- dbGetQuery(private$conn, self$query$nrow)
+         n_rows <- sum(as.numeric(n_rows$nrow), na.rm = TRUE)
+
+         return(n_rows)
       }
    ),
    private = list(
@@ -221,6 +221,16 @@ QB <- R6Class(
          right <- private$quoteIdentifier(right)
          on    <- private$joinOn(right, col_left, operator, col_right)
          return(stri_c(sep = " ", "JOIN", right, on))
+      },
+
+      addWhere        = function(query, boolean) {
+         if (length(self$wheres) > 0) {
+            boolean <- ifelse(toupper(boolean) == "OR", "OR", "AND")
+            query   <- stri_c(sep = " ", boolean, query)
+         }
+         self$wheres <- append(self$wheres, query)
+
+         invisible(self)
       }
    ),
    active  = list(
@@ -232,8 +242,8 @@ QB <- R6Class(
          where <- stri_c("WHERE ", self$whereNested)
          join  <- str_flatten(collapse = "\n ", self$joins)
 
-         query$results <- c(select, private$main, join, where)
-         query$nrow    <- c("SELECT COUNT(*) AS nrow FROM", private$main, join, where)
+         query$results <- c(select, private$main, join, where, self$limits)
+         query$nrow    <- c("SELECT COUNT(*) AS nrow FROM", private$main, join, where, self$limits)
          query         <- lapply(query, str_flatten, collapse = " ", na.rm = TRUE)
          query         <- lapply(query, stri_c, ";")
 
