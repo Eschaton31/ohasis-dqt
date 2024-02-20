@@ -82,6 +82,7 @@ get_pdf_data <- function(file = NULL) {
          RT_RESULT       = case_when(
             str_detect(RT_RESULT, "RECENT") ~ "Recent Infection",
             str_detect(RT_RESULT, "LONG-TERM") ~ "Long Term Infection",
+            str_detect(RT_RESULT, "RITA LONG") ~ "Long Term Infection",
             str_detect(RT_RESULT, "INCONCLUSIVE") ~ "Inconclusive",
             TRUE ~ RT_RESULT
          ),
