@@ -278,7 +278,7 @@ import_data <- function(tables) {
    db_conn <- ohasis$conn("db")
    lapply(tables, function(ref, db_conn) {
       table_space <- Id(schema = "ohasis_interim", table = ref$name)
-      dbxUpsert(db_conn, table_space, ref$data, ref$pk)
+      dbxUpsert(db_conn, table_space, ref$data %>% filter(!is.na(REC_ID)), ref$pk)
       update_credentials(ref$data$REC_ID)
    }, db_conn)
    dbDisconnect(db_conn)
