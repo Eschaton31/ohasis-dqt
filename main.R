@@ -29,6 +29,7 @@ source("src/dependencies/auth_acct.R")
 # classes
 source("src/classes/Project.R")
 source("src/classes/DB.R")
+source("src/classes/QB.R")
 
 # register pipelines
 source("src/pipeline/pipeline.R", chdir = TRUE)
