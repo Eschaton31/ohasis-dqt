@@ -10,6 +10,8 @@ SELECT rec.REC_ID,
        MAX(IF(other_service.SERVICE = 5001, GIVEN, NULL))                                              AS SERVICE_PREP_REFER,
        MAX(IF(other_service.SERVICE = 5002, GIVEN, NULL))                                              AS SERVICE_SSNT_OFFER,
        MAX(IF(other_service.SERVICE = 5003, GIVEN, NULL))                                              AS SERVICE_SSNT_ACCEPT,
+       MAX(IF(other_service.SERVICE = 5004, GIVEN, NULL))                                              AS SERVICE_INDEX_OFFER,
+       MAX(IF(other_service.SERVICE = 5005, GIVEN, NULL))                                              AS SERVICE_INDEX_ACCEPT,
        MAX(IF(other_service.SERVICE = 2001, OTHER_SERVICE, NULL))                                      AS SERVICE_GIVEN_CONDOMS,
        MAX(IF(other_service.SERVICE = 2002, OTHER_SERVICE, NULL))                                      AS SERVICE_GIVEN_LUBES
 FROM ohasis_interim.px_record AS rec
