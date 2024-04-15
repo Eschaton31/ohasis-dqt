@@ -220,7 +220,7 @@ DB <- setRefClass(
          # attached columns
          user_cols <- c("CREATED_BY", "UPDATED_BY", "DELETED_BY", "PROVIDER_ID", "SIGNATORY_1", "SIGNATORY_2", "SIGNATORY_2", "USER_ID", "STAFF_ID")
          text_faci <- c("PREV_TEST_FACI", "DELIVER_FACI", "FACI_LABEL", "FACI_NAME", "FACI_NAME_CLEAN", "FACI_NAME_REG", "FACI_NAME_PROV", "FACI_NAME_MUNC",
-                        "FACI_ADDR", "FACI_NHSSS_REG", "FACI_NHSSS_PROV", "FACI_NHSSS_MUNC", "FACI_TYPE" )
+                        "FACI_ADDR", "FACI_NHSSS_REG", "FACI_NHSSS_PROV", "FACI_NHSSS_MUNC", "FACI_TYPE")
 
          # construct create based on data types
          df_str <- data %>%
@@ -243,6 +243,12 @@ DB <- setRefClass(
                   Var1 == "REC_ID_GRP" ~ "VARCHAR(100) NULL COLLATE 'utf8_general_ci'",
                   Var1 == "CENTRAL_ID" ~ "CHAR(18) NULL COLLATE 'utf8_general_ci'",
                   Var1 == "PATIENT_ID" ~ "CHAR(18) NULL COLLATE 'utf8_general_ci'",
+                  Var1 == "posterior" ~ "DECIMAL(16,15) NULL COLLATE 'utf8_general_ci'",
+                  Var1 == "score" ~ "DECIMAL(16,15) NULL COLLATE 'utf8_general_ci'",
+                  Var1 == "LV" ~ "DECIMAL(16,15) NULL COLLATE 'utf8_general_ci'",
+                  Var1 == "JW" ~ "DECIMAL(16,15) NULL COLLATE 'utf8_general_ci'",
+                  Var1 == "QGRAM" ~ "DECIMAL(16,15) NULL COLLATE 'utf8_general_ci'",
+                  Var1 == "AVG_DIST" ~ "DECIMAL(16,15) NULL COLLATE 'utf8_general_ci'",
                   stri_detect_fixed(Var1, "PSGC") ~ "CHAR(9) NULL COLLATE 'utf8_general_ci'",
                   stri_detect_fixed(Var1, "ADDR") ~ "TEXT NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
                   stri_detect_fixed(Var1, "SUB_FACI") ~ "CHAR(10) NULL COLLATE 'utf8_general_ci'",
@@ -269,6 +275,14 @@ DB <- setRefClass(
             index <- ", INDEX `SOURCE_REC` (`SOURCE_REC`)"
          if ("DESTINATION_REC" %in% names(data))
             index <- ", INDEX `DESTINATION_REC` (`DESTINATION_REC`)"
+         if ("idnum" %in% names(data))
+            index <- ", INDEX `idnum` (`idnum`)"
+         if ("art_id" %in% names(data))
+            index <- ", INDEX `art_id` (`art_id`)"
+         if ("mort_id" %in% names(data))
+            index <- ", INDEX `mort_id` (`mort_id`)"
+         if ("prep_id" %in% names(data))
+            index <- ", INDEX `prep_id` (`prep_id`)"
 
          # implode into query
          pk_sql     <- paste(collapse = "`,`", id_col)
