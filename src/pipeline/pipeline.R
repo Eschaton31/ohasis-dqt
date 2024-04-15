@@ -223,6 +223,99 @@ flow_validation <- function(data_env = NULL,
    }
 }
 
+# new validation in mariadb
+flow_validation <- function(data_env = NULL,
+                            process_step = NULL,
+                            report_period = NULL,
+                            channels = NULL,
+                            list_name = "check",
+                            upload = NULL) {
+   # re-intiialize
+   surv_name <- strsplit(environment_name(data_env), "\\$")[[1]]
+   surv_name <- surv_name[length(surv_name)]
+
+   data_env      <- data_env$steps
+   process_name  <- c()
+   process_names <- names(data_env)
+   process_step  <- gsub("converted", "convert", process_step)
+   if (!grepl("dedup", process_step) & !grepl("pdf", process_step))
+      process_name <- process_names[grepl(paste0("data_", process_step), process_names)]
+
+   if (length(process_name) == 0)
+      process_name <- process_names[grepl(process_step, process_names)]
+
+   if (is.null(list_name)) {
+      corr_list <- data_env[[process_name]]
+   } else {
+      corr_list <- data_env[[process_name]][[list_name]]
+   }
+
+   if (length(corr_list) > 0) {
+      upload <- ifelse(
+         !is.null(upload),
+         upload,
+         input(
+            prompt  = glue("Re-upload gsheet validations for {green(surv_name)}-{green(process_step)}?"),
+            options = c("1" = "yes", "2" = "no"),
+            default = "2"
+         )
+      )
+      if (upload == "1") {
+         log_info("Loading endpoints.")
+
+         # acquire sheet_id
+         slack_by   <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
+         drive_link <- paste0(surv_name, "/", process_step)
+         slack_msg  <- glue(r"(
+         *[{drive_link}]* Validation sheets updated by <@{slack_by}>
+         )")
+
+         ym      <- report_period %>% str_replace("\\.", "")
+         lw_conn <- ohasis$conn("lw")
+         for (issue in names(corr_list)) {
+            table <- paste0("vdn_", ym, "-", process_step, "-", issue)
+            log_info("Uploading {green(table)}.")
+
+            upload <- corr_list[[issue]]
+            cols   <- names(upload)
+            if ("last" %in% cols & "LAST" %in% cols) upload %<>% select(-LAST)
+            if ("first" %in% cols & "FIRST" %in% cols) upload %<>% select(-FIRST)
+            if ("middle" %in% cols & "MIDDLE" %in% cols) upload %<>% select(-MIDDLE)
+            if ("suffix" %in% cols & "SUFFIX" %in% cols) upload %<>% select(-SUFFIX)
+            if ("birthdate" %in% cols & "BIRTHDATE" %in% cols) upload %<>% select(-BIRTHDATE)
+            if ("uic" %in% cols & "UIC" %in% cols) upload %<>% select(-UIC)
+            if ("patient_code" %in% cols & "PATIENT_CODE" %in% cols) upload %<>% select(-PATIENT_CODE)
+            if ("philsys_id" %in% cols & "PHILSYS_ID" %in% cols) upload %<>% select(-PHILSYS_ID)
+
+            id_col <- switch(issue,
+                             reclink     = "MATCH_ID",
+                             all_issues  = "REC_ID",
+                             tabstat     = "VARIABLE",
+                             group_dedup = c("grp_id", "CENTRAL_ID"),
+                             "CENTRAL_ID")
+            schema <- Id(schema = surv_name, table = table)
+
+            if (dbExistsTable(lw_conn, schema)) {
+               dbxDelete(lw_conn, schema)
+            }
+
+            if (nrow(upload) > 0) {
+               ohasis$upsert(lw_conn, surv_name, table, upload, id_col)
+            }
+         }
+         dbDisconnect(lw_conn)
+
+         # log in slack
+         if (is.null(channels)) {
+            slackr_msg(slack_msg, mrkdwn = "true")
+         } else {
+            for (channel in channels)
+               slackr_msg(slack_msg, mrkdwn = "true", channel = channel)
+         }
+      }
+   }
+}
+
 # register pipelines in working directory
 flow_register <- function() {
    files <- fs::dir_info(file.path(getwd(), "src"), recurse = TRUE, regexp = "[/]+_init.") %>%
