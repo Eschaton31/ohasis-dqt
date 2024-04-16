@@ -273,7 +273,10 @@ flow_validation <- function(data_env = NULL,
          ym      <- report_period %>% str_replace("\\.", "")
          lw_conn <- ohasis$conn("lw")
          for (issue in names(corr_list)) {
-            table <- paste0("vdn_", ym, "-", process_step, "-", issue)
+            db     <- "nhsss_validations"
+            table  <- paste0(surv_name, "-", process_step, "-", issue)
+            schema <- Id(schema = db, table = table)
+
             log_info("Uploading {green(table)}.")
 
             upload <- corr_list[[issue]]
@@ -293,14 +296,13 @@ flow_validation <- function(data_env = NULL,
                              tabstat     = "VARIABLE",
                              group_dedup = c("grp_id", "CENTRAL_ID"),
                              "CENTRAL_ID")
-            schema <- Id(schema = surv_name, table = table)
 
             if (dbExistsTable(lw_conn, schema)) {
-               dbxDelete(lw_conn, schema)
+               dbRemoveTable(lw_conn, schema)
             }
 
             if (nrow(upload) > 0) {
-               ohasis$upsert(lw_conn, surv_name, table, upload, id_col)
+               ohasis$upsert(lw_conn, db, table, upload, id_col)
             }
          }
          dbDisconnect(lw_conn)
