@@ -264,10 +264,9 @@ flow_validation <- function(data_env = NULL,
          log_info("Loading endpoints.")
 
          # acquire sheet_id
-         slack_by   <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
          drive_link <- paste0(surv_name, "/", process_step)
          slack_msg  <- glue(r"(
-         *[{drive_link}]* Validation sheets updated by <@{slack_by}>
+         *`{drive_link}`* Validation sheets updated by <@{ohasis$slack_id}>
          )")
 
          ym      <- report_period %>% str_replace("\\.", "")
@@ -289,9 +288,12 @@ flow_validation <- function(data_env = NULL,
             if ("uic" %in% cols & "UIC" %in% cols) upload %<>% select(-UIC)
             if ("patient_code" %in% cols & "PATIENT_CODE" %in% cols) upload %<>% select(-PATIENT_CODE)
             if ("philsys_id" %in% cols & "PHILSYS_ID" %in% cols) upload %<>% select(-PHILSYS_ID)
+            if ("confirmatory_code" %in% cols & "CONFIRMATORY_CODE" %in% cols) upload %<>% select(-CONFIRMATORY_CODE)
+            if ("philhealth_no" %in% cols & "PHILHEALTH_NO" %in% cols) upload %<>% select(-PHILHEALTH_NO)
 
             id_col <- switch(issue,
                              reclink     = "MATCH_ID",
+                             merge       = c("MASTER_CID", "USING_CID"),
                              all_issues  = "REC_ID",
                              tabstat     = "VARIABLE",
                              group_dedup = c("grp_id", "CENTRAL_ID"),
@@ -300,10 +302,17 @@ flow_validation <- function(data_env = NULL,
             if (dbExistsTable(lw_conn, schema)) {
                dbRemoveTable(lw_conn, schema)
             }
+            ohasis$upsert(lw_conn, db, table, upload, id_col)
 
-            if (nrow(upload) > 0) {
-               ohasis$upsert(lw_conn, db, table, upload, id_col)
-            }
+            # update version
+            version <- tibble(
+               surveillance = surv_name,
+               indicator    = process_step,
+               issue        = issue,
+               period       = report_period,
+               last_update  = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+            )
+            ohasis$upsert(lw_conn, db, "version", version, c("surveillance", "indicator", "issue"))
          }
          dbDisconnect(lw_conn)
 
