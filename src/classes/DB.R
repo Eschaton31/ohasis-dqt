@@ -13,7 +13,8 @@ DB <- setRefClass(
       ref_country   = "data.frame",
       ref_faci      = "data.frame",
       ref_faci_code = "data.frame",
-      ref_staff     = "data.frame"
+      ref_staff     = "data.frame",
+      slack_id      = "character"
    ),
    methods  = list(
       initialize        = function(ref_yr = NULL, ref_mo = NULL, title = NULL, update = NULL) {
@@ -95,6 +96,8 @@ DB <- setRefClass(
 
          dbDisconnect(db_conn)
          dbDisconnect(lw_conn)
+
+         .self$slack_id <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
 
          log_success("OHASIS initialized!")
       },
@@ -256,10 +259,12 @@ DB <- setRefClass(
                   stri_detect_fixed(Var1, "x_age_c") ~ "VARCHAR(9) NULL COLLATE 'utf8_general_ci'",
                   stri_detect_fixed(Var1, "FACI") ~ "CHAR(6) NULL COLLATE 'utf8_general_ci'",
                   stri_detect_fixed(Var1, "SOURCE") ~ "CHAR(6) NULL COLLATE 'utf8_general_ci'",
+                  stri_detect_fixed(Var1, "remarks") ~ "TEXT NULL COLLATE 'utf8_general_ci'",
+                  stri_detect_fixed(Var1, "REMARKS") ~ "TEXT NULL COLLATE 'utf8_general_ci'",
                   Mode == "numeric" & Class == "Date" ~ "DATE NULL DEFAULT NULL",
                   Mode == "numeric" & Class == "POSIXct" ~ "DATETIME NULL DEFAULT NULL",
                   Mode == "numeric" ~ "INT(11) NULL DEFAULT NULL",
-                  Mode == "character" ~ "VARCHAR(255) NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
+                  Mode == "character" ~ "VARCHAR(150) NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
                   TRUE ~ NA_character_
                ),
                SQL  = paste0("`", Var1, "` ", Type),
