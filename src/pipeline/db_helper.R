@@ -567,24 +567,34 @@ batch_px_ids <- function(data, px_id, faci_id, row_ids) {
    data %<>%
       select(-matches(pid_col)) %>%
       mutate(
-         SEED_FACI = { { faci_id } }
+         SEED_FACI = {{faci_id}}
       )
+
 
    gen_pid <- function(data) {
       data %<>% mutate(OHASIS_ID = NA_character_)
       letters <- stri_c(collapse = "", strrep(LETTERS[1:26], 5))
       numbers <- strrep("0123456789", 5)
+
+      pb <- progress_bar$new(format = ":current of :total rows | [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = nrow(data), width = 100, clear = FALSE)
+      pb$tick(0)
       for (i in seq_len(nrow(data))) {
          letters <- stri_rand_shuffle(letters)
          letter  <- StrLeft(letters, 1)
          numbers <- stri_rand_shuffle(numbers)
          number  <- StrLeft(numbers, 3)
 
+         date <- Sys.time()
+         if ("RECORD_DATE" %in% names(data)) {
+            date <- as.POSIXct(data[i,]$RECORD_DATE)
+         }
+
          ohasis_id <- stri_c(letter, number)
          ohasis_id <- stri_rand_shuffle(ohasis_id)
-         ohasis_id <- stri_c(format(Sys.time(), "%Y%m%d"), data[i,]$SEED_FACI, ohasis_id)
+         ohasis_id <- stri_c(format(date, "%Y%m%d"), data[i,]$SEED_FACI, ohasis_id)
 
          data[i,]$OHASIS_ID <- ohasis_id
+         pb$tick(1)
       }
 
       # data %<>%
@@ -640,7 +650,7 @@ batch_px_ids <- function(data, px_id, faci_id, row_ids) {
    data %<>%
       select(-SEED_FACI) %>%
       rename(
-         { { px_id } } := OHASIS_ID
+         {{px_id}} := OHASIS_ID
       )
 
    return(data)
@@ -652,13 +662,15 @@ batch_rec_ids <- function(data, rec_id, user_id, row_ids) {
    data %<>%
       select(-matches(rid_col)) %>%
       mutate(
-         CREDS_ID = { { user_id } }
+         CREDS_ID = {{user_id}}
       )
 
    gen_rid <- function(data) {
       data %<>% mutate(RECORD_ID = NA_character_)
       letters <- stri_c(collapse = "", strrep(LETTERS[1:26], 5))
       numbers <- strrep("0123456789", 5)
+
+      pb <- progress_bar$new(format = ":current of :total rows | [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = nrow(data), width = 100, clear = FALSE)
       for (i in seq_len(nrow(data))) {
          letters <- stri_rand_shuffle(letters)
          letter  <- StrLeft(letters, 2)
@@ -670,6 +682,8 @@ batch_rec_ids <- function(data, rec_id, user_id, row_ids) {
          rec_id <- stri_c(format(Sys.time(), "%Y%m%d%H"), rec_id, data[i,]$CREDS_ID)
 
          data[i,]$RECORD_ID <- rec_id
+
+         pb$tick(1)
       }
       return(data)
    }
@@ -709,7 +723,7 @@ batch_rec_ids <- function(data, rec_id, user_id, row_ids) {
    data %<>%
       select(-CREDS_ID) %>%
       rename(
-         { { rec_id } } := RECORD_ID
+         {{rec_id}} := RECORD_ID
       )
 
    return(data)
@@ -959,4 +973,135 @@ change_rhivda_code <- function(rec_id) {
    update_credentials(rec_id)
    dbDisconnect(conn)
    log_success("Done.")
+}
+
+oh_new_patient <- function(faci_id,
+                           first = NA_character_,
+                           middle = NA_character_,
+                           last = NA_character_,
+                           suffix = NA_character_,
+                           birthdate = NA_character_,
+                           sex = NA_character_,
+                           confirmatory_code = NA_character_,
+                           uic = NA_character_,
+                           patient_code = NA_character_,
+                           philhealth = NA_character_,
+                           mobile = NA_character_,
+                           email = NA_character_) {
+   db_conn    <- ohasis$conn("db")
+   patient_id <- oh_px_id(db_conn, "130023")
+   rec_id     <- oh_rec_id(db_conn, Sys.getenv("OH_USER_ID"))
+   sex        <- toupper(sex)
+   sex        <- case_when(
+      sex %in% c("1", "MALE") ~ "1",
+      sex %in% c("2", "FEMALE") ~ "2",
+   )
+   upload     <- tibble(
+      REC_ID            = rec_id,
+      PATIENT_ID        = patient_id,
+      FACI_ID           = faci_id,
+      SUB_FACI_ID       = NA_character_,
+      FIRST             = first,
+      MIDDLE            = middle,
+      LAST              = last,
+      SUFFIX            = suffix,
+      BIRTHDATE         = birthdate,
+      SEX               = sex,
+      CONFIRMATORY_CODE = confirmatory_code,
+      UIC               = uic,
+      PATIENT_CODE      = patient_code,
+      PHILHEALTH_NO     = philhealth,
+      CLIENT_MOBILE     = mobile,
+      CLIENT_EMAIL      = email,
+      DISEASE           = "101000",
+      MODULE            = "0",
+      RECORD_DATE       = format(Sys.time(), "%Y-%m-%d"),
+      CREATED_BY        = Sys.getenv("OH_USER_ID"),
+      CREATED_AT        = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+   )
+
+   tables           <- list()
+   tables$px_record <- list(
+      name = "px_record",
+      pk   = c("REC_ID", "PATIENT_ID"),
+      data = upload %>%
+         select(
+            REC_ID,
+            PATIENT_ID,
+            FACI_ID,
+            SUB_FACI_ID,
+            RECORD_DATE,
+            DISEASE,
+            MODULE,
+            CREATED_BY,
+            CREATED_AT,
+         )
+   )
+
+   tables$px_info <- list(
+      name = "px_info",
+      pk   = c("REC_ID", "PATIENT_ID"),
+      data = upload %>%
+         select(
+            REC_ID,
+            PATIENT_ID,
+            CONFIRMATORY_CODE,
+            UIC,
+            PATIENT_CODE,
+            SEX,
+            BIRTHDATE,
+            CREATED_BY,
+            CREATED_AT,
+         )
+   )
+
+   tables$px_name <- list(
+      name = "px_name",
+      pk   = c("REC_ID", "PATIENT_ID"),
+      data = upload %>%
+         select(
+            REC_ID,
+            PATIENT_ID,
+            FIRST,
+            MIDDLE,
+            LAST,
+            CREATED_BY,
+            CREATED_AT,
+         )
+   )
+
+   tables$px_contact <- list(
+      name = "px_contact",
+      pk   = c("REC_ID", "CONTACT_TYPE"),
+      data = upload %>%
+         select(
+            REC_ID,
+            CREATED_BY,
+            CREATED_AT,
+            CLIENT_MOBILE,
+            CLIENT_EMAIL
+         ) %>%
+         pivot_longer(
+            cols      = c(CLIENT_MOBILE, CLIENT_EMAIL),
+            names_to  = "CONTACT_TYPE",
+            values_to = "CONTACT"
+         ) %>%
+         mutate(
+            CONTACT_TYPE = case_when(
+               CONTACT_TYPE == "CLIENT_MOBILE" ~ "1",
+               CONTACT_TYPE == "CLIENT_EMAIL" ~ "2",
+               TRUE ~ CONTACT_TYPE
+            )
+         )
+   )
+
+   lapply(tables, function(ref, db_conn) {
+      log_info("Uploading {green(ref$name)}.")
+      table_space <- Id(schema = "ohasis_interim", table = ref$name)
+      dbxUpsert(db_conn, table_space, ref$data, ref$pk)
+      # dbExecute(db_conn, glue("DELETE FROM ohasis_interim.{ref$name} WHERE REC_ID IN (?)"), params = list(unique(ref$data$REC_ID)))
+   }, db_conn)
+   dbDisconnect(db_conn)
+
+   return(patient_id)
 }
