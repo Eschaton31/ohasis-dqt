@@ -182,11 +182,7 @@ standardize_data <- function(initial, params) {
    data <- initial %>%
       mutate(
          # generate idnum
-         idnum                     = if_else(
-            condition = is.na(IDNUM),
-            true      = params$latest_idnum + row_number(),
-            false     = as.integer(IDNUM)
-         ),
+         idnum                     = coalesce(IDNUM, params$latest_idnum + row_number()),
 
          # report date
          year                      = params$yr,
