@@ -110,7 +110,7 @@ update_dataset <- function(params, corr, reprocess) {
    log_info("Getting previous datasets.")
    official       <- list()
    official$old   <- ohasis$load_old_dta(
-      path            = hs_data("harp_dx", "reg", params$prev_yr, ohasis$prev_mo),
+      path            = hs_data("harp_dx", "reg", params$prev_yr, params$prev_mo),
       corr            = corr$old_reg,
       warehouse_table = "harp_dx_old",
       id_col          = c("idnum" = "integer"),
