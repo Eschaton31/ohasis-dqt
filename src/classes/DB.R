@@ -1,64 +1,59 @@
 ##  DBMS Class -----------------------------------------------------------------
 
-# Database accessor
-DB <- setRefClass(
-   Class    = "DB",
-   contains = "Project",
-   fields   = list(
-      timestamp     = "character",
-      output_title  = "character",
-      internet      = "data.frame",
-      db_checks     = "list",
-      ref_addr      = "data.frame",
-      ref_country   = "data.frame",
-      ref_faci      = "data.frame",
-      ref_faci_code = "data.frame",
-      ref_staff     = "data.frame",
-      slack_id      = "character"
-   ),
-   methods  = list(
-      initialize        = function(ref_yr = NULL, ref_mo = NULL, title = NULL, update = NULL) {
-         "This method is called when you create an instance of this class."
+DB <- R6Class(
+   "DB",
+   public = list(
+      slack_id          = NA_character_,
+      timestamp         = NA_character_,
+      output_title      = NA_character_,
+      yr                = NA_character_,
+      mo                = NA_character_,
+      ym                = NA_character_,
+      run_title         = NA_character_,
+      next_date         = NA_character_,
+      db_checks         = list(),
+      ref_addr          = tibble(),
+      ref_country       = tibble(),
+      ref_faci          = tibble(),
+      ref_faci_code     = tibble(),
+      ref_staff         = tibble(),
+
+      initialize        = function(yr = NULL, mo = NULL, title = NULL, update = NULL) {
+         self$mo        <- ifelse(!is.null(mo), mo, input(prompt = "What is the reporting month?", max.char = 2))
+         self$yr        <- ifelse(!is.null(yr), yr, input(prompt = "What is the reporting year?", max.char = 4))
+         self$ym        <- stri_c(self$yr, ".", self$mo)
+         self$run_title <- ifelse(!is.null(title), title, input(prompt = "Label the current run (brief, concise)"))
+
+         # next date
+         dates          <- self$get_date_ref("next", yr, mo)
+         next_mo        <- dates$mo
+         next_yr        <- dates$yr
+         self$next_date <- as.Date(paste(sep = "-", next_yr, next_mo, "01"))
 
          # get current time
-         timestamp    <<- format(Sys.time(), "%Y.%m.%d.%H%M%S")
-         output_title <<- paste0(timestamp, "-", Sys.getenv("LW_USER"))
-
-         # set the report
-         callSuper()$set_report(ref_yr, ref_mo, title)
-
-         # check internet speed
-         # check_speed <- input(
-         #    prompt  = "Run the speed test?",
-         #    options = c("1" = "yes", "2" = "no"),
-         #    default = "1"
-         # )
-         # check_speed <- substr(toupper(check_speed), 1, 1)
-         # if (check_speed == "1") {
-         #    log_info("Checking internet speed.")
-         #    internet <<- .self$speedtest()
-         #    log_info("Current download speed: {underline(red(internet$speed_down_megabits_sec))} Mbps")
-         #    log_info("Current upload speed: {underline(red(internet$speed_up_megabits_sec))} Mbps")
-         # }
+         self$timestamp    <- format(Sys.time(), "%Y.%m.%d.%H%M%S")
+         self$output_title <- paste0(self$timestamp, "-", Sys.getenv("LW_USER"))
 
          # check database consistency
          log_info("Checking database for inconsistencies.")
-         db_checks <<- .self$check_consistency()
+         self$check_consistency()
 
          # update data lake
-         .self$update_lake(update)
+         self$update_lake(update)
 
          # download latest references before final initialization
          log_info("Downloading references.")
-         db_conn           <- .self$conn("db")
-         lw_conn           <- .self$conn("lw")
-         .self$ref_addr    <<- dbTable(lw_conn, "ohasis_lake", "ref_addr", name = "ref_addr")
-         .self$ref_country <<- dbTable(lw_conn, "ohasis_interim", "addr_country", name = "addr_country")
-         .self$ref_faci    <<- dbTable(lw_conn, "ohasis_lake", "ref_faci", name = "ref_faci")
-         .self$ref_staff   <<- dbTable(lw_conn, "ohasis_lake", "ref_staff", name = "ref_staff")
+         db_conn          <- self$conn("db")
+         lw_conn          <- self$conn("lw")
+         self$ref_country <- QB$new(db_conn)$from("ohasis_interim.addr_country")$get()
+         self$ref_addr    <- QB$new(lw_conn)$from("ohasis_lake.ref_addr")$get()
+         self$ref_faci    <- QB$new(lw_conn)$from("ohasis_lake.ref_faci")$get()
+         self$ref_staff   <- QB$new(lw_conn)$from("ohasis_lake.ref_staff")$get()
+         dbDisconnect(db_conn)
+         dbDisconnect(lw_conn)
 
          # subset of ref_faci
-         .self$ref_faci_code <<- ref_faci %>%
+         self$ref_faci_code <- self$ref_faci %>%
             filter(!is.na(FACI_CODE)) %>%
             mutate(
                branch_priority = case_when(
@@ -94,51 +89,57 @@ DB <- setRefClass(
             ) %>%
             relocate(FACI_CODE, SUB_FACI_CODE, .before = 1)
 
-         dbDisconnect(db_conn)
-         dbDisconnect(lw_conn)
-
-         .self$slack_id <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
+         self$slack_id <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
 
          log_success("OHASIS initialized!")
       },
 
-      # refreshes db connection
-      conn              = function(db = NULL) {
-         # live database
-         if (db == "db")
-            db_conn <- dbConnect(
-               RMariaDB::MariaDB(),
-               user     = Sys.getenv("DB_USER"),
-               password = Sys.getenv("DB_PASS"),
-               host     = Sys.getenv("DB_HOST"),
-               port     = Sys.getenv("DB_PORT"),
-               timeout  = -1
-            )
+      # get reference dates for the report
+      get_date_ref      = function(type = NULL, yr = NULL, mo = NULL) {
+         # next dates
+         if (type == 'next') {
+            dateMo <- ifelse(as.numeric(mo) == 12, '01', stringi::stri_pad_left(as.character(as.numeric(mo) + 1), 2, '0'))
+            dateYr <- ifelse(as.numeric(mo) == 12, as.numeric(yr) + 1, as.numeric(yr)) %>% as.character()
+         }
 
-         # live data lake / warehouse
-         if (db == "lw")
-            db_conn <- dbConnect(
-               RMariaDB::MariaDB(),
-               user     = Sys.getenv("LW_USER"),
-               password = Sys.getenv("LW_PASS"),
-               host     = Sys.getenv("LW_HOST"),
-               port     = Sys.getenv("LW_PORT"),
-               timeout  = -1
-            )
-         return(db_conn)
+         # prev dates
+         if (type == 'prev') {
+            dateMo <- ifelse(as.numeric(mo) == 1, '12', stringi::stri_pad_left(as.character(as.numeric(mo) - 1), 2, '0'))
+            dateYr <- ifelse(as.numeric(mo) == 1, as.numeric(yr) - 1, as.numeric(yr)) %>% as.character()
+         }
+
+         dateReturn <- list(mo = dateMo, yr = dateYr)
+
+         return(dateReturn)
       },
 
-      # update lake
-      update_lake       = function(update = NULL) {
-         update <- ifelse(
-            !is.null(update),
-            update,
-            input(
-               prompt  = "Update the data lake?",
-               options = c("1" = "yes", "2" = "no", "3" = "all"),
-               default = "1"
+      # refreshes db connection
+      conn              = function(db = NULL) {
+         return(
+            switch(
+               db,
+               db = dbConnect(
+                  RMariaDB::MariaDB(),
+                  user     = Sys.getenv("DB_USER"),
+                  password = Sys.getenv("DB_PASS"),
+                  host     = Sys.getenv("DB_HOST"),
+                  port     = Sys.getenv("DB_PORT"),
+                  timeout  = -1
+               ),
+               lw = dbConnect(
+                  RMariaDB::MariaDB(),
+                  user     = Sys.getenv("LW_USER"),
+                  password = Sys.getenv("LW_PASS"),
+                  host     = Sys.getenv("LW_HOST"),
+                  port     = Sys.getenv("LW_PORT"),
+                  timeout  = -1
+               )
             )
          )
+      },
+
+      update_lake       = function(update = NULL) {
+         update <- ifelse(!is.null(update), update, input("Update the data lake?", c("1" = "yes", "2" = "no", "3" = "all"), "1"))
          if (update %in% c("1", "3")) {
             # get required refresh data & upsert only
             for (update_type in (c("refresh", "upsert"))) {
@@ -150,7 +151,7 @@ DB <- setRefClass(
 
                lake_table <- function(table_name) {
                   table_name <- stri_replace_last_fixed(table_name, ".R", "")
-                  .self$data_factory("lake", table_name, update_type, default_yes)
+                  self$data_factory("lake", table_name, update_type, default_yes)
                }
 
                lake_dir <- file.path(getwd(), "src", "data_lake", update_type)
@@ -166,17 +167,20 @@ DB <- setRefClass(
 
       # upsert data
       upsert            = function(db_conn = NULL, db_type = NULL, table_name = NULL, data = NULL, id_col = NULL) {
-         if (db_type %in% c("warehouse", "lake", "api"))
-            db_name <- paste0("ohasis_", db_type)
-         else
-            db_name <- db_type
+         db_name <- switch(
+            db_type,
+            warehouse = stri_c("ohasis_", db_type),
+            lake      = stri_c("ohasis_", db_type),
+            api       = stri_c("ohasis_", db_type),
+            db_type
+         )
 
          table_space <- Id(schema = db_name, table = table_name)
          table_sql   <- DBI::SQL(paste0('`', db_name, '`.`', table_name, '`'))
 
          # check if table exists, if not create
          if (!dbExistsTable(db_conn, table_space)) {
-            sql <- .self$create(db_name, table_name, data, id_col)
+            sql <- self$create(db_name, table_name, data, id_col)
             dbExecute(db_conn, sql)
          }
 
@@ -188,7 +192,7 @@ DB <- setRefClass(
             df <- dbReadTable(db_conn, table_space)
 
             # recreate table using new columns
-            sql <- .self$create(db_name, table_name, data, id_col)
+            sql <- self$create(db_name, table_name, data, id_col)
             dbExecute(db_conn, sql)
 
             # re-insert data
@@ -328,8 +332,8 @@ DB <- setRefClass(
 
             # open connections
             log_info("Opening connections.")
-            db_conn      <- .self$conn("db")
-            lw_conn      <- .self$conn("lw")
+            db_conn      <- self$conn("db")
+            lw_conn      <- self$conn("lw")
             table_exists <- dbExistsTable(lw_conn, table_space)
 
             # data for deletion (warehouse)
@@ -383,7 +387,7 @@ DB <- setRefClass(
             if (!is.null(to)) {
                snapshot_new <- to
             } else {
-               snapshot_new <- str_split(.self$timestamp, "\\.")[[1]]
+               snapshot_new <- str_split(self$timestamp, "\\.")[[1]]
                snapshot_new <- paste0(snapshot_new[1], "-",
                                       snapshot_new[2], "-",
                                       snapshot_new[3], " ",
@@ -409,7 +413,7 @@ DB <- setRefClass(
                   db_type == "warehouse" &&
                   table_name != "id_registry") {
                   dbDisconnect(db_conn)
-                  db_conn <- .self$conn("lw")
+                  db_conn <- self$conn("lw")
                }
                n_rows <- dbGetQuery(db_conn, query_nrow, params = params)$nrow
                n_rows <- ifelse(length(n_rows) > 1, length(n_rows), as.numeric(n_rows))
@@ -462,7 +466,7 @@ DB <- setRefClass(
 
             # keep connection alive
             dbDisconnect(lw_conn)
-            lw_conn <- .self$conn("lw")
+            lw_conn <- self$conn("lw")
 
             if (continue > 0) {
                # check if there is data for deletion
@@ -472,13 +476,13 @@ DB <- setRefClass(
                }
 
                log_info("Uploading new data.")
-               .self$upsert(lw_conn, db_type, table_name, object, id_col)
+               self$upsert(lw_conn, db_type, table_name, object, id_col)
                # update reference
                df <- data.frame(
                   user      = Sys.getenv("LW_USER"),
-                  report_yr = .self$yr,
-                  report_mo = .self$mo,
-                  run_title = paste0(.self$timestamp, " (", .self$run_title, ")"),
+                  report_yr = self$yr,
+                  report_mo = self$mo,
+                  run_title = paste0(self$timestamp, " (", self$run_title, ")"),
                   table     = table_name,
                   rows      = nrow(object),
                   snapshot  = snapshot_new
@@ -508,7 +512,7 @@ DB <- setRefClass(
       # get snapshot
       get_snapshots     = function(db_type = NULL, table_name = NULL) {
          snapshot    <- list()
-         db_conn     <- .self$conn("lw")
+         db_conn     <- self$conn("lw")
          db_name     <- paste0("ohasis_", db_type)
          table_space <- Id(schema = db_name, table = table_name)
 
@@ -546,9 +550,8 @@ DB <- setRefClass(
          return(snapshot)
       },
 
-      # consistency checks for live database
       check_consistency = function() {
-         db_conn   <- .self$conn("db")
+         db_conn   <- self$conn("db")
          checklist <- list()
 
          # get list of queries
@@ -583,26 +586,10 @@ DB <- setRefClass(
          } else {
             log_success("DB is clean.")
          }
-         return(checklist)
-      },
 
-      # speedtest
-      speedtest         = function() {
-         data <- shell(paste0(file.path(getwd(), getwd(), "src", "speedtest.exe"), " -f tsv --output-header -u Mbps"), intern = TRUE)
-         data <- read.table(text = data, sep = "\t", header = TRUE) %>%
-            mutate(
-               speed_down_megabits_sec = download / 125000,
-               speed_up_megabits_sec   = upload / 125000
-            ) %>%
-            select(
-               server      = server.name,
-               latency_ms  = latency,
-               packet_loss = packet.loss,
-               speed_down_megabits_sec,
-               speed_up_megabits_sec
-            )
+         self$db_checks <- checklist
 
-         return(data)
+         invisible(self)
       },
 
       # method to decode address data
@@ -657,7 +644,7 @@ DB <- setRefClass(
                )
             ) %>%
             left_join(
-               y  = .self$ref_addr %>%
+               y  = self$ref_addr %>%
                   select(
                      PSGC_REG,
                      PSGC_PROV,
@@ -724,7 +711,7 @@ DB <- setRefClass(
             ) %>%
             # get referenced data
             left_join(
-               y  = .self$ref_faci %>%
+               y  = self$ref_faci %>%
                   select(
                      {{faci_id}}     := FACI_ID,
                      {{sub_faci_id}} := SUB_FACI_ID,
@@ -744,7 +731,7 @@ DB <- setRefClass(
          if (!is.null(addr_names)) {
             names(addr_cols) <- addr_names
             linelist %<>%
-               .self$get_addr(
+               self$get_addr(
                   addr_cols,
                   return_type
                ) %>%
@@ -762,7 +749,7 @@ DB <- setRefClass(
 
          data %<>%
             left_join(
-               y  = .self$ref_staff %>%
+               y  = self$ref_staff %>%
                   select(
                      !!coded_user := STAFF_ID,
                      !!named_user := STAFF_NAME
@@ -772,73 +759,6 @@ DB <- setRefClass(
             # move then rename to old version
             relocate(!!named_user, .after = !!coded_user) %>%
             select(-as.character(coded_user))
-      },
-
-      # method to pull client records from OHASIS
-      get_patient       = function(pid = NULL) {
-         lw_conn <- .self$conn("lw")
-         db_conn <- .self$conn("db")
-
-         # get central id if available
-         cidQuery <- "SELECT CENTRAL_ID FROM ohasis_interim.registry WHERE PATIENT_ID = ?"
-         cidData  <- dbxSelect(db_conn, cidQuery, pid)$CENTRAL_ID
-
-         # get list
-         pidData <- pid
-         if (length(cidData) > 0) {
-            pidQuery <- "SELECT PATIENT_ID FROM ohasis_interim.registry WHERE CENTRAL_ID = ?"
-            pidData  <- dbxSelect(db_conn, pidQuery, cidData)$PATIENT_ID
-         }
-
-         finalQuery <- "SELECT * FROM ohasis_lake.px_pii WHERE PATIENT_ID IN (?)"
-         finalData  <- dbxSelect(lw_conn, finalQuery, list(pidData))
-
-         finalData %<>%
-            # convert addresses
-            .self$get_addr(
-               c(
-                  PERM_REG  = "PERM_PSGC_REG",
-                  PERM_PROV = "PERM_PSGC_PROV",
-                  PERM_MUNC = "PERM_PSGC_MUNC"
-               ),
-               "name"
-            ) %>%
-            .self$get_addr(
-               c(
-                  CURR_REG  = "CURR_PSGC_REG",
-                  CURR_PROV = "CURR_PSGC_PROV",
-                  CURR_MUNC = "CURR_PSGC_MUNC"
-               ),
-               "name"
-            ) %>%
-            .self$get_addr(
-               c(
-                  BIRTH_REG  = "BIRTH_PSGC_REG",
-                  BIRTH_PROV = "BIRTH_PSGC_PROV",
-                  BIRTH_MUNC = "BIRTH_PSGC_MUNC"
-               ),
-               "name"
-            ) %>%
-            # get facility data
-            .self$get_faci(
-               list(RECORD_FACI = c("FACI_ID", "SUB_FACI_ID")),
-               "name"
-            ) %>%
-            # get user data
-            .self$get_staff(c(CREATED = "CREATED_BY")) %>%
-            .self$get_staff(c(UPDATED = "UPDATED_BY")) %>%
-            .self$get_staff(c(DELETED = "DELETED_BY")) %>%
-            # remove unneeded columns
-            select(
-               -starts_with("DEATH_PSGC"),
-               -starts_with("SERVICE_PSGC")
-            ) %>%
-            arrange(RECORD_DATE, MODULE)
-
-         dbDisconnect(lw_conn)
-         dbDisconnect(db_conn)
-
-         return(finalData)
       },
 
       # method to load old dataset
@@ -855,7 +775,7 @@ DB <- setRefClass(
       ) {
          # open connections
          log_info("Opening connections.")
-         db_conn <- .self$conn("lw")
+         db_conn <- self$conn("lw")
          db_name <- "ohasis_warehouse"
 
          # references for old dataset
@@ -938,7 +858,7 @@ DB <- setRefClass(
 
             # upload info
             # .self$upsert(db_conn, "warehouse", warehouse_table, old_dataset, "PATIENT_ID")
-            .self$upsert(db_conn, "warehouse", warehouse_table, old_dataset, names(id_col))
+            self$upsert(db_conn, "warehouse", warehouse_table, old_dataset, names(id_col))
          }
 
          if (reload == "2") {
@@ -967,5 +887,5 @@ DB <- setRefClass(
          log_success("Done.")
          return(old_dataset)
       }
-   )
+   ),
 )
