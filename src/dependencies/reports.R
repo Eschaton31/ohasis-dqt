@@ -30,6 +30,10 @@ waterfall_linelist <- function(start, end) {
 
    old_outcome <- hs_data("harp_tx", "outcome", min_yr, min_mo) %>%
       read_dta(col_select = any_of(cols)) %>%
+      mutate(
+         realhub        = if (max_yr <= 2022) hub else realhub,
+         realhub_branch = if (max_yr <= 2022) NA_character_ else realhub_branch,
+      ) %>%
       faci_code_to_id(
          ohasis$ref_faci_code,
          list(FACI_ID = "realhub", SUB_FACI_ID = "realhub_branch")
@@ -51,6 +55,10 @@ waterfall_linelist <- function(start, end) {
 
    new_outcome <- hs_data("harp_tx", "outcome", max_yr, max_mo) %>%
       read_dta(col_select = any_of(cols)) %>%
+      mutate(
+         realhub        = if (max_yr <= 2022) hub else realhub,
+         realhub_branch = if (max_yr <= 2022) NA_character_ else realhub_branch,
+      ) %>%
       faci_code_to_id(
          ohasis$ref_faci_code,
          list(FACI_ID = "realhub", SUB_FACI_ID = "realhub_branch")
