@@ -3,7 +3,7 @@
 import             <- new.env()
 import$encoding_ss <- as_id("18hh6GZzjnNBidMg9sxOworj2IhbwTUak")
 import$STAFF       <- read_sheet(as_id("1BRohoSaBE73zwRMXQNcWeRf5rC2OcePS64A67ODfxXI"))
-import$ym          <- "2023.10"
+import$ym          <- "2024.03"
 
 
 local(envir = import, {
@@ -380,6 +380,9 @@ local(envir = import, {
       min <- as.character(min(data$CREATED_DATE, na.rm = TRUE))
       max <- as.character(max(data$CREATED_DATE, na.rm = TRUE))
 
+      rec_ids <- data$REC_ID %>% unique()
+      rec_ids <- paste0(rec_ids, collapse = "','")
+
       db                   <- "ohasis_interim"
       db_conn              <- ohasis$conn("db")
       uploaded             <- list()
@@ -389,7 +392,7 @@ local(envir = import, {
          "px_record",
          raw_where = TRUE,
          where     = glue(r"(
-         (DATE(CREATED_AT) BETWEEN '{min}' AND '{max}') AND LEFT(CREATED_BY, 6) = '130000'
+             REC_ID IN ('{rec_ids}')
          )")
       )
       uploaded$px_medicine <- dbTable(
@@ -398,7 +401,7 @@ local(envir = import, {
          "px_medicine",
          raw_where = TRUE,
          where     = glue(r"(
-         REC_ID IN (SELECT REC_ID FROM ohasis_interim.px_record WHERE (DATE(CREATED_AT) BETWEEN '{min}' AND '{max}') AND LEFT(CREATED_BY, 6) = '130000')
+         REC_ID IN ('{rec_ids}')
          )")
       )
 
@@ -510,6 +513,9 @@ local(envir = import, {
    }
 
    tables_wide <- function(standard) {
+
+     stopifnot(nrow(standard) > 0)
+
       wide <- list(
          "px_record"    = c("REC_ID", "PATIENT_ID"),
          "px_info"      = c("REC_ID", "PATIENT_ID"),
@@ -548,6 +554,8 @@ local(envir = import, {
    }
 
    tables_long <- function(standard, encoded) {
+
+     stopifnot(nrow(standard) > 0)
 
       long <- list(
          "px_addr"          = c("REC_ID", "ADDR_TYPE"),
@@ -1089,7 +1097,7 @@ local(envir = import, {
                      select(REC_ID) %>%
                      inner_join(
                         y  = done$px_medicine %>%
-                           filter(is.na(MEDICINE)) %>%
+                           filter(!is.na(MEDICINE)) %>%
                            select(REC_ID),
                         by = "REC_ID"
                      ),
@@ -1103,7 +1111,7 @@ local(envir = import, {
                      select(REC_ID) %>%
                      inner_join(
                         y  = done$px_medicine %>%
-                           filter(is.na(MEDICINE)) %>%
+                           filter(!is.na(MEDICINE)) %>%
                            select(REC_ID),
                         by = "REC_ID"
                      ),
