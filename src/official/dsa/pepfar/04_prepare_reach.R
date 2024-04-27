@@ -233,6 +233,10 @@ generate_disagg <- function(data) {
             use_harpdx == 0 & grepl("yes-", risk_injectdrug) ~ 1,
             TRUE ~ 0
          ),
+         sw              = case_when(
+            stri_detect_fixed(risk_paymentforsex, "yes") ~ 1,
+            TRUE ~ 0
+         ),
          unknown         = case_when(
             transmit == "UNKNOWN" ~ 1,
             risks == "(no data)" ~ 1,
@@ -246,6 +250,18 @@ generate_disagg <- function(data) {
             unknown == 1 ~ "(no data)",
             TRUE ~ "Non-MSM"
          ),
+
+         # for aiha
+         # `KP Population` = case_when(
+         #    pwid == 1 ~ "PWID",
+         #    msm == 1 & tgw == 0 ~ "MSM",
+         #    msm == 1 & tgw == 1 ~ "TGW",
+         #    Sex == "F" & sw == 1 ~ "FSW",
+         #    unknown == 1 ~ "(no data)",
+         #    Sex == "F" ~ "Non-KP Female",
+         #    Sex == "M" ~ "Non-KP Male",
+         #    TRUE ~ "Non-MSM"
+         # ),
 
          # Age Band
          curr_age        = calc_age(coalesce(HARPDX_BIRTHDATE, BIRTHDATE), hts_date),
@@ -440,4 +456,30 @@ generate_disagg <- function(data) {
    p$linelist$reach <- clean_hts(reach, risks) %>%
       tag_indicators() %>%
       generate_disagg()
+
+   p$linelist$reach %<>%
+      left_join(
+         y  = hs_data("harp_dx", "reg", 2023, 9) %>%
+            read_dta(col_select = c(PATIENT_ID, confirm_date)) %>%
+            get_cid(p$forms$id_reg, PATIENT_ID) %>%
+            select(-PATIENT_ID) %>%
+            rename(HARP_CONFIRM_DATE = confirm_date),
+         by = join_by(CENTRAL_ID)
+      ) %>%
+      left_join(
+         y  = hs_data("harp_tx", "reg", 2023, 9) %>%
+            read_dta(col_select = c(PATIENT_ID, artstart_date)) %>%
+            get_cid(p$forms$id_reg, PATIENT_ID) %>%
+            select(-PATIENT_ID) %>%
+            rename(ART_START_DATE = artstart_date),
+         by = join_by(CENTRAL_ID)
+      ) %>%
+      left_join(
+         y  = hs_data("prep", "outcome", 2023, 9) %>%
+            read_dta(col_select = c(PATIENT_ID, prepstart_date)) %>%
+            get_cid(p$forms$id_reg, PATIENT_ID) %>%
+            select(-PATIENT_ID) %>%
+            rename(PREP_START_DATE = prepstart_date),
+         by = join_by(CENTRAL_ID)
+      )
 }
