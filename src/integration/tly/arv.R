@@ -1,8 +1,8 @@
 ##  inputs ---------------------------------------------------------------------
 
-file <- "D:/20240128_tly-arv_disp.rds"
-mo   <- "08"
-yr   <- "2023"
+file <- "D:/20240416_tly-arv_disp.rds"
+mo   <- "03"
+yr   <- "2024"
 
 ##  processing -----------------------------------------------------------------
 
@@ -78,16 +78,17 @@ tly$records <- tly$visits %>%
          ),
       by = join_by(PATIENT_CODE, VISIT_DATE)
    ) %>%
+   mutate(BIRTHDATE = as.Date(BIRTHDATE)) %>%
    select(-PROPH_FLUCANO)
 
 TIMESTAMP <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 tly$records %<>%
-   mutate(BIRTHDATE = as.Date(BIRTHDATE)) %>%
    # retain only not uploaded and those with changes
    filter(!is.na(PATIENT_ID), !is.na(MEDICINE_SUMMARY)) %>%
    anti_join(
       y  = tly$prev_upload,
-      by = join_by(!!!intersect(names(tly$records), names(tly$prev_upload)))
+      # by = join_by(!!!intersect(names(tly$records), names(tly$prev_upload))),
+      by = join_by(REC_ID, VISIT_DATE, MEDICINE_SUMMARY),
    ) %>%
    mutate(
       old_rec    = if_else(!is.na(REC_ID), 1, 0, 0),
