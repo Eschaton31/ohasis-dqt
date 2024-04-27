@@ -33,7 +33,7 @@ dbDisconnect(lw_conn)
 
 ##  new data -------------------------------------------------------------------
 
-tly$hts <- read_rds("D:/20240124_tly-hts.dta") %>%
+tly$hts <- read_rds("D:/20240415_tly-hts.dta") %>%
    rename(
       PATIENT_CODE  = CLIENT_CODE,
       PROVIDER      = PROVIDER_ID,
@@ -423,6 +423,9 @@ tly$import %<>%
       SERVICE_TYPE = keep_code(SERVICE_TYPE),
       PRIME        = 0
    )
+
+tly$import %<>%
+   distinct(REC_ID, PATIENT_ID, .keep_all = TRUE)
 
 tly$tables <- deconstruct_hts(tly$import %>% select(-CURR_MUNC, -PERM_MUNC, -SERVICE))
 wide       <- c("px_test_refuse", "px_other_service", "px_reach", "px_med_profile", "px_test_reason")
