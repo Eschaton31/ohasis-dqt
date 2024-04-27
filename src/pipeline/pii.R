@@ -127,3 +127,188 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
 
    return(data)
 }
+
+get_latest_pii <- function(data, pid_col, pii_cols) {
+   missing <- data %>%
+      filter(if_any(any_of(pii_cols), ~is.na(.)))
+
+
+   if (nrow(missing) > 0) {
+
+      lw_conn <- ohasis$conn("lw")
+      pids    <- QB$new(lw_conn)$
+         select("PATIENT_ID")$
+         from("ohasis_warehouse.id_registry")$
+         whereIn("CENTRAL_ID", missing$CENTRAL_ID)$
+         get()
+      pids    <- unique(c(pids$PATIENT_ID, missing$PATIENT_ID))
+
+      pii <- QB$new(lw_conn)
+      for (col in pii_cols) {
+         pii$selectRaw(stri_c("px_pii.", col))
+      }
+      pii$selectRaw("px_pii.SNAPSHOT")
+      pii$selectRaw("COALESCE(id_registry.CENTRAL_ID, px_pii.PATIENT_ID) AS CENTRAL_ID")
+      pii$from("ohasis_lake.px_pii")
+      pii$leftJoin("ohasis_warehouse.id_registry", "px_pii.PATIENT_ID", "=", "id_registry.PATIENT_ID")
+      pii$whereIn("PATIENT_ID", pids)
+      pii$where(function(query = QB$new(lw_conn)) {
+         for (col in pii_cols) {
+            query$whereNotNull(col, boolean = "or")
+         }
+         query$whereNested
+      })
+      pii <- pii$get()
+      dbDisconnect(lw_conn)
+
+      pii %<>%
+         mutate_all(~as.character(.))
+
+      if ("PERM_PSGC_MUNC" %in% pii_cols) {
+         pii_cols <- pii_cols[!(pii_cols %in% c("PERM_PSGC_REG", "PERM_PSGC_PROV", "PERM_PSGC_MUNC"))]
+         pii_cols <- append(pii_cols, "PERM_PSGC")
+         data %<>%
+            unite(
+               col    = "PERM_PSGC",
+               sep    = "|",
+               PERM_PSGC_REG,
+               PERM_PSGC_PROV,
+               PERM_PSGC_MUNC,
+               na.rm  = TRUE,
+               remove = TRUE
+            )
+         pii %<>%
+            unite(
+               col    = "PERM_PSGC",
+               sep    = "|",
+               PERM_PSGC_REG,
+               PERM_PSGC_PROV,
+               PERM_PSGC_MUNC,
+               na.rm  = TRUE,
+               remove = TRUE
+            )
+      }
+
+      if ("CURR_PSGC_MUNC" %in% pii_cols) {
+         pii_cols <- pii_cols[!(pii_cols %in% c("CURR_PSGC_REG", "CURR_PSGC_PROV", "CURR_PSGC_MUNC"))]
+         pii_cols <- append(pii_cols, "CURR_PSGC")
+         data %<>%
+            unite(
+               col    = "CURR_PSGC",
+               sep    = "|",
+               CURR_PSGC_REG,
+               CURR_PSGC_PROV,
+               CURR_PSGC_MUNC,
+               na.rm  = TRUE,
+               remove = TRUE
+            )
+         pii %<>%
+            unite(
+               col    = "CURR_PSGC",
+               sep    = "|",
+               CURR_PSGC_REG,
+               CURR_PSGC_PROV,
+               CURR_PSGC_MUNC,
+               na.rm  = TRUE,
+               remove = TRUE
+            )
+      }
+
+      if ("BIRTH_PSGC_MUNC" %in% pii_cols) {
+         pii_cols <- pii_cols[!(pii_cols %in% c("BIRTH_PSGC_REG", "BIRTH_PSGC_PROV", "BIRTH_PSGC_MUNC"))]
+         pii_cols <- append(pii_cols, "BIRTH_PSGC")
+         data %<>%
+            unite(
+               col    = "BIRTH_PSGC",
+               sep    = "|",
+               BIRTH_PSGC_REG,
+               BIRTH_PSGC_PROV,
+               BIRTH_PSGC_MUNC,
+               na.rm  = TRUE,
+               remove = TRUE
+            )
+         pii %<>%
+            unite(
+               col    = "BIRTH_PSGC",
+               sep    = "|",
+               BIRTH_PSGC_REG,
+               BIRTH_PSGC_PROV,
+               BIRTH_PSGC_MUNC,
+               na.rm  = TRUE,
+               remove = TRUE
+            )
+      }
+
+      pivot_cols <- names(pii)
+      pivot_cols <- pivot_cols[!(pivot_cols %in% c("CENTRAL_ID", "SNAPSHOT"))]
+
+      pii %<>%
+         pivot_longer(all_of(pivot_cols)) %>%
+         mutate(
+            value = na_if(value, ""),
+            sort  = if_else(!is.na(value), 1, 9999, 9999)
+         ) %>%
+         filter(!is.na(value)) %>%
+         arrange(sort, desc(SNAPSHOT)) %>%
+         distinct(CENTRAL_ID, name, .keep_all = TRUE) %>%
+         pivot_wider(
+            id_cols     = CENTRAL_ID,
+            names_from  = name,
+            values_from = value
+         )
+
+      if ("BIRTHDATE" %in% pii_cols) {
+         pii %<>%
+            mutate(
+               BIRTHDATE = as.Date(BIRTHDATE)
+            )
+      }
+
+      for (col in pii_cols) {
+         col_name <- as.name(col)
+         data %<>%
+            left_join(
+               y  = pii %>%
+                  select(CENTRAL_ID, CORRECT_PII = {{col_name}}),
+               by = join_by(CENTRAL_ID)
+            ) %>%
+            mutate(
+               {{col_name}} := coalesce({{col_name}}, CORRECT_PII)
+            ) %>%
+            select(-CORRECT_PII)
+      }
+
+
+      if ("PERM_PSGC" %in% pii_cols) {
+         data %<>%
+            separate_wider_delim(
+               PERM_PSGC,
+               "|",
+               names   = c("PERM_PSGC_REG", "PERM_PSGC_PROV", "PERM_PSGC_MUNC"),
+               too_few = "align_start"
+            )
+      }
+
+      if ("CURR_PSGC" %in% pii_cols) {
+         data %<>%
+            separate_wider_delim(
+               CURR_PSGC,
+               "|",
+               names   = c("CURR_PSGC_REG", "CURR_PSGC_PROV", "CURR_PSGC_MUNC"),
+               too_few = "align_start"
+            )
+      }
+
+      if ("BIRTH_PSGC" %in% pii_cols) {
+         data %<>%
+            separate_wider_delim(
+               BIRTH_PSGC,
+               "|",
+               names   = c("BIRTH_PSGC_REG", "BIRTH_PSGC_PROV", "BIRTH_PSGC_MUNC"),
+               too_few = "align_start"
+            )
+      }
+   }
+
+   return(data)
+}
