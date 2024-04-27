@@ -32,34 +32,41 @@ dedup_download <- function() {
 
    # central id reference
    log_info("Downloading {green('id_registry')}.")
-   dedup$id_registry <- dbTable(
-      lw_conn,
-      "ohasis_warehouse",
-      "id_registry"
-   ) %>%
+   dedup$id_registry <- QB$new(lw_conn)$
+      from("ohasis_warehouse.id_registry")$
+      get() %>%
       select(-SNAPSHOT) %>%
       mutate_if(
          .predicate = is.POSIXct,
          ~as.character(.)
       )
 
+   # dedup$id_registry <- dbTable(
+   #    lw_conn,
+   #    "ohasis_warehouse",
+   #    "id_registry"
+   # ) %>%
+   #    select(-SNAPSHOT) %>%
+   #    mutate_if(
+   #       .predicate = is.POSIXct,
+   #       ~as.character(.)
+   #    )
+
    # deleted records reference
    log_info("Downloading {green('deleted')}.")
-   dedup$deleted <- dbTable(
-      db_conn,
-      "ohasis_interim",
-      "px_record",
-      raw_where = TRUE,
-      where     = "DELETED_AT IS NOT NULL",
-      cols      = "REC_ID"
-   )
+   dedup$deleted <- QB$new(db_conn)$
+      select("REC_ID")$
+      from("ohasis_interim.px_record")$
+      whereNotNull("DELETED_AT")$
+      get()
 
    # download data based on limits (min, max)
-   download <- input(
-      prompt  = "Do you want to download {green('new PIIs')}?",
-      options = c("1" = "yes", "2" = "no"),
-      default = "1"
-   )
+   # download <- input(
+   #    prompt  = "Do you want to download {green('new PIIs')}?",
+   #    options = c("1" = "yes", "2" = "no"),
+   #    default = "1"
+   # )
+   download <- "1"
    if (download == "1") {
       log_info("Downloading {green('pii')}.")
       new_data <- tracked_select(
@@ -99,6 +106,41 @@ WHERE pii.DELETED_AT IS NULL
          list(min, max)
       )
 
+      new_data %<>%
+         ohasis$get_addr(
+            c(
+               PERM_REG  = "PERM_PSGC_REG",
+               PERM_PROV = "PERM_PSGC_PROV",
+               PERM_MUNC = "PERM_PSGC_MUNC"
+            ),
+            "nhsss"
+         ) %>%
+         ohasis$get_addr(
+            c(
+               CURR_REG  = "CURR_PSGC_REG",
+               CURR_PROV = "CURR_PSGC_PROV",
+               CURR_MUNC = "CURR_PSGC_MUNC"
+            ),
+            "nhsss"
+         ) %>%
+         mutate_at(
+            .vars = vars(ends_with("_REG"), ends_with("_PROV"), ends_with("_MUNC")),
+            ~if_else(. == "UNKNOWN", NA_character_, ., .)
+         ) %>%
+         mutate_if(
+            .predicate = is.character,
+            ~clean_pii(.)
+         ) %>%
+         mutate(
+            CLIENT_MOBILE = str_replace_all(CLIENT_MOBILE, "[^[:digit:]]", ""),
+            CLIENT_MOBILE = case_when(
+               StrLeft(CLIENT_MOBILE, 1) == "9" ~ stri_c("0", CLIENT_MOBILE),
+               StrLeft(CLIENT_MOBILE, 2) == "63" ~ str_replace(CLIENT_MOBILE, "^63", "0"),
+               TRUE ~ CLIENT_MOBILE
+            ),
+            BIRTHDATE     = as.character(BIRTHDATE)
+         )
+
       # finalize data
       dedup$pii <- dedup$pii %>%
          # remove old version of record
@@ -115,41 +157,6 @@ WHERE pii.DELETED_AT IS NULL
    # close connections
    dbDisconnect(lw_conn)
    dbDisconnect(db_conn)
-
-   dedup$pii %<>%
-      ohasis$get_addr(
-         c(
-            PERM_REG  = "PERM_PSGC_REG",
-            PERM_PROV = "PERM_PSGC_PROV",
-            PERM_MUNC = "PERM_PSGC_MUNC"
-         ),
-         "nhsss"
-      ) %>%
-      ohasis$get_addr(
-         c(
-            CURR_REG  = "CURR_PSGC_REG",
-            CURR_PROV = "CURR_PSGC_PROV",
-            CURR_MUNC = "CURR_PSGC_MUNC"
-         ),
-         "nhsss"
-      ) %>%
-      mutate_at(
-         .vars = vars(ends_with("_REG"), ends_with("_PROV"), ends_with("_MUNC")),
-         ~if_else(. == "UNKNOWN", NA_character_, ., .)
-      ) %>%
-      mutate_if(
-         .predicate = is.character,
-         ~clean_pii(.)
-      ) %>%
-      mutate(
-         CLIENT_MOBILE = str_replace_all(CLIENT_MOBILE, "[^[:digit:]]", ""),
-         CLIENT_MOBILE = case_when(
-            StrLeft(CLIENT_MOBILE, 1) == "9" ~ stri_c("0", CLIENT_MOBILE),
-            StrLeft(CLIENT_MOBILE, 2) == "63" ~ str_replace(CLIENT_MOBILE, "^63", "0"),
-            TRUE ~ CLIENT_MOBILE
-         ),
-         BIRTHDATE     = as.character(BIRTHDATE)
-      )
 
    return(dedup)
 }
