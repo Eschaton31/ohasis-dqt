@@ -2,14 +2,19 @@
 
 clean_data <- function(forms, dup_munc) {
    log_info("Processing new positives.")
-   data <- process_hts(forms$form_hts, forms$form_a, forms$form_cfbs) %>%
-      bind_rows(forms$px_confirmed %>% mutate(SNAPSHOT = as.POSIXct(SNAPSHOT))) %>%
-      distinct(REC_ID, .keep_all = TRUE) %>%
-      select(-any_of(c("CONFIRM_RESULT", "CONFIRM_REMARKS"))) %>%
+   hts          <- process_hts(forms$form_hts, forms$form_a, forms$form_cfbs)
+   confirm_cols <- names(forms$px_confirm)
+   confirm_cols <- confirm_cols[!(confirm_cols %in% c("REC_ID", "CENTRAL_ID"))]
+
+   data <- forms$px_confirmed %>%
       left_join(
-         y  = forms$px_confirmed %>%
-            select(REC_ID, CONFIRM_RESULT, CONFIRM_REMARKS),
-         by = join_by(REC_ID)
+         y            = hts %>%
+            rename(
+               HTS_REC = REC_ID,
+            ) %>%
+            select(-any_of(confirm_cols)),
+         by           = join_by(CENTRAL_ID),
+         relationship = "many-to-many"
       ) %>%
       mutate_at(
          .vars = vars(FIRST, MIDDLE, LAST, SUFFIX, PATIENT_CODE, UIC, PHILHEALTH_NO, PHILSYS_ID, CLIENT_MOBILE, CLIENT_EMAIL),
@@ -60,54 +65,56 @@ clean_data <- function(forms, dup_munc) {
       ) %>%
       mutate(
          # month of labcode/date received
-         lab_month      = coalesce(
+         lab_month       = coalesce(
             str_extract(CONFIRM_CODE, "[A-Z]+([0-9][0-9])-([0-9][0-9])", 2),
             stri_pad_left(month(specimen_receipt_date), 2, "0")
          ),
 
          # year of labcode/date received
-         lab_year       = coalesce(
+         lab_year        = coalesce(
             stri_c("20", str_extract(CONFIRM_CODE, "[A-Z]+([0-9][0-9])-([0-9][0-9])", 1)),
             stri_pad_left(year(specimen_receipt_date), 4, "0")
          ),
 
          # date variables
-         visit_date     = RECORD_DATE,
+         visit_date      = RECORD_DATE,
 
          # date var for keeping
-         report_date    = as.Date(stri_c(sep = "-", lab_year, lab_month, "01")),
+         report_date     = as.Date(stri_c(sep = "-", lab_year, lab_month, "01")),
 
          # name
-         STANDARD_FIRST = stri_trans_general(FIRST, "latin-ascii"),
-         name           = str_squish(stri_c(LAST, ", ", FIRST, " ", MIDDLE, " ", SUFFIX)),
+         STANDARD_FIRST  = stri_trans_general(FIRST, "latin-ascii"),
+         name            = str_squish(stri_c(LAST, ", ", FIRST, " ", MIDDLE, " ", SUFFIX)),
 
          # Permanent
-         PERM_PSGC_PROV = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
-         PERM_PSGC_MUNC = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
-         use_curr       = if_else(
+         PERM_PSGC_PROV  = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
+         PERM_PSGC_MUNC  = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
+         use_curr        = if_else(
             condition = !is.na(CURR_PSGC_MUNC) & (is.na(PERM_PSGC_MUNC) | StrLeft(PERM_PSGC_MUNC, 2) == "99"),
             true      = 1,
             false     = 0
          ),
-         PERM_PSGC_REG  = if_else(
+         PERM_PSGC_REG   = if_else(
             condition = use_curr == 1,
             true      = CURR_PSGC_REG,
             false     = PERM_PSGC_REG
          ),
-         PERM_PSGC_PROV = if_else(
+         PERM_PSGC_PROV  = if_else(
             condition = use_curr == 1,
             true      = CURR_PSGC_PROV,
             false     = PERM_PSGC_PROV
          ),
-         PERM_PSGC_MUNC = if_else(
+         PERM_PSGC_MUNC  = if_else(
             condition = use_curr == 1,
             true      = CURR_PSGC_MUNC,
             false     = PERM_PSGC_MUNC
          ),
 
          # Age
-         AGE            = coalesce(AGE, AGE_MO / 12),
-         AGE_DTA        = calc_age(BIRTHDATE, visit_date),
+         AGE             = coalesce(AGE, AGE_MO / 12),
+         AGE_DTA         = calc_age(BIRTHDATE, visit_date),
+
+         FORM_SORT       = if_else(REC_ID == HTS_REC, 1, 9999, 9999)
       ) %>%
       left_join(
          y  = dup_munc %>%
@@ -126,7 +133,7 @@ clean_data <- function(forms, dup_munc) {
 prioritize_reports <- function(data) {
    log_info("Using first visited facility.")
    data %<>%
-      arrange(CONFIRM_RESULT, lab_year, lab_month, desc(CONFIRM_TYPE), visit_date, confirm_date) %>%
+      arrange(CONFIRM_RESULT, FORM_SORT, lab_year, lab_month, desc(CONFIRM_TYPE), hts_date, confirm_date) %>%
       distinct(CENTRAL_ID, .keep_all = TRUE) %>%
       filter(report_date < ohasis$next_date | is.na(report_date)) %>%
       rename(
@@ -182,7 +189,7 @@ standardize_data <- function(initial, params) {
    data <- initial %>%
       mutate(
          # generate idnum
-         idnum                     = coalesce(IDNUM, params$latest_idnum + row_number()),
+         idnum                     = coalesce(as.integer(IDNUM), params$latest_idnum + row_number()),
 
          # report date
          year                      = params$yr,
@@ -854,7 +861,8 @@ convert_faci_addr <- function(data) {
 final_conversion <- function(data) {
    data %<>%
       mutate(
-         labcode2 = CONFIRM_CODE
+         labcode2    = CONFIRM_CODE,
+         confirm_rec = REC_ID,
       ) %>%
       # same vars as registry
       select(
@@ -862,6 +870,8 @@ final_conversion <- function(data) {
          CENTRAL_ID,
          PATIENT_ID,
          idnum,
+         confirm_rec,
+         hts_rec                   = HTS_REC,
          form                      = FORM_VERSION,
          modality                  = hts_modality,          # HTS Form
          consent_test              = test_agreed,           # HTS Form
@@ -1301,6 +1311,7 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
 
       view_vars <- c(
          "REC_ID",
+         "hts_rec",
          "PATIENT_ID",
          "confirm_region",
          "confirmlab",
