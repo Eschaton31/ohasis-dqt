@@ -346,6 +346,7 @@ combine_validations <- function(data_src, corr_list, row_ids) {
    col_id   <- intersect(names(data_src), row_ids)
    combined <- appended %>%
       select(all_of(row_ids), sheet_name, issue) %>%
+      distinct() %>%
       pivot_wider(
          id_cols      = all_of(row_ids),
          names_from   = sheet_name,
