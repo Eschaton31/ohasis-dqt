@@ -117,6 +117,63 @@ harp$dead <- read_dta(hs_data("harp_dead", "reg", 2023, 8)) %>%
 
 harp$dx <- read_dta(hs_data("harp_full", "reg", 2023, 8))
 
+
+
+tx_2005 <- read_dta("H:/_R/library/hiv_tx/art_aemfull_2005-2018.dta")
+for (yr in seq(2008, 2015)) {
+   mo       <- ifelse(yr <= 2022, 12, 8)
+   onart    <- as.name(stri_c("onart", yr))
+   outcome  <- as.name(stri_c("outcome3mos_", yr))
+   hub      <- as.name(stri_c("hub_", yr))
+   end_date <- end_ym(yr, mo)
+
+   tx_2005 %<>%
+      mutate(
+         {{outcome}} := if_else(artstart_date_2018 <= end_date & {{onart}} == 1, "alive on arv", "lost to follow up"),
+         {{hub}}     := toupper(allhub)
+      )
+}
+
+tx20052018 <- tx_2005 %>%
+   pivot_longer(
+      cols      = c(starts_with("hub_"), starts_with("outcome3mos_")),
+      names_to  = c("var", "year"),
+      names_sep = "_"
+   ) %>%
+   pivot_wider(
+      id_cols     = c(sacclcode, year),
+      names_from  = var,
+      values_from = value
+   ) %>%
+   mutate(
+      branch = ""
+   ) %>%
+   faci_code_to_id(
+      ohasis$ref_faci_code,
+      list(FACI_ID = "hub", SUB_FACI_ID = "branch")
+   ) %>%
+   mutate(
+      FACI = FACI_ID,
+      SUB  = SUB_FACI_ID
+   ) %>%
+   filter(year < 2015) %>%
+   ohasis$get_faci(
+      list(realhub = c("FACI", "SUB")),
+      "code",
+      c("txreg", "txprov", "txmunc")
+   ) %>%
+   select(-realhub) %>%
+   ohasis$get_faci(
+      list(hub_name = c("FACI_ID", "SUB_FACI_ID")),
+      "name",
+   ) %>%
+   filter(!is.na(outcome3mos)) %>%
+   pivot_wider(
+      id_cols     = sacclcode,
+      names_from  = year,
+      values_from = c(outcome3mos, hub_name, txreg, txprov, txmunc)
+   )
+
 tx_all <- harp$tx %>%
    bind_rows(.id = "yr") %>%
    ungroup() %>%
@@ -150,6 +207,10 @@ tx_all <- harp$tx %>%
       id_cols     = sacclcode,
       names_from  = yr,
       values_from = c(art_id, idnum, hub_name, txreg, txprov, txmunc, ffup_date, lastpill_date, outcome30dy, outcome3mos, end_age, sex)
+   ) %>%
+   left_join(
+      y  = tx20052018,
+      by = join_by(sacclcode)
    )
 
 tmp <- tempfile(fileext = ".xlsx")
@@ -354,6 +415,11 @@ mega <- tx_all %>%
    mutate_at(
       .vars = vars(starts_with("end_date_")),
       ~as.Date(.)
+   ) %>%
+   left_join(
+      y  = hs_data("harp_tx", "outcome", 2023, 8) %>%
+         read_dta(col_select = c(art_id, baseline_vl, vlp12m, vl_date, vl_result)),
+      by = join_by(art_id)
    )
 
 
@@ -361,11 +427,15 @@ for (yr in seq(1984, 2023)) {
    mo        <- ifelse(yr <= 2022, 12, 8)
    yrdead    <- as.name(stri_c("dead_", yr))
    yrpresume <- as.name(stri_c("presumedead_", yr))
+   yrage     <- as.name(stri_c("end_age_", yr))
    end_date  <- end_ym(yr, mo)
+
+   mega %<>% mutate({{yrage}} := NA_integer_)
    mega %<>%
       mutate(
          {{yrdead}}    := if_else(ref_death_date <= end_date, 1, 0, 0),
          {{yrpresume}} := if_else({{yrdead}} == 1 | (is.na(everonart) & interval(rep_date, end_date) / years(1) >= 10), 1, 0, 0),
+         {{yrage}}     := coalesce(calc_age(birthdate, end_date), {{yrage}})
       )
 }
 for (yr in seq(2015, 2023)) {
@@ -380,6 +450,7 @@ for (yr in seq(2015, 2023)) {
          {{yrpresume}} := if_else({{yrpresume}} == 1 & {{yrplhiv}} == 0, 1, {{yrpresume}}),
       )
 }
+
 
 pse <- read_dta("C:/Users/johnb/Downloads/2022 PSE 10312023.dta") %>%
    select(-starts_with("PSGC")) %>%
@@ -405,7 +476,90 @@ pse <- read_dta("C:/Users/johnb/Downloads/2022 PSE 10312023.dta") %>%
 
 write_dta(pse, "H:/20231031_pse-final.dta")
 
-write_dta(mega %>% format_stata(), "H:/20231109_mega-harp_2015-2023-08_dead-presumed.dta")
+file <- "H:/20231113_mega-harp_2008-2023-08_dead-presumed-vl.dta"
+mega %>%
+   select(
+      sacclcode,
+      art_id,
+      idnum,
+      year,
+      month,
+      sex,
+      birthdate,
+      art_bdate,
+      rep_date,
+      class2022,
+      transmit,
+      sexhow,
+      dead,
+      mort,
+      everonart,
+      ref_death_date,
+      region,
+      province,
+      muncity,
+      aemclass_2019,
+      aemclass_2023,
+      region_art,
+      province_art,
+      muncity_art,
+      aemclass_2019_art,
+      aemclass_2023_art,
+      vl_date,
+      vl_result,
+      baseline_vl,
+      vlp12m,
+      ends_with("1984"),
+      ends_with("1985"),
+      ends_with("1986"),
+      ends_with("1987"),
+      ends_with("1988"),
+      ends_with("1989"),
+      ends_with("1990"),
+      ends_with("1991"),
+      ends_with("1992"),
+      ends_with("1993"),
+      ends_with("1994"),
+      ends_with("1995"),
+      ends_with("1996"),
+      ends_with("1997"),
+      ends_with("1998"),
+      ends_with("1999"),
+      ends_with("2000"),
+      ends_with("2001"),
+      ends_with("2002"),
+      ends_with("2003"),
+      ends_with("2004"),
+      ends_with("2005"),
+      ends_with("2006"),
+      ends_with("2007"),
+      ends_with("2008"),
+      ends_with("2009"),
+      ends_with("2010"),
+      ends_with("2011"),
+      ends_with("2012"),
+      ends_with("2013"),
+      ends_with("2014"),
+      ends_with("2015"),
+      ends_with("2016"),
+      ends_with("2017"),
+      ends_with("2018"),
+      ends_with("2019"),
+      ends_with("2020"),
+      ends_with("2021"),
+      ends_with("2022"),
+      ends_with("2023")
+   ) %>%
+   mutate(
+      aemclass_2019     = if_else(is.na(aemclass_2019) & muncity != "UNKNOWN", "c", aemclass_2019, aemclass_2019),
+      aemclass_2023     = if_else(is.na(aemclass_2023) & muncity != "UNKNOWN", "c", aemclass_2023, aemclass_2023),
+      aemclass_2019_art = if_else(is.na(aemclass_2019_art) & muncity_art != "UNKNOWN", "c", aemclass_2019_art, aemclass_2019_art),
+      aemclass_2023_art = if_else(is.na(aemclass_2023_art) & muncity_art != "UNKNOWN", "c", aemclass_2023_art, aemclass_2023_art),
+   ) %>%
+   format_stata() %>%
+   write_dta(file)
+compress_stata(file)
+
 
 prep_per_yr <- prep$oh %>%
    left_join(prep$disp %>% select(REC_ID, DISP_TOTAL, DISP_DATE), join_by(REC_ID)) %>%
@@ -558,3 +712,11 @@ prep_start <- prep$start %>%
 prep_start
 
 write_dta(prep_start %>% format_stata(), "H:/20231109_prepstart_2023-08_AEM.dta")
+
+# cascade dataset with aemclass
+dx <- harp$dx %>%
+   mutate(
+      rep_age = calc_age(bdate, "2023-08-31")
+   )
+
+
