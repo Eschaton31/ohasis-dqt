@@ -42,15 +42,7 @@ DB <- R6Class(
          self$update_lake(update)
 
          # download latest references before final initialization
-         log_info("Downloading references.")
-         db_conn          <- self$conn("db")
-         lw_conn          <- self$conn("lw")
-         self$ref_country <- QB$new(db_conn)$from("ohasis_interim.addr_country")$get()
-         self$ref_addr    <- QB$new(lw_conn)$from("ohasis_lake.ref_addr")$get()
-         self$ref_faci    <- QB$new(lw_conn)$from("ohasis_lake.ref_faci")$get()
-         self$ref_staff   <- QB$new(lw_conn)$from("ohasis_lake.ref_staff")$get()
-         dbDisconnect(db_conn)
-         dbDisconnect(lw_conn)
+         self$download_refs()
 
          # subset of ref_faci
          self$ref_faci_code <- self$ref_faci %>%
@@ -92,6 +84,18 @@ DB <- R6Class(
          self$slack_id <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
 
          log_success("OHASIS initialized!")
+      },
+
+      download_refs     = function() {
+         log_info("Downloading references.")
+         db_conn          <- self$conn("db")
+         lw_conn          <- self$conn("lw")
+         self$ref_country <- QB$new(db_conn)$from("ohasis_interim.addr_country")$get()
+         self$ref_addr    <- QB$new(lw_conn)$from("ohasis_lake.ref_addr")$get()
+         self$ref_faci    <- QB$new(lw_conn)$from("ohasis_lake.ref_faci")$get()
+         self$ref_staff   <- QB$new(lw_conn)$from("ohasis_lake.ref_staff")$get()
+         dbDisconnect(db_conn)
+         dbDisconnect(lw_conn)
       },
 
       # get reference dates for the report
