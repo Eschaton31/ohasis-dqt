@@ -1,6 +1,6 @@
 ##  inputs ---------------------------------------------------------------------
 
-file <- "D:/20240128_tly-prep.rds"
+file <- "D:/20240417_tly-prep.rds"
 tly  <- list(
    convert = list(
       addr  = read_sheet("1r8CVfX16oDSStwLfIQdExyA-X21QuGnKwZp1AGDNXdc", "addr", range = "A:F", col_types = "c"),
@@ -240,13 +240,13 @@ tables$px_record <- list(
    name = "px_record",
    pk   = c("REC_ID", "PATIENT_ID"),
    data = tly$import %>%
-      mutate_at(
-         .vars = vars(MODULE, DISEASE),
-         ~keep_code(.)
-      ) %>%
       mutate(
          DISEASE = "101000",
          MODULE  = "6",
+      ) %>%
+      mutate_at(
+         .vars = vars(MODULE, DISEASE),
+         ~keep_code(.)
       ) %>%
       select(
          REC_ID,
