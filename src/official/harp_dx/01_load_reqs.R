@@ -60,6 +60,47 @@ update_warehouse <- function(update) {
    }
 }
 
+##  Get nen diagnoses ----------------------------------------------------------
+
+# check if art starts to be re-processed
+update_dx_new <- function(update, params, path_to_sql) {
+   update <- ifelse(
+      !is.null(update) && update %in% c("1", "2"),
+      update,
+      input(
+         prompt  = glue("Do you want to re-process the {green('Newly Diagnoses Records')}?"),
+         options = c("1" = "Yes", "2" = "No"),
+         default = "1"
+      )
+   )
+   # if Yes, re-process
+   if (update == "1") {
+      lw_conn <- ohasis$conn("lw")
+      db_name <- "ohasis_warehouse"
+
+      # download the data
+      for (scope in "dx_new") {
+         name <- case_when(
+            scope == "dx_new" ~ "Newly Diagnosed",
+         )
+         log_info("Processing {green(name)}.")
+
+         # update lake
+         table_space <- Id(schema = db_name, table = scope)
+         if (dbExistsTable(lw_conn, table_space))
+            dbRemoveTable(lw_conn, table_space)
+
+         dbExecute(
+            lw_conn,
+            glue(r"(CREATE TABLE {db_name}.{scope} AS )",
+                 read_file(file.path(path_to_sql, glue("{scope}.sql"))))
+         )
+      }
+      log_success("Done!")
+      dbDisconnect(lw_conn)
+   }
+}
+
 ##  Filter Initial Data & Remove Already Reported ------------------------------
 
 download_tables <- function(path_to_sql) {
@@ -132,6 +173,7 @@ update_dataset <- function(params, corr, reprocess) {
 
    update_warehouse(vars$update_lw)
    p$params <- set_coverage(vars$end_date)
+   update_dx_new(vars$update_visits, p$params, p$wd)
 
    # ! corrections
    dl <- ifelse(
