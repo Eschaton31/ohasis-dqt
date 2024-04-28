@@ -1588,7 +1588,8 @@ output_dta <- function(official, params, save = "2") {
       }
 
       flow_dta(official$new_reg, "harp_tx", "reg", params$yr, params$mo)
-      flow_dta(official$new_outcome, "harp_tx", "outcome", params$yr, params$mo)
+      flow_dta(official$new_outcome %>%
+                  select(-any_of("central_id")), "harp_tx", "outcome", params$yr, params$mo)
    }
 }
 
