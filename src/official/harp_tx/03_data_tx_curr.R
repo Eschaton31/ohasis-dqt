@@ -1314,7 +1314,7 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
       check[["vl_data"]] <- step_data %>%
          filter(
             # curr_vl_date > curr_ffupdate |
-               curr_vl_date > params$max |
+            curr_vl_date > params$max |
                year(curr_vl_date) < 2002
          ) %>%
          filter(
@@ -1586,6 +1586,9 @@ output_dta <- function(official, params, save = "2") {
             compress_stata(files[[output]])
          }
       }
+
+      flow_dta(official$new_reg, "harp_tx", "reg", params$yr, params$mo)
+      flow_dta(official$new_outcome, "harp_tx", "outcome", params$yr, params$mo)
    }
 }
 

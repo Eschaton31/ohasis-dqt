@@ -334,6 +334,38 @@ flow_register <- function() {
    invisible(lapply(files$path, source))
 }
 
+flow_dta <- function(data, surv_name, type, yr, mo) {
+   yr <- stri_pad_left(yr, 4, "0")
+   mo <- stri_pad_left(mo, 2, "0")
+
+   db     <- surv_name
+   table  <- stri_c(type, "_", yr, mo)
+   schema <- Id(schema = db, table = table)
+   id_col <- switch(surv_name,
+                    harp_dx   = "idnum",
+                    harp_tx   = "art_id",
+                    harp_dead = "mort_id",
+                    harp_full = "idnum",
+                    prep      = "prep_id")
+
+
+   log_info("Uploading {green(table)}.")
+   lw_conn <- ohasis$conn("lw")
+   if (dbExistsTable(lw_conn, schema)) {
+      dbRemoveTable(lw_conn, schema)
+   }
+   ohasis$upsert(lw_conn, db, table, data, id_col)
+
+   version <- tibble(
+      type        = type,
+      period      = stri_c(yr, ".", mo),
+      last_update = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+   )
+   ohasis$upsert(lw_conn, surv_name, "version", version, c("type", "period"))
+
+   dbDisconnect(lw_conn)
+}
+
 combine_validations <- function(data_src, corr_list, row_ids) {
    appended <- corr_list %>%
       bind_rows(.id = "sheet_name") %>%

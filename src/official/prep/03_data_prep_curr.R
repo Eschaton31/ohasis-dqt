@@ -44,19 +44,19 @@ get_records <- function(form_data, new_reg) {
          .predicate = is.Date,
          ~if_else(. <= -25567, NA_Date_, ., .)
       ) %>%
-      get_latest_pii(
-         "CENTRAL_ID",
-         c(
-            "SELF_IDENT",
-            "SELF_IDENT_OTHER",
-            "CURR_PSGC_REG",
-            "CURR_PSGC_PROV",
-            "CURR_PSGC_MUNC",
-            "PERM_PSGC_REG",
-            "PERM_PSGC_PROV",
-            "PERM_PSGC_MUNC"
-         )
-      ) %>%
+      # get_latest_pii(
+      #    "CENTRAL_ID",
+      #    c(
+      #       "SELF_IDENT",
+      #       "SELF_IDENT_OTHER",
+      #       "CURR_PSGC_REG",
+      #       "CURR_PSGC_PROV",
+      #       "CURR_PSGC_MUNC",
+      #       "PERM_PSGC_REG",
+      #       "PERM_PSGC_PROV",
+      #       "PERM_PSGC_MUNC"
+      #    )
+      # ) %>%
       mutate(
          # Age
          AGE             = coalesce(AGE, AGE_MO / 12),
@@ -1020,6 +1020,9 @@ output_dta <- function(official, params, save = "2") {
             compress_stata(files[[output]])
          }
       }
+
+      flow_dta(official$new_reg, "prep", "reg", params$yr, params$mo)
+      flow_dta(official$new_outcome, "prep", "outcome", params$yr, params$mo)
    }
 }
 

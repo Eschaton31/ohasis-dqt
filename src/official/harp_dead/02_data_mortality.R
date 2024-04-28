@@ -640,6 +640,8 @@ output_dta <- function(official, params, save = "2") {
             compress_stata(files[[output]])
          }
       }
+
+      flow_dta(official$new, "harp_dead", "reg", params$yr, params$mo)
    }
 }
 

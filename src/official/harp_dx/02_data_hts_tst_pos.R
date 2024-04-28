@@ -65,56 +65,56 @@ clean_data <- function(forms, dup_munc) {
       ) %>%
       mutate(
          # month of labcode/date received
-         lab_month       = coalesce(
+         lab_month      = coalesce(
             str_extract(CONFIRM_CODE, "[A-Z]+([0-9][0-9])-([0-9][0-9])", 2),
             stri_pad_left(month(specimen_receipt_date), 2, "0")
          ),
 
          # year of labcode/date received
-         lab_year        = coalesce(
+         lab_year       = coalesce(
             stri_c("20", str_extract(CONFIRM_CODE, "[A-Z]+([0-9][0-9])-([0-9][0-9])", 1)),
             stri_pad_left(year(specimen_receipt_date), 4, "0")
          ),
 
          # date variables
-         visit_date      = RECORD_DATE,
+         visit_date     = RECORD_DATE,
 
          # date var for keeping
-         report_date     = as.Date(stri_c(sep = "-", lab_year, lab_month, "01")),
+         report_date    = as.Date(stri_c(sep = "-", lab_year, lab_month, "01")),
 
          # name
-         STANDARD_FIRST  = stri_trans_general(FIRST, "latin-ascii"),
-         name            = str_squish(stri_c(LAST, ", ", FIRST, " ", MIDDLE, " ", SUFFIX)),
+         STANDARD_FIRST = stri_trans_general(FIRST, "latin-ascii"),
+         name           = str_squish(stri_c(LAST, ", ", FIRST, " ", MIDDLE, " ", SUFFIX)),
 
          # Permanent
-         PERM_PSGC_PROV  = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
-         PERM_PSGC_MUNC  = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
-         use_curr        = if_else(
+         PERM_PSGC_PROV = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
+         PERM_PSGC_MUNC = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
+         use_curr       = if_else(
             condition = !is.na(CURR_PSGC_MUNC) & (is.na(PERM_PSGC_MUNC) | StrLeft(PERM_PSGC_MUNC, 2) == "99"),
             true      = 1,
             false     = 0
          ),
-         PERM_PSGC_REG   = if_else(
+         PERM_PSGC_REG  = if_else(
             condition = use_curr == 1,
             true      = CURR_PSGC_REG,
             false     = PERM_PSGC_REG
          ),
-         PERM_PSGC_PROV  = if_else(
+         PERM_PSGC_PROV = if_else(
             condition = use_curr == 1,
             true      = CURR_PSGC_PROV,
             false     = PERM_PSGC_PROV
          ),
-         PERM_PSGC_MUNC  = if_else(
+         PERM_PSGC_MUNC = if_else(
             condition = use_curr == 1,
             true      = CURR_PSGC_MUNC,
             false     = PERM_PSGC_MUNC
          ),
 
          # Age
-         AGE             = coalesce(AGE, AGE_MO / 12),
-         AGE_DTA         = calc_age(BIRTHDATE, visit_date),
+         AGE            = coalesce(AGE, AGE_MO / 12),
+         AGE_DTA        = calc_age(BIRTHDATE, visit_date),
 
-         FORM_SORT       = if_else(REC_ID == HTS_REC, 1, 9999, 9999)
+         FORM_SORT      = if_else(REC_ID == HTS_REC, 1, 9999, 9999)
       ) %>%
       left_join(
          y  = dup_munc %>%
@@ -1635,6 +1635,8 @@ output_dta <- function(official, params, save = "2") {
             compress_stata(files[[output]])
          }
       }
+
+      flow_dta(official$new, "harp_dx", "reg", params$yr, params$mo)
    }
 }
 
