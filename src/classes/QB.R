@@ -346,7 +346,7 @@ QB <- R6Class(
       query       = function() {
          query  <- list()
          select <- self$columns
-         if (length(select) > 0) {
+         if (length(select) == 0) {
             select <- "*"
          }
 
