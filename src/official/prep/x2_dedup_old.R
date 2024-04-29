@@ -232,6 +232,9 @@ dedup_group_ids <- function(data) {
          filter(if_all(any_of(dedup_id), ~!is.na(.))) %>%
          get_dupes(all_of(dedup_id)) %>%
          filter(dupe_count > 0) %>%
+         mutate(
+            ym = stri_c(sep = "-", year, stri_pad_left(month, 2, "0"))
+         ) %>%
          group_by(across(all_of(dedup_id))) %>%
          mutate(
             .before  = prep_id,
