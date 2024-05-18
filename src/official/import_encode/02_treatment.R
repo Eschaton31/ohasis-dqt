@@ -24,6 +24,8 @@ local(envir = import, {
             ss    <- encode_sheets[i,]$id
             name  <- encode_sheets[i,]$name
             email <- str_squish(substr(name, 9, stri_locate_first_fixed(name, ".com") + 4))
+            if (is.na(email))
+               email <- str_squish(substr(name, 9, stri_locate_first_fixed(name, ".gov.ph") + 8))
 
             log_info("       > {green(email)}.")
             if (sheet == "ref_meds")
@@ -175,7 +177,8 @@ local(envir = import, {
          # mutate(
          #    encoder = str_squish(encoder),
          #    encoder = case_when(
-         #       encoder == "rnrufon@doh.gov.ph" ~ "rnrufon.pbsp@gmail.com",
+         #       # encoder == "rnrufon@doh.gov.ph" ~ "rnrufon.pbsp@gmail.com",
+         #       encoder == "roricaflanca@doh.gov.ph" ~ "roricaflanca.doh@gmail.com",
          #       TRUE ~ encoder
          #    )
          # ) %>%
@@ -185,6 +188,7 @@ local(envir = import, {
                   EMAIL = str_squish(EMAIL),
                   EMAIL = case_when(
                      EMAIL == "rnrufon.pbsp@gmal.com" ~ "rnrufon.pbsp@gmail.com",
+                     EMAIL == "roricaflanca.doh@gmail.com" ~ "roricaflanca@doh.gov.ph",
                      TRUE ~ EMAIL
                   )
                ) %>%
@@ -514,7 +518,7 @@ local(envir = import, {
 
    tables_wide <- function(standard) {
 
-     stopifnot(nrow(standard) > 0)
+      stopifnot(nrow(standard) > 0)
 
       wide <- list(
          "px_record"    = c("REC_ID", "PATIENT_ID"),
@@ -555,7 +559,7 @@ local(envir = import, {
 
    tables_long <- function(standard, encoded) {
 
-     stopifnot(nrow(standard) > 0)
+      stopifnot(nrow(standard) > 0)
 
       long <- list(
          "px_addr"          = c("REC_ID", "ADDR_TYPE"),
