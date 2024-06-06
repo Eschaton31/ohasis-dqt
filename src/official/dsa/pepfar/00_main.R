@@ -1,10 +1,11 @@
 flow_register()
-pepfar$steps$`01_load_reqs`$.init(yr = 2023, mo = 6, report = "HFR", envir = pepfar)
+pepfar$steps$`01_load_reqs`$.init(yr = 2024, mo = 3, report = "QR", envir = pepfar)
 pepfar$steps$`02_prepare_tx`$.init(pepfar)
 pepfar$steps$`03_prepare_prep`$.init(pepfar)
 pepfar$steps$`04_prepare_reach`$.init(pepfar)
 pepfar$steps$`05_aggregate_data`$.init(pepfar)
 pepfar$steps$`06_conso_flat`$.init(pepfar)
+source("src/official/dsa/pepfar/07_export_mail.R")
 
 ##  MER ------------------------------------------------------------------------
 oh_dir       <- file.path("O:/My Drive/Data Sharing/EpiC")
