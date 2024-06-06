@@ -989,7 +989,7 @@ oh_new_patient <- function(faci_id,
                            mobile = NA_character_,
                            email = NA_character_) {
    db_conn    <- ohasis$conn("db")
-   patient_id <- oh_px_id(db_conn, "130023")
+   patient_id <- oh_px_id(db_conn, faci_id)
    rec_id     <- oh_rec_id(db_conn, Sys.getenv("OH_USER_ID"))
    sex        <- toupper(sex)
    sex        <- case_when(
