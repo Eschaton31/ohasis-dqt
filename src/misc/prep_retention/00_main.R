@@ -1,10 +1,10 @@
-
 lw_conn   <- ohasis$conn("lw")
-id_reg    <- dbTable(lw_conn, "ohasis_warehouse", "id_registry")
-form_prep <- dbTable(lw_conn, "ohasis_warehouse", "form_prep")
+id_reg    <- QB$new(lw_conn)$from("ohasis_warehouse.id_registry")$select(CENTRAL_ID, PATIENT_ID)$get()
+form_prep <- QB$new(lw_conn)$from("ohasis_warehouse.form_prep")$get()
 dbDisconnect(lw_conn)
 
 oh_prep <- form_prep %>%
+   filter(VISIT_DATE <= "2024-03-31") %>%
    get_cid(id_reg, PATIENT_ID) %>%
    mutate(
       days_to_pickup = abs(as.numeric(difftime(LATEST_NEXT_DATE, VISIT_DATE, units = "days"))),
@@ -21,11 +21,11 @@ oh_prep <- form_prep %>%
       ),
    )
 
-nh_prep <- hs_data("prep", "reg", 2023, 5) %>%
+nh_prep <- hs_data("prep", "reg", 2024, 3) %>%
    read_dta() %>%
    get_cid(id_reg, PATIENT_ID) %>%
    left_join(
-      hs_data("prep", "outcome", 2023, 5) %>%
+      hs_data("prep", "outcome", 2024, 3) %>%
          read_dta(col_select = c(prep_id, prepstart_date, prep_type, prep_reg))
    ) %>%
    arrange(prepstart_date) %>%
@@ -57,7 +57,7 @@ prep_enroll <- nh_prep %>%
    arrange(VISIT_DATE) %>%
    distinct(CENTRAL_ID, prepstart_yr, prepstart_mo, prep_ct, .keep_all = TRUE) %>%
    pivot_wider(
-      id_cols     = c(CENTRAL_ID, prepstart_yr, prepstart_mo, prep_reg),
+      id_cols     = c(CENTRAL_ID, sex, prepstart_date, prep_reg, contains("_risk_"), starts_with("kp_"), prepstart_yr, prepstart_mo, prep_reg),
       names_from  = prep_ct,
       values_from = months_prep
    ) %>%
@@ -95,7 +95,7 @@ prep_enroll <- nh_prep %>%
          filter(!is.na(MEDICINE_SUMMARY)) %>%
          filter(year(VISIT_DATE) == 2021) %>%
          group_by(CENTRAL_ID) %>%
-         summarise(prep2021 = sum(months_prep, na.rm = TRUE)) %>%
+         summarise(months_2021 = sum(months_prep, na.rm = TRUE)) %>%
          ungroup(),
       by = join_by(CENTRAL_ID)
    ) %>%
@@ -104,7 +104,7 @@ prep_enroll <- nh_prep %>%
          filter(!is.na(MEDICINE_SUMMARY)) %>%
          filter(year(VISIT_DATE) == 2022) %>%
          group_by(CENTRAL_ID) %>%
-         summarise(prep2022 = sum(months_prep, na.rm = TRUE)) %>%
+         summarise(months_2022 = sum(months_prep, na.rm = TRUE)) %>%
          ungroup(),
       by = join_by(CENTRAL_ID)
    ) %>%
@@ -113,9 +113,31 @@ prep_enroll <- nh_prep %>%
          filter(!is.na(MEDICINE_SUMMARY)) %>%
          filter(year(VISIT_DATE) == 2023) %>%
          group_by(CENTRAL_ID) %>%
-         summarise(prep2023 = sum(months_prep, na.rm = TRUE)) %>%
+         summarise(months_2023 = sum(months_prep, na.rm = TRUE)) %>%
          ungroup(),
       by = join_by(CENTRAL_ID)
+   ) %>%
+   left_join(
+      y  = oh_prep %>%
+         filter(!is.na(MEDICINE_SUMMARY)) %>%
+         filter(year(VISIT_DATE) == 2024) %>%
+         group_by(CENTRAL_ID) %>%
+         summarise(months_2024 = sum(months_prep, na.rm = TRUE)) %>%
+         ungroup(),
+      by = join_by(CENTRAL_ID)
+   ) %>%
+   mutate(
+      given_2021 = if_else(!is.na(months_2021), 1, 0, 0),
+      given_2022 = if_else(!is.na(months_2022), 1, 0, 0),
+      given_2023 = if_else(!is.na(months_2023), 1, 0, 0),
+      given_2024 = if_else(!is.na(months_2024), 1, 0, 0),
+
+      msm        = case_when(
+         sex == "MALE" & stri_detect_fixed(prep_risk_sexwithm, "yes") ~ 1,
+         sex == "MALE" & stri_detect_fixed(hts_risk_sexwithm, "yes") ~ 1,
+         # sex == "MALE" & kp_msm == 1 ~ 1,
+         TRUE ~ 0
+      ),
    )
 
 prep_disp <- nh_prep %>%
@@ -144,3 +166,66 @@ prep_disp <- nh_prep %>%
          mutate(prep2023 = 1),
       by = join_by(CENTRAL_ID)
    )
+
+# avg months stayed on prep
+prep_enroll %>%
+   filter(prepstart_date < "2023-10-01", ct_06mos != "(no data)") %>%
+   tab(ct_06mos)
+
+
+prep_enroll %>%
+   filter(prepstart_date < "2023-10-01") %>%
+   tab(given_2021, given_2022, given_2023, given_2024)
+
+prep_enroll %>%
+   filter(prepstart_date < "2023-10-01", ct_06mos != "(no data)") %>%
+   mutate(
+      ct_06 = case_when(
+         StrLeft(ct_06mos, 6) == "12mos+" ~ 13,
+         TRUE ~ parse_number(StrLeft(ct_06mos, 2))
+      )
+   ) %>%
+   tabstat(ct_06)
+# seroconvert
+
+prep_enroll %>%
+   left_join(
+      y  = harp %>%
+         select(CENTRAL_ID, confirm_date),
+      by = join_by(CENTRAL_ID)
+   ) %>%
+   mutate(
+      convert = if_else(confirm_date > prepstart_date, 1, 0, 0)
+   ) %>%
+   tab(convert)
+
+prep_start <- read_dta("H:/_R/library/prep/20240513_prepstart_2024-03.dta") %>%
+   get_cid(id_reg, PATIENT_ID)
+prep_enroll %>%
+   left_join(
+      y  = prep_start %>%
+         select(
+            CENTRAL_ID,
+            curr_reg
+         ) %>%
+         distinct(CENTRAL_ID, .keep_all = TRUE),
+      by = join_by(CENTRAL_ID)
+   ) %>%
+   filter(given_2024 == 1) %>%
+   # tab(curr_reg, cross_tab = prep_reg, cross_return = "freq") %>%
+   summarise(
+      given_2024 = n(),
+      start_2024 = sum(prep_new)
+   ) %>%
+   adorn_totals() %>%
+   write_clip()
+
+
+prep_enroll %>%
+   filter(given_2023 == 1) %>%
+   tab(prep_reg) %>%
+   summarise(
+      given_2024 = n(),
+      start_2024 = sum(prep_new)
+   ) %>%
+   adorn_totals()
