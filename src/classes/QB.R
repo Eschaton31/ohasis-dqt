@@ -6,6 +6,7 @@ QB <- R6Class(
       joins        = list(),
       limits       = NULL,
       title        = NULL,
+      unique       = FALSE,
 
       initialize   = function(db_conn = NULL) {
          private$conn <- db_conn
@@ -130,6 +131,12 @@ QB <- R6Class(
 
       limit        = function(value) {
          self$limits <- stri_c(sep = " ", "LIMIT", value)
+
+         invisible(self)
+      },
+
+      distinct     = function() {
+         self$unique <- TRUE
 
          invisible(self)
       },
@@ -350,8 +357,9 @@ QB <- R6Class(
             select <- "*"
          }
 
+         prefix <- if_else(self$unique, "SELECT DISTINCT", "SELECT")
          select <- str_flatten(collapse = ", ", select)
-         select <- stri_c(sep = " ", "SELECT", select, "FROM")
+         select <- stri_c(sep = " ", prefix, select, "FROM")
 
          where <- stri_c("WHERE ", self$whereNested)
          join  <- str_flatten(collapse = "\n ", self$joins)
