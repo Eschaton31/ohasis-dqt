@@ -1,5 +1,7 @@
 facis <- ohasis$ref_faci %>%
    filter(FACI_NHSSS_REG == "6")
+min <- "2024-01-01"
+max <- "2024-04-30"
 
 conn  <- ohasis$conn("db")
 forms <- QB$new(conn)
@@ -130,4 +132,4 @@ all_disp <- disp %>%
       `Dispensed by:`         = DISPENSED,
    )
 
-write_flat_file(list(Dispensing = all_disp), "H:/20240311_arv-dispensing_reg6.xlsx")
+write_flat_file(list(Dispensing = all_disp), "H:/20240515_arv-dispensing_reg6-202401-202404.xlsx")
