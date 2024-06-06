@@ -105,8 +105,8 @@ SELECT rec.REC_ID,
        location.ADDR_MUNC                                                                              AS SERVICE_PSGC_MUNC,
        location.ADDR_TEXT                                                                              AS SERVICE_ADDR
 FROM ohasis_interim.px_record AS rec
-         JOIN ohasis_interim.px_info AS info ON rec.REC_ID = info.REC_ID
-         JOIN ohasis_interim.px_name AS name ON rec.REC_ID = name.REC_ID
+         LEFT JOIN ohasis_interim.px_info AS info ON rec.REC_ID = info.REC_ID
+         LEFT JOIN ohasis_interim.px_name AS name ON rec.REC_ID = name.REC_ID
          LEFT JOIN ohasis_interim.px_form AS form ON rec.REC_ID = form.REC_ID
          LEFT JOIN ohasis_interim.px_profile AS profile ON rec.REC_ID = profile.REC_ID
          LEFT JOIN ohasis_interim.addr_country AS country ON profile.NATIONALITY = country.COUNTRY_CODE
