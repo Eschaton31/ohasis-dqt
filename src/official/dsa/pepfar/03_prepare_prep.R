@@ -136,7 +136,7 @@ generate_disagg <- function(data, coverage) {
       ohasis$get_faci(
          list(`Site/Organization` = c("FACI_ID", "SUB_FACI_ID")),
          "name",
-         c("Site City", "Site Province", "Site Region")
+         c("Site Region", "Site Province", "Site City")
       )
 
    return(data)
