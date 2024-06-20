@@ -102,7 +102,7 @@ rencecy_records <- function(faci_id, activation_date) {
 
   # creation of table for restarts
   if (dbExistsTable(lw_conn, tbl_space)) {
-    dbExecute(lw_conn, glue("DELETE FROM {db_name}.{tbl_name} WHERE SPECIMEN_SOURCE = ? OR CONFIRM_FACI = ?"), params = list(faci_id, faci_id))
+    dbExecute(lw_conn, glue("DELETE FROM {db_name}.{tbl_name} WHERE SPECIMEN_SOURCE = ? OR (CONFIRM_FACI = ? AND SPECIMEN_SOURCE IS NULL)"), params = list(faci_id, faci_id))
   }
 
   ref <- dbxSelect(lw_conn, faci_sql, params = list(faci_id, faci_id, activation_date))
