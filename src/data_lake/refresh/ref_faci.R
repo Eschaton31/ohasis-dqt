@@ -38,8 +38,8 @@ object_1 <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "facility")) %>%
          TRUE ~ CREATED_AT
       ),
       REG               = if_else(!is.na(SUB_REG), SUB_REG, REG),
-      PROV              = if_else(!is.na(SUB_PROV), SUB_PROV, PROV),
-      MUNC              = if_else(!is.na(SUB_MUNC), SUB_MUNC, MUNC),
+      PROV              = if_else(!is.na(SUB_REG), SUB_PROV, PROV),
+      MUNC              = if_else(!is.na(SUB_REG), SUB_MUNC, MUNC),
       ADDRESS           = if_else(!is.na(SUB_ADDRESS), SUB_ADDRESS, ADDRESS),
       LAT               = if_else(!is.na(SUB_LAT), SUB_LAT, LAT),
       LONG              = if_else(!is.na(SUB_LONG), SUB_LONG, LONG),
@@ -53,6 +53,13 @@ object_1 <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "facility")) %>%
    filter(
       SNAPSHOT >= snapshot_old,
       SNAPSHOT < snapshot_new
+   ) %>%
+   mutate_at(
+      .vars = vars(REG, PROV, MUNC),
+      ~coalesce(., '')
+   ) %>%
+   mutate(
+      PROV = if_else(MUNC == '129804000', '129800000', PROV, PROV)
    ) %>%
    rename(
       FACI_PSGC_REG  = REG,
@@ -126,6 +133,13 @@ object_2 <- tbl(db_conn, dbplyr::in_schema("ohasis_interim", "facility")) %>%
    filter(
       SNAPSHOT >= snapshot_old,
       SNAPSHOT < snapshot_new
+   ) %>%
+   mutate_at(
+      .vars = vars(REG, PROV, MUNC),
+      ~coalesce(., '')
+   ) %>%
+   mutate(
+      PROV = if_else(MUNC == '129804000', '129800000', PROV, PROV)
    ) %>%
    rename(
       FACI_PSGC_REG  = REG,
