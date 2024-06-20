@@ -34,9 +34,22 @@ id_reg <- QB$new(con)$
    get()
 dbDisconnect(con)
 
-dx     <- read_dta(hs_data("harp_dx", "reg", 2024, 3)) %>%
+dx         <- read_dta(hs_data("harp_dx", "reg", 2024, 5)) %>%
+   get_cid(id_reg, PATIENT_ID) %>%
+   mutate(
+      confirm_branch = NA_character_
+   ) %>%
+   faci_code_to_id(
+      ohasis$ref_faci_code,
+      c(CONFIRM_FACI = "confirmlab", CONFIRM_SUB_FACI = "confirm_branch")
+   ) %>%
+   ohasis$get_faci(
+      list(confirm_lab = c("CONFIRM_FACI", "CONFIRM_SUB_FACI")),
+      "name"
+   )
+dead       <- read_dta(hs_data("harp_dead", "reg", 2024, 5)) %>%
    get_cid(id_reg, PATIENT_ID)
-tx_reg <- read_dta(hs_data("harp_tx", "reg", 2024, 3)) %>%
+tx_reg     <- read_dta(hs_data("harp_tx", "reg", 2024, 5)) %>%
    get_cid(id_reg, PATIENT_ID) %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
@@ -51,7 +64,7 @@ tx_reg <- read_dta(hs_data("harp_tx", "reg", 2024, 3)) %>%
       "name",
       c("tx_reg", "tx_prov", "tx_munc")
    )
-tx_out <- read_dta(hs_data("harp_tx", "outcome", 2024, 3)) %>%
+tx_out     <- read_dta(hs_data("harp_tx", "outcome", 2024, 5)) %>%
    select(-any_of("CENTRAL_ID")) %>%
    left_join(y = tx_reg %>% select(art_id, CENTRAL_ID), by = join_by(art_id)) %>%
    faci_code_to_id(
@@ -68,7 +81,21 @@ tx_out <- read_dta(hs_data("harp_tx", "outcome", 2024, 3)) %>%
       "name",
       c("tx_reg", "tx_prov", "tx_munc")
    )
-prep   <- read_dta(hs_data("prep", "start", 2024, 3)) %>%
+prep_curr  <- read_dta(hs_data("prep", "outcome", 2024, 5)) %>%
+   get_cid(id_reg, PATIENT_ID) %>%
+   faci_code_to_id(
+      ohasis$ref_faci_code,
+      list(FACI_ID = "faci", SUB_FACI_ID = "branch")
+   ) %>%
+   mutate(
+      PREP_FACI     = FACI_ID,
+      PREP_SUB_FACI = SUB_FACI_ID
+   ) %>%
+   ohasis$get_faci(
+      list(site_name = c("FACI_ID", "SUB_FACI_ID")),
+      "name",
+   )
+prep_start <- read_dta("H:/_R/library/prep/20240611_prepstart_2024-05.dta") %>%
    get_cid(id_reg, PATIENT_ID) %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
@@ -365,7 +392,19 @@ testing <- process_hts(hts, a, cfbs) %>%
             reactive_date,
             confirm_hiv_class = class2022,
             confirm_date,
+            confirm_lab,
             confirm_code      = labcode2,
+         ),
+      by = join_by(CENTRAL_ID)
+   ) %>%
+   left_join(
+      y  = dead %>%
+         select(
+            CENTRAL_ID,
+            date_of_death,
+         ) %>%
+         mutate(
+            reported_dead = 1
          ),
       by = join_by(CENTRAL_ID)
    ) %>%
@@ -391,12 +430,26 @@ testing <- process_hts(hts, a, cfbs) %>%
       by = join_by(CENTRAL_ID)
    ) %>%
    left_join(
-      y  = prep %>%
+      y  = prep_start %>%
          filter(!is.na(prepstart_date)) %>%
          select(
             CENTRAL_ID,
             prepstart_date,
             prepstart_hub = site_name,
+         ),
+      by = join_by(CENTRAL_ID)
+   ) %>%
+   left_join(
+      y  = prep_curr %>%
+         filter(!is.na(prepstart_date)) %>%
+         mutate(
+            preplast_given = if_else(!is.na(latest_regimen), 1, 0, 0)
+         ) %>%
+         select(
+            CENTRAL_ID,
+            preplast_hub   = site_name,
+            preplast_visit = latest_ffupdate,
+            preplast_given,
          ),
       by = join_by(CENTRAL_ID)
    ) %>%
@@ -416,4 +469,4 @@ testing <- process_hts(hts, a, cfbs) %>%
 variables <- read_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "hts")
 dict      <- data_dictionary(testing, variables)
 
-write_sheet(dict, "1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "try")
+write_sheet(dict, "1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "final-hts")
