@@ -13,7 +13,7 @@ tx_gf <- tx_out %>%
    select(-keep, -site_gf_2024) %>%
    left_join(
       y  = dx %>%
-         select(idnum, reg_sex = sex, transmit, sexhow, confirm_date),
+         select(idnum, reg_sex = sex, transmit, sexhow, confirm_date, confirm_lab),
       by = join_by(idnum)
    ) %>%
    left_join(
@@ -72,8 +72,8 @@ tx_gf <- tx_out %>%
       vl_date,
       vl_result,
       who_staging,
-      tb_status,
       confirm_date,
+      confirm_lab,
       transmit,
       sexhow
    )
@@ -81,47 +81,90 @@ tx_gf <- tx_out %>%
 con         <- ohasis$conn("lw")
 rec_ids     <- tx_gf$REC_ID
 rec_ids     <- rec_ids[!is.na(rec_ids)]
-is_pregnant <- QB$new(con)$
+form_art_bc <- QB$new(con)$
    from("ohasis_warehouse.form_art_bc")$
    whereIn("REC_ID", rec_ids)$
-   whereNotNull("IS_PREGNANT")$
-   select(REC_ID, IS_PREGNANT)$
-   get()
-client_type <- QB$new(con)$
-   from("ohasis_warehouse.form_art_bc")$
-   whereIn("REC_ID", rec_ids)$
-   whereNotNull("CLIENT_TYPE")$
-   select(REC_ID, CLIENT_TYPE)$
    get()
 dbDisconnect(con)
 
 tx_gf %<>%
-   left_join(distinct(is_pregnant)) %>%
-   left_join(distinct(client_type)) %>%
-   rename(
-      dispense_modality = CLIENT_TYPE,
-      is_pregnant       = IS_PREGNANT,
+   left_join(
+      y  = form_art_bc %>%
+         select(
+            REC_ID,
+            CREATED            = CREATED_BY,
+            CREATED_AT,
+            UPDATED            = UPDATED_BY,
+            UPDATED_AT,
+            tb_status          = TB_STATUS,
+            tb_ipt_start_date  = TB_IPT_START_DATE,
+            tb_ipt_status      = TB_IPT_STATUS,
+            tb_ipt_outcome     = TB_IPT_OUTCOME,
+            tb_site_p          = TB_SITE_P,
+            tb_site_ep         = TB_SITE_EP,
+            tb_drug_resistance = TB_DRUG_RESISTANCE,
+            tb_tx_status       = TB_TX_STATUS,
+            tb_tx_outcome      = TB_TX_OUTCOME,
+            dispense_modality  = CLIENT_TYPE,
+            is_pregnant        = IS_PREGNANT,
+            oi_syph            = OI_SYPH_PRESENT,
+            oi_hepb            = OI_HEPB_PRESENT,
+            oi_hepc            = OI_HEPC_PRESENT,
+            oi_pcp             = OI_PCP_PRESENT,
+            oi_cmv             = OI_CMV_PRESENT,
+            oi_orocandidiasis  = OI_OROCAND_PRESENT,
+            oi_herpes_zoster   = OI_HERPES_PRESENT,
+            oi_other           = OI_OTHER_PRESENT,
+         ) %>%
+         ohasis$get_staff(c(CREATED_BY = "CREATED")) %>%
+         ohasis$get_staff(c(UPDATED_BY = "UPDATED")) %>%
+         mutate_at(
+            .vars = vars(
+               tb_status,
+               tb_ipt_status,
+               tb_ipt_outcome,
+               tb_site_p,
+               tb_site_ep,
+               tb_drug_resistance,
+               tb_tx_status,
+               tb_tx_outcome,
+               dispense_modality,
+               is_pregnant,
+               starts_with("oi_")
+            ),
+            ~remove_code(.)
+         ) %>%
+         distinct(REC_ID, .keep_all = TRUE),
+      by = join_by(REC_ID)
+   ) %>%
+   left_join(
+      y  = dead %>%
+         select(
+            CENTRAL_ID,
+            date_of_death,
+         ) %>%
+         mutate(
+            reported_dead = 1
+         ),
+      by = join_by(CENTRAL_ID)
    ) %>%
    mutate(
-      dispense_modality = remove_code(dispense_modality),
       dispense_modality = case_when(
          dispense_modality == "8" ~ "Courier",
          is.na(dispense_modality) ~ "Walk-in / Outpatient",
          TRUE ~ dispense_modality
       ),
-      is_pregnant       = remove_code(is_pregnant),
       is_pregnant       = case_when(
          sex == "Male" ~ NA_character_,
          TRUE ~ is_pregnant
       )
    ) %>%
-   select(
-      -REC_ID,
-   )
+   relocate(CREATED_BY, CREATED_AT, UPDATED_BY, UPDATED_AT, .after = REC_ID) %>%
+   relocate(CENTRAL_ID, .before = 1)
 
 write_clip(names(tx_gf))
 
 variables <- read_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "art")
 dict      <- data_dictionary(tx_gf, variables)
 
-write_sheet(dict, "1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "try")
+write_sheet(dict, "1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "final-art")
