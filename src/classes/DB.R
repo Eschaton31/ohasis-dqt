@@ -349,11 +349,16 @@ DB <- R6Class(
                sql_query  <- read_file(factory_sql)
                sql_tables <- str_extract(sql_query, "FROM[^:]*(?=;)")
                sql_delete <- str_extract(sql_query, "(?<=-- DELETE: ).*?(?=;)")
+               if (is.na(sql_delete)) {
+                  sql_delete <- str_extract(sql_query, "(?<=-- DELETED: ).*?(?=;)")
+               }
+
                sql_id     <- str_extract(sql_query, "(?<=-- ID_COLS: ).*?(?=;)")
 
                id_col <- str_split(sql_id, ", ")[[1]]
 
-               query_table    <- str_extract(sql_query, "^[^:]*(?=;)")
+               # query_table    <- str_extract(sql_query, "^[^:]*(?=;)")
+               query_table    <- str_extract(sql_query, "^[\\s\\S][^;]+[^;]")
                query_nrow     <- stri_c("SELECT COUNT(*) AS nrow ", sql_tables)
                query_delete   <- stri_c("DELETE FROM ", db_name, ".", table_name, " WHERE ", sql_delete)
                # query_affected <- ifelse(
