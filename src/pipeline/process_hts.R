@@ -1,7 +1,7 @@
 # process hts data
 process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfbs = data.frame()) {
    # use hts form as base
-   data <- form_hts %>%
+   hts <- form_hts %>%
       mutate(
          FORM_VERSION = "HTS Form (v2021)",
       ) %>%
@@ -17,8 +17,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
                FORM_VERSION = "CFBS Form (v2020)",
             ) %>%
             rename(
-               T0_DATE   = TEST_DATE,
-               T0_RESULT = TEST_RESULT,
+               T0_DATE         = TEST_DATE,
+               T0_RESULT       = TEST_RESULT,
+               SERVICE_CONDOMS = SERVICE_GIVEN_CONDOMS,
+               SERVICE_LUBES   = SERVICE_GIVEN_LUBES,
             ) %>%
             rename_at(
                .vars = vars(starts_with("RISK_")),
@@ -108,7 +110,9 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             StrLeft(CLIENT_TYPE, 1) == "4" ~ "Walk-in",
             TRUE ~ "Walk-in"
          )
-      ) %>%
+      )
+
+   data <- hts %>%
       # risk information
       mutate_at(
          .vars = vars(starts_with("EXPOSE_", ignore.case = FALSE) & !contains("DATE")),
@@ -750,8 +754,18 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
                "CONFIRMATORY_CODE",
                "CHILDREN..50"
             )
-         )
-      )
+         ),
+         -starts_with("EXPOSE_")
+      ) %>%
+      left_join(
+         y  = hts %>%
+            select(
+               REC_ID,
+               starts_with("EXPOSE_")
+            ),
+         by = join_by(REC_ID)
+      ) %>%
+      relocate(any_of(names(hts)), .before = 1)
 
    hts_risk <- data %>%
       select(
@@ -817,6 +831,10 @@ convert_hts <- function(hts_data, convert_type = c("nhsss", "name", "code")) {
             true      = CURR_PSGC_MUNC,
             false     = PERM_PSGC_MUNC
          ),
+
+
+         SERVICE_CONDOMS    = as.numeric(SERVICE_CONDOMS),
+         SERVICE_LUBES      = as.numeric(SERVICE_LUBES),
       ) %>%
       rename(
          CREATED                 = CREATED_BY,
@@ -1076,6 +1094,31 @@ deconstruct_hts <- function(hts) {
          IS_EXPOSED = coalesce(IS_EXPOSED, "0"),
       )
 
+   data$px_test <- hts %>%
+      select(
+         REC_ID,
+         FACI_ID,
+         SUB_FACI_ID,
+         CREATED_BY,
+         CREATED_AT,
+         starts_with("T0_")
+      ) %>%
+      filter(!is.na(T0_RESULT) | !is.na(T0_DATE)) %>%
+      rename(
+         RESULT       = T0_RESULT,
+         DATE_PERFORM = T0_DATE
+      ) %>%
+      mutate(
+         TEST_TYPE = "10",
+         TEST_NUM  = 1,
+         RESULT    = case_when(
+            RESULT == "Reactive" ~ "1",
+            RESULT == "Non-reactive" ~ "2",
+            TRUE ~ RESULT
+         ),
+      ) %>%
+      select(any_of(cols$px_test))
+
    data$px_test_reason <- hts %>%
       select(
          any_of(cols$px_test_reason),
@@ -1147,6 +1190,8 @@ deconstruct_hts <- function(hts) {
          REACH    = str_replace(REACH, "^REACH_", ""),
          REACH    = case_when(
             REACH == "ONLINE" ~ "2",
+            REACH == "INDEX_TESTING" ~ "3",
+            REACH == "INDEX" ~ "3",
             REACH == "SSNT" ~ "4",
             REACH == "VENUE" ~ "5",
             TRUE ~ REACH
@@ -1237,7 +1282,7 @@ deconstruct_hts <- function(hts) {
          values_to = "REMARKS"
       ) %>%
       mutate(
-         REMARK_TYPE       = case_when(
+         REMARK_TYPE = case_when(
             REMARK_TYPE == "CLINIC_NOTES" ~ "1",
             REMARK_TYPE == "COUNSEL_NOTES" ~ "2",
             REMARK_TYPE == "SYMPTOMS" ~ "10",
