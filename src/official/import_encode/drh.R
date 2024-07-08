@@ -1,10 +1,10 @@
-drh <- read_sheet("1gaI9FzcE5xvBDEEeTbtEfenpO62HLNBpKKpe7JjlGkk", "Sheet1", col_types = "c")
+drh <- read_sheet("1gaI9FzcE5xvBDEEeTbtEfenpO62HLNBpKKpe7JjlGkk", "Sheet3", col_types = "c")
 
 conn        <- ohasis$conn("lw")
 form_art_bc <- QB$new(conn)$
    from("ohasis_warehouse.form_art_bc AS art")$
    leftJoin("ohasis_warehouse.id_registry AS reg", "art.PATIENT_ID", "=", "reg.PATIENT_ID")$
-   whereBetween("art.VISIT_DATE", c("2024-03-01", "2024-03-31"))$
+   whereBetween("art.VISIT_DATE", c("2024-05-01", "2024-05-31"))$
    whereNotNull("MEDICINE_SUMMARY")$
    where("FACI_ID", "110005")$
    select("VISIT_DATE")$

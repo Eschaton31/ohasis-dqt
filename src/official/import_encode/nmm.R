@@ -14,7 +14,7 @@ dbDisconnect(con)
 
 
 nmm_addr   <- read_excel("C:/Users/johnb/Downloads/NMM_Addr.xlsx", col_types = "text")
-nmm_file   <- "C:/Users/johnb/Downloads/REFILL ARV_NMM Q1 2024.ods"
+nmm_file   <- "C:/Users/johnb/Downloads/REFILL ARV APR-MAY 2024.ods"
 nmm_sheets <- ods_sheets(nmm_file)
 nmm        <- lapply(nmm_sheets, read_ods, path = nmm_file, col_types = cols(.default = "c")) %>%
    bind_rows() %>%
@@ -41,7 +41,7 @@ nmm        <- lapply(nmm_sheets, read_ods, path = nmm_file, col_types = cols(.de
       DISP_VALGAN          = 22,
       VACCINES             = 23,
       INJECTED_BY          = 24,
-      TB_TPT_OUTCOME       = 25,
+      # TB_TPT_OUTCOME       = 25,
    ) %>%
    mutate_all(
       ~toupper(str_squish(.))
@@ -52,6 +52,7 @@ nmm        <- lapply(nmm_sheets, read_ods, path = nmm_file, col_types = cols(.de
       CLIENT_MOBILE     = str_replace_all(CLIENT_MOBILE, "[^[:digit:]]", ""),
       ADDRESS           = stri_trans_general(ADDRESS, "latin-ascii"),
 
+      TB_TPT_OUTCOME    = NA_character_,
       TB_TPT_TX_OUTCOME = coalesce(IPT_STATUS, TB_TPT_OUTCOME),
       TB_STATUS         = case_when(
          str_detect(TB_TPT_TX_OUTCOME, "TB-") ~ "1",
@@ -91,6 +92,7 @@ nmm        <- lapply(nmm_sheets, read_ods, path = nmm_file, col_types = cols(.de
 
 ## final import
 ss        <- "16ci-cPFm8oym0mMse92nBC54fdRL9lOkSAiTh-t8alk"
+ss        <- "1PlcXdGNiKJF9TQO3e-79hlghVU33s5FLNMhItk-XQs8"
 nmm       <- read_sheet(ss, col_types = "c")
 nmm_clean <- nmm %>%
    filter(is.na(CENTRAL_ID)) %>%
@@ -108,10 +110,11 @@ write_sheet(nmm_clean %>% filter(!is.na(CENTRAL_ID)), ss, "with_cid")
 write_sheet(nmm_clean %>% filter(is.na(CENTRAL_ID)), ss, "no_cid")
 
 
-min <- min(nmm$RECORD_DATE, na.rm = TRUE)
-max <- max(nmm$RECORD_DATE, na.rm = TRUE)
+min <- min(nmm_matched$RECORD_DATE, na.rm = TRUE)
+max <- max(nmm_matched$RECORD_DATE, na.rm = TRUE)
 
 conn        <- ohasis$conn("lw")
+id_reg      <- QB$new(conn)$from("ohasis_warehouse.id_registry")$select(CENTRAL_ID, PATIENT_ID)$get()
 form_art_bc <- QB$new(conn)$
    from("ohasis_warehouse.form_art_bc AS art")$
    leftJoin("ohasis_warehouse.id_registry AS reg", "art.PATIENT_ID", "=", "reg.PATIENT_ID")$
@@ -130,6 +133,8 @@ import      <- nmm_matched %>%
       RECORD_DATE = as.Date(parse_date_time(RECORD_DATE, c("Ymd", "mdY"))),
       RECORD_DATE = na_if(RECORD_DATE, as.Date("0001-11-20")),
    ) %>%
+   rename(PATIENT_ID = CENTRAL_ID) %>%
+   get_cid(id_reg, PATIENT_ID) %>%
    anti_join(
       y  = form_art_bc,
       by = join_by(CENTRAL_ID, RECORD_DATE == VISIT_DATE)
@@ -183,7 +188,7 @@ import      <- nmm_matched %>%
 import %<>%
    filter(!is.na(PATIENT_ID)) %>%
    bind_rows(
-      batch_px_ids(import %>% filter(is.na(PATIENT_ID)), PATIENT_ID, FACI_ID, "data_id")
+      batch_px_ids(import %>% filter(is.na(PATIENT_ID)), PATIENT_ID, FACI_ID, "row_id")
    )
 
 import %<>%
@@ -199,7 +204,8 @@ tables$px_record <- list(
    data = import %>%
       select(
          REC_ID,
-         PATIENT_ID = CENTRAL_ID,
+         PATIENT_ID,
+         # PATIENT_ID = CENTRAL_ID,
          FACI_ID,
          SUB_FACI_ID,
          RECORD_DATE,
@@ -216,7 +222,8 @@ tables$px_name <- list(
    data = import %>%
       select(
          REC_ID,
-         PATIENT_ID = CENTRAL_ID,
+         PATIENT_ID,
+         # PATIENT_ID = CENTRAL_ID,
          FIRST,
          LAST,
          CREATED_BY,
@@ -230,7 +237,8 @@ tables$px_info <- list(
    data = import %>%
       select(
          REC_ID,
-         PATIENT_ID = CENTRAL_ID,
+         PATIENT_ID,
+         # PATIENT_ID = CENTRAL_ID,
          CONFIRMATORY_CODE,
          UIC,
          SEX,
@@ -316,8 +324,14 @@ tables$px_medicine <- list(
          MEDICINE_MISSED
       ) %>%
       mutate(
-         MEDICINE = str_replace_all(MEDICINE, "LP/R", "LPVR")
+         MEDICINE = str_replace_all(MEDICINE, "LP/R", "LPVR"),
+         MEDICINE = case_when(
+            MEDICINE == "AZT+ABC+EFV" ~ "AZT/ABC/EFV",
+            MEDICINE == "N/A" ~ NA_character_,
+            TRUE ~ MEDICINE
+         )
       ) %>%
+      filter(!is.na(MEDICINE)) %>%
       separate_longer_delim(
          cols  = MEDICINE,
          delim = "/"
@@ -327,9 +341,11 @@ tables$px_medicine <- list(
             MEDICINE == "TLD" ~ 1,
             MEDICINE == "LTE" ~ 1,
             MEDICINE == "AZT+3TC" ~ 2,
+            MEDICINE == "AZT" ~ 2,
             MEDICINE == "LPVR" ~ 4,
             MEDICINE == "LPVR (B)" ~ 4,
             MEDICINE == "DTG" ~ 1,
+            MEDICINE == "DTG (B)" ~ 1,
             MEDICINE == "3TC" ~ 2,
             MEDICINE == "3TC SYR" ~ 2,
             MEDICINE == "ABC" ~ 2,
@@ -345,9 +361,11 @@ tables$px_medicine <- list(
             MEDICINE == "TLD" ~ "2029",
             MEDICINE == "LTE" ~ "2015",
             MEDICINE == "AZT+3TC" ~ "2018",
+            MEDICINE == "AZT" ~ "2019",
             MEDICINE == "LPVR" ~ "2009",
             MEDICINE == "LPVR (B)" ~ "2010",
             MEDICINE == "DTG" ~ "2035",
+            MEDICINE == "DTG (B)" ~ "2035",
             MEDICINE == "3TC" ~ "2026",
             MEDICINE == "3TC SYR" ~ "2008",
             MEDICINE == "ABC" ~ "2002",
