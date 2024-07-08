@@ -1,6 +1,6 @@
 lw_conn <- ohasis$conn("lw")
 min     <- "2020-01-01"
-max     <- "2024-01-01"
+max     <- "2024-03-31"
 
 forms <- QB$new(lw_conn)
 forms$where(function(query = QB$new(lw_conn)) {
@@ -33,9 +33,9 @@ id_reg <- QB$new(lw_conn)$
 dbDisconnect(lw_conn)
 
 testing <- process_hts(hts, a, cfbs) %>% get_cid(id_reg, PATIENT_ID)
-prep    <- read_dta(hs_data("prep", "outcome", 2023, 12)) %>%
+prep    <- read_dta(hs_data("prep", "outcome", 2024, 3)) %>%
    get_cid(id_reg, PATIENT_ID)
-harp    <- read_dta(hs_data("harp_full", "reg", 2023, 12)) %>%
+harp    <- read_dta(hs_data("harp_dx", "reg", 2024, 3)) %>%
    get_cid(id_reg, PATIENT_ID)
 
 ## 1) Unique Results per clients -----------------------------------------------
@@ -128,3 +128,37 @@ seroconvert <- first_nr %>%
 
       everonprep = if_else(!is.na(prepstart_date), 1, 0, 0)
    )
+
+# nr tested since 2020 to Mar 2024 converted
+seroconvert %>%
+   tab(converted)
+
+# converted distribution prep vs no prep
+seroconvert %>%
+   filter(converted == 1) %>%
+   tab(everonprep)
+
+
+# nr tested since 2020 to Mar 2024 converted
+seroconvert %>%
+   filter(converted == 1, everonprep == 1) %>%
+   left_join(
+      y = prep_enroll %>%
+         select(
+            CENTRAL_ID,
+            ct_12mos
+         ),
+      by = join_by(CENTRAL_ID)
+   ) %>%
+   left_join(
+      y = oh_prep %>%
+         filter(!is.na(MEDICINE_SUMMARY)) %>%
+         group_by(CENTRAL_ID) %>%
+         summarise(last_disp_prep = max(VISIT_DATE, na.rm = TRUE)),
+      by = join_by(CENTRAL_ID)
+   ) %>%
+   mutate(
+      diff = interval(last_disp_prep, confirm_date) / days(1),
+      diff = if_else(diff < 0, NA_integer_, as.integer(diff), as.integer(diff))
+   ) %>%
+   tabstat(diff)
