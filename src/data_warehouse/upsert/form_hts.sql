@@ -240,6 +240,6 @@ FROM ohasis_lake.px_pii AS pii
 WHERE FORM_VERSION LIKE 'HTS Form%'
   AND ((pii.CREATED_AT BETWEEN ? AND ?) OR
        (pii.UPDATED_AT BETWEEN ? AND ?) OR
-       (pii.DELETED_AT BETWEEN ? AND ?));;
+       (pii.DELETED_AT BETWEEN ? AND ?));
 -- ID_COLS: REC_ID;
 -- DELETE: DELETED_AT IS NOT NULL OR FORM_VERSION <> 'HTS Form (v2021)';
