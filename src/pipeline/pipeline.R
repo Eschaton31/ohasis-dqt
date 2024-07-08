@@ -341,12 +341,15 @@ flow_dta <- function(data, surv_name, type, yr, mo) {
    db     <- surv_name
    table  <- stri_c(type, "_", yr, mo)
    schema <- Id(schema = db, table = table)
-   id_col <- switch(surv_name,
-                    harp_dx   = "idnum",
-                    harp_tx   = "art_id",
-                    harp_dead = "mort_id",
-                    harp_full = "idnum",
-                    prep      = "prep_id")
+   id_col <- switch(
+      surv_name,
+      harp_dx   = "idnum",
+      harp_tx   = "art_id",
+      harp_dead = "mort_id",
+      harp_full = "idnum",
+      prep      = "prep_id",
+      tbhiv     = "art_id"
+   )
 
 
    log_info("Uploading {green(table)}.")
@@ -393,4 +396,42 @@ combine_validations <- function(data_src, corr_list, row_ids) {
       relocate(starts_with("issue_"), .after = tail(names(.), 1))
 
    return(combined)
+}
+
+hs_download <- function(sys, type, yr, mo) {
+   yr <- as.character(yr)
+   mo <- stri_pad_left(mo, 2, "0")
+
+   table_version <- stri_c(sys, ".version")
+   table_period  <- stri_c(yr, ".", mo)
+   table_data    <- stri_c(sys, ".", type, "_", yr, mo)
+
+
+   con     <- ohasis$conn("lw")
+   version <- QB$new(con)$
+      from(table_version)$
+      where("type", type)$
+      where("period", table_period)$
+      get()
+   data    <- QB$new(con)$
+      from(table_data)$
+      get()
+   dbDisconnect(con)
+
+   local_version <- format(as.POSIXct(version$last_update), "%Y%m%d")
+   local_path    <- Sys.getenv(toupper(sys))
+
+   name <- case_when(
+      sys == "harp_tx" & type == "outcome" ~ "onart-vl",
+      sys == "harp_tx" & type == "reg" ~ "reg-art",
+      sys == "prep" & type == "outcome" ~ "onprep",
+      sys == "prep" & type == "reg" ~ "reg-prep",
+      sys == "harp_dead" & type == "reg" ~ "mort",
+      TRUE ~ type
+   )
+
+   local_file <- stri_c(local_version, "_", name, "_", yr, "-", mo, ".dta")
+   local_file <- file.path(local_path, local_file)
+
+   write_dta(format_stata(data), local_file)
 }
