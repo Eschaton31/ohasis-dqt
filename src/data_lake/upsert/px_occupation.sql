@@ -4,6 +4,9 @@ SELECT rec.REC_ID,
        rec.DELETED_AT,
        GREATEST(COALESCE(rec.DELETED_AT, 0), COALESCE(rec.UPDATED_AT, 0), COALESCE(rec.CREATED_AT, 0)) AS SNAPSHOT,
        UPPER(work.WORK_TEXT)                                                                           AS WORK,
+       UPPER(work.WORK_CLEAN)                                                                          AS WORK_CLEAN,
+       UPPER(work.WORK_ESTABLISHMENT)                                                                  AS WORK_ESTABLISHMENT,
+       UPPER(work.WORK_CATEGORY)                                                                       AS WORK_CATEGORY,
        CASE work.IS_EMPLOYED
            WHEN 1 THEN '1_Yes'
            WHEN 0 THEN '0_No'

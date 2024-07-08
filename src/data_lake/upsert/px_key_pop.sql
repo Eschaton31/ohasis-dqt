@@ -11,6 +11,10 @@ SELECT rec.REC_ID,
        MAX(IF(kp.KP = 6, IS_KP, NULL))                                                                 AS KP_SW,
        MAX(IF(kp.KP = 7, IS_KP, NULL))                                                                 AS KP_OFW,
        MAX(IF(kp.KP = 8, IS_KP, NULL))                                                                 AS KP_PARTNER,
+       MAX(IF(kp.KP = 9, IS_KP, NULL))                                                                 AS KP_REGISTERED_SW,
+       MAX(IF(kp.KP = 10, IS_KP, NULL))                                                                AS KP_FREELANCE_SW,
+       MAX(IF(kp.KP = 11, IS_KP, NULL))                                                                AS KP_OFW_PARTNER,
+       MAX(IF(kp.KP = 7777, IS_KP, NULL))                                                              AS KP_GENPOP,
        MAX(IF(kp.KP = 8888, KP_OTHER, NULL))                                                           AS KP_OTHER
 FROM ohasis_interim.px_record AS rec
          JOIN (SELECT REC_ID,

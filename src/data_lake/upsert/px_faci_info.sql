@@ -14,6 +14,7 @@ SELECT rec.REC_ID,
                WHEN '101301' THEN '101301_Pre-Exposure Prophylaxis (PrEP)'
                WHEN '101303' THEN '101303_Prevention of Mother-to-Child Transmission (PMTCT)'
                WHEN '101304' THEN '101304_Reach'
+               WHEN '1**001' THEN '1**001_STIs'
                ELSE service.SERVICE_TYPE END)                                                          AS MODALITY,
        MAX(service.FACI_ID)                                                                            AS SERVICE_FACI,
        MAX(service.SUB_FACI_ID)                                                                        AS SERVICE_SUB_FACI,
