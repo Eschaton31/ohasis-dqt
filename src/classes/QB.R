@@ -107,6 +107,24 @@ QB <- R6Class(
          invisible(self)
       },
 
+      whereNotBetween = function(column, values, boolean = "and") {
+         start <- dbQuoteString(private$conn, values[1])
+         end   <- dbQuoteString(private$conn, values[2])
+
+         column <- private$quoteIdentifier(column)
+         column <- stri_c(sep = " ", column, "NOT BETWEEN", start, "AND", end)
+
+         private$addWhere(column, boolean)
+
+         invisible(self)
+      },
+
+      whereRaw = function(raw, boolean = "and") {
+         private$addWhere(raw, boolean)
+
+         invisible(self)
+      },
+
       leftJoin     = function(right, col_left, operator, col_right) {
          join       <- private$joinQuery(right, col_left, operator, col_right)
          join       <- stri_c(sep = " ", "LEFT", join)
