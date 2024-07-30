@@ -370,7 +370,7 @@ append_enrollees <- function(old, new) {
    log_info("Appending enrollees to final registry.")
    data <- new %>%
       mutate(
-         drop_notyet = if_else(is.na(artstart_regimen), 1, 0, 0),
+         corr_defer = if_else(is.na(artstart_regimen), 1, 0, 0),
          drop_notart = 0,
       ) %>%
       bind_rows(
@@ -379,7 +379,7 @@ append_enrollees <- function(old, new) {
       ) %>%
       arrange(art_id) %>%
       mutate(
-         drop_notyet = coalesce(drop_notyet, 0),
+         corr_defer = coalesce(corr_defer, 0),
          drop_notart = coalesce(drop_notart, 0),
       ) %>%
       zap_labels()
@@ -391,7 +391,7 @@ append_enrollees <- function(old, new) {
 
 tag_fordrop <- function(data, corr) {
    log_info("Tagging enrollees for dropping.")
-   for (drop_var in c("drop_notyet", "drop_notart"))
+   for (drop_var in c("corr_defer", "drop_notart"))
       if (drop_var %in% names(corr))
          data %<>%
             left_join(
@@ -414,7 +414,7 @@ tag_fordrop <- function(data, corr) {
 subset_drops <- function(data) {
    log_info("Archive those for dropping.")
    drops <- list(
-      dropped_notyet = data %>% filter(drop_notyet == 1),
+      dropped_notyet = data %>% filter(corr_defer == 1),
       dropped_notart = data %>% filter(drop_notart == 1)
    )
 
@@ -427,12 +427,12 @@ remove_drops <- function(data) {
    log_info("Dropping clients w/ issue from final registry.")
    data %<>%
       mutate(
-         drop = drop_notyet + drop_notart,
+         drop = corr_defer + drop_notart,
       ) %>%
       filter(drop == 0) %>%
       select(
          -drop,
-         -drop_notyet,
+         -corr_defer,
          -drop_notart,
          -starts_with("CURR_PSGC"),
       )
@@ -820,7 +820,7 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
 
       # Remove already tagged data from validation
       if (exclude_drops == "1") {
-         for (drop in c("drop_notart", "drop_notyet")) {
+         for (drop in c("drop_notart", "corr_defer")) {
             if (drop %in% names(corr))
                for (check_var in names(check)) {
                   if (check_var != "tabstat")

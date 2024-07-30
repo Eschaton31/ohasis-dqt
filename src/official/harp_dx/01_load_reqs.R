@@ -152,12 +152,12 @@ update_dataset <- function(params, corr, reprocess) {
    official       <- list()
    official$old   <- ohasis$load_old_dta(
       path            = hs_data("harp_dx", "reg", params$prev_yr, params$prev_mo),
-      corr            = corr$old_reg,
+      corr            = corr$corr_reg,
       warehouse_table = "harp_dx_old",
       id_col          = c("idnum" = "integer"),
       dta_pid         = "PATIENT_ID",
       remove_cols     = "CENTRAL_ID",
-      remove_rows     = corr$anti_join,
+      remove_rows     = corr$corr_drop,
       reload          = reprocess
    )
    official$dupes <- official$old %>% get_dupes(CENTRAL_ID)
@@ -184,8 +184,10 @@ update_dataset <- function(params, corr, reprocess) {
          default = "2"
       )
    )
-   if (dl == "1")
-      p$corr <- gdrive_correct3(p$params$ym, "harp_dx")
+   if (dl == "1") {
+      p$corr <- flow_corr(p$params$ym, "harp_dx")
+      # p$corr <- gdrive_correct3(p$params$ym, "harp_dx")
+   }
 
    # ! old dataset
    update <- ifelse(

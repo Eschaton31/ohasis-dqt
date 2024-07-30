@@ -1,6 +1,6 @@
 ##  Initial Cleaning -----------------------------------------------------------
 
-clean_data <- function(forms, dup_munc) {
+clean_data <- function(forms) {
    log_info("Processing new positives.")
    hts          <- process_hts(forms$form_hts, forms$form_a, forms$form_cfbs)
    confirm_cols <- names(forms$px_confirm)
@@ -115,14 +115,6 @@ clean_data <- function(forms, dup_munc) {
          AGE_DTA        = calc_age(BIRTHDATE, visit_date),
 
          FORM_SORT      = if_else(REC_ID == HTS_REC, 1, 9999, 9999)
-      ) %>%
-      left_join(
-         y  = dup_munc %>%
-            select(
-               PERM_PSGC_MUNC = PSGC_MUNC,
-               DUP_MUNC
-            ),
-         by = "PERM_PSGC_MUNC"
       )
 
    return(data)
@@ -695,12 +687,12 @@ tag_class <- function(data, corr) {
             TRUE ~ as.numeric(MED_TB_PX)
          ),
          classd               = case_when(
-            stri_detect_regex(description_symptoms, paste(collapse = "|", (corr$classd %>% filter(as.numeric(class) == 3))$symptom)) ~ 3,
+            stri_detect_regex(description_symptoms, paste(collapse = "|", (corr$corr_classd %>% filter(as.numeric(class) == 3))$symptom)) ~ 3,
             MED_TB_PX == 1 ~ 3,
             TRUE ~ classd
          ),
          classd               = case_when(
-            stri_detect_regex(description_symptoms, paste(collapse = "|", (corr$classd %>% filter(as.numeric(class) == 4))$symptom)) ~ 4,
+            stri_detect_regex(description_symptoms, paste(collapse = "|", (corr$corr_classd %>% filter(as.numeric(class) == 4))$symptom)) ~ 4,
             TRUE ~ classd
          ),
 
@@ -1046,7 +1038,7 @@ final_conversion <- function(data) {
          diff_source_v_form,
          SOURCE_FACI,
          HTS_FACI,
-         DUP_MUNC,
+         # DUP_MUNC,
          FORM_FACI
       ) %>%
       # turn into codes
@@ -1131,8 +1123,8 @@ append_data <- function(old, new) {
       ) %>%
       arrange(idnum) %>%
       mutate(
-         drop_notyet     = 0,
-         drop_duplicates = 0,
+         corr_defer = 0,
+         corr_drop  = 0,
       ) %>%
       mutate(
          nodata_hiv_stage = if_else(
@@ -1155,7 +1147,7 @@ append_data <- function(old, new) {
 
 tag_fordrop <- function(data, corr) {
    log_info("Tagging enrollees for dropping.")
-   for (drop_var in c("drop_notyet", "drop_duplicates"))
+   for (drop_var in c("corr_defer"))
       if (drop_var %in% names(corr))
          data %<>%
             left_join(
@@ -1178,8 +1170,8 @@ tag_fordrop <- function(data, corr) {
 subset_drops <- function(data) {
    log_info("Archive those for dropping.")
    drops <- list(
-      dropped_notyet     = data %>% filter(drop_notyet == 1),
-      dropped_duplicates = data %>% filter(drop_duplicates == 1)
+      dropped_notyet     = data %>% filter(corr_defer == 1),
+      dropped_duplicates = data %>% filter(corr_drop == 1)
    )
 
    return(drops)
@@ -1197,7 +1189,7 @@ remove_drops <- function(data, params) {
             false     = labcode2,
             missing   = labcode2
          ),
-         drop        = drop_duplicates + drop_notyet,
+         drop        = corr_drop + corr_defer,
          who_staging = as.integer(who_staging),
          transmit    = if_else(
             year == params$yr &
@@ -1211,8 +1203,8 @@ remove_drops <- function(data, params) {
       filter(drop == 0) %>%
       select(
          -drop,
-         -drop_duplicates,
-         -drop_notyet,
+         -corr_drop,
+         -corr_defer,
          -mot,
          -FORM_FACI,
          -any_of(
@@ -1220,7 +1212,7 @@ remove_drops <- function(data, params) {
                "diff_source_v_form",
                "SOURCE_FACI",
                "HTS_FACI",
-               "DUP_MUNC",
+               # "DUP_MUNC",
                "age_pregnant",
                "age_vertical",
                "age_unknown",
@@ -1465,15 +1457,6 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
             any_of(view_vars)
          )
 
-      log_info("Checking for similarly named municipalities.")
-      check[["dup_munc"]] <- data %>%
-         filter(
-            DUP_MUNC == 1
-         ) %>%
-         select(
-            any_of(view_vars)
-         )
-
       log_info("Checking for duplicate results w/o a reported positive result.")
       check[["dup_not_positive"]] <- data %>%
          filter(
@@ -1569,7 +1552,7 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
 
       # Remove already tagged data from validation
       if (exclude_drops == "1") {
-         for (drop in c("drop_notart", "drop_notyet")) {
+         for (drop in c("drop_notart", "corr_defer")) {
             if (drop %in% names(corr))
                for (check_var in names(check)) {
                   if (check_var != "tabstat")
@@ -1588,17 +1571,17 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
 
 ##  Stata Labels ---------------------------------------------------------------
 
-label_stata <- function(newdx, stata_labels) {
-   labels <- split(stata_labels$lab_def, ~label_name)
+label_stata <- function(newdx, label_values, label_variables) {
+   labels <- split(label_values, ~name)
    labels <- lapply(labels, function(data) {
       final_labels        <- as.integer(data[["value"]])
       names(final_labels) <- as.character(data[["label"]])
       return(final_labels)
    })
 
-   for (i in seq_len(nrow(stata_labels$lab_val))) {
-      var   <- stata_labels$lab_val[i,]$variable
-      label <- stata_labels$lab_val[i,]$label_name
+   for (i in seq_len(nrow(label_variables))) {
+      var   <- label_variables[i,]$variable
+      label <- label_variables[i,]$label_name
 
       if (var %in% names(newdx))
          newdx[[var]] <- labelled(
@@ -1647,7 +1630,7 @@ output_dta <- function(official, params, save = "2") {
    p    <- envir
    vars <- as.list(list(...))
 
-   data <- clean_data(p$forms, p$corr$dup_munc)
+   data <- clean_data(p$forms)
    data <- prioritize_reports(data)
    data <- get_cd4(data, p$forms$cd4)
    data <- standardize_data(data, p$params)
@@ -1655,13 +1638,13 @@ output_dta <- function(official, params, save = "2") {
    data <- tag_class(data, p$corr)
    data <- convert_faci_addr(data)
    data <- final_conversion(data)
-   data <- label_stata(data, p$corr$stata_labels)
+   data <- label_stata(data, p$corr$label_values, p$corr$label_variables)
 
    new_reg <- append_data(p$official$old, data)
    new_reg <- tag_fordrop(new_reg, p$corr)
    drops   <- subset_drops(new_reg)
    new_reg <- remove_drops(new_reg, p$params)
-   new_reg <- label_stata(new_reg, p$corr$stata_labels)
+   new_reg <- label_stata(new_reg, p$corr$label_values, p$corr$label_variables)
 
    step$check <- get_checks(data, p$pdf_rhivda, p$corr, run_checks = vars$run_checks, exclude_drops = vars$exclude_drops)
    step$data  <- data

@@ -408,12 +408,12 @@ update_dataset <- function(params, corr, forms, reprocess) {
    official         <- list()
    official$old_reg <- ohasis$load_old_dta(
       path            = hs_data("prep", "reg", params$prev_yr, params$prev_mo),
-      corr            = corr$old_reg,
+      corr            = corr$corr_reg,
       warehouse_table = "prep_old",
       id_col          = c("prep_id" = "integer"),
       dta_pid         = "PATIENT_ID",
       remove_cols     = "CENTRAL_ID",
-      remove_rows     = corr$anti_join,
+      remove_rows     = corr$corr_drop,
       id_registry     = forms$id_registry,
       reload          = reprocess
    )
@@ -427,9 +427,9 @@ update_dataset <- function(params, corr, forms, reprocess) {
       )
 
    # clean if any for cleaning found
-   if (!is.null(corr$old_outcome)) {
+   if (!is.null(corr$corr_outcome)) {
       log_info("Performing cleaning on the outcome dataset.")
-      official$old_outcome <- .cleaning_list(official$old_outcome, corr$old_outcome, "PREP_ID", "integer")
+      official$old_outcome <- .cleaning_list(official$old_outcome, corr$corr_outcome, "prep_id", "integer")
    }
    official$dupes <- official$old_reg %>% get_dupes(CENTRAL_ID)
    if (nrow(official$dupes) > 0)
@@ -459,9 +459,10 @@ update_dataset <- function(params, corr, forms, reprocess) {
          default = "2"
       )
    )
-   if (dl == "1")
-      p$corr <- gdrive_correct3(params$ym, "prep")
-
+   if (dl == "1"){
+      p$corr <- flow_corr(params$ym, "prep")
+      # p$corr <- gdrive_correct3(params$ym, "prep")
+   }
    # ! forms
    dl <- ifelse(
       !is.null(vars$dl_forms) && vars$dl_forms %in% c("1", "2"),

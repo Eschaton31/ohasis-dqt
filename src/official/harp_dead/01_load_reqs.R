@@ -67,12 +67,12 @@ update_dataset <- function(params, corr, forms, reprocess) {
    official       <- list()
    official$old   <- ohasis$load_old_dta(
       path            = hs_data("harp_dead", "reg", params$prev_yr, params$prev_mo),
-      corr            = corr$old_reg,
+      corr            = corr$corr_reg,
       warehouse_table = "harp_dead_old",
       id_col          = c("mort_id" = "integer"),
       dta_pid         = "PATIENT_ID",
       remove_cols     = "CENTRAL_ID",
-      remove_rows     = corr$anti_join,
+      remove_rows     = corr$corr_drop,
       id_registry     = forms$id_registry,
       reload          = reprocess
    )
@@ -107,9 +107,10 @@ define_params <- function() {
          default = "2"
       )
    )
-   if (dl == "1")
-      p$corr <- gdrive_correct3(p$params$ym, "harp_dead")
-
+   if (dl == "1"){
+      p$corr <- flow_corr(p$params$ym, "harp_dead")
+      # p$corr <- gdrive_correct3(p$params$ym, "harp_dead")
+   }
    dl <- ifelse(
       !is.null(vars$dl_forms) && vars$dl_forms %in% c("1", "2"),
       vars$dl_forms,
