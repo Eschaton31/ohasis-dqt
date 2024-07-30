@@ -1,4 +1,4 @@
-dir      <- "C:/Users/johnb/Downloads/hts-offline"
+dir      <- "C:/Users/johnb/Downloads/protects-upscale-june2024"
 files    <- list.files(dir, ".xlsx", recursive = TRUE, full.names = TRUE)
 gf_staff <- read_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "staff", col_types = "c")
 gf_site  <- read_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "site", col_types = "c")
@@ -164,12 +164,13 @@ conso <- data %>%
    ) %>%
    left_join(
       y  = ohasis$ref_addr %>%
-         select(CURR_NAME_REG  = NAME_REG,
-                CURR_NAME_PROV = NAME_PROV,
-                CURR_NAME_MUNC = NAME_MUNC,
-                CURR_REG       = PSGC_REG,
-                CURR_PROV      = PSGC_PROV,
-                CURR_MUNC      = PSGC_MUNC
+         select(
+            CURR_NAME_REG  = NAME_REG,
+            CURR_NAME_PROV = NAME_PROV,
+            CURR_NAME_MUNC = NAME_MUNC,
+            CURR_REG       = PSGC_REG,
+            CURR_PROV      = PSGC_PROV,
+            CURR_MUNC      = PSGC_MUNC
          ),
       by = join_by(CURR_NAME_REG, CURR_NAME_PROV, CURR_NAME_MUNC)
    ) %>%
@@ -369,7 +370,11 @@ convert <- conso %>%
          TRUE ~ .
       )
    ) %>%
-   relocate(any_of(names(form_hts)), .before = 1)
+   relocate(any_of(names(form_hts)), .before = 1) %>%
+   mutate_at(
+      .vars = vars(contains("_DATE"), contains("DATE_"), BIRTHDATE),
+      ~as.character(as.Date(parse_date_time(., c("Ymd", "mdY"))))
+   )
 
 convert %<>%
    filter(!is.na(PATIENT_ID)) %>%
