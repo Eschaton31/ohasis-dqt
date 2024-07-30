@@ -357,7 +357,17 @@ flow_dta <- function(data, surv_name, type, yr, mo) {
    if (dbExistsTable(lw_conn, schema)) {
       dbRemoveTable(lw_conn, schema)
    }
-   ohasis$upsert(lw_conn, db, table, data, id_col)
+   ohasis$upsert(
+      lw_conn,
+      db,
+      table,
+      data %>%
+         mutate_if(
+            .predicate = is.labelled,
+            ~to_character(.)
+         ),
+      id_col
+   )
 
    version <- tibble(
       type        = type,
@@ -367,6 +377,56 @@ flow_dta <- function(data, surv_name, type, yr, mo) {
    ohasis$upsert(lw_conn, surv_name, "version", version, c("type", "period"))
 
    dbDisconnect(lw_conn)
+}
+
+flow_corr <- function(report_period = NULL, surv_name = NULL) {
+   # re-initialize
+   corr <- list()
+
+   # list of correction files
+   log_info("Downloading corrections.")
+   con                  <- ohasis$conn("lw")
+   corr$label_values    <- QB$new(con)$
+      from("nhsss_stata.label_values")$
+      where("system", surv_name)$
+      get()
+   corr$label_variables <- QB$new(con)$
+      from("nhsss_stata.label_variables")$
+      where("system", surv_name)$
+      get()
+
+   # non duplicates
+   table_space <- Id(schema = surv_name, table = "non_dupes")
+   if (dbExistsTable(con, table_space)) {
+      table_name     <- stri_c(surv_name, ".", "non_dupes")
+      corr$non_dupes <- QB$new(con)$
+         from(table_name)$
+         get()
+   }
+
+   # classd
+   table_space <- Id(schema = surv_name, table = "corr_classd")
+   if (dbExistsTable(con, table_space)) {
+      table_name     <- stri_c(surv_name, ".", "corr_classd")
+      corr$corr_classd <- QB$new(con)$
+         from(table_name)$
+         get()
+   }
+
+   for (tbl in c("corr_reg", "corr_outcome", "corr_defer", "corr_drop")) {
+      table_space <- Id(schema = surv_name, table = tbl)
+      if (dbExistsTable(con, table_space)) {
+         table_name         <- stri_c(surv_name, ".", tbl)
+         corr[[tbl]] <- QB$new(con)$
+            from(table_name)$
+            where("period", report_period)$
+            get()
+      }
+   }
+   dbDisconnect(con)
+
+   log_success("Done.")
+   return(corr)
 }
 
 combine_validations <- function(data_src, corr_list, row_ids) {
@@ -427,10 +487,11 @@ hs_download <- function(sys, type, yr, mo) {
       sys == "prep" & type == "outcome" ~ "onprep",
       sys == "prep" & type == "reg" ~ "reg-prep",
       sys == "harp_dead" & type == "reg" ~ "mort",
+      sys == "harp_full" & type == "reg" ~ "harp",
       TRUE ~ type
    )
 
-   local_file <- stri_c(local_version, "_", name, "_", yr, "-", mo, ".dta")
+   local_file <- stri_c(local_version, "_", name, "_", yr, "-", mo, ifelse(sys == "harp_full", "_wVL", ""), ".dta")
    local_file <- file.path(local_path, local_file)
 
    write_dta(format_stata(data), local_file)
