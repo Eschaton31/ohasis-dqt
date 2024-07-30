@@ -1,10 +1,10 @@
-drh <- read_sheet("1gaI9FzcE5xvBDEEeTbtEfenpO62HLNBpKKpe7JjlGkk", "Sheet3", col_types = "c")
+drh <- read_sheet("1gaI9FzcE5xvBDEEeTbtEfenpO62HLNBpKKpe7JjlGkk", "Jun 2024", col_types = "c")
 
 conn        <- ohasis$conn("lw")
 form_art_bc <- QB$new(conn)$
    from("ohasis_warehouse.form_art_bc AS art")$
    leftJoin("ohasis_warehouse.id_registry AS reg", "art.PATIENT_ID", "=", "reg.PATIENT_ID")$
-   whereBetween("art.VISIT_DATE", c("2024-05-01", "2024-05-31"))$
+   whereBetween("art.VISIT_DATE", c("2024-06-01", "2024-06-30"))$
    whereNotNull("MEDICINE_SUMMARY")$
    where("FACI_ID", "110005")$
    select("VISIT_DATE")$
@@ -102,6 +102,7 @@ tables$px_medicine <- list(
             MEDICINE == "AZT/3TC" ~ "2018",
             MEDICINE == "LPV/r" ~ "2009",
             MEDICINE == "DTG" ~ "2035",
+            MEDICINE == "EFV" ~ "2004",
          ),
          UNIT_BASIS    = "2",
 
@@ -132,7 +133,7 @@ db_conn <- ohasis$conn("db")
 dbxDelete(
    db_conn,
    Id(schema = "ohasis_interim", table = "px_medicine"),
-   tly$import %>% select(REC_ID),
+   import %>% select(REC_ID),
    batch_size = 1000
 )
 lapply(tables, function(ref, db_conn) {

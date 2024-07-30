@@ -13,8 +13,8 @@ art <- QB$new(con)$from("ohasis_warehouse.form_art_bc AS pii")$
 dbDisconnect(con)
 
 
-nmm_addr   <- read_excel("C:/Users/johnb/Downloads/NMM_Addr.xlsx", col_types = "text")
-nmm_file   <- "C:/Users/johnb/Downloads/REFILL ARV APR-MAY 2024.ods"
+nmm_addr   <- read_excel("W:/Users/johnb/Downloads/NMM_Addr.xlsx", col_types = "text")
+nmm_file   <- "C:/Users/johnb/Downloads/JUNE 2024 - NMM.ods"
 nmm_sheets <- ods_sheets(nmm_file)
 nmm        <- lapply(nmm_sheets, read_ods, path = nmm_file, col_types = cols(.default = "c")) %>%
    bind_rows() %>%
@@ -93,6 +93,7 @@ nmm        <- lapply(nmm_sheets, read_ods, path = nmm_file, col_types = cols(.de
 ## final import
 ss        <- "16ci-cPFm8oym0mMse92nBC54fdRL9lOkSAiTh-t8alk"
 ss        <- "1PlcXdGNiKJF9TQO3e-79hlghVU33s5FLNMhItk-XQs8"
+ss        <- "1IqKHP8qd_NFveR1ONbfOdOI92G3oPZ0TOgMvNgqtq1U"
 nmm       <- read_sheet(ss, col_types = "c")
 nmm_clean <- nmm %>%
    filter(is.na(CENTRAL_ID)) %>%
@@ -112,6 +113,9 @@ write_sheet(nmm_clean %>% filter(is.na(CENTRAL_ID)), ss, "no_cid")
 
 min <- min(nmm_matched$RECORD_DATE, na.rm = TRUE)
 max <- max(nmm_matched$RECORD_DATE, na.rm = TRUE)
+
+min <- "2024-05-01"
+max <- "2024-05-31"
 
 conn        <- ohasis$conn("lw")
 id_reg      <- QB$new(conn)$from("ohasis_warehouse.id_registry")$select(CENTRAL_ID, PATIENT_ID)$get()
@@ -239,10 +243,10 @@ tables$px_info <- list(
          REC_ID,
          PATIENT_ID,
          # PATIENT_ID = CENTRAL_ID,
-         CONFIRMATORY_CODE,
-         UIC,
-         SEX,
-         BIRTHDATE,
+         # CONFIRMATORY_CODE,
+         # UIC,
+         # SEX,
+         # BIRTHDATE,
          CREATED_BY,
          CREATED_AT,
       ) %>%
