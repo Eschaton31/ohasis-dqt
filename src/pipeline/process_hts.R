@@ -1,3 +1,46 @@
+get_hts <- function(min, max) {
+
+   con   <- ohasis$conn("lw")
+   forms <- QB$new(con)
+   forms$select("*")
+   forms$from("ohasis_warehouse.form_hts")
+   forms$where(function(query = QB$new(con)) {
+      query$whereBetween('RECORD_DATE', c(min, max), "or")
+      query$whereBetween('DATE_CONFIRM', c(min, max), "or")
+      query$whereBetween('T0_DATE', c(min, max), "or")
+      query$whereBetween('T1_DATE', c(min, max), "or")
+      query$whereBetween('T2_DATE', c(min, max), "or")
+      query$whereBetween('T3_DATE', c(min, max), "or")
+      query$whereNested
+   })
+   form_hts <- forms$get()
+
+   forms <- QB$new(con)
+   forms$from("ohasis_warehouse.form_a")
+   forms$where(function(query = QB$new(con)) {
+      query$whereBetween('RECORD_DATE', c(min, max), "or")
+      query$whereBetween('DATE_CONFIRM', c(min, max), "or")
+      query$whereBetween('T0_DATE', c(min, max), "or")
+      query$whereBetween('T1_DATE', c(min, max), "or")
+      query$whereBetween('T2_DATE', c(min, max), "or")
+      query$whereBetween('T3_DATE', c(min, max), "or")
+      query$whereNested
+   })
+   form_a <- forms$get()
+
+   forms <- QB$new(con)
+   forms$from("ohasis_warehouse.form_cfbs")
+   forms$where(function(query = QB$new(con)) {
+      query$whereBetween('RECORD_DATE', c(min, max), "or")
+      query$whereBetween('TEST_DATE', c(min, max), "or")
+      query$whereNested
+   })
+   form_cfbs <- forms$get()
+   dbDisconnect(con)
+
+   return(list(hts = form_hts, a = form_a, cfbs = form_cfbs))
+}
+
 # process hts data
 process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfbs = data.frame()) {
    # use hts form as base
@@ -719,6 +762,313 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             src == "cfbs2020" ~ "(no data)",
             src == "hts2021" ~ "(no data)",
          ),
+
+         # mot from dx processing
+
+         # for mot
+         motherisi1            = case_when(
+            EXPOSE_HIV_MOTHER > 0 ~ 1,
+            TRUE ~ 0
+         ),
+         sexwithf              = case_when(
+            EXPOSE_SEX_F > 0 ~ 1,                      # HTS Form
+            !is.na(EXPOSE_SEX_F_AV_DATE) ~ 1,          # HTS Form
+            !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ 1, # HTS Form
+            EXPOSE_SEX_F_NOCONDOM > 0 ~ 1,
+            TRUE ~ 0
+         ),
+         sexwithm              = case_when(
+            EXPOSE_SEX_M > 0 ~ 1,                      # HTS Form
+            !is.na(EXPOSE_SEX_M_AV_DATE) ~ 1,          # HTS Form
+            !is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ 1, # HTS Form
+            EXPOSE_SEX_M_NOCONDOM > 0 ~ 1,
+            TRUE ~ 0
+         ),
+         sexwithpro            = case_when(
+            EXPOSE_SEX_PAYING > 0 ~ 1,
+            TRUE ~ 0
+         ),
+         regularlya            = case_when(
+            EXPOSE_SEX_PAYMENT > 0 ~ 1,
+            TRUE ~ 0
+         ),
+         injectdrug            = case_when(
+            EXPOSE_DRUG_INJECT > 0 ~ 1,
+            TRUE ~ 0
+         ),
+         chemsex               = case_when(
+            EXPOSE_SEX_DRUGS > 0 ~ 1, # HTS Form
+            TRUE ~ 0
+         ),
+         receivedbt            = case_when(
+            EXPOSE_BLOOD_TRANSFUSE > 0 ~ 1,
+            TRUE ~ 0
+         ),
+         sti                   = case_when(
+            EXPOSE_STI > 0 ~ 1,
+            TRUE ~ 0
+         ),
+         needlepri1            = case_when(
+            EXPOSE_OCCUPATION > 0 ~ 1,
+            TRUE ~ 0
+         ),
+
+         p10y                  = hts_date %m-% years(1),
+         p10y                  = year(p10y),
+
+         mot                   = 0,
+         # m->m only
+         mot                   = case_when(
+            SEX == "1_Male" & EXPOSE_SEX_M_NOCONDOM == 1 ~ 1,
+            SEX == "1_Male" & YR_LAST_M >= p10y ~ 1,
+            SEX == "1_Male" & year(EXPOSE_SEX_M_AV_DATE) >= p10y ~ 1,          # HTS Form
+            SEX == "1_Male" & year(EXPOSE_SEX_M_AV_NOCONDOM_DATE) >= p10y ~ 1, # HTS Form
+            TRUE ~ mot
+         ),
+
+         # m->m+f
+         mot                   = case_when(
+            mot == 1 & EXPOSE_SEX_F_NOCONDOM == 1 ~ 2,
+            mot == 1 & YR_LAST_F >= p10y ~ 2,
+            mot == 1 & year(EXPOSE_SEX_F_AV_DATE) >= p10y ~ 2,          # HTS Form
+            mot == 1 & year(EXPOSE_SEX_F_AV_NOCONDOM_DATE) >= p10y ~ 2, # HTS Form
+            TRUE ~ mot
+         ),
+
+         # m->f only
+         mot                   = case_when(
+            SEX == "1_Male" &
+               mot == 0 &
+               EXPOSE_SEX_F_NOCONDOM == 1 ~ 3,
+            SEX == "1_Male" &
+               mot == 0 &
+               YR_LAST_F >= p10y ~ 3,
+            SEX == "1_Male" &
+               mot == 0 &
+               year(EXPOSE_SEX_F_AV_DATE) >= p10y ~ 3,          # HTS Form
+            SEX == "1_Male" &
+               mot == 0 &
+               year(EXPOSE_SEX_F_AV_NOCONDOM_DATE) >= p10y ~ 3, # HTS Form
+            TRUE ~ mot
+         ),
+
+         # f->m
+         mot                   = case_when(
+            SEX == "2_Female" & EXPOSE_SEX_M_NOCONDOM == 1 ~ 4,
+            SEX == "2_Female" & YR_LAST_M >= p10y ~ 4,
+            SEX == "2_Female" & year(EXPOSE_SEX_M_AV_DATE) >= p10y ~ 4,          # HTS Form
+            SEX == "2_Female" & year(EXPOSE_SEX_M_AV_NOCONDOM_DATE) >= p10y ~ 4, # HTS Form
+            TRUE ~ mot
+         ),
+
+         # ivdu
+         mot                   = case_when(
+            EXPOSE_DRUG_INJECT > 0 & StrLeft(PERM_PSGC_PROV, 4) == "0722" ~ 5,
+            TRUE ~ mot
+         ),
+
+         # vertical
+         mot                   = case_when(
+            mot == 0 & motherisi1 == 1 ~ 6,
+            TRUE ~ mot
+         ),
+
+         # m->m-f hx
+         mot                   = case_when(
+            SEX == "1_Male" &
+               mot == 0 &
+               NUM_M_PARTNER > 0 &
+               is.na(YR_LAST_M) ~ 11,
+            SEX == "1_Male" &
+               mot == 0 &
+               YR_LAST_M >= p10y ~ 11,
+            SEX == "1_Male" &
+               mot == 0 &
+               !is.na(EXPOSE_SEX_M_AV_DATE) ~ 11,                     # HTS Form
+            SEX == "1_Male" &
+               mot == 0 &
+               !is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ 11,            # HTS Form
+            SEX == "1_Male" & mot == 0 & EXPOSE_SEX_M > 0 ~ 11,             # HTS Form
+            TRUE ~ mot
+         ),
+
+         # m->m+f hx
+         mot                   = case_when(
+            mot == 1 & NUM_F_PARTNER > 0 & is.na(YR_LAST_F) ~ 21,
+            mot == 3 & NUM_M_PARTNER > 0 & is.na(YR_LAST_M) ~ 21,
+            mot == 11 & NUM_F_PARTNER > 0 & is.na(YR_LAST_F) ~ 21,
+            mot == 11 & YR_LAST_F >= p10y ~ 21,
+            mot == 11 & !is.na(EXPOSE_SEX_F_AV_DATE) ~ 21,          # HTS Form,
+            mot == 11 & !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ 21, # HTS Form,
+            mot == 11 & EXPOSE_SEX_F > 0 ~ 21,                      # HTS Form,
+            TRUE ~ mot
+         ),
+
+         # m->f hx
+         mot                   = case_when(
+            SEX == "1_Male" &
+               mot == 0 &
+               NUM_F_PARTNER > 0 &
+               is.na(YR_LAST_F) ~ 31,
+            SEX == "1_Male" &
+               mot == 0 &
+               YR_LAST_F >= p10y ~ 31,
+            SEX == "1_Male" &
+               mot == 0 &
+               !is.na(EXPOSE_SEX_F_AV_DATE) ~ 31,                     # HTS Form,
+            SEX == "1_Male" &
+               mot == 0 &
+               !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ 31,            # HTS Form,
+            SEX == "1_Male" & mot == 0 & EXPOSE_SEX_F > 0 ~ 31,             # HTS Form,
+            TRUE ~ mot
+         ),
+
+         # f->m hx
+         mot                   = case_when(
+            SEX == "2_Female" &
+               mot == 0 &
+               NUM_M_PARTNER > 0 &
+               is.na(YR_LAST_M) ~ 41,
+            SEX == "2_Female" &
+               mot == 0 &
+               YR_LAST_M >= p10y ~ 41,
+            SEX == "2_Female" &
+               mot == 0 &
+               !is.na(EXPOSE_SEX_M_AV_DATE) ~ 41,              # HTS Form,
+            SEX == "2_Female" &
+               mot == 0 &
+               !is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ 41,     # HTS Form,
+            SEX == "2_Female" & mot == 0 & EXPOSE_SEX_M > 0 ~ 41,    # HTS Form,
+            TRUE ~ mot
+         ),
+
+         # ivdu hx
+         mot                   = case_when(
+            injectdrug > 0 & StrLeft(PERM_PSGC_PROV, 4) == "0722" ~ 51,
+            TRUE ~ mot
+         ),
+
+         # mtct
+         mot                   = case_when(
+            mot == 0 & AGE < 5 ~ 61,
+            TRUE ~ mot
+         ),
+
+         # all else fails
+         mot                   = case_when(
+            SEX == "1_Male" & mot == 0 & NUM_M_PARTNER > 0 ~ 1,
+            TRUE ~ mot
+         ),
+         mot                   = case_when(
+            mot == 1 & NUM_F_PARTNER > 0 ~ 2,
+            TRUE ~ mot
+         ),
+
+         # needlestick
+         mot                   = case_when(
+            mot == 0 & needlepri1 == 1 ~ 7,
+            TRUE ~ mot
+         ),
+
+         # transfusion
+         mot                   = case_when(
+            mot == 0 & receivedbt == 1 ~ 8,
+            TRUE ~ mot
+         ),
+
+         # no data
+         mot                   = case_when(
+            mot == 0 ~ 9,
+            TRUE ~ mot
+         ),
+
+         # f->f
+         mot                   = case_when(
+            SEX == "2_Female" & mot == 0 & NUM_F_PARTNER > 0 ~ 10,
+            SEX == "2_Female" &
+               mot == 0 &
+               !is.na(YR_LAST_F) > 0 ~ 10,
+            SEX == "2_Female" &
+               mot == 0 &
+               !is.na(EXPOSE_SEX_F_AV_DATE) ~ 10,
+            SEX == "2_Female" &
+               mot == 0 &
+               !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ 10,
+            SEX == "2_Female" & mot == 0 & EXPOSE_SEX_F > 0 ~ 10,
+            TRUE ~ mot
+         ),
+
+         # # clean mot_09
+         # mot                  = case_when(
+         #    mot %in% c(7, 8) ~ 9,
+         #    TRUE ~ mot
+         # ),
+
+         # final filtering of mot using risk_*
+         mot                   = case_when(
+            mot %in% c(7, 8, 9, 10) &
+               SEX == "1_Male" &
+               str_detect(risk_sexwithm, "^yes") &
+               str_detect(risk_sexwithf, "^yes") ~ 22,
+            mot %in% c(7, 8, 9, 10) &
+               SEX == "1_Male" &
+               str_detect(risk_sexwithm, "^yes") &
+               !str_detect(risk_sexwithf, "^yes") ~ 12,
+            mot %in% c(7, 8, 9, 10) &
+               SEX == "1_Male" &
+               !str_detect(risk_sexwithm, "^yes") &
+               str_detect(risk_sexwithf, "^yes") ~ 32,
+            mot %in% c(7, 8, 9, 10) &
+               SEX == "2_Female" &
+               str_detect(risk_sexwithm, "^yes") &
+               !str_detect(risk_sexwithf, "^yes") ~ 42,
+            mot %in% c(7, 8, 9, 10) & str_detect(risk_injectdrug, "^yes") ~ 52,
+            TRUE ~ mot
+         ),
+
+         # transmit
+         transmit              = case_when(
+            mot %in% c(1, 2, 3, 4, 11, 12, 21, 22, 31, 32, 41, 42) ~ "SEX",
+            mot %in% c(5, 51, 52) ~ "IVDU",
+            mot %in% c(6, 61) ~ "PERINATAL",
+            mot %in% c(8, 9, 10) ~ "UNKNOWN",
+            mot == 7 ~ "OTHERS",
+         ),
+
+         # sexhow
+         sexhow                = case_when(
+            mot %in% c(1, 11, 12) ~ "HOMOSEXUAL",
+            mot %in% c(2, 21, 22) ~ "BISEXUAL",
+            mot %in% c(3, 4, 31, 32, 41, 42) ~ "HETEROSEXUAL",
+         ),
+
+
+         mot                   = labelled(
+            mot,
+            c(
+               'M->M only'               = 1,
+               'M->(M+F) sex'            = 2,
+               'M->F only'               = 3,
+               'F->M'                    = 4,
+               'IVDU (Cebu province)'    = 5,
+               'Vertical'                = 6,
+               'Needlestick'             = 7,
+               'Transfusion'             = 8,
+               'M->M hx'                 = 11,
+               'M->M hx'                 = 21,
+               'M->(M+F) hx'             = 31,
+               'F->M hx'                 = 41,
+               'IVDU hx (Cebu province)' = 51,
+               'Vertical (<5 y.o.)'      = 61,
+               'No risk'                 = 9,
+               'F->F only'               = 10,
+               'M->(M+F) unreliable'     = 22,
+               'M->M unreliable'         = 12,
+               'M->F unreliable'         = 32,
+               'F->M unreliable'         = 42,
+               'IVDU unreliable'         = 52
+            )
+         )
       ) %>%
       select(-starts_with("recent_", ignore.case = FALSE)) %>%
       mutate(
