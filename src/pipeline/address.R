@@ -277,7 +277,7 @@ psgc_aem <- function(ref_addr) {
    return(refs)
 }
 
-harp_addr_to_id <- function(data, ref_addr, harp_addr, aem_sub_ntl = FALSE) {
+harp_addr_to_id <- function(data, ref_addr, harp_addr, aem_sub_ntl = FALSE, add_ph = FALSE) {
    psgc_reg  <- names(harp_addr)[1]
    psgc_prov <- names(harp_addr)[2]
    psgc_munc <- names(harp_addr)[3]
@@ -382,7 +382,16 @@ harp_addr_to_id <- function(data, ref_addr, harp_addr, aem_sub_ntl = FALSE) {
             . == "PSGC_MUNC" ~ psgc_munc,
             TRUE ~ .
          )
-      )
+      ) %>%
+      select(-overseas_addr)
+
+   if (add_ph) {
+      data %<>%
+         mutate_at(
+            .vars = vars(all_of(c(psgc_reg, psgc_prov, psgc_munc))),
+            ~if_else(. != "", str_c("PH", .), ., .)
+         )
+   }
 
    return(data)
 }
