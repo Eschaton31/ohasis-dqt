@@ -5,58 +5,106 @@ tly <- list(
       addr  = read_sheet("1r8CVfX16oDSStwLfIQdExyA-X21QuGnKwZp1AGDNXdc", "addr", range = "A:F", col_types = "c"),
       staff = read_sheet("1r8CVfX16oDSStwLfIQdExyA-X21QuGnKwZp1AGDNXdc", "staff", range = "A:C", col_types = "c"),
       sites = read_sheet("1r8CVfX16oDSStwLfIQdExyA-X21QuGnKwZp1AGDNXdc", "sites", range = "A:C", col_types = "c")
+   ),
+   data    = list(
+      raw = read_rds("H:/20240504_ly-hts_corr-addr.rds")
    )
 )
 
 #  uploaded --------------------------------------------------------------------
-min <- min(tly$hts$RECORD_DATE, na.rm = TRUE)
-max <- max(tly$hts$RECORD_DATE, na.rm = TRUE)
-tly$sites <- ohasis$ref_faci %>%
-   filter(str_detect(FACI_NAME, "LoveYourself"))
+
+TIMESTAMP <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+min       <- as.character(min(tly$data$raw$visit_date_value, na.rm = TRUE))
+max       <- as.character(max(tly$data$raw$visit_date_value, na.rm = TRUE))
+sites     <- ohasis$ref_faci %>% filter(str_detect(FACI_NAME, "LoveYour"))
+sites     <- sites$FACI_ID
 
 # min             <- "2024-01-01"
-# max             <- "2024-05-21"
+# max             <- "2024-03-31"
 db              <- "ohasis_warehouse"
 lw_conn         <- ohasis$conn("lw")
 tly$prev_upload <- QB$new(lw_conn)$
    from("ohasis_warehouse.form_hts")$
-   whereBetween("RECORD_DATE", c(as.character(min), as.character(max)))$
-   whereIn("FACI_ID", unique(tly$convert$sites$FACI_ID))$
+   whereBetween("RECORD_DATE", c(min, max))$
+   whereIn("FACI_ID", sites)$
    get()
-# tly$prev_upload <- dbTable(
-#    lw_conn,
-#    db,
-#    "form_hts",
-#    raw_where = TRUE,
-#    where     = glue(r"(
-#          (RECORD_DATE BETWEEN '{min(as.character(tly$hts$RECORD_DATE))}' AND '{max(as.character(tly$hts$RECORD_DATE))}') AND
-#             FACI_ID IN ('{stri_c(collapse = "','", tly$convert$sites$FACI_ID)}')
-#    )")
-# )
 tly$prev_upload %<>%
-   mutate_if(
-      .predicate = is.POSIXct,
-      ~as.Date(.)
-   ) %>%
+   mutate_if(is.POSIXct, ~as.Date(.)) %>%
    mutate_all(~as.character(.))
-TIMESTAMP <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 dbDisconnect(lw_conn)
 
-##  new data -------------------------------------------------------------------
+##  check convert --------------------------------------------------------------
 
-tly$hts <- read_rds("H:/20240702_tly-hts.rds") %>%
-   rename(
-      PATIENT_CODE  = CLIENT_CODE,
-      PROVIDER      = PROVIDER_ID,
-      CLINIC_NOTES  = REMARKS,
-      COUNSEL_NOTES = KEY_POPULATION
+tly$data$convert <- tly$data$raw %>%
+   filter(visit_date_value >= "2024-01-01") %>%
+   select(
+      data_id,
+      RECORD_DATE                   = visit_date_value,
+      UIC                           = uic,
+      LAST                          = last_name,
+      FIRST                         = first_name,
+      MIDDLE                        = middle_name,
+      SUFFIX                        = suffix_name,
+      BIRTHDATE                     = birth_date_value,
+      AGE                           = age,
+      SEX                           = sex,
+      SELF_IDENT                    = self_identity,
+      SELF_IDENT_OTHER              = self_identity_other,
+      CURR_ADDR                     = current_municipality,
+      CURR_REG                      = curr_reg,
+      CURR_PROV                     = curr_prov,
+      CURR_MUNC                     = curr_munc,
+      PERM_ADDR                     = permanent_municipality,
+      PERM_REG                      = perm_reg,
+      PERM_PROV                     = perm_prov,
+      PERM_MUNC                     = perm_munc,
+      IS_PREGNANT                   = is_pregnant,
+      CLIENT_MOBILE                 = contact_mobile,
+      CLIENT_EMAIL                  = contact_email,
+      PROVIDER                      = counselor,
+      NUM_M_PARTNER                 = num_m_partner,
+      EXPOSE_SEX_M                  = risk_sex_m,
+      EXPOSE_SEX_M_AV               = risk_sex_m_av,
+      EXPOSE_SEX_M_AV_DATE          = risk_sex_m_av_date_value,
+      EXPOSE_SEX_M_AV_NOCONDOM      = risk_sex_m_av_nocondom,
+      EXPOSE_SEX_M_AV_NOCONDOM_DATE = risk_sex_m_av_nocondom_date_value,
+      NUM_F_PARTNER                 = num_f_partner,
+      EXPOSE_SEX_F                  = risk_sex_f,
+      EXPOSE_SEX_F_AV               = risk_sex_f_av,
+      EXPOSE_SEX_F_AV_DATE          = risk_sex_f_av_date_value,
+      EXPOSE_SEX_F_AV_NOCONDOM      = risk_sex_f_av_nocondom,
+      EXPOSE_SEX_F_AV_NOCONDOM_DATE = risk_sex_f_av_nocondom_date_value,
+      EXPOSE_SEX_PAYING             = risk_sex_paying,
+      EXPOSE_SEX_PAYING_DATE        = risk_sex_paying_date_value,
+      EXPOSE_SEX_PAYMENT            = risk_sex_payment,
+      EXPOSE_SEX_PAYMENT_DATE       = risk_sex_payment_date_value,
+      EXPOSE_SEX_DRUGS              = risk_sex_drugs,
+      EXPOSE_SEX_DRUGS_DATE         = risk_sex_drugs_date_value,
+      EXPOSE_DRUG_INJECT            = risk_drug_inject,
+      EXPOSE_DRUG_INJECT_DATE       = risk_drug_inject_date_value,
+      EXPOSE_BLOOD_TRANSFUSE        = risk_blood_transfuse,
+      EXPOSE_BLOOD_TRANSFUSE_DATE   = risk_blood_transfuse_date_value,
+      EXPOSE_OCCUPATION             = risk_occupation,
+      EXPOSE_OCCUPATION_DATE        = risk_occupation_date_value,
+      EXPOSE_SEX_ORAL               = risk_sex_oral,
+      EXPOSE_SEX_ANAL_INSERT        = risk_sex_anal_insert,
+      EXPOSE_SEX_ANAL_RECEIVE       = risk_sex_anal_receive,
+      EXPOSE_SEX_VAGINAL            = risk_sex_vaginal,
+      EXPOSE_CONDOM_USE             = risk_condom_use,
+      PREV_TESTED                   = prev_tested,
+      PREV_TEST_DATE                = prev_test_date_value,
+      PREV_TEST_RESULT              = prev_test_result,
+      TEST_REASON_HIV_EXPOSE        = test_reason_hiv_expose,
+      TEST_REASON_OTHER_TEXT        = test_reasons,
+      T0_RESULT                     = test_result,
+      PATIENT_CODE                  = client_code,
+      COUNSEL_NOTES                 = key_population,
+      CLINIC_NOTES                  = remarks,
+      BRANCH                        = branch_name,
    ) %>%
-   mutate(
-      RECORD_DATE = case_when(
-         RECORD_DATE == "2004-05-30" ~ as.Date("2024-05-30"),
-         RECORD_DATE == "2022-07-08" & SHEET == "JULY 2023" ~ as.Date("2023-07-08"),
-         TRUE ~ RECORD_DATE
-      )
+   mutate_at(
+      .vars = vars(FIRST, MIDDLE, LAST, SUFFIX, PATIENT_CODE, UIC, CLIENT_MOBILE, CLIENT_EMAIL),
+      ~clean_pii(.)
    ) %>%
    left_join(
       y  = tly$convert$sites,
@@ -68,86 +116,77 @@ tly$hts <- read_rds("H:/20240702_tly-hts.rds") %>%
          rename(SERVICE_BY = USER_ID),
       by = join_by(PROVIDER, BRANCH)
    ) %>%
-   left_join(
-      y  = tly$convert$addr %>%
-         # filter(REG != "000000000") %>%
-         select(
-            BRANCH,
-            CURR_MUNC      = MUNCITY,
-            CURR_PSGC_REG  = REG,
-            CURR_PSGC_PROV = PROV,
-            CURR_PSGC_MUNC = MUNC,
-         ) %>%
-         distinct_all(),
-      by = join_by(CURR_MUNC, BRANCH)
+   harp_addr_to_id(
+      ohasis$ref_addr,
+      c(
+         CURR_PSGC_REG  = "CURR_REG",
+         CURR_PSGC_PROV = "CURR_PROV",
+         CURR_PSGC_MUNC = "CURR_MUNC"
+      ),
+      aem_sub_ntl = FALSE
    ) %>%
-   left_join(
-      y  = tly$convert$addr %>%
-         # filter(REG != "000000000") %>%
-         select(
-            BRANCH,
-            PERM_MUNC      = MUNCITY,
-            PERM_PSGC_REG  = REG,
-            PERM_PSGC_PROV = PROV,
-            PERM_PSGC_MUNC = MUNC,
-         ) %>%
-         distinct_all(),
-      by = join_by(PERM_MUNC, BRANCH)
-   ) %>%
-   mutate_at(
-      .vars = vars(contains("PSGC")),
-      ~na_if(., "000000000")
+   harp_addr_to_id(
+      ohasis$ref_addr,
+      c(
+         PERM_PSGC_REG  = "PERM_REG",
+         PERM_PSGC_PROV = "PERM_PROV",
+         PERM_PSGC_MUNC = "PERM_MUNC"
+      ),
+      aem_sub_ntl = FALSE
    ) %>%
    mutate(
-      SERVICE_FACI     = FACI_ID,
-      SERVICE_SUB_FACI = SUB_FACI_ID,
+      SERVICE_FACI      = FACI_ID,
+      SERVICE_SUB_FACI  = SUB_FACI_ID,
 
-      SEX              = case_when(
+      UIC               = StrLeft(str_squish(UIC), 14),
+
+      SEX               = case_when(
+         SEX == "Male" ~ "1_Male",
          SEX == "MALE" ~ "1_Male",
          SEX == "FEMALE" ~ "2_Female",
          TRUE ~ SELF_IDENT
       ),
 
-      SELF_IDENT_OTHER = case_when(
-         SELF_IDENT == "TGM" ~ SELF_IDENT,
-         SELF_IDENT == "TGW" ~ SELF_IDENT,
-         SELF_IDENT == "TGF" ~ SELF_IDENT,
-         SELF_IDENT == "QUEER" ~ SELF_IDENT,
-         SELF_IDENT == "OTHER" ~ SELF_IDENT,
-         SELF_IDENT == "NON-BINARY" ~ SELF_IDENT,
-         TRUE ~ NA_character_
-      ),
-      SELF_IDENT       = case_when(
+      SELF_IDENT        = case_when(
          SELF_IDENT == "MALE" ~ "1_Man",
+         SELF_IDENT == "MAN" ~ "1_Man",
          SELF_IDENT == "FEMALE" ~ "2_Woman",
+         SELF_IDENT == "WOMAN" ~ "2_Woman",
+         SELF_IDENT == "OTHER" ~ "3_Other",
          !is.na(SELF_IDENT) ~ "3_Other",
          TRUE ~ SELF_IDENT
       ),
 
-      T0_RESULT        = case_when(
+      T0_RESULT         = case_when(
          T0_RESULT == "REACTIVE" ~ "1_Reactive",
+         T0_RESULT == "R" ~ "1_Reactive",
          T0_RESULT == "NON REACTIVE" ~ "2_Non-reactive",
          T0_RESULT == "NON-REACTIVE" ~ "2_Non-reactive",
+         T0_RESULT == "NR" ~ "2_Non-reactive",
+         T0_RESULT == "NOT APPLICABLE" ~ NA_character_,
          TRUE ~ T0_RESULT
       ),
-      PREV_TEST_RESULT = case_when(
+      PREV_TEST_RESULT  = case_when(
          PREV_TEST_RESULT == "POSITIVE" ~ "1_Positive",
-         PREV_TEST_RESULT == "REACTIVE" ~ "1_Positive",
+         PREV_TEST_RESULT == "R" ~ "1_Positive",
          PREV_TEST_RESULT == "NEGATIVE" ~ "2_Negative",
-         PREV_TEST_RESULT == "N" ~ "2_Negative",
-         PREV_TEST_RESULT == "INDETERMINATE" ~ "3_Indeterminate",
+         PREV_TEST_RESULT == "NR" ~ "2_Negative",
+         PREV_TEST_RESULT == "IND" ~ "3_Indeterminate",
          PREV_TEST_RESULT == "DON'T KNOW" ~ "4_Was not able to get result",
+         PREV_TEST_RESULT == "DK" ~ "4_Was not able to get result",
          PREV_TEST_RESULT == "DID NOT GET RESULT" ~ "4_Was not able to get result",
          TRUE ~ PREV_TEST_RESULT
       ),
 
-      MODALITY         = "101101_Facility-based Testing (FBT)",
-      row_id           = row_number(),
+      MODALITY          = "101101_Facility-based Testing (FBT)",
+      EXPOSE_HIV_MOTHER = "0_No"
    ) %>%
    # fix risk
    mutate_at(
       .vars = vars(
          starts_with("EXPOSE") & !contains("DATE"),
+         TEST_REASON_HIV_EXPOSE,
+         PREV_TESTED,
       ),
       ~case_when(
          . == "0" ~ "0_No",
@@ -158,79 +197,60 @@ tly$hts <- read_rds("H:/20240702_tly-hts.rds") %>%
          . == "Yes" ~ "1_Yes",
          . == "YES" ~ "1_Yes",
          . == "yes" ~ "1_Yes",
-         TRUE ~ coalesce(., '0_No')
+         . == "Y" ~ "1_Yes",
+         . == "N" ~ "0_No",
+         TRUE ~ .
       )
    ) %>%
-   mutate(
-      EXPOSE_SEX_M             = if_else(if_any(c(EXPOSE_SEX_M_AV_DATE, EXPOSE_SEX_M_AV_NOCONDOM_DATE), ~!is.na(.)), "1_Yes", "0_No"),
-      EXPOSE_SEX_M_AV          = EXPOSE_SEX_M,
-      EXPOSE_SEX_M_AV_NOCONDOM = if_else(!is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE), "1_Yes", "0_No"),
-
-      EXPOSE_SEX_F             = if_else(if_any(c(EXPOSE_SEX_F_AV_DATE, EXPOSE_SEX_F_AV_NOCONDOM_DATE), ~!is.na(.)), "1_Yes", "0_No"),
-      EXPOSE_SEX_F_AV          = EXPOSE_SEX_F,
-      EXPOSE_SEX_F_AV_NOCONDOM = if_else(!is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE), "1_Yes", "0_No"),
-   ) %>%
-   mutate(
-      TEST_REASON_HIV_EXPOSE = case_when(
-         str_detect(TEST_REASON_OTHER_TEXT, "POSSIBLE EXPOS") ~ "1_Yes",
-         TRUE ~ NA_character_
-      ),
-      TEST_REASON_OTHER      = if_else(!is.na(TEST_REASON_OTHER_TEXT), "1_Yes", NA_character_)
-   ) %>%
-   mutate(
-      PREV_TESTED = if_else(!is.na(PREV_TEST_DATE), "1_Yes", NA_character_)
-   ) %>%
-   add_missing_columns(tly$prev_upload)
-
-#  uploaded --------------------------------------------------------------------
-
-tly$hts %<>%
    select(-any_of(c("PATIENT_ID", "REC_ID"))) %>%
-   mutate(
-      UIC = StrLeft(UIC, 14)
-   ) %>%
    # get records id if existing
    left_join(
       y  = tly$prev_upload %>%
-         mutate(BIRTHDATE = as.Date(BIRTHDATE)) %>%
+         mutate(
+            BIRTHDATE   = as.Date(BIRTHDATE),
+            RECORD_DATE = as.Date(RECORD_DATE),
+         ) %>%
          select(
+            REC_ID,
             PATIENT_ID,
+            RECORD_DATE,
             UIC,
+            PATIENT_CODE,
             FIRST,
             MIDDLE,
             LAST,
             SUFFIX,
             SEX,
             BIRTHDATE,
-            CLIENT_MOBILE,
-            CLIENT_EMAIL
+         ) %>%
+         mutate_at(
+            .vars = vars(FIRST, MIDDLE, LAST, SUFFIX, PATIENT_CODE, UIC),
+            ~clean_pii(.)
          ) %>%
          distinct(
+            RECORD_DATE,
             UIC,
+            PATIENT_CODE,
             FIRST,
             MIDDLE,
             LAST,
             SUFFIX,
             SEX,
             BIRTHDATE,
-            CLIENT_MOBILE,
-            CLIENT_EMAIL,
             .keep_all = TRUE
          ),
       by = join_by(
+         RECORD_DATE,
          UIC,
+         PATIENT_CODE,
          FIRST,
          MIDDLE,
          LAST,
          SUFFIX,
          SEX,
          BIRTHDATE,
-         CLIENT_MOBILE,
-         CLIENT_EMAIL
       )
    ) %>%
-   # get records id if existing
-   select(-CREATED_BY, -CREATED_AT) %>%
    left_join(
       y  = tly$prev_upload %>%
          mutate(
@@ -240,53 +260,27 @@ tly$hts %<>%
          ) %>%
          select(
             REC_ID,
-            PATIENT_ID,
             CREATED_BY,
             CREATED_AT,
-            RECORD_DATE
+            UPDATED_BY,
+            UPDATED_AT,
+            PRIME,
+            SNAPSHOT
          ),
-      by = join_by(PATIENT_ID, RECORD_DATE)
+      by = join_by(REC_ID)
    ) %>%
    mutate(
       CREATED_BY = coalesce(CREATED_BY, SERVICE_BY, "1300000048"),
       CREATED_AT = coalesce(CREATED_AT, RECORD_DATE),
       # CREATED_AT   = format(CREATED_AT, "%Y-%m-%d 00:00:00"),
    ) %>%
-   distinct(row_id, .keep_all = TRUE)
+   add_missing_columns(tly$prev_upload)
 
-tly$check <- list(
-   addr  = bind_rows(
-      tly$hts %>%
-         filter(
-            is.na(PERM_PSGC_REG),
-            !is.na(PERM_MUNC)
-         ) %>%
-         distinct(
-            ENCODED_MUNC = PERM_MUNC
-         ),
-      tly$hts %>%
-         filter(
-            is.na(CURR_PSGC_REG),
-            !is.na(CURR_MUNC)
-         ) %>%
-         distinct(
-            ENCODED_MUNC = CURR_MUNC
-         ),
-   ) %>%
-      distinct_all(),
-   staff = tly$hts %>%
-      filter(
-         is.na(SERVICE_BY),
-         !is.na(PROVIDER)
-      ) %>%
-      distinct(PROVIDER)
-)
 
-tly$import <- tly$hts %>%
-   filter(RECORD_DATE >= "2024-01-01") %>%
+tly$import <- tly$data$convert %>%
    mutate(
       MODULE       = "2_Testing",
-      DISEASE      = "101000_HIV",
+      DISEASE      = "HIV",
       old_rec      = if_else(!is.na(REC_ID), 1, 0, 0),
       # UPDATED_BY   = if_else(old_rec == 1, "1300000048", NA_character_),
       # UPDATED_AT   = if_else(old_rec == 1, TIMESTAMP, NA_character_),
@@ -298,24 +292,22 @@ tly$import <- tly$hts %>%
       PERFORM_BY   = CREATED_BY,
       FORM         = "HTS Form",
       VERSION      = "2021",
+      FORM_VERSION = "HTS Form (v2021)"
    )
 
 tly$import %<>%
    filter(!is.na(PATIENT_ID)) %>%
    bind_rows(
-      batch_px_ids(tly$import %>% filter(is.na(PATIENT_ID)), PATIENT_ID, FACI_ID, "row_id")
+      batch_px_ids(tly$import %>% filter(is.na(PATIENT_ID)), PATIENT_ID, FACI_ID, "data_id")
    )
 
 tly$import %<>%
    filter(!is.na(REC_ID)) %>%
    bind_rows(
-      batch_rec_ids(tly$import %>% filter(is.na(REC_ID)), REC_ID, CREATED_BY, "row_id")
+      batch_rec_ids(tly$import %>% filter(is.na(REC_ID)), REC_ID, CREATED_BY, "data_id")
    )
 
 match_vars <- intersect(names(tly$import), names(tly$prev_upload))
-match_vars <- match_vars[!(match_vars %in% c("PRIME", "UPDATED_BY", "UPDATED_AT", "DELETED_BY", "DELETED_AT", "FORM_VERSION", "DISEASE", "HTS_MSM", "HTS_TGW", "SNAPSHOT", "CONFIRMATORY_CODE", "PHILHEALTH_NO", "PHILSYS_ID"))]
-match_vars <- match_vars[!(match_vars %in% c("EXPOSE_HIV_MOTHER", "EXPOSE_SEX_M_AV_NOCONDOM", "EXPOSE_SEX_M_AV_NOCONDOM_DATE", "EXPOSE_SEX_F_AV_NOCONDOM", "EXPOSE_SEX_F_AV_NOCONDOM_DATE", "SERVICE_BY", "TEST_REASON_OTHER_TEXT"))]
-match_vars <- match_vars[!(match_vars %in% c("AGE_MO", "GENDER_AFFIRM_THERAPY", "IS_PREGNANT"))]
 # tly$import %<>%
 #    anti_join(tly$prev_upload, join_by(PATIENT_ID, RECORD_DATE))
 tly$import %<>%
@@ -324,24 +316,11 @@ tly$import %<>%
       .predicate = is.Date,
       ~as.character(.)
    ) %>%
-   mutate_if(
-      .predicate = is.logical,
-      ~as.character(.)
-   ) %>%
-   # fix risk
-   mutate_at(
-      .vars = vars(
-         starts_with("EXPOSE") & !contains("DATE"),
-      ),
-      ~coalesce(., '0_No')
-   ) %>%
-   mutate(
-      EXPOSE_OCCUPATION  = if_else(EXPOSE_OCCUPATION == '0_No' & !is.na(EXPOSE_OCCUPATION_DATE), '1_Yes', EXPOSE_OCCUPATION, EXPOSE_OCCUPATION),
-      EXPOSE_SEX_PAYMENT = if_else(EXPOSE_SEX_PAYMENT == '0_No' & !is.na(EXPOSE_SEX_PAYMENT_DATE), '1_Yes', EXPOSE_SEX_PAYMENT, EXPOSE_SEX_PAYMENT),
-      EXPOSE_SEX_PAYING  = if_else(EXPOSE_SEX_PAYING == '0_No' & !is.na(EXPOSE_SEX_PAYING_DATE), '1_Yes', EXPOSE_SEX_PAYING, EXPOSE_SEX_PAYING),
-   ) %>%
    anti_join(
       y  = tly$prev_upload %>%
+         mutate(
+            AGE = as.integer(AGE)
+         ) %>%
          left_join(
             y  = ohasis$ref_country %>%
                select(
@@ -384,15 +363,6 @@ tly$import %<>%
          ),
       by = match_vars
    )
-
-rec_id <- "2024041517F98J41300010106"
-tly$import %>%
-   filter(REC_ID == rec_id) %>%
-   select(any_of(match_vars)) %>%
-   bind_rows(tly$prev_upload %>%
-                filter(REC_ID == rec_id) %>%
-                select(any_of(match_vars))) %>%
-   View('same rec')
 
 tly$prev_upload %>%
    left_join(
@@ -447,7 +417,6 @@ tly$import %>%
 tly$import %<>%
    mutate_at(
       .vars = vars(
-         DISEASE,
          MODULE,
          SEX,
          SELF_IDENT,
@@ -485,7 +454,18 @@ tly$import %<>%
 tly$import %<>%
    distinct(REC_ID, PATIENT_ID, .keep_all = TRUE)
 
-tly$tables <- deconstruct_hts(tly$import %>% select(-CURR_MUNC, -PERM_MUNC, -SERVICE))
+tly$tables <- deconstruct_hts(
+   tly$import %>%
+      select(
+         -overseas_addr,
+         -CURR_REG,
+         -CURR_PROV,
+         -CURR_MUNC,
+         -PERM_REG,
+         -PERM_PROV,
+         -PERM_MUNC,
+      )
+)
 wide       <- c("px_test_refuse", "px_other_service", "px_reach", "px_med_profile", "px_test_reason")
 delete     <- tly$tables$px_record$data %>% select(REC_ID)
 

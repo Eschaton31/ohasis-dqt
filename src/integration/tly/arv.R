@@ -1,16 +1,16 @@
 ##  inputs ---------------------------------------------------------------------
 
-file <- "D:/20240416_tly-arv_disp.rds"
-mo   <- "03"
+file <- "H:/20240703_tly-arv_disp.rds"
+mo   <- "06"
 yr   <- "2024"
 
 ##  processing -----------------------------------------------------------------
 
-tly <- read_rds(file)
+tly         <- read_rds(file)
 # min <- as.Date(stri_c(sep = "-", stri_pad_left(yr, 4, "0"), stri_pad_left(mo, 2, "0"), "01"))
 # max <- min %m+% months(1) %m-% days(1)
-min <- min(tly$visits$DISP_DATE, na.rm = TRUE)
-max <- max(tly$visits$DISP_DATE, na.rm = TRUE)
+min         <- min(tly$visits$DISP_DATE, na.rm = TRUE)
+max         <- max(tly$visits$DISP_DATE, na.rm = TRUE)
 
 #  uploaded --------------------------------------------------------------------
 
@@ -98,7 +98,8 @@ tly$records %<>%
       UPDATED_AT = if_else(old_rec == 1, TIMESTAMP, NA_character_)
    ) %>%
    relocate(any_of(names(tly$prev_upload)), .before = 1) %>%
-   select(-old_rec)
+   select(-old_rec) %>%
+   distinct(ROW_LINK, .keep_all = TRUE)
 
 tly$import <- tly$records %>%
    filter(!is.na(REC_ID)) %>%

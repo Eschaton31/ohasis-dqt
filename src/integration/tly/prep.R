@@ -1,6 +1,6 @@
 ##  inputs ---------------------------------------------------------------------
 
-file <- "D:/20240417_tly-prep.rds"
+file <- "H:/20240703_tly-prep.rds"
 tly  <- list(
    convert = list(
       addr  = read_sheet("1r8CVfX16oDSStwLfIQdExyA-X21QuGnKwZp1AGDNXdc", "addr", range = "A:F", col_types = "c"),
@@ -10,7 +10,7 @@ tly  <- list(
 
 ##  processing -----------------------------------------------------------------
 
-tly$visits <- read_rds(file)
+tly$visits <- read_rds(file) %>% filter(RECORD_DATE >= "2024-01-01")
 min        <- min(tly$visits$RECORD_DATE, na.rm = TRUE)
 max        <- max(tly$visits$RECORD_DATE, na.rm = TRUE)
 
@@ -44,6 +44,9 @@ tly$records <- tly$visits %>%
       PATIENT_ID    = CENTRAL_ID,
       PATIENT_CODE  = CLIENT_CODE,
       COUNSEL_NOTES = KEY_POPULATION,
+      CURR_ADDR     = `CITY/MUNICIPALITY
+OF RESIDENCE
+(CURRENT)`,
    ) %>%
    mutate(
       SERVICE_FACI     = FACI_ID,
@@ -124,6 +127,19 @@ tly$records <- tly$visits %>%
          distinct_all(),
       by = join_by(PROVIDER, BRANCH)
    ) %>%
+   left_join(
+      y  = tly$convert$addr %>%
+         # filter(REG != "000000000") %>%
+         select(
+            BRANCH,
+            CURR_ADDR      = MUNCITY,
+            CURR_PSGC_REG  = REG,
+            CURR_PSGC_PROV = PROV,
+            CURR_PSGC_MUNC = MUNC,
+         ) %>%
+         distinct_all(),
+      by = join_by(CURR_ADDR, BRANCH)
+   ) %>%
    mutate(row_id = row_number()) %>%
    # get records id if existing
    left_join(
@@ -186,7 +202,7 @@ tly$records <- tly$visits %>%
          'PREP_SIDE_EFFECTS', 'PREP_ACCEPTED', 'ELIGIBLE_PREP', 'PREP_VISIT', 'PREP_ACCEPTED', 'PREP_CONTINUED', 'PREP_REQUESTED'
       ))
    ) %>%
-   distinct_all()
+   distinct(row_id, .keep_all = TRUE)
 
 
 TIMESTAMP <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
@@ -650,6 +666,7 @@ tables$px_ars_sx <- list(
             TRUE ~ ARS_SYMPTOM
          ),
       ) %>%
+      distinct(REC_ID, SYMPTOM_DATA, ARS_SYMPTOM, .keep_all = TRUE) %>%
       pivot_wider(
          names_from  = SYMPTOM_DATA,
          values_from = SYMPTOM_VALUE,
