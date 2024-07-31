@@ -34,7 +34,7 @@ id_reg <- QB$new(con)$
    get()
 dbDisconnect(con)
 
-dx         <- read_dta(hs_data("harp_dx", "reg", 2024, 5)) %>%
+dx         <- read_dta(hs_data("harp_dx", "reg", 2024, 6)) %>%
    get_cid(id_reg, PATIENT_ID) %>%
    mutate(
       confirm_branch = NA_character_
@@ -47,9 +47,9 @@ dx         <- read_dta(hs_data("harp_dx", "reg", 2024, 5)) %>%
       list(confirm_lab = c("CONFIRM_FACI", "CONFIRM_SUB_FACI")),
       "name"
    )
-dead       <- read_dta(hs_data("harp_dead", "reg", 2024, 5)) %>%
+dead       <- read_dta(hs_data("harp_dead", "reg", 2024, 6)) %>%
    get_cid(id_reg, PATIENT_ID)
-tx_reg     <- read_dta(hs_data("harp_tx", "reg", 2024, 5)) %>%
+tx_reg     <- read_dta(hs_data("harp_tx", "reg", 2024, 6)) %>%
    get_cid(id_reg, PATIENT_ID) %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
@@ -64,7 +64,7 @@ tx_reg     <- read_dta(hs_data("harp_tx", "reg", 2024, 5)) %>%
       "name",
       c("tx_reg", "tx_prov", "tx_munc")
    )
-tx_out     <- read_dta(hs_data("harp_tx", "outcome", 2024, 5)) %>%
+tx_out     <- read_dta(hs_data("harp_tx", "outcome", 2024, 6)) %>%
    select(-any_of("CENTRAL_ID")) %>%
    left_join(y = tx_reg %>% select(art_id, CENTRAL_ID), by = join_by(art_id)) %>%
    faci_code_to_id(
@@ -81,7 +81,7 @@ tx_out     <- read_dta(hs_data("harp_tx", "outcome", 2024, 5)) %>%
       "name",
       c("tx_reg", "tx_prov", "tx_munc")
    )
-prep_curr  <- read_dta(hs_data("prep", "outcome", 2024, 5)) %>%
+prep_curr  <- read_dta(hs_data("prep", "outcome", 2024, 6)) %>%
    get_cid(id_reg, PATIENT_ID) %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
@@ -95,7 +95,7 @@ prep_curr  <- read_dta(hs_data("prep", "outcome", 2024, 5)) %>%
       list(site_name = c("FACI_ID", "SUB_FACI_ID")),
       "name",
    )
-prep_start <- read_dta("H:/_R/library/prep/20240611_prepstart_2024-05.dta") %>%
+prep_start <- read_dta("H:/_R/library/prep/20240710_prepstart_2024-06.dta") %>%
    get_cid(id_reg, PATIENT_ID) %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
