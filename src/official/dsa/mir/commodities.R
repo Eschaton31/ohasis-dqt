@@ -1,12 +1,11 @@
 con                <- ohasis$conn("db")
 inventory          <- QB$new(con)$from("ohasis_interim.inventory")$get()
-inventory          <- QB$new(con)$from("ohasis_interim.inventory")$get()
 inventory_product  <- QB$new(con)$from("ohasis_interim.inventory_product")$get()
 inventory_transact <- QB$new(con)$
    from("ohasis_interim.inventory_transact AS trxn")$
    join("ohasis_interim.px_record AS rec", "trxn.TRANSACT_ID", "=", "rec.REC_ID")$
-   whereBetween('rec.RECORD_DATE', c("2024-01-01", "2024-03-31"))$
-   select("rec.PATIENT_ID", "trxn.*")$
+   whereBetween('trxn.TRANSACT_DATE', c("2023-10-01", "2024-03-31"))$
+   select("rec.PATIENT_ID", "rec.RECORD_DATE",  "trxn.*")$
    get()
 registry           <- QB$new(con)$from("ohasis_interim.registry")$get()
 dbDisconnect(con)
@@ -14,17 +13,19 @@ dbDisconnect(con)
 ###
 
 inv <- inventory %>%
-   filter(ITEM_CURR >= 0) %>%
-   left_join(
+   # filter(ITEM_CURR >= 0) %>%
+   # inner_join(y = inventory_transact %>% distinct(INVENTORY_ID)) %>%
+   right_join(
       y  = inventory_product %>%
-         select(ITEM_ID = ITEM, COMMODITY = NAME, TYPICAL_BATCH),
+         select(ITEM_ID = ITEM, COMMODITY = NAME, TYPICAL_BATCH, SHORT),
       by = join_by(ITEM_ID)
    ) %>%
    mutate(
       CATEGORY = case_when(
          str_detect(ITEM_ID, "^1") ~ "Diagnostics",
          str_detect(ITEM_ID, "^2") ~ "Medicines",
-      )
+      ),
+      CAT2     = if_else(!is.na(SHORT), 'ARV', NA_character_)
    ) %>%
    ohasis$get_faci(
       list(FACILITY = c("FACI_ID", "SUB_FACI_ID")),
@@ -32,32 +33,10 @@ inv <- inventory %>%
       c("REGION", "PROVINCE", "MUNCITY")
    )
 
-current_stocks <- inv %>%
-   group_by(CATEGORY, COMMODITY, REGION, FACILITY) %>%
-   summarise(
-      CURRENT_STATUS = sum(ITEM_CURR, na.rm = TRUE)
-   ) %>%
-   ungroup()
-
-expiry <- inv %>%
-   mutate(
-      EXPIRE_DATE = format(EXPIRE_DATE, "%Y-%m")
-   ) %>%
-   group_by(CATEGORY, COMMODITY, REGION, FACILITY, EXPIRE_DATE) %>%
-   summarise(
-      STOCK_ON_HAND = sum(ITEM_CURR, na.rm = TRUE)
-   ) %>%
-   ungroup() %>%
-   pivot_wider(
-      id_cols     = c(CATEGORY, COMMODITY, REGION, FACILITY),
-      names_from  = EXPIRE_DATE,
-      values_from = STOCK_ON_HAND
-   )
-
 transactions <- inventory_transact %>%
    inner_join(
       y  = inv %>%
-         select(INVENTORY_ID, CATEGORY, COMMODITY, REGION, FACILITY, TYPICAL_BATCH),
+         select(INVENTORY_ID, CATEGORY, CAT2, COMMODITY, REGION, FACILITY, TYPICAL_BATCH),
       by = join_by(INVENTORY_ID)
    ) %>%
    mutate(
@@ -67,8 +46,48 @@ transactions <- inventory_transact %>%
       )
    )
 
+current_stocks <- inv %>%
+   group_by(CATEGORY, CAT2, COMMODITY, REGION, FACILITY) %>%
+   summarise(
+      CURRENT_STATUS = sum(ITEM_CURR, na.rm = TRUE)
+   ) %>%
+   ungroup()
+
+
+expiry <- inv %>%
+   mutate(
+      EXPIRE_DATE = format(EXPIRE_DATE, "%Y-%m")
+   ) %>%
+   group_by(CATEGORY, CAT2, COMMODITY, REGION, FACILITY, EXPIRE_DATE) %>%
+   summarise(
+      STOCK_ON_HAND = sum(ITEM_CURR, na.rm = TRUE)
+   ) %>%
+   ungroup() %>%
+   arrange(EXPIRE_DATE) %>%
+   pivot_wider(
+      id_cols     = c(CATEGORY, COMMODITY, CAT2, REGION, FACILITY),
+      names_from  = EXPIRE_DATE,
+      values_from = STOCK_ON_HAND
+   )
+
+disp_mo <- transactions %>%
+   mutate(
+      TRANSACT_DATE = format(TRANSACT_DATE, "%Y-%m")
+   ) %>%
+   group_by(CATEGORY, CAT2, COMMODITY, REGION, FACILITY, TRANSACT_DATE) %>%
+   summarise(
+      TRANSACT_TOTAL = sum(TRANSACT_TOTAL, na.rm = TRUE)
+   ) %>%
+   ungroup() %>%
+   arrange(TRANSACT_DATE) %>%
+   pivot_wider(
+      id_cols     = c(CATEGORY, CAT2, COMMODITY, REGION, FACILITY),
+      names_from  = TRANSACT_DATE,
+      values_from = TRANSACT_TOTAL
+   )
+
 period <- transactions %>%
-   group_by(CATEGORY, COMMODITY, REGION, FACILITY) %>%
+   group_by(CATEGORY, CAT2, COMMODITY, REGION, FACILITY) %>%
    summarise(
       DISPENSED_PERIOD = sum(TRANSACT_QUANTITY, na.rm = TRUE)
    ) %>%
@@ -76,8 +95,8 @@ period <- transactions %>%
 
 clients <- transactions %>%
    get_cid(registry, PATIENT_ID) %>%
-   distinct(CATEGORY, COMMODITY, REGION, FACILITY, CENTRAL_ID) %>%
-   group_by(CATEGORY, COMMODITY, REGION, FACILITY) %>%
+   distinct(CATEGORY, COMMODITY, CAT2, REGION, FACILITY, CENTRAL_ID) %>%
+   group_by(CATEGORY, COMMODITY, CAT2, REGION, FACILITY) %>%
    summarise(
       UNIQUE_CLIENTS = n()
    ) %>%
@@ -86,13 +105,38 @@ clients <- transactions %>%
 status <- current_stocks %>%
    left_join(expiry) %>%
    left_join(period) %>%
-   left_join(clients)
+   left_join(clients) %>%
+   mutate(
+      CAT2 = case_when(
+         str_detect(COMMODITY, "Bioline") ~ "T0/T1",
+         str_detect(COMMODITY, "Determine") ~ "T2",
+         str_detect(COMMODITY, "STAT-PAK") ~ "T3",
+         str_detect(COMMODITY, "Geenius") ~ "T3",
+         TRUE ~ CAT2
+      )
+   ) %>%
+   relocate(UNIQUE_CLIENTS, .after = CURRENT_STATUS)
+
+status %>% write_clip()
+
+status <- current_stocks %>%
+   filter(CATEGORY == "Diagnostics") %>%
+   left_join(disp_mo) %>%
+   mutate(
+      CAT2 = case_when(
+         str_detect(COMMODITY, "Bioline") ~ "T0/T1",
+         str_detect(COMMODITY, "Determine") ~ "T2",
+         str_detect(COMMODITY, "STAT-PAK") ~ "T3",
+         str_detect(COMMODITY, "Geenius") ~ "T3",
+      )
+   ) %>%
+   relocate(CAT2, .after = CATEGORY)
 
 write_sheet(status, "19MRpTfgAeNQ14EVeG23MWu3wuLM6lcE_wA5YwmYSbKA", "stock_status")
 
 ### COnfirmatory
 
- con     <- ohasis$conn("lw")
+con     <- ohasis$conn("lw")
 pending <- QB$new(con)$
    from("ohasis_lake.px_hiv_testing AS test")$
    join("ohasis_lake.px_pii AS pii", "test.REC_ID", "=", "pii.REC_ID")$

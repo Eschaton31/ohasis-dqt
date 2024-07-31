@@ -5,6 +5,17 @@ con               <- ohasis$conn("db")
 inventory_product <- QB$new(con)$from("ohasis_interim.inventory_product")$get()
 dbDisconnect(con)
 
+
+write_flat_file(list(arv = inventory_product %>%
+   filter(!is.na(TYPICAL_BATCH), CATEGORY == '2000') %>%
+   select(
+      ARV               = NAME,
+      `Pills in bottle` = TYPICAL_BATCH,
+   ) %>%
+   mutate(
+      `Typical pills per day` = as.numeric(`Pills in bottle`) / 30
+   )), "H:/20240515_arv-bottles.xlsx")
+
 con       <- ohasis$conn("lw")
 disp_meds <- QB$new(con)$
    from("ohasis_lake.disp_meds")$
