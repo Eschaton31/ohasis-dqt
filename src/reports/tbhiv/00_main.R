@@ -1,9 +1,9 @@
 report <- new.env()
 
 report$params <- list(
-   min_mo = 7,
-   max_mo = 9,
-   yr     = 2023
+   min_mo = 1,
+   max_mo = 3,
+   yr     = 2024
 )
 
 report$wd <- file.path(getwd(), "src", "reports", "tbhiv")
@@ -12,7 +12,7 @@ report$img  <- list(
    doh = knitr::image_uri(file.path(report$wd, "logo_doh.png")),
    eb  = knitr::image_uri(file.path(report$wd, "logo_eb.png"))
 )
-report$data <- read_dta("H:/System/HARP/TB-HIV/2023-3rdQr/20231124_tbhiv_2023-Q1.dta") %>%
+report$data <- read_dta("C:/Users/johnb/Downloads/20240522_tbhiv_2024-Q1.dta") %>%
    mutate(
       ind_onart    = if_else(onart == 1, 1, 0, 0),
       ind_visit    = if_else(ind_onart == 1 & visit == 1, 1, 0, 0),
@@ -23,7 +23,7 @@ report$data <- read_dta("H:/System/HARP/TB-HIV/2023-3rdQr/20231124_tbhiv_2023-Q1
 
 ##  parmas ---------------------------------------------------------------------
 
-as_of           <- "November 24, 2023"
+as_of           <- "March 31, 2024"
 date_coverage   <- stri_c(month.name[report$params$min_mo], " - ", month.name[report$params$max_mo], " ", report$params$yr)
 date_end        <- stri_c(month.name[report$params$max_mo], " ", report$params$yr)
 data_population <- "PLHIV on ART who visited a facility within the period"
