@@ -3,15 +3,15 @@ source("src/misc/ly_extracts/site_list.R")
 con <- ohasis$conn("lw")
 
 forms <- QB$new(con)
-forms$where(function(query = QB$new(con)) {
-   query$whereBetween('RECORD_DATE', c(min, max), "or")
-   query$whereBetween('DATE_CONFIRM', c(min, max), "or")
-   query$whereBetween('T0_DATE', c(min, max), "or")
-   query$whereBetween('T1_DATE', c(min, max), "or")
-   query$whereBetween('T2_DATE', c(min, max), "or")
-   query$whereBetween('T3_DATE', c(min, max), "or")
-   query$whereNested
-})
+# forms$where(function(query = QB$new(con)) {
+#    query$whereBetween('RECORD_DATE', c(min, max), "or")
+#    query$whereBetween('DATE_CONFIRM', c(min, max), "or")
+#    query$whereBetween('T0_DATE', c(min, max), "or")
+#    query$whereBetween('T1_DATE', c(min, max), "or")
+#    query$whereBetween('T2_DATE', c(min, max), "or")
+#    query$whereBetween('T3_DATE', c(min, max), "or")
+#    query$whereNested
+# })
 forms$where(function(query = QB$new(con)) {
    query$whereIn('FACI_ID', sites$FACI_ID, boolean = "or")
    query$whereIn('SERVICE_FACI', sites$FACI_ID, boolean = "or")
@@ -41,7 +41,95 @@ dbDisconnect(con)
 testing <- process_hts(hts, a, cfbs) %>%
    get_cid(id_reg, PATIENT_ID)
 
+unique_cols <- names(testing)
+unique_cols <- unique_cols[!(unique_cols %in% c(
+   "REC_ID",
+   "PATIENT_ID",
+   "PRIME",
+   "SNAPSHOT",
+   "CREATED_BY",
+   "CREATED_AT",
+   "UPDATED_BY",
+   "UPDATED_AT",
+   "DELETED_BY",
+   "DELETED_AT",
+   "FACI_ID",
+   "SUB_FACI_ID",
+   "CURR_ADDR",
+   "PERM_ADDR",
+   "BIRTH_ADDR",
+   'CONFIRM_FACI',
+   'CONFIRM_SUB_FACI',
+   'CONFIRM_TYPE',
+   'CONFIRM_CODE',
+   'SPECIMEN_REFER_TYPE',
+   'SPECIMEN_SOURCE',
+   'SPECIMEN_SUB_SOURCE',
+   'CONFIRM_RESULT',
+   'SIGNATORY_1',
+   'SIGNATORY_2',
+   'SIGNATORY_3',
+   'DATE_RELEASE',
+   'DATE_CONFIRM',
+   'IDNUM',
+   'VERBAL_CONSENT',
+   'SIGNATURE_ESIG',
+   'SIGNATURE_NAME',
+   'T1_DATE',
+   'T1_KIT',
+   'T1_RESULT',
+   'T2_DATE',
+   'T2_KIT',
+   'T2_RESULT',
+   'T3_DATE',
+   'T3_KIT',
+   'T3_RESULT',
+   'DATE_COLLECT',
+   'DATE_RECEIVE'
+))]
+unique_cols <- unique_cols[!(unique_cols %in% c(
+   "UIC",
+   "uic",
+   "FIRST",
+   "first",
+   "firstname",
+   "MIDDLE",
+   "middle",
+   "LAST",
+   "last",
+   "SUFFIX",
+   "suffix",
+   "name_suffix",
+   "PATIENT_CODE",
+   "px_code",
+   "PHILHEALTH_NO",
+   "philhealth_no",
+   "PHILHEALTH",
+   "philhealth",
+   "PHILSYS_ID",
+   "philsys_id",
+   "PERM_ADDR",
+   "CURR_ADDR",
+   "BIRTH_ADDR",
+   "CLIENT_MOBILE",
+   "client_mobile",
+   "mobile",
+   "CLIENT_EMAIL",
+   "client_email",
+   "email",
+   "name",
+   "STANDARD_FIRST"
+))]
+
 ly_test <- testing %>%
+   mutate_at(
+      .vars = vars(FIRST, MIDDLE, LAST, SUFFIX),
+      ~coalesce(clean_pii(.), "")
+   ) %>%
+   mutate_at(
+      .vars = vars(PATIENT_CODE, UIC, PHILHEALTH_NO, PHILSYS_ID, CLIENT_MOBILE, CLIENT_EMAIL),
+      ~clean_pii(.)
+   ) %>%
    get_latest_pii(
       "CENTRAL_ID",
       c(
@@ -56,6 +144,7 @@ ly_test <- testing %>%
          "PERM_PSGC_MUNC"
       )
    ) %>%
+   distinct(across(all_of(unique_cols)), .keep_all = TRUE) %>%
    convert_hts("name") %>%
    mutate(
       site_sort    = case_when(
@@ -138,9 +227,16 @@ ly_test %>%
       RR = Reactive / Tested
    ) %>%
    write_clip()
-summarise()
+
+
 ly_test %>%
    filter(!drop) %>%
    tab(SEX)
-
-write_dta(format_stata(testing), "D:/20240419_hts-ly_20231216-20240331.dta")
+ly_test %>%
+   # left_join(
+   #    y = tx_out %>%
+   #       select(CENTRAL_ID, outcome, latest_ffupdate, latest_nextpickup, latest_regimen),
+   #    by = join_by(CENTRAL_ID)
+   # ) %>%
+   format_stata() %>%
+   write_dta("H:/20240706_hts-ly_ever.dta")

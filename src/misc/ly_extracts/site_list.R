@@ -6,4 +6,4 @@ staff <- ohasis$ref_staff %>%
    )
 
 min <- "2024-01-01"
-max <- "2024-03-31"
+max <- "2024-06-30"

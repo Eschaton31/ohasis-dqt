@@ -2,7 +2,7 @@ source("src/misc/ly_extracts/site_list.R")
 
 con   <- ohasis$conn("lw")
 forms <- QB$new(con)
-forms$whereBetween('VISIT_DATE', c(min, max))
+# forms$whereBetween('VISIT_DATE', c(min, max))
 forms$where(function(query = QB$new(con)) {
    query$whereIn('FACI_ID', sites$FACI_ID, boolean = "or")
    query$whereIn('SERVICE_FACI', sites$FACI_ID, boolean = "or")
@@ -47,7 +47,7 @@ ly_prep %>%
       )
    ) %>%
    format_stata() %>%
-   write_dta("D:/20240419_prep-ly_20231216-20240331.dta")
+   write_dta("H:/20240706_prep-ly_ever.dta")
 
 ly_prep %>%
    tab(PREP_HUB)
@@ -55,18 +55,19 @@ ly_prep %>%
 ly_prep %>%
    group_by(PREP_HUB) %>%
    summarise(
-      earliest = min(VISIT_DATE, na.rm = TRUE),
-      latest   = max(VISIT_DATE, na.rm = TRUE),
+      records  = n(),
+      earliest = format(min(VISIT_DATE, na.rm = TRUE), "%b %d, %Y"),
+      latest   = format(max(VISIT_DATE, na.rm = TRUE), "%b %d, %Y"),
    )
 
 lw_conn <- ohasis$conn("lw")
-dx      <- QB$new(lw_conn)$from("harp_dx.reg_202403")$get()
-tx_reg  <- QB$new(lw_conn)$from("harp_tx.reg_202403")$get()
-tx_out  <- QB$new(lw_conn)$from("harp_tx.outcome_202403")$get()
+dx      <- QB$new(lw_conn)$from("harp_dx.reg_202406")$get()
+tx_reg  <- QB$new(lw_conn)$from("harp_tx.reg_202406")$get()
+tx_out  <- QB$new(lw_conn)$from("harp_tx.outcome_202406")$get()
 dbDisconnect(lw_conn)
 
 ly_art_enroll <- tx_reg %>%
-   filter(year(artstart_date) == 2024, artstart_hub == "TLY") %>%
+   filter(artstart_hub == "TLY") %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
       list(FACI_ID = "artstart_hub", SUB_FACI_ID = "artstart_branch")
