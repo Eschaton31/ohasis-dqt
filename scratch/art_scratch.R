@@ -70,7 +70,7 @@ waterfall_tx <- function(new, old, yr, mo, title) {
 
    params$yr  <- year(max_date)
    params$mo  <- month(max_date)
-   params$ym  <- str_c(sep = ".", params$yr, stri_pad_left(params$mo, 2, "0"))
+   params$ym  <- str_c(sep = "..", params$yr, stri_pad_left(params$mo, 2, "0"))
    params$min <- max_date %m-% months(1) %>% as.character()
    params$max <- max
 
@@ -302,11 +302,69 @@ sites <- sites$site_name
 sites <- sites[!is.na(sites)]
 sites <- unique(sites)
 for (hub in sites) {
-   plot <- waterfall_tx(new %>% filter(site_name == hub), old %>% filter(site_name == hub), 2023, 9, hub)
-   region <- ohasis$ref_faci %>% filter(FACI_NAME == hub) %>% distinct(FACI_ID, .keep_all = TRUE)
+   plot   <- waterfall_tx(new %>% filter(site_name == hub), old %>% filter(site_name == hub), 2023, 9, hub)
+   region <- ohasis$ref_faci %>%
+      filter(FACI_NAME == hub) %>%
+      distinct(FACI_ID, .keep_all = TRUE)
    region <- region$FACI_NAME_REG[1]
    subdir <- file.path(dir, region)
    check_dir(subdir)
    file <- file.path(subdir, stri_c(path_sanitize(hub), ".bmp"))
    plot_bmp(plot, file)
 }
+
+wf           <- waterfall_linelist("2022-06-01", "2023-05-31")
+regions      <- unique(wf$new$real_reg)
+plots        <- lapply(regions, function(reg) {
+   old  <- wf$old %>% filter(real_reg == reg)
+   new  <- wf$new %>% filter(real_reg == reg)
+   plot <- waterfall_aggregate(old, new, reg)
+   return(plot$data)
+})
+names(plots) <- regions
+
+plots %>%
+   write_xlsx("H:/20240708_waterfalls_202206-202305.xlsx")
+
+wf <- waterfall_linelist("2023-06-01", "2024-05-31")
+wf$old %<>% mutate(final_hub = coalesce(na_if(realhub_branch, ""), realhub))
+wf$new %<>% mutate(final_hub = coalesce(na_if(realhub_branch, ""), realhub))
+hubs         <- unique(wf$new$final_hub)
+plots        <- lapply(hubs, function(site) {
+   old  <- wf$old %>% filter(final_hub == site)
+   new  <- wf$new %>% filter(final_hub == site)
+   plot <- waterfall_aggregate(old, new, site)
+   return(plot$data)
+})
+names(plots) <- hubs
+
+plot <- waterfall_aggregate(wf$old, wf$new, "PH")
+plot$data
+
+
+agg <- plots %>%
+   bind_rows(.id = "branch") %>%
+   mutate(
+      hub    = if_else(str_detect(branch, "-"), substr(branch, 1, stri_locate_first_fixed(branch, "-") - 1), branch),
+      hub    = if_else(hub == "SHIP-MAKATI", "SHIP", hub, hub),
+      branch = if_else(hub == branch, "", branch, branch),
+      branch = if_else(hub == "SHIP-MAKATI", "", branch, branch),
+   ) %>%
+   faci_code_to_id(
+      ohasis$ref_faci_code,
+      list(ART_FACI = "hub", ART_SUB_FACI = "branch")
+   ) %>%
+   ohasis$get_faci(
+      list(tx_hub = c("ART_FACI", "ART_SUB_FACI")),
+      "name",
+      c("tx_reg", "tx_prov", "tx_munc")
+   ) %>%
+   select(-hub, -branch) %>%
+   relocate(tx_reg, tx_prov, tx_munc, tx_hub, .before = 1) %>%
+   arrange(tx_reg, tx_prov, tx_munc, tx_hub)
+
+agg %>%
+   write_xlsx("H:/20240712_waterfalls_202206-202305_bySite.xlsx")
+
+plot$data %>%
+   write_xlsx("H:/20240712_waterfalls_202306-202405_ph.xlsx")

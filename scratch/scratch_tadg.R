@@ -1,0 +1,28 @@
+con <- ohasis$conn("lw")
+
+min <- "2024-07-15"
+max <- "2024-08-15"
+
+clients <- QB$new(con)
+clients$from("harp_tx.outcome_202405 AS curr_mo")
+clients$leftJoin("harp_tx.reg_202405 AS reg", "curr_mo.art_id", "=", "reg.art_id")
+clients$leftJoin("harp_tx.outcome_202404 AS prev_01", "curr_mo.art_id", "=", "prev_01.art_id")
+clients$leftJoin("harp_tx.outcome_202403 AS prev_02", "curr_mo.art_id", "=", "prev_02.art_id")
+clients$leftJoin("harp_tx.outcome_202402 AS prev_03", "curr_mo.art_id", "=", "prev_03.art_id")
+clients$leftJoin("harp_tx.outcome_202401 AS prev_04", "curr_mo.art_id", "=", "prev_04.art_id")
+clients$leftJoin("harp_tx.outcome_202312 AS prev_05", "curr_mo.art_id", "=", "prev_05.art_id")
+clients$whereRaw("CONCAT_WS(' ', curr_mo.outcome, prev_01.outcome, prev_02.outcome, prev_03.outcome, prev_04.outcome, prev_05.outcome) = 'alive on arv alive on arv alive on arv alive on arv alive on arv alive on arv'")
+clients$whereRaw("curr_mo.latest_regimen = prev_01.latest_regimen")
+clients$whereRaw("prev_01.latest_regimen = prev_02.latest_regimen")
+clients$whereRaw("prev_02.latest_regimen = prev_03.latest_regimen")
+clients$whereRaw("prev_03.latest_regimen = prev_04.latest_regimen")
+clients$whereRaw("prev_04.latest_regimen = prev_05.latest_regimen")
+clients$whereIn("curr_mo.realhub", c('SLH', 'ACH', 'PGH', 'VMC', 'KP7', 'KBS', 'BER', 'PR7', 'BAT', 'KNV', 'KBT', 'AJM'))
+clients$whereNull("curr_mo.baseline_vl")
+clients$where("curr_mo.vlp12m", "=", "1")
+clients$whereBetween("curr_mo.latest_nextpickup", c(min, max))
+clients$whereRaw("DATE_FORMAT(reg.birthdate, '2024-%m-%d') NOT BETWEEN '2024-07-15' AND '2024-08-15'")
+clients$whereRaw("TRIM(CONCAT_WS('', curr_mo.oi_cmv, curr_mo.oi_hepb, curr_mo.oi_hepc, curr_mo.oi_herpes, curr_mo.oi_orocand, curr_mo.oi_pcp, curr_mo.oi_syph, curr_mo.oi_other)) = ''")
+clients$select("curr_mo.*")
+data <- clients$get()
+dbDisconnect(con)

@@ -528,13 +528,13 @@ data_factory <- function(db_type = NULL, table_name = NULL, update_type = NULL, 
       for_delete <- data.frame()
 
       # read sql first, then parse for necessary snapshots
-      sql_query      <- read_file("src/data_lake/upsert/px_pii.sql")
+      sql_query      <- read_file("../src/data_lake/upsert/px_pii.sql")
       sql_tables     <- substr(sql_query,
                                stri_locate_first_fixed(sql_query, "FROM "),
                                nchar(sql_query))
       query_table    <- sql_query
       query_nrow     <- paste0("SELECT COUNT(*) AS rows ", sql_tables)
-      query_snapshot <- paste0("SELECT MAX(SNAPSHOT) AS snapshot FROM ", db_name, ".", table_name)
+      query_snapshot <- paste0("SELECT MAX(SNAPSHOT) AS snapshot FROM ", db_name, "..", table_name)
 
       # snapshots are the reference for scoping
       # get start date of records  to be fetched
@@ -567,9 +567,9 @@ data_factory <- function(db_type = NULL, table_name = NULL, update_type = NULL, 
 
       # run data lake script for object
       .log_info("Getting new/updated data.")
-      factory_file <- file.path(getwd(), "src", paste0("data_", db_type), "refresh", paste0(table_name, '.R'))
+      factory_file <- file.path(getwd(), "../src", paste0("data_", db_type), "refresh", paste0(table_name, '.R'))
       if (!file.exists(factory_file))
-         factory_file <- file.path(getwd(), "src", paste0("data_", db_type), "upsert", paste0(table_name, '.R'))
+         factory_file <- file.path(getwd(), "../src", paste0("data_", db_type), "upsert", paste0(table_name, '.R'))
 
       source(factory_file, local = TRUE)
 
@@ -1008,7 +1008,7 @@ saccl_feb <- dir_info("R:/File requests/SACCL Submissions/2023.01", recurse = TR
       CONFIRM_CODE = FILENAME %>%
          stri_replace_all_fixed(".pdf", "") %>%
          substr(1, 12),
-      NEW_FILE     = stri_c(CONFIRM_CODE, ".", path_ext(FILENAME))
+      NEW_FILE     = stri_c(CONFIRM_CODE, "..", path_ext(FILENAME))
    ) %>%
    filter(type == "file")
 dir_nc    <- "N:/HARP Cloud/HARP Forms/Confirmatory/2023.01"
@@ -1085,7 +1085,7 @@ submissions %>%
    write_sheet("1QZ8Tb1BcE6djJxFUqPHvz8QENXRDPAx2OXBUdApb7R4", "OHASIS-Encoded")
 
 options <- callr::rscript_process_options(
-   script = file.path(getwd(), 'src', 'misc', 'pii_search', '00_main.R'),
+   script = file.path(getwd(), '../src', 'misc', 'pii_search', '00_main.R'),
    env    = c(callr::rcmd_safe_env(), DEDUP_PII = Sys.getenv("DEDUP_PII"))
 )
 rp      <- callr::rscript_process$new(options)
