@@ -1,10 +1,11 @@
-dir      <- "C:/Users/johnb/Downloads/protects-upscale-june2024"
+dir      <- "C:/Users/johnb/Downloads/hts_logsheet_20240801"
 files    <- list.files(dir, ".xlsx", recursive = TRUE, full.names = TRUE)
 gf_staff <- read_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "staff", col_types = "c")
 gf_site  <- read_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "site", col_types = "c")
 
 read_logsheet <- function(file) {
    sheets   <- excel_sheets(file)
+   sheets   <- sheets[!str_detect(sheets, "Chart")]
    logsheet <- list()
    for (sheet in sheets) {
       test <- read_excel(file, sheet, n_max = 3, .name_repair = "unique_quiet")
@@ -140,10 +141,21 @@ read_logsheet <- function(file) {
    return(logsheet %>% bind_rows(.id = 'sheet'))
 }
 
-data <- lapply(files, read_logsheet) %>%
+raw        <- lapply(files, read_logsheet)
+names(raw) <- basename(files)
+
+data <- raw %>%
    bind_rows(.id = "id") %>%
    filter(!is.na(RECORD_DATE)) %>%
+   mutate(
+      CREATED_AT = coalesce(CREATED_AT, RECORD_DATE)
+   ) %>%
    filter(CREATED_AT != "Auto-fill")
+
+data %>%
+   distinct(HTS_FACI, id) %>%
+   arrange(HTS_FACI, id) %>%
+   write_clip()
 
 con      <- ohasis$conn("lw")
 form_hts <- QB$new(con)$from("ohasis_warehouse.form_hts")$limit(0)$get()
