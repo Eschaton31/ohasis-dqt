@@ -1,6 +1,6 @@
 EpiCenter <- R6Class(
    "EpiCenter",
-   public = list(
+   public  = list(
       yr             = NULL,
       mo             = NULL,
       min            = NULL,
@@ -32,8 +32,19 @@ EpiCenter <- R6Class(
                   FACI_PSGC_PROV = "FACI_NHSSS_PROV",
                   FACI_PSGC_MUNC = "FACI_NHSSS_MUNC"
                ),
-               aem_sub_ntl = TRUE,
+               aem_sub_ntl = FALSE,
                add_ph      = TRUE
+            ) %>%
+            left_join(
+               y  = self$refs$addr %>%
+                  select(
+                     FACI_PSGC_REG  = PSGC_REG,
+                     FACI_PSGC_PROV = PSGC_PROV,
+                     FACI_PSGC_MUNC = PSGC_MUNC,
+                     FACI_PSGC_AEM  = PSGC_AEM,
+                     FACI_NAME_AEM  = NAME_AEM,
+                  ),
+               by = join_by(FACI_PSGC_REG, FACI_PSGC_PROV, FACI_PSGC_MUNC)
             )
       },
 
@@ -213,6 +224,8 @@ EpiCenter <- R6Class(
                rep_age      = coalesce(rep_age, (as.numeric(self$yr) - year) + dx_age, curr_age),
                reg_age_c    = gen_agegrp(rep_age, "harp"),
 
+               dx_age_c     = gen_agegrp(dx_age, "harp"),
+
                # sex
                sex          = toupper(sex),
                sex          = case_when(
@@ -234,8 +247,8 @@ EpiCenter <- R6Class(
                   TRUE ~ transmit
                ),
 
-               msm          = if_else(sex == "Male" & sexhow %in% c("HOMOSEXUAL", "BISEXUAL"), 1, 0, 0),
-               tgw          = if_else(sex == "Male" & self_identity %in% c("FEMALE", "OTHERS"), 1, 0, 0),
+               msm          = if_else(sex == "Male" & sexhow %in% c("HOMOSEXUAL", "BISEXUAL"), "Yes", NA_character_),
+               tgw          = if_else(sex == "Male" & self_identity %in% c("FEMALE", "OTHERS"), "Yes", NA_character_),
                kap_type     = case_when(
                   transmit == "IVDU" ~ "PWID",
                   msm == 1 ~ "MSM",
@@ -276,7 +289,7 @@ EpiCenter <- R6Class(
             ) %>%
             relocate(starts_with("PERM_NAME"), .after = PERM_PSGC_MUNC) %>%
             dxlab_to_id(
-               c("HARP_FACI", "HARP_SUB_FACI"),
+               c("DX_FACI", "DX_SUB_FACI"),
                c("dx_region", "dx_province", "dx_muncity", "dxlab_standard"),
                ohasis$ref_faci
             ) %>%
@@ -284,13 +297,34 @@ EpiCenter <- R6Class(
                ohasis$ref_faci_code,
                c(CONFIRM_FACI = "confirmlab", CONFIRM_SUB_FACI = "confirm_branch")
             ) %>%
+            faci_code_to_id(
+               ohasis$ref_faci_code,
+               c(ART_FACI = "final_hub", ART_SUB_FACI = "final_branch")
+            ) %>%
             mutate_at(
-               .vars = vars(HARP_FACI, HARP_SUB_FACI, CONFIRM_FACI, CONFIRM_SUB_FACI),
+               .vars = vars(DX_FACI, DX_SUB_FACI, CONFIRM_FACI, CONFIRM_SUB_FACI, ART_FACI, ART_SUB_FACI),
                ~replace_na(., "")
             ) %>%
-            ohasis$get_faci(
-               list(DX_LAB = c("HARP_FACI", "HARP_SUB_FACI")),
-               "name",
+            private$convertFacility(
+               "DX_FACI",
+               "DX_SUB_FACI",
+               "DX_HUB",
+               c("DX_PSGC_REG", "DX_PSGC_PROV", "DX_PSGC_MUNC", "DX_PSGC_AEM"),
+               c("DX_NAME_REG", "DX_NAME_PROV", "DX_NAME_MUNC", "DX_NAME_AEM")
+            ) %>%
+            private$convertFacility(
+               "CONFIRM_FACI",
+               "CONFIRM_SUB_FACI",
+               "CONFIRM_HUB",
+               c("CONFIRM_PSGC_REG", "CONFIRM_PSGC_PROV", "CONFIRM_PSGC_MUNC", "CONFIRM_PSGC_AEM"),
+               c("CONFIRM_NAME_REG", "CONFIRM_NAME_PROV", "CONFIRM_NAME_MUNC", "CONFIRM_NAME_AEM")
+            ) %>%
+            private$convertFacility(
+               "ART_FACI",
+               "ART_SUB_FACI",
+               "ART_HUB",
+               c("ART_PSGC_REG", "ART_PSGC_PROV", "ART_PSGC_MUNC", "ART_PSGC_AEM"),
+               c("ART_NAME_REG", "ART_NAME_PROV", "ART_NAME_MUNC", "ART_NAME_AEM")
             ) %>%
             select(
                -any_of(c(
@@ -304,10 +338,45 @@ EpiCenter <- R6Class(
                ))
             )
       }
+   ),
+   private = list(
+      convertFacility = function(data, id, subid, name, psgc, names) {
+         data %<>%
+            left_join(
+               y  = self$refs$faci %>%
+                  select(
+                     FACI_ID,
+                     SUB_FACI_ID,
+                     FACI_NAME,
+                     starts_with("FACI_PSGC"),
+                     starts_with("FACI_NAME"),
+                  ) %>%
+                  select(-FACI_NAME_CLEAN) %>%
+                  rename_all(
+                     ~case_when(
+                        . == "FACI_ID" ~ id,
+                        . == "SUB_FACI_ID" ~ subid,
+                        . == "FACI_NAME" ~ name,
+                        . == "FACI_PSGC_REG" ~ psgc[[1]],
+                        . == "FACI_PSGC_PROV" ~ psgc[[2]],
+                        . == "FACI_PSGC_MUNC" ~ psgc[[3]],
+                        . == "FACI_PSGC_AEM" ~ psgc[[4]],
+                        . == "FACI_NAME_REG" ~ names[[1]],
+                        . == "FACI_NAME_PROV" ~ names[[2]],
+                        . == "FACI_NAME_MUNC" ~ names[[3]],
+                        . == "FACI_NAME_AEM" ~ names[[4]],
+                        TRUE ~ .
+                     )
+                  ),
+               by = c(id, subid)
+            )
+
+         return(data)
+      }
    )
 )
 
-try <- EpiCenter$new(2024, 05)
+try <- EpiCenter$new(2024, 6)
 try$fetchRefs()
 try$fetchDx()
 try$fetchTx()
@@ -316,3 +385,35 @@ try$createLinelist()
 # try$dx %>%
 #    distinct(PERM_PSGC_REG)
 
+migrate <- try$linelist %>%
+   mutate(
+      PERM_NAME_REG = stri_c("Resident: ", PERM_NAME_REG),
+      DX_NAME_REG   = stri_c("Diagnosed: ", DX_NAME_REG),
+   ) %>%
+   select(
+      source      = PERM_NAME_REG,
+      destination = DX_NAME_REG
+   ) %>%
+   group_by(source, destination) %>%
+   summarise(
+      value = n()
+   ) %>%
+   ungroup() %>%
+   bind_rows(
+      try$linelist %>%
+         mutate(
+            DX_NAME_REG  = stri_c("Diagnosed: ", DX_NAME_REG),
+            ART_NAME_REG = stri_c("Treat: ", ART_NAME_REG),
+         ) %>%
+         select(
+            source      = DX_NAME_REG,
+            destination = ART_NAME_REG
+         ) %>%
+         group_by(source, destination) %>%
+         summarise(
+            value = n()
+         )
+   )
+
+con <- ohasis$conn("lw")
+table
