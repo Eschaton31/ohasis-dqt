@@ -2,6 +2,8 @@ dir      <- "C:/Users/johnb/Downloads/hts_logsheet_20240801"
 files    <- list.files(dir, ".xlsx", recursive = TRUE, full.names = TRUE)
 gf_staff <- read_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "staff", col_types = "c")
 gf_site  <- read_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "site", col_types = "c")
+gf_date  <- read_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "file-no_created_at", col_types = "c")
+gf_addr  <- read_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "addr", col_types = "c")
 
 read_logsheet <- function(file) {
    sheets   <- excel_sheets(file)
@@ -135,20 +137,58 @@ read_logsheet <- function(file) {
                   . == "Venue: Details" ~ "HIV_SERVICE_ADDR",
                   TRUE ~ .
                )
+            ) %>%
+            mutate(
+               row_num = as.character(row_number())
             )
       }
    }
    return(logsheet %>% bind_rows(.id = 'sheet'))
 }
 
-raw        <- lapply(files, read_logsheet)
-names(raw) <- basename(files)
+raw <- sapply(files, read_logsheet, USE.NAMES = TRUE) %>%
+   bind_rows(.id = "id") %>%
+   mutate_all(~na_if(., "#REF!")) %>%
+   mutate(
+      row_id = stri_c(basename(id), "-", sheet, "-", row_num)
+   )
+
+check <- list(
+   `file-no_created_at` = raw %>%
+      filter(is.na(CREATED_AT), !is.na(RECORD_DATE)) %>%
+      distinct(
+         `FILE NAME` = id,
+         VENUE_REG   = HIV_SERVICE_NAME_REG,
+         VENUE_PROV  = HIV_SERVICE_NAME_PROV,
+         VENUE_MUNC  = HIV_SERVICE_NAME_MUNC
+      ) %>%
+      arrange(`FILE NAME`, VENUE_REG, VENUE_PROV, VENUE_MUNC),
+   `per-file_faci`      = raw %>%
+      filter(RECORD_DATE != "YYYY-MM-DD") %>%
+      mutate(id = basename(id)) %>%
+      distinct(HTS_FACI, FILE = id) %>%
+      arrange(HTS_FACI, FILE)
+)
 
 data <- raw %>%
-   bind_rows(.id = "id") %>%
    filter(!is.na(RECORD_DATE)) %>%
    mutate(
-      CREATED_AT = coalesce(CREATED_AT, RECORD_DATE)
+      id = basename(id)
+   ) %>%
+   left_join(
+      y  = gf_date %>%
+         select(
+            id                    = FILE,
+            HIV_SERVICE_NAME_REG  = VENUE_REG,
+            HIV_SERVICE_NAME_PROV = VENUE_PROV,
+            HIV_SERVICE_NAME_MUNC = VENUE_MUNC,
+            DATE_SUBMIT           = "DATE SUBMITTED TO MEO
+(yyyy-mm-dd)"
+         ),
+      by = join_by(id, HIV_SERVICE_NAME_REG, HIV_SERVICE_NAME_PROV, HIV_SERVICE_NAME_MUNC)
+   ) %>%
+   mutate(
+      CREATED_AT = coalesce(CREATED_AT, DATE_SUBMIT, RECORD_DATE)
    ) %>%
    filter(CREATED_AT != "Auto-fill")
 
@@ -162,8 +202,88 @@ form_hts <- QB$new(con)$from("ohasis_warehouse.form_hts")$limit(0)$get()
 dbDisconnect(con)
 
 conso <- data %>%
+   mutate_at(
+      .vars = vars(PERM_NAME_REG, PERM_NAME_PROV, PERM_NAME_MUNC, CURR_NAME_REG, CURR_NAME_PROV, CURR_NAME_MUNC, BIRTH_NAME_REG, BIRTH_NAME_PROV, BIRTH_NAME_MUNC, HIV_SERVICE_NAME_REG, HIV_SERVICE_NAME_PROV, HIV_SERVICE_NAME_MUNC),
+      ~coalesce(na_if(str_squish(toupper(.)), ""), "UNKNOWN")
+   ) %>%
+   left_join(
+      y  = gf_addr %>%
+         select(
+            PERM_NAME_REG  = NAME_REG,
+            PERM_NAME_PROV = NAME_PROV,
+            PERM_NAME_MUNC = NAME_MUNC,
+            CORR_NAME_REG,
+            CORR_NAME_PROV,
+            CORR_NAME_MUNC
+         ),
+      by = join_by(PERM_NAME_REG, PERM_NAME_PROV, PERM_NAME_MUNC)
+   ) %>%
+   mutate(
+      PERM_NAME_REG  = coalesce(CORR_NAME_REG, PERM_NAME_REG),
+      PERM_NAME_PROV = coalesce(CORR_NAME_PROV, PERM_NAME_PROV),
+      PERM_NAME_MUNC = coalesce(CORR_NAME_MUNC, PERM_NAME_MUNC),
+   ) %>%
+   select(-starts_with("CORR_NAME_")) %>%
+   left_join(
+      y  = gf_addr %>%
+         select(
+            CURR_NAME_REG  = NAME_REG,
+            CURR_NAME_PROV = NAME_PROV,
+            CURR_NAME_MUNC = NAME_MUNC,
+            CORR_NAME_REG,
+            CORR_NAME_PROV,
+            CORR_NAME_MUNC
+         ),
+      by = join_by(CURR_NAME_REG, CURR_NAME_PROV, CURR_NAME_MUNC)
+   ) %>%
+   mutate(
+      CURR_NAME_REG  = coalesce(CORR_NAME_REG, CURR_NAME_REG),
+      CURR_NAME_PROV = coalesce(CORR_NAME_PROV, CURR_NAME_PROV),
+      CURR_NAME_MUNC = coalesce(CORR_NAME_MUNC, CURR_NAME_MUNC),
+   ) %>%
+   select(-starts_with("CORR_NAME_")) %>%
+   left_join(
+      y  = gf_addr %>%
+         select(
+            BIRTH_NAME_REG  = NAME_REG,
+            BIRTH_NAME_PROV = NAME_PROV,
+            BIRTH_NAME_MUNC = NAME_MUNC,
+            CORR_NAME_REG,
+            CORR_NAME_PROV,
+            CORR_NAME_MUNC
+         ),
+      by = join_by(BIRTH_NAME_REG, BIRTH_NAME_PROV, BIRTH_NAME_MUNC)
+   ) %>%
+   mutate(
+      BIRTH_NAME_REG  = coalesce(CORR_NAME_REG, BIRTH_NAME_REG),
+      BIRTH_NAME_PROV = coalesce(CORR_NAME_PROV, BIRTH_NAME_PROV),
+      BIRTH_NAME_MUNC = coalesce(CORR_NAME_MUNC, BIRTH_NAME_MUNC),
+   ) %>%
+   select(-starts_with("CORR_NAME_")) %>%
+   left_join(
+      y  = gf_addr %>%
+         select(
+            HIV_SERVICE_NAME_REG  = NAME_REG,
+            HIV_SERVICE_NAME_PROV = NAME_PROV,
+            HIV_SERVICE_NAME_MUNC = NAME_MUNC,
+            CORR_NAME_REG,
+            CORR_NAME_PROV,
+            CORR_NAME_MUNC
+         ),
+      by = join_by(HIV_SERVICE_NAME_REG, HIV_SERVICE_NAME_PROV, HIV_SERVICE_NAME_MUNC)
+   ) %>%
+   mutate(
+      HIV_SERVICE_NAME_REG  = coalesce(CORR_NAME_REG, HIV_SERVICE_NAME_REG),
+      HIV_SERVICE_NAME_PROV = coalesce(CORR_NAME_PROV, HIV_SERVICE_NAME_PROV),
+      HIV_SERVICE_NAME_MUNC = coalesce(CORR_NAME_MUNC, HIV_SERVICE_NAME_MUNC),
+   ) %>%
+   select(-starts_with("CORR_NAME_")) %>%
    left_join(
       y  = ohasis$ref_addr %>%
+         mutate_at(
+            .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
+            ~str_squish(toupper(.))
+         ) %>%
          select(
             PERM_NAME_REG  = NAME_REG,
             PERM_NAME_PROV = NAME_PROV,
@@ -176,6 +296,10 @@ conso <- data %>%
    ) %>%
    left_join(
       y  = ohasis$ref_addr %>%
+         mutate_at(
+            .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
+            ~str_squish(toupper(.))
+         ) %>%
          select(
             CURR_NAME_REG  = NAME_REG,
             CURR_NAME_PROV = NAME_PROV,
@@ -188,6 +312,10 @@ conso <- data %>%
    ) %>%
    left_join(
       y  = ohasis$ref_addr %>%
+         mutate_at(
+            .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
+            ~str_squish(toupper(.))
+         ) %>%
          select(
             BIRTH_NAME_REG  = NAME_REG,
             BIRTH_NAME_PROV = NAME_PROV,
@@ -200,6 +328,10 @@ conso <- data %>%
    ) %>%
    left_join(
       y  = ohasis$ref_addr %>%
+         mutate_at(
+            .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
+            ~str_squish(toupper(.))
+         ) %>%
          select(
             HIV_SERVICE_NAME_REG  = NAME_REG,
             HIV_SERVICE_NAME_PROV = NAME_PROV,
@@ -220,7 +352,6 @@ conso <- data %>%
       CLIENT_EMAIL  = NA_character_,
       REC_ID        = NA_character_,
       PATIENT_ID    = NA_character_,
-      row_id        = row_number()
    ) %>%
    relocate(any_of(names(form_hts)), .before = 1)
 
@@ -230,12 +361,16 @@ convert <- conso %>%
       MODULE                   = "2",
       SEX                      = case_when(
          SEX == "Male" ~ "1",
+         SEX == "MALE" ~ "1",
+         SEX == "Man" ~ "1",
          SEX == "Female" ~ "2",
          TRUE ~ SEX
       ),
       SELF_IDENT               = case_when(
          SELF_IDENT == "Man" ~ "1",
+         SELF_IDENT == "MAN" ~ "1",
          SELF_IDENT == "Woman" ~ "2",
+         SELF_IDENT == "WOMAN" ~ "2",
          SELF_IDENT == "Others" ~ "3",
          TRUE ~ SELF_IDENT
       ),
@@ -250,7 +385,9 @@ convert <- conso %>%
          EDUC_LEVEL == "None" ~ "1",
          EDUC_LEVEL == "Elementary" ~ "2",
          EDUC_LEVEL == "High School" ~ "3",
+         EDUC_LEVEL == "HIGHSCHOOL" ~ "3",
          EDUC_LEVEL == "College" ~ "4",
+         EDUC_LEVEL == "COLLEGE" ~ "4",
          EDUC_LEVEL == "Vocational" ~ "5",
          EDUC_LEVEL == "Post-Graduate" ~ "6",
          EDUC_LEVEL == "Post-graduate" ~ "6",
@@ -259,7 +396,10 @@ convert <- conso %>%
       ),
       CIVIL_STATUS             = case_when(
          CIVIL_STATUS == "Single" ~ "1",
+         CIVIL_STATUS == "SIngle" ~ "1",
+         CIVIL_STATUS == "SINGLE" ~ "1",
          CIVIL_STATUS == "Married" ~ "2",
+         CIVIL_STATUS == "MARRIED" ~ "2",
          CIVIL_STATUS == "Separated" ~ "3",
          CIVIL_STATUS == "Widowed" ~ "4",
          CIVIL_STATUS == "Divorced" ~ "5",
@@ -269,6 +409,7 @@ convert <- conso %>%
       SERVICE_TYPE             = case_when(
          SERVICE_TYPE == "Mortality" ~ "*00001",
          SERVICE_TYPE == "Facility-based Testing (FBT)" ~ "101101",
+         SERVICE_TYPE == "FBT" ~ "101101",
          SERVICE_TYPE == "Community-based (CBS)" ~ "101103",
          SERVICE_TYPE == "CBS" ~ "101103",
          SERVICE_TYPE == "Non-laboratory FBT (FBS)" ~ "101104",
@@ -282,17 +423,25 @@ convert <- conso %>%
       ),
       HTS_PROVIDER_TYPE        = case_when(
          HTS_PROVIDER_TYPE == "Medical Technologist" ~ "1",
+         HTS_PROVIDER_TYPE == "MedTech" ~ "1",
          HTS_PROVIDER_TYPE == "HIV Counselor" ~ "2",
          HTS_PROVIDER_TYPE == "CBS Motivator" ~ "3",
          HTS_PROVIDER_TYPE == "Other" ~ "8888",
+         HTS_PROVIDER_TYPE == "PEER NAVIGATOR" ~ "8888",
+         HTS_PROVIDER_TYPE == "Peer Navigator" ~ "8888",
+         HTS_PROVIDER_TYPE == "Others" ~ "8888",
+         HTS_PROVIDER_TYPE == "Case Finder" ~ "8888",
          TRUE ~ HTS_PROVIDER_TYPE
       ),
       CLIENT_TYPE              = case_when(
          CLIENT_TYPE == "Inpatient" ~ "1",
          CLIENT_TYPE == "Walk-in / Outpatient" ~ "2",
          CLIENT_TYPE == "Walk-in" ~ "2",
+         CLIENT_TYPE == "WALK-IN" ~ "2",
          CLIENT_TYPE == "Outpatient" ~ "2",
          CLIENT_TYPE == "Mobile HTS Client" ~ "3",
+         CLIENT_TYPE == "MOBIle HTS Client" ~ "3",
+         CLIENT_TYPE == "mobile HTS Client" ~ "3",
          CLIENT_TYPE == "Satellite Client" ~ "5",
          CLIENT_TYPE == "Referral" ~ "4",
          CLIENT_TYPE == "Transient" ~ "6",
@@ -321,6 +470,8 @@ convert <- conso %>%
       PREV_TEST_RESULT         = case_when(
          PREV_TEST_RESULT == "Reactive" ~ "1",
          PREV_TEST_RESULT == "Non-reactive" ~ "2",
+         PREV_TEST_RESULT == "NA" ~ "4",
+         PREV_TEST_RESULT == "Was not able to get result" ~ "4",
          TRUE ~ PREV_TEST_RESULT
       ),
 
@@ -347,15 +498,16 @@ convert <- conso %>%
    select(-COUNTRY_NAME) %>%
    rename(STAFF_NAME = CREATED_BY) %>%
    mutate(STAFF_NAME = toupper(STAFF_NAME)) %>%
-   left_join(select(gf_staff, STAFF_NAME, CREATED_BY = USER_ID), join_by(STAFF_NAME)) %>%
+   left_join(select(gf_staff, STAFF_NAME, CREATED_BY = USER_ID) %>% distinct(STAFF_NAME, .keep_all = TRUE), join_by(STAFF_NAME)) %>%
    select(-STAFF_NAME) %>%
    rename(STAFF_NAME = PROVIDER_ID) %>%
    mutate(STAFF_NAME = toupper(STAFF_NAME)) %>%
-   left_join(select(gf_staff, STAFF_NAME, PROVIDER_ID = USER_ID), join_by(STAFF_NAME)) %>%
+   left_join(select(gf_staff, STAFF_NAME, PROVIDER_ID = USER_ID) %>% distinct(STAFF_NAME, .keep_all = TRUE), join_by(STAFF_NAME)) %>%
    select(-STAFF_NAME) %>%
+   filter(!is.na(HTS_FACI)) %>%
    left_join(gf_site, join_by(HTS_FACI)) %>%
    mutate(
-      FACI_ID          = coalesce(FACI_ID, substr(CREATED_BY, 1, 6)),
+      # FACI_ID          = coalesce(FACI_ID, substr(CREATED_BY, 1, 6)),
       SERVICE_FACI     = FACI_ID,
       SERVICE_SUB_FACI = SUB_FACI_ID,
    ) %>%
@@ -377,15 +529,15 @@ convert <- conso %>%
          starts_with("SERVICE_"),
       ),
       ~case_when(
-         . == "Yes" ~ "1",
-         . == "No" ~ "0",
+         str_squish(toupper(.)) == "YES" ~ "1",
+         str_squish(toupper(.)) == "NO" ~ "0",
          TRUE ~ .
       )
    ) %>%
    relocate(any_of(names(form_hts)), .before = 1) %>%
    mutate_at(
       .vars = vars(contains("_DATE"), contains("DATE_"), BIRTHDATE),
-      ~as.character(as.Date(parse_date_time(., c("Ymd", "mdY"))))
+      ~as.character(as.Date(parse_date_time(., c("Ymd", "mdY", "mY", "Ym", "Y"))))
    )
 
 convert %<>%
@@ -405,7 +557,17 @@ convert %<>%
       UPDATED_BY = "1300000048",
       UPDATED_AT = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
    ) %>%
-   relocate(any_of(names(form_hts)), .before = 1)
+   relocate(any_of(names(form_hts)), .before = 1) %>%
+   mutate(
+      T0_RESULT = case_when(
+         T0_RESULT == "NON-REACTIVE" ~ "2",
+         T0_RESULT == "Non-reactive" ~ "2",
+         T0_RESULT == "REACTIVE" ~ "1",
+         T0_RESULT == "Reactive" ~ "1",
+         T0_RESULT == "CBS" ~ NA_character_,
+         TRUE ~ T0_RESULT
+      )
+   )
 
 tables <- deconstruct_hts(convert)
 wide   <- c("px_test_refuse", "px_other_service", "px_reach", "px_med_profile", "px_test_reason")
