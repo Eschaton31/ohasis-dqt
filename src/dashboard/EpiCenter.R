@@ -1,17 +1,16 @@
 EpiCenter <- R6Class(
    "EpiCenter",
    public  = list(
-      yr             = NULL,
-      mo             = NULL,
-      min            = NULL,
-      max            = NULL,
-      refs           = list(),
-      dx             = tibble(),
-      tx             = tibble(),
-      linelist       = tibble(),
-      upload         = list(),
+      yr              = NULL,
+      mo              = NULL,
+      min             = NULL,
+      max             = NULL,
+      refs            = list(),
+      dx              = tibble(),
+      tx              = tibble(),
+      linelist        = tibble(),
 
-      initialize     = function(yr = NULL, mo = NULL) {
+      initialize      = function(yr = NULL, mo = NULL) {
          self$mo <- ifelse(!is.null(mo), mo, input(prompt = "What is the reporting month?", max.char = 2))
          self$yr <- ifelse(!is.null(yr), yr, input(prompt = "What is the reporting year?", max.char = 4))
          self$mo <- self$mo %>% stri_pad_left(width = 2, pad = "0")
@@ -21,7 +20,7 @@ EpiCenter <- R6Class(
          self$max <- end_ym(self$yr, self$mo)
       },
 
-      fetchRefs      = function() {
+      fetchRefs       = function() {
          self$refs      <- psgc_aem(.GlobalEnv$ohasis$ref_addr)
          self$refs$faci <- .GlobalEnv$ohasis$ref_faci %>%
             select(-contains("PSGC")) %>%
@@ -48,7 +47,7 @@ EpiCenter <- R6Class(
             )
       },
 
-      fetchDx        = function() {
+      fetchDx         = function() {
          self$dx <- hs_data("harp_dx", "reg", self$yr, self$mo) %>%
             read_dta(
                col_select = any_of(c(
@@ -79,7 +78,12 @@ EpiCenter <- R6Class(
                   "mort_id",
                   "confirmlab",
                   "class",
-                  "class2022"
+                  "class2022",
+                  "blood_extract_date",
+                  "specimen_receipt_date",
+                  "test_date",
+                  "t0_date",
+                  "visit_date"
                ))
             ) %>%
             mutate_if(
@@ -107,7 +111,7 @@ EpiCenter <- R6Class(
          }
       },
 
-      fetchTx        = function() {
+      fetchTx         = function() {
          self$tx <- hs_data("harp_tx", "outcome", self$yr, self$mo) %>%
             read_dta(
                col_select = any_of(c(
@@ -132,9 +136,10 @@ EpiCenter <- R6Class(
                   "vl_result",
                   "everonart",
                   "onart",
-                  "mort_id",
-                  "art_reg",
-                  "art_reg1"
+                  "outcome",
+                  "latest_regimen",
+                  "latest_nextpickup",
+                  "mort_id"
                ))
             ) %>%
             mutate_if(
@@ -145,7 +150,6 @@ EpiCenter <- R6Class(
                final_hub    = if (self$yr >= 2022) realhub else toupper(hub),
                final_branch = if (self$yr >= 2022) realhub_branch else NA_character_,
                baseline_vl  = if (self$yr == 2020) if_else(baseline_vl == 0, NA, baseline_vl, baseline_vl) else baseline_vl,
-               art_reg1     = if (self$yr >= 2022) art_reg else art_reg1
             ) %>%
             select(
                -any_of(c(
@@ -204,7 +208,7 @@ EpiCenter <- R6Class(
             )
       },
 
-      createLinelist = function() {
+      createLinelist  = function() {
          vars_dx <- names(self$dx)
          vars_dx <- vars_dx[vars_dx != "idnum"]
 
@@ -219,23 +223,59 @@ EpiCenter <- R6Class(
                dx_age = age
             ) %>%
             mutate(
-               # report age
-               rep_age      = calc_age(bdate, self$max),
-               rep_age      = coalesce(rep_age, (as.numeric(self$yr) - year) + dx_age, curr_age),
-               reg_age_c    = gen_agegrp(rep_age, "harp"),
+               row_id  = row_number(),
+               .before = 1
+            ) %>%
+            mutate(
+               harp_date            = end_ym(year, month),
+               end_date             = end_ym(self$yr, self$mo),
 
-               dx_age_c     = gen_agegrp(dx_age, "harp"),
+               dx                   = !is.na(idnum),
+               mortality            = outcome == "dead" | !is.na(mort_id),
+               plhiv                = !mortality,
+               everonart            = !is.na(artstart_date),
+               outcome_30           = hiv_tx_outcome(outcome, latest_nextpickup, end_date, 30, "days"),
+               outcome_90           = hiv_tx_outcome(outcome, latest_nextpickup, end_date, 3, "months"),
+               onart_30             = outcome_30 == "alive on arv",
+               onart_90             = outcome_90 == "alive on arv",
+
+               artlen               = floor(interval(artstart_date, end_date) / months(1)),
+               artlen_c             = private$tat(artlen, "on ARVs"),
+               artestablish_90      = artlen <= 3,
+               artestablish_180     = artlen <= 6,
+
+               ltfulen              = floor(interval(artstart_date, latest_nextpickup) / months(1)),
+               ltfulen_c            = private$tat(ltfulen, "LTFU"),
+
+               vl_tested_30         = onart_30 & is.na(baseline_vl) & !is.na(vlp12m),
+               vl_tested_90         = onart_90 & is.na(baseline_vl) & !is.na(vlp12m),
+               vl_eligible_30       = vl_tested_30 | artlen >= 3,
+               vl_eligible_90       = vl_tested_90 | artlen >= 3,
+               vl_suppress_30       = vl_tested_30 & vl_result <= 1000,
+               vl_suppress_90       = vl_tested_90 & vl_result <= 1000,
+               vl_undetected_30     = vl_tested_30 & vl_result <= 50,
+               vl_undetected_90     = vl_tested_90 & vl_result <= 50,
+
+               tld                  = str_detect(latest_regimen, "TDF/3TC/DTG"),
+               lte                  = str_detect(latest_regimen, "TDF/3TC/EFV"),
+
+               # report age
+               rep_age              = calc_age(bdate, self$max),
+               rep_age              = coalesce(rep_age, (as.numeric(self$yr) - year) + dx_age, curr_age),
+               reg_age_c            = gen_agegrp(rep_age, "harp"),
+
+               dx_age_c             = gen_agegrp(dx_age, "harp"),
 
                # sex
-               sex          = toupper(sex),
-               sex          = case_when(
+               sex                  = toupper(sex),
+               sex                  = case_when(
                   StrLeft(sex, 1) == "M" ~ "Male",
                   StrLeft(sex, 1) == "F" ~ "Female",
                   TRUE ~ "(no data)"
                ),
 
                # mode of transmission
-               mot          = case_when(
+               mot                  = case_when(
                   transmit == "SEX" & sexhow == "BISEXUAL" ~ "Sex w/ Males & Females",
                   transmit == "SEX" & sexhow == "HETEROSEXUAL" ~ "Male-Female Sex",
                   transmit == "SEX" & sexhow == "HOMOSEXUAL" ~ "Male-Male Sex",
@@ -247,21 +287,24 @@ EpiCenter <- R6Class(
                   TRUE ~ transmit
                ),
 
-               msm          = if_else(sex == "Male" & sexhow %in% c("HOMOSEXUAL", "BISEXUAL"), "Yes", NA_character_),
-               tgw          = if_else(sex == "Male" & self_identity %in% c("FEMALE", "OTHERS"), "Yes", NA_character_),
-               kap_type     = case_when(
+               msm                  = sex == "Male" & sexhow %in% c("HOMOSEXUAL", "BISEXUAL"),
+               tgw                  = sex == "Male" & self_identity %in% c("FEMALE", "OTHERS"),
+               kap_type             = case_when(
                   transmit == "IVDU" ~ "PWID",
-                  msm == 1 ~ "MSM",
+                  msm ~ "MSM",
                   sex == "Male" ~ "Other Males",
                   sex == "Female" & pregnant == 1 ~ "Pregnant WLHIV",
                   sex == "Female" ~ "Other Females",
                   TRUE ~ "Other"
                ),
 
-               confirm_type = case_when(
+               confirm_type         = case_when(
                   is.na(idnum) & coalesce(rhivda_done, 0) == 0 ~ "SACCL",
                   is.na(idnum) & coalesce(rhivda_done, 0) == 1 ~ "CrCL",
                ),
+
+               reactive_date        = as.Date(coalesce(blood_extract_date, specimen_receipt_date, test_date, t0_date, visit_date, confirm_date)),
+               tat_reactive_confirm = floor(interval(reactive_date, confirm_date) / days(1)),
             ) %>%
             harp_addr_to_id(
                ohasis$ref_addr,
@@ -328,15 +371,70 @@ EpiCenter <- R6Class(
             ) %>%
             select(
                -any_of(c(
+                  "year",
+                  "month",
+                  "pregnant",
+                  "self_identity",
+                  "transmit",
+                  "sexhow",
+                  "confirmlab",
+                  "confirm_branch",
+                  "rhivda_done",
+                  "rhivda_done",
                   "region",
                   "province",
                   "muncity",
                   "dx_region",
                   "dx_province",
                   "dx_muncity",
-                  "dxlab_standard"
+                  "dxlab_standard",
+                  "blood_extract_date",
+                  "specimen_receipt_date",
+                  "test_date",
+                  "t0_date",
+                  "visit_date",
+                  "latest_nextpickup",
+                  "onart",
+                  "baseline_vl",
+                  "vlp12m",
+                  "vl_result",
+                  "outcome",
+                  "final_hub",
+                  "final_branch"
                ))
             )
+      },
+
+      uploadLinelist  = function() {
+         conn <- ohasis$conn("lw")
+         ohasis$upsert(conn, "dashboard", stri_c("harp_", self$yr, self$mo), self$linelist, "row_id")
+         dbDisconnect(conn)
+      },
+
+      uploadEstimates = function() {
+         conn <- ohasis$conn("lw")
+         data <- self$refs$aem %>%
+            mutate(
+               report_date = end_ym(report_yr, 12)
+            ) %>%
+            mutate_at(
+               .vars = vars(PSGC_REG, PSGC_PROV, PSGC_MUNC),
+               ~coalesce(if_else(. != "", str_c("PH", .), ., .), "")
+            ) %>%
+            left_join(
+               y  = self$refs$addr %>%
+                  select(
+                     PSGC_REG,
+                     PSGC_PROV,
+                     PSGC_MUNC,
+                     NAME_REG,
+                     NAME_PROV,
+                     NAME_AEM,
+                  ),
+               by = join_by(PSGC_REG, PSGC_PROV, PSGC_MUNC)
+            )
+         ohasis$upsert(conn, "dashboard", "estimates", data, c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC", "PSGC_AEM", "report_yr"))
+         dbDisconnect(conn)
       }
    ),
    private = list(
@@ -372,15 +470,29 @@ EpiCenter <- R6Class(
             )
 
          return(data)
+      },
+      tat             = function(months, suffix) {
+         return(stri_c(case_when(
+            months < 2 ~ "1) 1 mo.",
+            months < 4 ~ "2) 2-3 mos.",
+            months < 6 ~ "3) 4-5 mos.",
+            months < 13 ~ "4) 6-12 mos.",
+            months < 37 ~ "5) 2-3 yrs.",
+            months < 61 ~ "6) 4-5 yrs.",
+            months < 121 ~ "7) 6-10 yrs.",
+            months >= 121 ~ "8) 10+ yrs.",
+         ), " ", suffix))
       }
    )
 )
 
-try <- EpiCenter$new(2024, 6)
+try <- EpiCenter$new(2024, 1)
 try$fetchRefs()
-try$fetchDx()
-try$fetchTx()
-try$createLinelist()
+# try$fetchDx()
+# try$fetchTx()
+# try$createLinelist()
+# try$uploadLinelist()
+try$uploadEstimates()
 
 # try$dx %>%
 #    distinct(PERM_PSGC_REG)
