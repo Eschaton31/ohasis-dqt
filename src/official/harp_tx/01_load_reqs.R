@@ -283,7 +283,7 @@ update_dataset <- function(params, corr, forms, reprocess) {
    official         <- list()
    official$old_reg <- ohasis$load_old_dta(
       path            = hs_data("harp_tx", "reg", params$prev_yr, params$prev_mo),
-      corr            = corr$corr_reg,
+      corr            = corr$corr_reg %>% rename_all(toupper),
       warehouse_table = "harp_tx_old",
       id_col          = c("art_id" = "integer"),
       dta_pid         = "PATIENT_ID",
@@ -304,7 +304,7 @@ update_dataset <- function(params, corr, forms, reprocess) {
    # clean if any for cleaning found
    if (!is.null(corr$corr_outcome)) {
       log_info("Performing cleaning on the outcome dataset.")
-      official$old_outcome <- .cleaning_list(official$old_outcome, corr$corr_outcome, "art_id", "integer")
+      official$old_outcome <- .cleaning_list(official$old_outcome, corr$corr_outcome %>% rename_all(toupper), "ART_ID", "integer")
    }
    official$dupes <- official$old_reg %>% get_dupes(CENTRAL_ID)
    if (nrow(official$dupes) > 0)
