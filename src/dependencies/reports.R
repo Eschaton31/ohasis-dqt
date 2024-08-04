@@ -150,6 +150,12 @@ waterfall_aggregate <- function(old_outcome, new_outcome, title) {
       ml_enroll -
       drop_dupe
 
+   if (new_onart != final_onart) {
+      log_warn("Mismatch for final onart!")
+      log_info(r"(Actual = {green(new_onart)})")
+      log_info(r"(Calculated = {green(final_onart)})")
+   }
+
    net_diff <- final_onart - old_onart
 
    group   <- c(
