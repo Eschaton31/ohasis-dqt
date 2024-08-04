@@ -1,5 +1,5 @@
 min <- "2023-01-01"
-max <- "2024-04-01"
+max <- "2024-07-01"
 
 con               <- ohasis$conn("db")
 inventory_product <- QB$new(con)$from("ohasis_interim.inventory_product")$get()
@@ -29,7 +29,7 @@ disp_meds <- QB$new(con)$
 registry  <- QB$new(con)$from("ohasis_interim.registry")$get()
 dbDisconnect(con)
 
-tx <- read_dta(hs_data("harp_tx", "reg", 2023, 12))
+tx <- read_dta(hs_data("harp_tx", "reg", 2024, 6))
 
 
 dispensing <- disp_meds %>%
@@ -58,7 +58,7 @@ dispensing <- disp_meds %>%
 
 
 tx_2023 <- tx %>%
-   filter(artstart_date >= "2023-01-31") %>%
+   filter(artstart_date >= "2023-01-01") %>%
    get_cid(registry, PATIENT_ID) %>%
    left_join(
       y  = dispensing %>%
@@ -70,11 +70,13 @@ tx_2023 <- tx %>%
       NEW_2023Q2 = if_else(artstart_date >= "2023-04-01" & artstart_date <= "2023-06-30", 1, 0, 0),
       NEW_2023Q3 = if_else(artstart_date >= "2023-07-01" & artstart_date <= "2023-09-30", 1, 0, 0),
       NEW_2023Q4 = if_else(artstart_date >= "2023-10-01" & artstart_date <= "2023-12-31", 1, 0, 0),
+      NEW_2024Q1 = if_else(artstart_date >= "2024-01-01" & artstart_date <= "2024-03-31", 1, 0, 0),
+      NEW_2024Q2 = if_else(artstart_date >= "2024-04-01" & artstart_date <= "2024-06-30", 1, 0, 0),
    ) %>%
    distinct(art_id, REGION, PROVINCE, MUNCITY, FACILITY, COMMODITY, .keep_all = TRUE) %>%
    group_by(REGION, PROVINCE, MUNCITY, FACILITY, COMMODITY) %>%
    summarise_at(
-      .vars = vars(NEW_2023Q1, NEW_2023Q2, NEW_2023Q3, NEW_2023Q4),
+      .vars = vars(NEW_2023Q1, NEW_2023Q2, NEW_2023Q3, NEW_2023Q4, NEW_2024Q1, NEW_2024Q2),
       ~sum(.)
    ) %>%
    ungroup()
@@ -88,6 +90,7 @@ disp_bottles <- dispensing %>%
       DISP_2023Q3          = sum(if_else(DISP_DATE >= "2023-07-01" & DISP_DATE <= "2023-09-30", BOTTLES, 0, 0), na.rm = TRUE),
       DISP_2023Q4          = sum(if_else(DISP_DATE >= "2023-10-01" & DISP_DATE <= "2023-12-31", BOTTLES, 0, 0), na.rm = TRUE),
       DISP_2024Q1          = sum(if_else(DISP_DATE >= "2024-01-01" & DISP_DATE <= "2024-03-31", BOTTLES, 0, 0), na.rm = TRUE),
+      DISP_2024Q2          = sum(if_else(DISP_DATE >= "2024-04-01" & DISP_DATE <= "2024-06-30", BOTTLES, 0, 0), na.rm = TRUE),
    ) %>%
    ungroup() %>%
    left_join(
@@ -156,8 +159,19 @@ disp_bottles <- dispensing %>%
       by = join_by(REGION, PROVINCE, MUNCITY, FACILITY, COMMODITY)
    ) %>%
    left_join(
+      y  = dispensing %>%
+         filter(DISP_DATE >= "2024-04-01", DISP_DATE <= "2024-06-30") %>%
+         distinct(REGION, PROVINCE, MUNCITY, FACILITY, COMMODITY, CENTRAL_ID) %>%
+         group_by(REGION, PROVINCE, MUNCITY, FACILITY, COMMODITY) %>%
+         summarise(
+            CLIENTS_2024Q2 = n()
+         ) %>%
+         ungroup(),
+      by = join_by(REGION, PROVINCE, MUNCITY, FACILITY, COMMODITY)
+   ) %>%
+   left_join(
       y  = tx_2023,
       by = join_by(REGION, PROVINCE, MUNCITY, FACILITY, COMMODITY)
    )
 
-write_sheet(disp_bottles, "19MRpTfgAeNQ14EVeG23MWu3wuLM6lcE_wA5YwmYSbKA", "disp_bottles")
+write_sheet(disp_bottles, "19MRpTfgAeNQ14EVeG23MWu3wuLM6lcE_wA5YwmYSbKA", "disp_bottles (jun 2024)")

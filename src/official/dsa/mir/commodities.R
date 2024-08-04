@@ -4,7 +4,7 @@ inventory_product  <- QB$new(con)$from("ohasis_interim.inventory_product")$get()
 inventory_transact <- QB$new(con)$
    from("ohasis_interim.inventory_transact AS trxn")$
    join("ohasis_interim.px_record AS rec", "trxn.TRANSACT_ID", "=", "rec.REC_ID")$
-   whereBetween('trxn.TRANSACT_DATE', c("2023-10-01", "2024-03-31"))$
+   whereBetween('trxn.TRANSACT_DATE', c("2023-10-01", "2024-06-30"))$
    select("rec.PATIENT_ID", "rec.RECORD_DATE",  "trxn.*")$
    get()
 registry           <- QB$new(con)$from("ohasis_interim.registry")$get()
@@ -120,7 +120,7 @@ status <- current_stocks %>%
 status %>% write_clip()
 
 status <- current_stocks %>%
-   filter(CATEGORY == "Diagnostics") %>%
+   # filter(CATEGORY == "Diagnostics") %>%
    left_join(disp_mo) %>%
    mutate(
       CAT2 = case_when(
@@ -132,7 +132,7 @@ status <- current_stocks %>%
    ) %>%
    relocate(CAT2, .after = CATEGORY)
 
-write_sheet(status, "19MRpTfgAeNQ14EVeG23MWu3wuLM6lcE_wA5YwmYSbKA", "stock_status")
+write_sheet(status, "19MRpTfgAeNQ14EVeG23MWu3wuLM6lcE_wA5YwmYSbKA", "stock_status (jun 2024)")
 
 ### COnfirmatory
 
