@@ -273,6 +273,7 @@ DB <- R6Class(
                   Mode == "numeric" & Class == "POSIXct" ~ "DATETIME NULL DEFAULT NULL",
                   Mode == "numeric" ~ "INT(11) NULL DEFAULT NULL",
                   Mode == "character" ~ "VARCHAR(150) NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
+                  Mode == "logical" ~ "BOOLEAN NULL DEFAULT NULL",
                   TRUE ~ NA_character_
                ),
                SQL  = paste0("`", Var1, "` ", Type),
