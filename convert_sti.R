@@ -1,3 +1,9 @@
+tables <- c("px_pii", "px_faci_info", "px_ob", "px_occupation", "px_key_pop", "px_sti_sx", "px_remarks", "px_sti_testing", "px_sti_treat", "px_egasp", "px_vaccine")
+lapply(tables, function(tbl) ohasis$data_factory("lake", tbl, "upsert", TRUE))
+
+tables <- c("form_sti", "id_registry")
+lapply(tables, function(tbl) ohasis$data_factory("warehouse", tbl, "upsert", TRUE))
+
 con      <- ohasis$conn("lw")
 id_reg   <- QB$new(con)$from("ohasis_warehouse.id_registry")$select("CENTRAL_ID", "PATIENT_ID")$get()
 form_sti <- QB$new(con)$from("ohasis_warehouse.form_sti")$get()
@@ -274,5 +280,5 @@ sti          <- form_sti %>%
 sti_qc <- sti %>%
    filter(`City/Municipality of STI Facility` == "Quezon City")
 
-write_xlsx(list(`QC STI Forms` = sti_qc), "H:/20240625_QC-STI_ever.xlsx")
-write_xlsx(list(`PH STI Forms` = sti), "H:/20240625_QC-All_ever.xlsx")
+write_xlsx(list(`QC STI Forms` = sti_qc), "H:/20240809_QC-STI_ever.xlsx")
+write_xlsx(list(`PH STI Forms` = sti), "H:/20240809_QC-All_ever.xlsx")
