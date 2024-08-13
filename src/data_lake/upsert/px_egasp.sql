@@ -2,6 +2,8 @@ SELECT rec.REC_ID,
        rec.CREATED_AT,
        rec.UPDATED_AT,
        rec.DELETED_AT,
+       GREATEST(COALESCE(rec.DELETED_AT, 0), COALESCE(rec.UPDATED_AT, 0), COALESCE(rec.CREATED_AT, 0)) AS SNAPSHOT,
+
        NULLIF(egasp.DATE_COLLECT, '0000-00-00 00:00:00')               AS DATE_COLLECT,
        IF(egasp.SPECIMEN_TYPE REGEXP '[[:<:]]1[[:>:]]', '1_Yes', NULL) AS SPECIMEN_MALE_UREHTRA,
        IF(egasp.SPECIMEN_TYPE REGEXP '[[:<:]]2[[:>:]]', '1_Yes', NULL) AS SPECIMEN_FEMALE_CERVICAL,
