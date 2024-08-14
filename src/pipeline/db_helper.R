@@ -1105,3 +1105,16 @@ oh_new_patient <- function(faci_id,
 
    return(patient_id)
 }
+
+move_art_to_prep <- function(rec_ids) {
+   db_sql <- stri_c("UPDATE ohasis_interim.px_record SET MODULE = 6 WHERE REC_ID IN ('", stri_c(collapse = "','", rec_ids), "');")
+   lw_sql <- stri_c("DELETE FROM ohasis_warehouse.form_art_bc WHERE REC_ID IN ('", stri_c(collapse = "','", rec_ids), "');")
+
+   db_conn <- ohasis$conn("db")
+   dbx::dbxExecute(db_conn, db_sql)
+   dbDisconnect(db_conn)
+
+   lw_conn <- ohasis$conn("lw")
+   dbx::dbxExecute(lw_conn, lw_sql)
+   dbDisconnect(lw_conn)
+}
