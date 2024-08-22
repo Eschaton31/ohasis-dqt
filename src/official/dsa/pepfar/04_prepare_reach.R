@@ -26,6 +26,7 @@ prepare_hts <- function(forms, harp, coverage) {
             TRUE ~ 9999
          )
       ) %>%
+      select(-any_of(c("transmit", "sexhow"))) %>%
       left_join(
          y  = harp$dx %>%
             select(
