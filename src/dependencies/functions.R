@@ -374,3 +374,7 @@ add_missing_columns <- function(data, ref) {
 
    return(new)
 }
+
+connect <- function (group) {
+   return(dbConnect(RMariaDB::MariaDB(), group = group, default.file = Sys.getenv("CONN")))
+}
