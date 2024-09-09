@@ -88,8 +88,8 @@ DB <- R6Class(
 
       download_refs     = function() {
          log_info("Downloading references.")
-         db_conn          <- self$conn("db")
-         lw_conn          <- self$conn("lw")
+         db_conn          <- connect("ohasis-live")
+         lw_conn          <- connect("ohasis-lw")
          self$ref_country <- QB$new(db_conn)$from("ohasis_interim.addr_country")$get()
          self$ref_addr    <- QB$new(lw_conn)$from("ohasis_lake.ref_addr")$get()
          self$ref_faci    <- QB$new(lw_conn)$from("ohasis_lake.ref_faci")$get()
@@ -282,21 +282,21 @@ DB <- R6Class(
          # add indices if not in pk
          index <- ""
          if (!("CENTRAL_ID" %in% id_col) & "CENTRAL_ID" %in% names(data))
-            index <- ", INDEX `CENTRAL_ID` (`CENTRAL_ID`)"
+            index <- stri_c(index, ", INDEX `CENTRAL_ID` (`CENTRAL_ID`)")
          if (!("PATIENT_ID" %in% id_col) & "PATIENT_ID" %in% names(data))
-            index <- ", INDEX `PATIENT_ID` (`PATIENT_ID`)"
+            index <- stri_c(index, ", INDEX `PATIENT_ID` (`PATIENT_ID`)")
          if ("SOURCE_REC" %in% names(data))
-            index <- ", INDEX `SOURCE_REC` (`SOURCE_REC`)"
+            index <- stri_c(index, ", INDEX `SOURCE_REC` (`SOURCE_REC`)")
          if ("DESTINATION_REC" %in% names(data))
-            index <- ", INDEX `DESTINATION_REC` (`DESTINATION_REC`)"
+            index <- stri_c(index, ", INDEX `DESTINATION_REC` (`DESTINATION_REC`)")
          if ("idnum" %in% names(data))
-            index <- ", INDEX `idnum` (`idnum`)"
+            index <- stri_c(index, ", INDEX `idnum` (`idnum`)")
          if ("art_id" %in% names(data))
-            index <- ", INDEX `art_id` (`art_id`)"
+            index <- stri_c(index, ", INDEX `art_id` (`art_id`)")
          if ("mort_id" %in% names(data))
-            index <- ", INDEX `mort_id` (`mort_id`)"
+            index <- stri_c(index, ", INDEX `mort_id` (`mort_id`)")
          if ("prep_id" %in% names(data))
-            index <- ", INDEX `prep_id` (`prep_id`)"
+            index <- stri_c(index, ", INDEX `prep_id` (`prep_id`)")
 
          # implode into query
          pk_sql     <- paste(collapse = "`,`", id_col)
@@ -337,8 +337,8 @@ DB <- R6Class(
 
             # open connections
             log_info("Opening connections.")
-            db_conn      <- self$conn("db")
-            lw_conn      <- self$conn("lw")
+            db_conn      <- connect("ohasis-live")
+            lw_conn      <- connect("ohasis-lw")
             table_exists <- dbExistsTable(lw_conn, table_space)
 
             # data for deletion (warehouse)
@@ -354,7 +354,7 @@ DB <- R6Class(
                   sql_delete <- str_extract(sql_query, "(?<=-- DELETED: ).*?(?=;)")
                }
 
-               sql_id     <- str_extract(sql_query, "(?<=-- ID_COLS: ).*?(?=;)")
+               sql_id <- str_extract(sql_query, "(?<=-- ID_COLS: ).*?(?=;)")
 
                id_col <- str_split(sql_id, ", ")[[1]]
 
@@ -423,7 +423,7 @@ DB <- R6Class(
                   db_type == "warehouse" &&
                   table_name != "id_registry") {
                   dbDisconnect(db_conn)
-                  db_conn <- self$conn("lw")
+                  db_conn <- connect("ohasis-lw")
                }
                n_rows <- dbGetQuery(db_conn, query_nrow, params = params)$nrow
                n_rows <- ifelse(length(n_rows) > 1, length(n_rows), as.numeric(n_rows))
@@ -476,7 +476,7 @@ DB <- R6Class(
 
             # keep connection alive
             dbDisconnect(lw_conn)
-            lw_conn <- self$conn("lw")
+            lw_conn <- connect("ohasis-lw")
 
             if (continue > 0) {
                # check if there is data for deletion
@@ -522,7 +522,7 @@ DB <- R6Class(
       # get snapshot
       get_snapshots     = function(db_type = NULL, table_name = NULL) {
          snapshot    <- list()
-         db_conn     <- self$conn("lw")
+         db_conn     <- connect("ohasis-lw")
          db_name     <- paste0("ohasis_", db_type)
          table_space <- Id(schema = db_name, table = table_name)
 
@@ -561,7 +561,7 @@ DB <- R6Class(
       },
 
       check_consistency = function() {
-         db_conn   <- self$conn("db")
+         db_conn   <- connect("ohasis-live")
          checklist <- list()
 
          # get list of queries
@@ -705,18 +705,12 @@ DB <- R6Class(
          # rename columns
          linelist %<>%
             mutate(
-               {{faci_id}}     := if_else(
-                  condition = is.na({{faci_id}}),
-                  true      = "",
-                  false     = {{faci_id}},
-                  missing   = {{faci_id}}
-               ),
+               {{faci_id}}     := coalesce({{faci_id}}, ""),
                {{sub_faci_id}} := case_when(
-                  is.na({{sub_faci_id}}) ~ "",
                   StrLeft({{sub_faci_id}}, 6) != {{faci_id}} ~ "",
                   {{sub_faci_id}} == "130023_001" ~ "130023_001",
-                  !(StrLeft({{sub_faci_id}}, 6) %in% c("130001", "130605", "040200")) ~ "",
-                  TRUE ~ {{sub_faci_id}}
+                  StrLeft({{sub_faci_id}}, 6) %in% c("130001", "130605", "040200", "130797") ~ {{sub_faci_id}},
+                  TRUE ~ ""
                )
             ) %>%
             # get referenced data
@@ -785,7 +779,7 @@ DB <- R6Class(
       ) {
          # open connections
          log_info("Opening connections.")
-         db_conn <- self$conn("lw")
+         db_conn <- connect("ohasis-lw")
          db_name <- "ohasis_warehouse"
 
          # references for old dataset
