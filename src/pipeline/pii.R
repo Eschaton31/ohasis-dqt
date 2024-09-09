@@ -176,7 +176,8 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
                PERM_PSGC_MUNC,
                na.rm  = TRUE,
                remove = TRUE
-            )
+            ) %>%
+            mutate(PERM_PSGC = na_if(PERM_PSGC, ""))
          pii %<>%
             unite(
                col    = "PERM_PSGC",
@@ -201,7 +202,8 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
                CURR_PSGC_MUNC,
                na.rm  = TRUE,
                remove = TRUE
-            )
+            ) %>%
+            mutate(CURR_PSGC = na_if(CURR_PSGC, ""))
          pii %<>%
             unite(
                col    = "CURR_PSGC",
@@ -226,7 +228,8 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
                BIRTH_PSGC_MUNC,
                na.rm  = TRUE,
                remove = TRUE
-            )
+            ) %>%
+            mutate(BIRTH_PSGC = na_if(BIRTH_PSGC, ""))
          pii %<>%
             unite(
                col    = "BIRTH_PSGC",
