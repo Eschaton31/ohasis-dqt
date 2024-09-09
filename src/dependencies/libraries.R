@@ -37,3 +37,5 @@ p_load_gh(
 p_unload("nhsss")
 remotes::install_github("Eschaton31/nhsss", upgrade = "never", quiet = TRUE)
 require(nhsss)
+
+duckplyr::methods_overwrite()

@@ -57,3 +57,4 @@ labelled
 R6
 plumber
 keyring
+duckplyr
