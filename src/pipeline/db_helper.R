@@ -1118,3 +1118,218 @@ move_art_to_prep <- function(rec_ids) {
    dbx::dbxExecute(lw_conn, lw_sql)
    dbDisconnect(lw_conn)
 }
+
+update_art <- function(min, max, exclude) {
+   if (missing(max)) {
+      max <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+   }
+
+   tables <- list(
+      lake      = c(
+         "px_pii",
+         "px_faci_info",
+         "px_key_pop",
+         "px_staging",
+         "lab_wide",
+         "px_vaccine",
+         "px_tb_info",
+         "px_prophylaxis",
+         "px_oi",
+         "px_ob",
+         "disc_meds",
+         "disp_meds"
+      ),
+      warehouse = "form_art_bc"
+   )
+
+   if (!missing(exclude)) {
+      tables$lake <- tables$lake[!(tables$lake %in% exclude)]
+   }
+
+   lapply(tables$lake, function(table) ohasis$data_factory("lake", table, "upsert", TRUE, from = min, to = max))
+   lapply(tables$warehouse, function(table) ohasis$data_factory("warehouse", table, "upsert", TRUE, from = min, to = max))
+}
+
+update_hts <- function(min, max, exclude) {
+   if (missing(max)) {
+      max <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+   }
+
+   tables <- list(
+      lake      = c(
+         "px_pii",
+         "px_faci_info",
+         "px_ob",
+         "px_hiv_testing",
+         "px_consent",
+         "px_occupation",
+         "px_ofw",
+         "px_risk",
+         "px_expose_profile",
+         "px_test_reason",
+         "px_test_refuse",
+         "px_test_previous",
+         "px_med_profile",
+         "px_staging",
+         "px_cfbs",
+         "px_reach",
+         "px_linkage",
+         "px_other_service"
+      ),
+      warehouse = c("form_a", "form_hts")
+   )
+
+   if (!missing(exclude)) {
+      tables$lake <- tables$lake[!(tables$lake %in% exclude)]
+   }
+
+   lapply(tables$lake, function(table) ohasis$data_factory("lake", table, "upsert", TRUE, from = min, to = max))
+   lapply(tables$warehouse, function(table) ohasis$data_factory("warehouse", table, "upsert", TRUE, from = min, to = max))
+}
+
+oh_batch_newpx <- function(data, id_col) {
+   pii_cols <- c(
+      "FIRST",
+      "MIDDLE",
+      "LAST",
+      "SUFFIX",
+      "BIRTHDATE",
+      "UIC",
+      "PHILHEALTH_NO",
+      "PHILSYS_ID",
+      "CLIENT_MOBILE",
+      "CLIENT_EMAIL",
+      "SUB_FACI_ID"
+   )
+
+   for (col in pii_cols) {
+      if (!(col %in% names(data))) {
+         data[[col]] <- NA_character_
+      }
+   }
+
+   new <- data %>%
+      mutate(
+         REC_ID     = NA_character_,
+         PATIENT_ID = NA_character_,
+         CREATED_BY = "1300000048",
+         CREATED_AT = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+      )
+
+   new %<>%
+      filter(!is.na(PATIENT_ID)) %>%
+      bind_rows(
+         batch_px_ids(new %>% filter(is.na(PATIENT_ID)), PATIENT_ID, FACI_ID, id_col)
+      )
+
+   new %<>%
+      filter(!is.na(REC_ID)) %>%
+      bind_rows(
+         batch_rec_ids(new %>% filter(is.na(REC_ID)), REC_ID, CREATED_BY, id_col)
+      )
+
+   tables           <- list()
+   tables$px_record <- list(
+      name = "px_record",
+      pk   = c("REC_ID", "PATIENT_ID"),
+      data = new %>%
+         mutate(
+            RECORD_DATE = format(Sys.time(), "%Y-%m-%d"),
+            DISEASE     = "101000",
+            MODULE      = "0",
+         ) %>%
+         select(
+            REC_ID,
+            PATIENT_ID,
+            FACI_ID,
+            SUB_FACI_ID,
+            RECORD_DATE,
+            DISEASE,
+            MODULE,
+            CREATED_BY,
+            CREATED_AT,
+         )
+   )
+
+   tables$px_info <- list(
+      name = "px_info",
+      pk   = c("REC_ID", "PATIENT_ID"),
+      data = new %>%
+         mutate(
+            SEX = toupper(SEX),
+            SEX = case_when(
+               SEX == "1_MALE" ~ "1",
+               SEX == "2_FEMALE" ~ "2",
+               SEX == "MALE" ~ "1",
+               SEX == "FEMALE" ~ "2",
+            )
+         ) %>%
+         select(
+            REC_ID,
+            PATIENT_ID,
+            CONFIRMATORY_CODE,
+            UIC,
+            PATIENT_CODE,
+            SEX,
+            BIRTHDATE,
+            PHILHEALTH_NO,
+            PHILSYS_ID,
+            CREATED_BY,
+            CREATED_AT,
+         )
+   )
+
+   tables$px_name <- list(
+      name = "px_name",
+      pk   = c("REC_ID", "PATIENT_ID"),
+      data = new %>%
+         select(
+            REC_ID,
+            PATIENT_ID,
+            FIRST,
+            MIDDLE,
+            LAST,
+            SUFFIX,
+            CREATED_BY,
+            CREATED_AT,
+         )
+   )
+
+   tables$px_contact <- list(
+      name = "px_contact",
+      pk   = c("REC_ID", "CONTACT_TYPE"),
+      data = new %>%
+         select(
+            REC_ID,
+            CREATED_BY,
+            CREATED_AT,
+            CLIENT_MOBILE,
+            CLIENT_EMAIL
+         ) %>%
+         pivot_longer(
+            cols      = c(CLIENT_MOBILE, CLIENT_EMAIL),
+            names_to  = "CONTACT_TYPE",
+            values_to = "CONTACT"
+         ) %>%
+         mutate(
+            CONTACT_TYPE = case_when(
+               CONTACT_TYPE == "CLIENT_MOBILE" ~ "1",
+               CONTACT_TYPE == "CLIENT_EMAIL" ~ "2",
+               TRUE ~ CONTACT_TYPE
+            )
+         )
+   )
+
+   db_conn <- ohasis$conn("db")
+   lapply(tables, function(ref, db_conn) {
+      log_info("Uploading {green(ref$name)}.")
+      table_space <- Id(schema = "ohasis_interim", table = ref$name)
+      dbxUpsert(db_conn, table_space, ref$data, ref$pk)
+      # dbExecute(db_conn, glue("DELETE FROM ohasis_interim.{ref$name} WHERE REC_ID IN (?)"), params = list(unique(ref$data$REC_ID)))
+   }, db_conn)
+   dbDisconnect(db_conn)
+
+   con <- ohasis$conn("lw")
+   dbxUpsert(con, Id(schema = "ohasis_lake", table = "ly_clients"), new %>% select(row_id, CENTRAL_ID = PATIENT_ID), "row_id")
+   dbDisconnect(con)
+}
