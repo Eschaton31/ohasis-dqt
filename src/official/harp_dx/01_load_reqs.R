@@ -152,7 +152,7 @@ update_dataset <- function(params, corr, reprocess) {
    official       <- list()
    official$old   <- ohasis$load_old_dta(
       path            = hs_data("harp_dx", "reg", params$prev_yr, params$prev_mo),
-      corr            = corr$corr_reg,
+      corr            = corr$corr_reg %>% rename_all(toupper),
       warehouse_table = "harp_dx_old",
       id_col          = c("idnum" = "integer"),
       dta_pid         = "PATIENT_ID",

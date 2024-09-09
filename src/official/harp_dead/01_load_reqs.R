@@ -39,6 +39,37 @@ update_warehouse <- function(update) {
    }
 }
 
+##  Get new dead ---------------------------------------------------------------
+
+# check if art starts to be re-processed
+update_dead_new <- function(path_to_sql) {
+   lw_conn <- ohasis$conn("lw")
+   db_name <- "ohasis_warehouse"
+
+   # download the data
+   for (scope in "dead_new") {
+      name <- case_when(
+         scope == "dead_new" ~ "Newly Dead",
+      )
+      log_info("Processing {green(name)}.")
+
+      # update lake
+      table_space <- Id(schema = db_name, table = scope)
+      if (dbExistsTable(lw_conn, table_space))
+         dbRemoveTable(lw_conn, table_space)
+
+      dbExecute(
+         lw_conn,
+         glue(r"(CREATE TABLE {db_name}.{scope} AS )",
+              read_file(file.path(path_to_sql, glue("{scope}.sql"))))
+      )
+      dbExecute(lw_conn, glue("ALTER TABLE {db_name}.{scope} ADD INDEX `CENTRAL_ID` (`CENTRAL_ID`);"))
+
+   }
+   log_success("Done!")
+   dbDisconnect(lw_conn)
+}
+
 ##  Download records -----------------------------------------------------------
 
 download_tables <- function(params) {
@@ -107,7 +138,7 @@ define_params <- function() {
          default = "2"
       )
    )
-   if (dl == "1"){
+   if (dl == "1") {
       p$corr <- flow_corr(p$params$ym, "harp_dead")
       # p$corr <- gdrive_correct3(p$params$ym, "harp_dead")
    }
@@ -120,6 +151,8 @@ define_params <- function() {
          default = "1"
       )
    )
+
+   update_dead_new(p$wd)
    if (dl == "1")
       p$forms <- download_tables(p$params)
 
