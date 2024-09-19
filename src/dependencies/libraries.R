@@ -30,7 +30,8 @@ load_packages <- function(path_to_file) {
 load_packages("requirements.txt")
 p_load_gh(
    "lmullen/genderdata",
-   "schardtbc/DBIExt"
+   "schardtbc/DBIExt",
+   "agstn/dataxray"
 )
 
 # nhsss unique functions
@@ -39,3 +40,4 @@ remotes::install_github("Eschaton31/nhsss", upgrade = "never", quiet = TRUE)
 require(nhsss)
 
 duckplyr::methods_overwrite()
+options(duckdb.materialize_message = FALSE)
