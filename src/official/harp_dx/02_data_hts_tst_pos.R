@@ -794,16 +794,9 @@ convert_faci_addr <- function(data) {
       relocate(ocw_country, .before = OFW_COUNTRY) %>%
       # dxlab_standard
       mutate(
-         TEST_FACI     = if_else(
-            condition = is.na(TEST_FACI),
-            true      = "",
-            false     = TEST_FACI
-         ),
-         TEST_SUB_FACI = case_when(
-            is.na(TEST_SUB_FACI) ~ "",
-            StrLeft(TEST_SUB_FACI, 6) != TEST_FACI ~ "",
-            TRUE ~ TEST_SUB_FACI
-         )
+         use_specimen_source = is.na(TEST_FACI) & !is.na(SPECIMEN_SOURCE),
+         TEST_FACI           = coalesce(if_else(use_specimen_source, SPECIMEN_SOURCE, TEST_FACI, TEST_FACI), ""),
+         TEST_SUB_FACI       = coalesce(if_else(use_specimen_source, SPECIMEN_SUB_SOURCE, TEST_SUB_FACI, TEST_SUB_FACI), ""),
       ) %>%
       left_join(
          na_matches = "never",
