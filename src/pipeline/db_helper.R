@@ -1332,4 +1332,6 @@ oh_batch_newpx <- function(data, id_col) {
    con <- ohasis$conn("lw")
    dbxUpsert(con, Id(schema = "ohasis_lake", table = "ly_clients"), new %>% select(row_id, CENTRAL_ID = PATIENT_ID), "row_id")
    dbDisconnect(con)
+
+   return(new)
 }
