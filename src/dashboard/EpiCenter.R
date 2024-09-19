@@ -568,13 +568,21 @@ EpiCenter <- R6Class(
          private$upload("facilities", data, c("FACI_ID", "SUB_FACI_ID"))
       },
 
-      uploadAddress = function() {
+      uploadAddress    = function() {
          private$upload("address", self$refs$addr, c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC"))
       }
    ),
    private = list(
       convertFacility = function(data, id, subid, name, psgc, names) {
          data %<>%
+            mutate_at(
+               .vars = vars(all_of(subid)),
+               ~case_when(
+                  . == "130023_001" ~ "130023_001",
+                  StrLeft(., 6) %in% c("130001", "130605", "040200", "130797") ~ .,
+                  TRUE ~ ""
+               )
+            ) %>%
             left_join(
                y  = self$refs$faci %>%
                   select(
@@ -759,7 +767,7 @@ EpiCenter <- R6Class(
    )
 )
 
-try <- EpiCenter$new(2023, 12)
+try <- EpiCenter$new(2024, 8)
 try$fetchRefs()
 try$fetchDx()
 try$fetchTx()
