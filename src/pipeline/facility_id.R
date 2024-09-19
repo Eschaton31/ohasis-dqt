@@ -67,8 +67,6 @@ faci_code_to_id <- function(data, ref_faci_code, faci_branch) {
 }
 
 dxlab_to_id <- function(data, facility_ids, dx_lab_cols = NULL, ref_faci = NULL) {
-   local_gs4_quiet()
-
    faci_id     <- facility_ids[1]
    sub_faci_id <- facility_ids[2]
 
@@ -77,13 +75,17 @@ dxlab_to_id <- function(data, facility_ids, dx_lab_cols = NULL, ref_faci = NULL)
    dx_munc <- dx_lab_cols[3]
    dx_lab  <- dx_lab_cols[4]
 
+   con        <- ohasis$conn("lw")
+   corr_dxlab <- QB$new(con)$from("harp_dx.corr_dxlab")$get()
+   dbDisconnect(con)
+
    data %<>%
       mutate_at(
          .vars = vars({{dx_reg}}, {{dx_prov}}, {{dx_munc}}, {{dx_lab}}),
          ~str_squish(stri_replace_all_fixed(., "\n", ""))
       ) %>%
       left_join(
-         y  = read_sheet("1WiUiB7n5qkvyeARwGV1l1ipuCknDT8wZ6Pt7662J2ms", "Sheet1", col_types = "c", .name_repair = "unique_quiet") %>%
+         y  = corr_dxlab %>%
             select(
                {{dx_reg}}     := dx_region,
                {{dx_prov}}    := dx_province,
