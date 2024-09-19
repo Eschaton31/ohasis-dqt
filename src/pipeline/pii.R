@@ -145,11 +145,15 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
 
       pii <- QB$new(lw_conn)
       for (col in pii_cols) {
-         pii$selectRaw(stri_c("px_pii.", col))
+         if (col == "WORK")
+            pii$selectRaw(stri_c("px_occupation.", col))
+         else
+            pii$selectRaw(stri_c("px_pii.", col))
       }
       pii$selectRaw("px_pii.SNAPSHOT")
       pii$selectRaw("COALESCE(id_registry.CENTRAL_ID, px_pii.PATIENT_ID) AS CENTRAL_ID")
       pii$from("ohasis_lake.px_pii")
+      pii$leftJoin("ohasis_lake.px_occupation", "px_pii.REC_ID", "=", "px_occupation.REC_ID")
       pii$leftJoin("ohasis_warehouse.id_registry", "px_pii.PATIENT_ID", "=", "id_registry.PATIENT_ID")
       pii$whereIn("PATIENT_ID", pids)
       pii$where(function(query = QB$new(lw_conn)) {
