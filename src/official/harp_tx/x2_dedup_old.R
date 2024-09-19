@@ -359,6 +359,59 @@ dedup_group_ids <- function(data, params, non_dupes) {
             'NAMESORT_FIRST',
             'NAMESORT_LAST'
          ))
+      ) %>%
+      mutate(
+         WORK           = NA_character_,
+         CURR_PSGC_REG  = NA_character_,
+         CURR_PSGC_PROV = NA_character_,
+         CURR_PSGC_MUNC = NA_character_,
+         PERM_PSGC_REG  = NA_character_,
+         PERM_PSGC_PROV = NA_character_,
+         PERM_PSGC_MUNC = NA_character_,
+      ) %>%
+      get_latest_pii(
+         "CENTRAL_ID",
+         c(
+            "WORK",
+            "CURR_PSGC_REG",
+            "CURR_PSGC_PROV",
+            "CURR_PSGC_MUNC",
+            "PERM_PSGC_REG",
+            "PERM_PSGC_PROV",
+            "PERM_PSGC_MUNC"
+         )
+      ) %>%
+      ohasis$get_addr(
+         c(
+            region_p   = "PERM_PSGC_REG",
+            province_p = "PERM_PSGC_PROV",
+            muncity_p  = "PERM_PSGC_MUNC"
+         ),
+         "nhsss"
+      ) %>%
+      ohasis$get_addr(
+         c(
+            region_c   = "CURR_PSGC_REG",
+            province_c = "CURR_PSGC_PROV",
+            muncity_c  = "CURR_PSGC_MUNC"
+         ),
+         "nhsss"
+      ) %>%
+      unite(
+         col   = "PERM_ADDR",
+         sep   = ", ",
+         region_p,
+         province_p,
+         muncity_p,
+         na.rm = TRUE
+      ) %>%
+      unite(
+         col   = "CURR_ADDR",
+         sep   = ", ",
+         region_c,
+         province_c,
+         muncity_c,
+         na.rm = TRUE
       )
    dedup_old <- list(group_dedup = all_dedup)
 
