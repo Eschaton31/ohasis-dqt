@@ -273,3 +273,26 @@ waterfall_aggregate <- function(old_outcome, new_outcome, title) {
 
    return(plot_wf)
 }
+
+waterfall_compare <- function(old, new, ...) {
+   prev_onart <- old %>%
+      filter(outcome == "alive on arv", ...) %>%
+      nrow()
+   curr_onart <- new %>%
+      filter(outcome == "alive on arv", ...) %>%
+      nrow()
+
+   log_info(stri_c("Prev. onart: ", green(prev_onart)))
+   log_info(stri_c("Curr. onart: ", green(curr_onart)))
+
+   old %>%
+      filter(...) %>%
+      select(art_id, prev_outcome = outcome) %>%
+      full_join(
+         y  = new %>%
+            filter(...) %>%
+            select(art_id, curr_outcome = outcome, newonart),
+         by = join_by(art_id)
+      ) %>%
+      tab(prev_outcome, curr_outcome)
+}
