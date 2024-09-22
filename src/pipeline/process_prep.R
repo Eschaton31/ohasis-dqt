@@ -448,3 +448,51 @@ process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_
 
    return(data)
 }
+
+convert_prep <- function(prep_data, convert_type = c("nhsss", "name", "code")) {
+   data <- prep_data %>%
+      mutate(
+         use_record_faci    = if_else(is.na(SERVICE_FACI), 1, 0, 0),
+         SERVICE_FACI       = if_else(use_record_faci == 1, FACI_ID, SERVICE_FACI),
+      ) %>%
+      rename(
+         CREATED                 = CREATED_BY,
+         UPDATED                 = UPDATED_BY,
+      ) %>%
+      select(
+         -any_of(
+            c(
+               "PRIME",
+               "DISEASE",
+               "HIV_SERVICE_TYPE",
+               "src",
+               "MODULE",
+               "MODALITY",
+               "CONFIRMATORY_CODE",
+               "use_curr"
+            )
+         )
+      ) %>%
+      ohasis$get_faci(
+         list(REPORT_FACI = c("FACI_ID", "SUB_FACI_ID")),
+         convert_type
+      ) %>%
+      ohasis$get_faci(
+         list(PREP_FACI = c("SERVICE_FACI", "SERVICE_SUB_FACI")),
+         convert_type,
+         c("PREP_REG", "PREP_PROV", "PREP_MUNC")
+      ) %>%
+      ohasis$get_addr(
+         c(
+            CURR_REG  = "CURR_PSGC_REG",
+            CURR_PROV = "CURR_PSGC_PROV",
+            CURR_MUNC = "CURR_PSGC_MUNC"
+         ),
+         convert_type
+      ) %>%
+      ohasis$get_staff(c(CREATED_BY = "CREATED")) %>%
+      ohasis$get_staff(c(UPDATED_BY = "UPDATED")) %>%
+      ohasis$get_staff(c(HTS_PROVIDER = "SERVICE_BY"))
+
+   return(data)
+}
