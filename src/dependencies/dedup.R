@@ -97,6 +97,7 @@ dedup_prep <- function(
    phic = NULL,
    philsys = NULL
 ) {
+   log_info("Starting.")
    dedup_new <- data %>%
       mutate(
          LAST              = stri_trans_general(stri_trans_toupper({{name_l}}), "latin-ascii"),
@@ -156,6 +157,7 @@ dedup_prep <- function(
          LAST_NY   = suppress_warnings(nysiis(LAST_SIEVE, stri_length(LAST_SIEVE)), "unknown characters"),
       )
 
+   log_info("Splitting UIC.")
    # genearte UIC w/o 1 parent, 2 combinations
    dedup_new_uic <- dedup_new %>%
       filter(!is.na(UIC)) %>%
@@ -180,6 +182,7 @@ dedup_prep <- function(
          values_from  = FIRST_TWO
       )
 
+   log_info("Sorting UIC.")
    dedup_new %<>%
       left_join(
          y  = dedup_new_uic,
@@ -189,6 +192,7 @@ dedup_prep <- function(
          UIC_SORT = stri_c(UIC_1, UIC_2, substr(UIC, 5, 14))
       )
 
+   log_info("Sorting Names.")
    dedup_new_names <- dedup_new %>%
       select(
          CENTRAL_ID,
