@@ -185,7 +185,7 @@ dedup$id_registry <- upload_dupes2(check_dupes$registry_up, dedup$id_registry)
 dedup$id_registry <- upload_dupes2(check_dupes$normal_up, dedup$id_registry)
 dedup             <- dedup_linelist2(dedup)
 
-from              <- "2024-08-04 17:00:00"
+from              <- "2024-09-17 14:55:00"
 dedup$id_registry <- upload_dupes2(check_dupes$normal_up, dedup$id_registry, TRUE, from)
 
 check_dupes$registry %>%
@@ -291,3 +291,115 @@ lapply(
    'HARP08011816074489',
    'HARP08011816049826'
 )
+
+periods <- list(
+   c("2024-08-01 00:00:00", "2024-08-02 11:12:13"),
+   c("2024-08-02 11:12:13", "2024-08-07 14:54:11"),
+   c("2024-08-07 14:54:11", "2024-08-13 15:17:43"),
+   c("2024-08-13 15:17:43", "2024-08-18 14:04:05"),
+   c("2024-08-18 14:04:05", "2024-08-22 13:51:14"),
+   c("2024-08-22 13:51:14", "2024-08-29 13:49:07"),
+   c("2024-08-29 13:49:07", "2024-09-04 12:43:17"),
+   c("2024-09-04 12:43:17", "2024-09-09 12:32:49"),
+   c("2024-09-09 12:32:49", "2024-09-13 11:02:36"),
+   c("2024-09-13 11:02:36", "2024-09-19 10:34:00"),
+
+)
+
+for (period in periods) {
+   min <- period[1]
+   max <- period[2]
+   download_pii(min, max)
+}
+
+download_pii <- function(min, max) {
+   if (missing(max)) {
+      max <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+   }
+
+   pii <- tibble(REC_ID = NA_character_, BIRTHDATE = NA_Date_) %>%
+      slice(0)
+   if (file.exists(Sys.getenv("DEDUP_PII")))
+      pii <- read_rds(Sys.getenv("DEDUP_PII"))
+
+   lw_conn  <- connect("ohasis-lw")
+   new_data <- QB$new(lw_conn)$
+      selectRaw("COALESCE(serv.SERVICE_FACI, pii.FACI_ID)         AS FACI_ID")$
+      selectRaw("COALESCE(serv.SERVICE_SUB_FACI, pii.SUB_FACI_ID) AS SUB_FACI_ID")$
+      select(pii.REC_ID,
+             pii.PATIENT_ID,
+             pii.FIRST,
+             pii.MIDDLE,
+             pii.LAST,
+             pii.SUFFIX,
+             pii.UIC,
+             pii.CONFIRMATORY_CODE,
+             pii.PATIENT_CODE,
+             pii.BIRTHDATE,
+             pii.PHILSYS_ID,
+             pii.PHILHEALTH_NO,
+             pii.CLIENT_EMAIL,
+             pii.CLIENT_MOBILE,
+             pii.SEX,
+             pii.PERM_PSGC_REG,
+             pii.PERM_PSGC_PROV,
+             pii.PERM_PSGC_MUNC,
+             pii.CURR_PSGC_REG,
+             pii.CURR_PSGC_PROV,
+             pii.CURR_PSGC_MUNC,
+             pii.DELETED_AT,
+             pii.SNAPSHOT)$
+      from("ohasis_lake.px_pii AS pii")$
+      leftJoin("ohasis_lake.px_faci_info AS serv", "pii.REC_ID", "=", "serv.REC_ID")$
+      whereBetween("pii.SNAPSHOT", c(min, max))$
+      get()
+   dbDisconnect(lw_conn)
+
+   new_data %<>%
+      ohasis$get_addr(
+         c(
+            PERM_REG  = "PERM_PSGC_REG",
+            PERM_PROV = "PERM_PSGC_PROV",
+            PERM_MUNC = "PERM_PSGC_MUNC"
+         ),
+         "nhsss"
+      ) %>%
+      ohasis$get_addr(
+         c(
+            CURR_REG  = "CURR_PSGC_REG",
+            CURR_PROV = "CURR_PSGC_PROV",
+            CURR_MUNC = "CURR_PSGC_MUNC"
+         ),
+         "nhsss"
+      ) %>%
+      mutate_at(
+         .vars = vars(ends_with("_REG"), ends_with("_PROV"), ends_with("_MUNC")),
+         ~if_else(. == "UNKNOWN", NA_character_, ., .)
+      ) %>%
+      mutate_if(
+         .predicate = is.character,
+         ~clean_pii(.)
+      ) %>%
+      mutate(
+         CLIENT_MOBILE = str_replace_all(CLIENT_MOBILE, "[^[:digit:]]", ""),
+         CLIENT_MOBILE = case_when(
+            StrLeft(CLIENT_MOBILE, 1) == "9" ~ stri_c("0", CLIENT_MOBILE),
+            StrLeft(CLIENT_MOBILE, 2) == "63" ~ str_replace(CLIENT_MOBILE, "^63", "0"),
+            TRUE ~ CLIENT_MOBILE
+         ),
+         BIRTHDATE     = as.character(BIRTHDATE)
+      )
+
+   # finalize data
+   pii <- pii %>%
+      # remove old version of record
+      anti_join(select(new_data, REC_ID)) %>%
+      # remove old data that were already deleted
+      # anti_join(dedup$deleted) %>%
+      # append new data
+      mutate(BIRTHDATE = as.character(BIRTHDATE)) %>%
+      bind_rows(new_data)
+
+   # write to local file for later use
+   write_rds(pii, Sys.getenv("DEDUP_PII"))
+}
