@@ -449,16 +449,25 @@ vl_data %<>%
          )
    )
 
-end_vl      <- "2023-02-28"
+con         <- ohasis$conn("lw")
+id_registry <- QB$new(con)$from("ohasis_warehouse.id_registry")$select(CENTRAL_ID, PATIENT_ID)$get()
+dbDisconnect(con)
+
+vl_yr       <- 2024
+vl_mo       <- 7
+vl_data     <- read_dta(hs_data("harp_vl", "all", vl_yr, vl_mo))
+# end_vl      <- "2023-02-28"
+end_vl      <- end_ym(vl_yr, vl_mo)
 vl_filtered <- vl_data %>%
-   mutate(
-      drop = case_when(
-         year(vl_date_2) < 2004 ~ 1,
-         vl_date_2 > as.Date(end_vl) ~ 1,
-         TRUE ~ 0
-      )
+   filter(
+      VL_DROP == 0,
+      VL_ERROR == 0,
+      coalesce(CENTRAL_ID, "") != "",
+      vl_date <= end_vl,
+      year(vl_date) >= 2004
    ) %>%
-   filter(drop == 0)
+   rename(vl_date_2 = vl_date) %>%
+   rename(vl_result_2 = vl_result_clean)
 
 vl_first <- vl_filtered %>%
    arrange(vl_date_2) %>%
@@ -478,10 +487,13 @@ vl_last  <- vl_filtered %>%
    )
 
 vl_final <- vl_first %>%
-   full_join(vl_last)
+   full_join(vl_last) %>%
+   rename(PATIENT_ID = CENTRAL_ID) %>%
+   get_cid(id_registry, PATIENT_ID) %>%
+   select(-PATIENT_ID)
 
-dx    <- read_dta(hs_data("harp_full", "reg", 2023, 6))
-tx    <- read_dta(hs_data("harp_tx", "reg", 2023, 6))
+dx    <- read_dta(hs_data("harp_full", "reg", vl_yr, vl_mo))
+tx    <- read_dta(hs_data("harp_tx", "reg", vl_yr, vl_mo))
 vl_dx <- dx %>%
    select(-contains("CENTRAL_ID")) %>%
    # get latest central ids
@@ -537,7 +549,7 @@ vl_dx <- dx %>%
 vl_tx <- tx %>%
    select(-contains("CENTRAL_ID")) %>%
    left_join(
-      y  = read_dta(hs_data("harp_tx", "outcome", 2023, 6), col_select = c(art_id, vl_date, vl_result)),
+      y  = read_dta(hs_data("harp_tx", "outcome", vl_yr, vl_mo), col_select = c(art_id, vl_date, vl_result)),
       by = "art_id"
    ) %>%
    # get latest central ids
@@ -590,5 +602,5 @@ vl_tx <- tx %>%
    ) %>%
    distinct(art_id, .keep_all = TRUE)
 
-write_dta(format_stata(vl_dx), file.path(Sys.getenv("HARP_VL"), stri_c( format(Sys.time(), "%Y%m%d_vlnaive-dx_"), "2023-06.dta")))
-write_dta(format_stata(vl_tx), file.path(Sys.getenv("HARP_VL"), stri_c( format(Sys.time(), "%Y%m%d_vlnaive-tx_"), "2023-06.dta")))
+write_dta(format_stata(vl_dx), file.path(Sys.getenv("HARP_VL"), stri_c(format(Sys.time(), "%Y%m%d_vlnaive-dx_"), vl_yr, "-0", vl_mo, ".dta")))
+write_dta(format_stata(vl_tx), file.path(Sys.getenv("HARP_VL"), stri_c(format(Sys.time(), "%Y%m%d_vlnaive-tx_"), vl_yr, "-0", vl_mo, ".dta")))
