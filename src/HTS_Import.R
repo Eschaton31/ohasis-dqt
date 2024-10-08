@@ -1,4 +1,4 @@
-dir      <- "C:/Users/johnb/Downloads/hts_logsheet_20240801"
+dir      <- "C:/Users/Administrator/Downloads/hts_logsheet_20240910"
 files    <- list.files(dir, ".xlsx", recursive = TRUE, full.names = TRUE)
 gf_staff <- read_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "staff", col_types = "c")
 gf_site  <- read_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "site", col_types = "c")
@@ -146,7 +146,7 @@ read_logsheet <- function(file) {
    return(logsheet %>% bind_rows(.id = 'sheet'))
 }
 
-raw <- sapply(files, read_logsheet, USE.NAMES = TRUE) %>%
+raw <- sapply(files, read_logsheet, simplify = FALSE, USE.NAMES = TRUE) %>%
    bind_rows(.id = "id") %>%
    mutate_all(~na_if(., "#REF!")) %>%
    mutate(
@@ -342,6 +342,73 @@ conso <- data %>%
          ),
       by = join_by(HIV_SERVICE_NAME_REG, HIV_SERVICE_NAME_PROV, HIV_SERVICE_NAME_MUNC)
    ) %>%
+   rename(COUNTRY_NAME = NATIONALITY) %>%
+   left_join(select(ohasis$ref_country, COUNTRY_NAME = NATIONALITY, NATIONALITY = COUNTRY_CODE), join_by(COUNTRY_NAME)) %>%
+   rename(NATIONALITY_RAW = COUNTRY_NAME) %>%
+   rename(COUNTRY_NAME = OFW_COUNTRY) %>%
+   left_join(select(ohasis$ref_country, COUNTRY_NAME, OFW_COUNTRY = COUNTRY_CODE), join_by(COUNTRY_NAME)) %>%
+   rename(OFW_COUNTRY_RAW = COUNTRY_NAME) %>%
+   rename(STAFF_NAME = CREATED_BY) %>%
+   mutate(STAFF_NAME = toupper(STAFF_NAME)) %>%
+   left_join(select(gf_staff, STAFF_NAME, CREATED_BY = USER_ID) %>% distinct(STAFF_NAME, .keep_all = TRUE), join_by(STAFF_NAME)) %>%
+   rename(STAFF_NAME_RAW = STAFF_NAME) %>%
+   rename(STAFF_NAME = PROVIDER_ID) %>%
+   mutate(STAFF_NAME = toupper(STAFF_NAME)) %>%
+   left_join(select(gf_staff, STAFF_NAME, PROVIDER_ID = USER_ID) %>% distinct(STAFF_NAME, .keep_all = TRUE), join_by(STAFF_NAME)) %>%
+   rename(PROVIDER_RAW = STAFF_NAME) %>%
+   filter(!is.na(HTS_FACI)) %>%
+   left_join(gf_site %>% distinct(HTS_FACI, .keep_all = TRUE), join_by(HTS_FACI)) %>%
+   mutate(
+      # FACI_ID          = coalesce(FACI_ID, substr(CREATED_BY, 1, 6)),
+      SERVICE_FACI     = FACI_ID,
+      SERVICE_SUB_FACI = SUB_FACI_ID,
+   )
+
+check$clean_addr <- conso %>%
+   filter(is.na(PERM_REG)) %>%
+   distinct(NAME_REG = PERM_NAME_REG, NAME_PROV = PERM_NAME_PROV, NAME_MUNC = PERM_NAME_MUNC) %>%
+   bind_rows(
+      conso %>%
+         filter(is.na(CURR_REG)) %>%
+         distinct(NAME_REG = CURR_NAME_REG, NAME_PROV = CURR_NAME_PROV, NAME_MUNC = CURR_NAME_MUNC),
+      conso %>%
+         filter(is.na(BIRTH_REG)) %>%
+         distinct(NAME_REG = BIRTH_NAME_REG, NAME_PROV = BIRTH_NAME_PROV, NAME_MUNC = BIRTH_NAME_MUNC),
+      conso %>%
+         filter(is.na(HIV_SERVICE_REG)) %>%
+         distinct(NAME_REG = HIV_SERVICE_NAME_REG, NAME_PROV = HIV_SERVICE_NAME_PROV, NAME_MUNC = HIV_SERVICE_NAME_MUNC)
+   ) %>%
+   distinct() %>%
+   arrange(NAME_REG, NAME_PROV, NAME_MUNC)
+
+check$clean_country <- conso %>%
+   filter(is.na(NATIONALITY)) %>%
+   distinct(COUNTRY = NATIONALITY_RAW) %>%
+   bind_rows(
+      conso %>%
+         filter(is.na(OFW_COUNTRY_RAW)) %>%
+         distinct(COUNTRY = OFW_COUNTRY_RAW)
+   ) %>%
+   distinct() %>%
+   filter(!is.na(COUNTRY)) %>%
+   arrange(COUNTRY)
+
+check$clean_faci <- conso %>%
+   filter(!is.na(HTS_FACI), is.na(FACI_ID)) %>%
+   distinct(HTS_FACI)
+
+check$clean_staff <- conso %>%
+   filter(!is.na(STAFF_NAME_RAW), is.na(CREATED_BY)) %>%
+   distinct(STAFF = STAFF_NAME_RAW) %>%
+   bind_rows(
+      conso %>%
+         filter(!is.na(PROVIDER_RAW), is.na(PROVIDER_ID)) %>%
+         distinct(STAFF = PROVIDER_RAW)
+   ) %>%
+   distinct() %>%
+   arrange(STAFF)
+
+conso %<>%
    select(
       -ends_with("NAME_REG"),
       -ends_with("NAME_PROV"),
@@ -489,27 +556,6 @@ convert <- conso %>%
       ),
 
       TEST_REFUSE_REASON_OTHER = if_else(!is.na(TEST_REFUSE_REASON_OTHER_TEXT), "Yes", NA_character_),
-   ) %>%
-   rename(COUNTRY_NAME = NATIONALITY) %>%
-   left_join(select(ohasis$ref_country, COUNTRY_NAME = NATIONALITY, NATIONALITY = COUNTRY_CODE), join_by(COUNTRY_NAME)) %>%
-   select(-COUNTRY_NAME) %>%
-   rename(COUNTRY_NAME = OFW_COUNTRY) %>%
-   left_join(select(ohasis$ref_country, COUNTRY_NAME, OFW_COUNTRY = COUNTRY_CODE), join_by(COUNTRY_NAME)) %>%
-   select(-COUNTRY_NAME) %>%
-   rename(STAFF_NAME = CREATED_BY) %>%
-   mutate(STAFF_NAME = toupper(STAFF_NAME)) %>%
-   left_join(select(gf_staff, STAFF_NAME, CREATED_BY = USER_ID) %>% distinct(STAFF_NAME, .keep_all = TRUE), join_by(STAFF_NAME)) %>%
-   select(-STAFF_NAME) %>%
-   rename(STAFF_NAME = PROVIDER_ID) %>%
-   mutate(STAFF_NAME = toupper(STAFF_NAME)) %>%
-   left_join(select(gf_staff, STAFF_NAME, PROVIDER_ID = USER_ID) %>% distinct(STAFF_NAME, .keep_all = TRUE), join_by(STAFF_NAME)) %>%
-   select(-STAFF_NAME) %>%
-   filter(!is.na(HTS_FACI)) %>%
-   left_join(gf_site, join_by(HTS_FACI)) %>%
-   mutate(
-      # FACI_ID          = coalesce(FACI_ID, substr(CREATED_BY, 1, 6)),
-      SERVICE_FACI     = FACI_ID,
-      SERVICE_SUB_FACI = SUB_FACI_ID,
    ) %>%
    mutate_at(
       .vars = vars(
