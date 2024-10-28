@@ -14,7 +14,7 @@ dbDisconnect(con)
 
 
 nmm_addr   <- read_excel("W:/Users/johnb/Downloads/NMM_Addr.xlsx", col_types = "text")
-nmm_file   <- "C:/Users/johnb/Downloads/JUNE 2024 - NMM.ods"
+nmm_file   <- "C:/Users/Administrator/Downloads/NMM- AUG 2024 ARV REFILL.ods"
 nmm_sheets <- ods_sheets(nmm_file)
 nmm        <- lapply(nmm_sheets, read_ods, path = nmm_file, col_types = cols(.default = "c")) %>%
    bind_rows() %>%
@@ -23,6 +23,7 @@ nmm        <- lapply(nmm_sheets, read_ods, path = nmm_file, col_types = cols(.de
       CAT                  = 2,
       FIRST                = 3,
       LAST                 = 4,
+      UIC                  = 6,
       ADDRESS              = 7,
       CLIENT_MOBILE        = 8,
       IPT_STATUS           = 9,
@@ -87,13 +88,15 @@ nmm        <- lapply(nmm_sheets, read_ods, path = nmm_file, col_types = cols(.de
       )
    ) %>%
    filter(keep == 1) %>%
-   left_join(nmm_addr) %>%
+   # left_join(nmm_addr) %>%
    left_join(art %>% distinct(FIRST, LAST, CENTRAL_ID))
 
 ## final import
 ss        <- "16ci-cPFm8oym0mMse92nBC54fdRL9lOkSAiTh-t8alk"
 ss        <- "1PlcXdGNiKJF9TQO3e-79hlghVU33s5FLNMhItk-XQs8"
 ss        <- "1IqKHP8qd_NFveR1ONbfOdOI92G3oPZ0TOgMvNgqtq1U"
+ss        <- "1UB85P07MNAzZ2gvKElMyXAOkfY_QL9N1J0o5y9RZOl0"
+ss        <- "1h4o6HN6eoECeGamdTYfOPpPlW3BuWAd_Dv5u6rmzVH0"
 nmm       <- read_sheet(ss, col_types = "c")
 nmm_clean <- nmm %>%
    filter(is.na(CENTRAL_ID)) %>%
@@ -114,8 +117,8 @@ write_sheet(nmm_clean %>% filter(is.na(CENTRAL_ID)), ss, "no_cid")
 min <- min(nmm_matched$RECORD_DATE, na.rm = TRUE)
 max <- max(nmm_matched$RECORD_DATE, na.rm = TRUE)
 
-min <- "2024-05-01"
-max <- "2024-05-31"
+min <- "2024-08-01"
+max <- "2024-08-31"
 
 conn        <- ohasis$conn("lw")
 id_reg      <- QB$new(conn)$from("ohasis_warehouse.id_registry")$select(CENTRAL_ID, PATIENT_ID)$get()
@@ -158,8 +161,9 @@ nmm_matched <- read_sheet(ss, "no_cid", col_types = "c")
 import      <- nmm_matched %>%
    filter(!is.na(RECORD_DATE)) %>%
    mutate(
-      CENTRAL_ID  = NA_character_,
-      PATIENT_ID  = NA_character_,
+      # CENTRAL_ID  = NA_character_,
+      # PATIENT_ID  = NA_character_,
+      PATIENT_ID  = CENTRAL_ID,
       RECORD_DATE = as.Date(parse_date_time(RECORD_DATE, c("Ymd", "mdY"))),
       RECORD_DATE = na_if(RECORD_DATE, as.Date("0001-11-20")),
    ) %>%
@@ -244,18 +248,19 @@ tables$px_info <- list(
          PATIENT_ID,
          # PATIENT_ID = CENTRAL_ID,
          # CONFIRMATORY_CODE,
-         # UIC,
+         UIC,
          # SEX,
          # BIRTHDATE,
          CREATED_BY,
          CREATED_AT,
       ) %>%
       mutate(
+         BIRTHDATE = stri_c(sep = "-", StrRight(UIC, 4), substr(UIC, 7, 8), substr(UIC, 9, 10)),
          BIRTHDATE = as.Date(parse_date_time(BIRTHDATE, c("Ymd", "mdY"))),
-         SEX       = case_when(
-            SEX == "M" ~ "1",
-            SEX == "F" ~ "2",
-         )
+         # SEX       = case_when(
+         #    SEX == "M" ~ "1",
+         #    SEX == "F" ~ "2",
+         # )
       )
 )
 
