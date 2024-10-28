@@ -1,16 +1,16 @@
 ##  inputs ---------------------------------------------------------------------
 
-file <- "H:/20240703_tly-arv_disp.rds"
-mo   <- "06"
+file <- "H:/20240912_tly-arv_disp.rds"
+mo   <- "08"
 yr   <- "2024"
 
 ##  processing -----------------------------------------------------------------
 
-tly         <- read_rds(file)
+tly <- read_rds(file)
 # min <- as.Date(stri_c(sep = "-", stri_pad_left(yr, 4, "0"), stri_pad_left(mo, 2, "0"), "01"))
 # max <- min %m+% months(1) %m-% days(1)
-min         <- min(tly$visits$DISP_DATE, na.rm = TRUE)
-max         <- max(tly$visits$DISP_DATE, na.rm = TRUE)
+min <- min(tly$visits$DISP_DATE, na.rm = TRUE)
+max <- max(tly$visits$DISP_DATE, na.rm = TRUE)
 
 #  uploaded --------------------------------------------------------------------
 
@@ -104,7 +104,7 @@ tly$records %<>%
 tly$import <- tly$records %>%
    filter(!is.na(REC_ID)) %>%
    bind_rows(
-      batch_rec_ids(tly$records %>% filter(is.na(REC_ID)), REC_ID, CREATED_BY, c("PATIENT_ID", "VISIT_DATE"))
+      batch_rec_ids(tly$records %>% filter(is.na(REC_ID)), REC_ID, CREATED_BY, "ROW_LINK")
    )
 
 
@@ -112,6 +112,14 @@ tly$import %<>%
    mutate(
       UPDATED_BY = "1300000048",
       UPDATED_AT = TIMESTAMP
+   ) %>%
+   left_join(
+      y  = tly$prev_upload %>%
+         select(REC_ID, CORR_PID = PATIENT_ID),
+      by = join_by(REC_ID)
+   ) %>%
+   mutate(
+      PATIENT_ID = coalesce(CORR_PID, PATIENT_ID)
    )
 ##  table formats
 tables           <- list()

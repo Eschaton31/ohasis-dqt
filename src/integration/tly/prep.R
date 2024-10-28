@@ -1,6 +1,6 @@
 ##  inputs ---------------------------------------------------------------------
 
-file <- "H:/20240703_tly-prep.rds"
+file <- "H:/20240828_tly-prep.rds"
 tly  <- list(
    convert = list(
       addr  = read_sheet("1r8CVfX16oDSStwLfIQdExyA-X21QuGnKwZp1AGDNXdc", "addr", range = "A:F", col_types = "c"),
@@ -249,7 +249,18 @@ tly$import %<>%
    mutate(
       UPDATED_BY = "1300000048",
       UPDATED_AT = TIMESTAMP
-   )
+   ) %>%
+   left_join(
+      y  = tly$prev_upload %>%
+         select(REC_ID, CORR_PID = PATIENT_ID),
+      by = join_by(REC_ID)
+   ) %>%
+   mutate(
+      PATIENT_ID = coalesce(CORR_PID, PATIENT_ID),
+   ) %>%
+   select(-CORR_PID) %>%
+   distinct(REC_ID, .keep_all = TRUE)
+
 ##  table formats
 tables           <- list()
 tables$px_record <- list(

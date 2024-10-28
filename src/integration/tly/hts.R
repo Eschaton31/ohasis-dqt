@@ -44,7 +44,7 @@ dbDisconnect(lw_conn)
 
 ##  new data -------------------------------------------------------------------
 
-tly$hts <- read_rds("H:/20240702_tly-hts.rds") %>%
+tly$hts <- read_rds("H:/20240917_tly-hts.rds") %>%
    rename(
       PATIENT_CODE  = CLIENT_CODE,
       PROVIDER      = PROVIDER_ID,
@@ -283,7 +283,7 @@ tly$check <- list(
 )
 
 tly$import <- tly$hts %>%
-   filter(RECORD_DATE >= "2024-01-01") %>%
+   # filter(RECORD_DATE >= "2024-01-01") %>%
    mutate(
       MODULE       = "2_Testing",
       DISEASE      = "101000_HIV",
@@ -484,6 +484,17 @@ tly$import %<>%
 
 tly$import %<>%
    distinct(REC_ID, PATIENT_ID, .keep_all = TRUE)
+
+tly$import %<>%
+   left_join(
+      y=  tly$prev_upload %>%
+         select(REC_ID, CORR_PID = PATIENT_ID),
+      by = join_by(REC_ID)
+   ) %>%
+   mutate(
+      PATIENT_ID = coalesce(CORR_PID, PATIENT_ID),
+   ) %>%
+   select(-CORR_PID)
 
 tly$tables <- deconstruct_hts(tly$import %>% select(-CURR_MUNC, -PERM_MUNC, -SERVICE))
 wide       <- c("px_test_refuse", "px_other_service", "px_reach", "px_med_profile", "px_test_reason")
