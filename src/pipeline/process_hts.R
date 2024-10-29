@@ -884,10 +884,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
                YR_LAST_M >= p10y ~ 11,
             SEX == "1_Male" &
                mot == 0 &
-               !is.na(EXPOSE_SEX_M_AV_DATE) ~ 11,                     # HTS Form
+               !is.na(EXPOSE_SEX_M_AV_DATE) ~ 11,                           # HTS Form
             SEX == "1_Male" &
                mot == 0 &
-               !is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ 11,            # HTS Form
+               !is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ 11,                  # HTS Form
             SEX == "1_Male" & mot == 0 & EXPOSE_SEX_M > 0 ~ 11,             # HTS Form
             TRUE ~ mot
          ),
@@ -915,10 +915,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
                YR_LAST_F >= p10y ~ 31,
             SEX == "1_Male" &
                mot == 0 &
-               !is.na(EXPOSE_SEX_F_AV_DATE) ~ 31,                     # HTS Form,
+               !is.na(EXPOSE_SEX_F_AV_DATE) ~ 31,                           # HTS Form,
             SEX == "1_Male" &
                mot == 0 &
-               !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ 31,            # HTS Form,
+               !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ 31,                  # HTS Form,
             SEX == "1_Male" & mot == 0 & EXPOSE_SEX_F > 0 ~ 31,             # HTS Form,
             TRUE ~ mot
          ),
@@ -934,10 +934,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
                YR_LAST_M >= p10y ~ 41,
             SEX == "2_Female" &
                mot == 0 &
-               !is.na(EXPOSE_SEX_M_AV_DATE) ~ 41,              # HTS Form,
+               !is.na(EXPOSE_SEX_M_AV_DATE) ~ 41,                    # HTS Form,
             SEX == "2_Female" &
                mot == 0 &
-               !is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ 41,     # HTS Form,
+               !is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ 41,           # HTS Form,
             SEX == "2_Female" & mot == 0 & EXPOSE_SEX_M > 0 ~ 41,    # HTS Form,
             TRUE ~ mot
          ),
@@ -1654,3 +1654,1119 @@ deconstruct_hts <- function(hts) {
    log_success("Done!")
    return(schema)
 }
+
+convert_dx <- function(hts_data, yr, mo) {
+   if (missing(yr)) {
+      yr <- format(Sys.time(), "%Y")
+   }
+   if (missing(mo)) {
+      mo <- format(Sys.time(), "%m")
+   }
+
+   con         <- connect('ohasis-lw')
+   corr_classd <- QB$new(con)$from("harp_dx.corr_classd")$get()
+   dbDisconnect(con)
+
+   params <- list(
+      yr = yr,
+      mo = mo
+   )
+
+
+   converted <- hts_data %>%
+      mutate_at(
+         .vars = vars(FIRST, MIDDLE, LAST, SUFFIX, PATIENT_CODE, UIC, PHILHEALTH_NO, PHILSYS_ID, CLIENT_MOBILE, CLIENT_EMAIL),
+         ~clean_pii(.)
+      ) %>%
+      mutate_if(
+         .predicate = is.POSIXct,
+         ~as.Date(.)
+      ) %>%
+      mutate_if(
+         .predicate = is.Date,
+         ~if_else(. <= -25567, NA_Date_, ., .)
+      ) %>%
+      rename(
+         blood_extract_date    = DATE_COLLECT,
+         specimen_receipt_date = DATE_RECEIVE,
+         confirm_date          = DATE_CONFIRM,
+      ) %>%
+      mutate(
+         # month of labcode/date received
+         lab_month       = coalesce(
+            str_extract(CONFIRM_CODE, "[A-Z]+([0-9][0-9])-([0-9][0-9])", 2),
+            stri_pad_left(month(specimen_receipt_date), 2, "0")
+         ),
+
+         # year of labcode/date received
+         lab_year        = coalesce(
+            stri_c("20", str_extract(CONFIRM_CODE, "[A-Z]+([0-9][0-9])-([0-9][0-9])", 1)),
+            stri_pad_left(year(specimen_receipt_date), 4, "0")
+         ),
+
+         # date variables
+         visit_date      = RECORD_DATE,
+
+         # date var for keeping
+         report_date     = as.Date(stri_c(sep = "-", lab_year, lab_month, "01")),
+
+         # name
+         STANDARD_FIRST  = stri_trans_general(FIRST, "latin-ascii"),
+         name            = str_squish(stri_c(LAST, ", ", FIRST, " ", MIDDLE, " ", SUFFIX)),
+
+         # Permanent
+         PERM_PSGC_PROV  = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
+         PERM_PSGC_MUNC  = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
+         use_curr        = if_else(
+            condition = !is.na(CURR_PSGC_MUNC) & (is.na(PERM_PSGC_MUNC) | StrLeft(PERM_PSGC_MUNC, 2) == "99"),
+            true      = 1,
+            false     = 0
+         ),
+         PERM_PSGC_REG   = if_else(
+            condition = use_curr == 1,
+            true      = CURR_PSGC_REG,
+            false     = PERM_PSGC_REG
+         ),
+         PERM_PSGC_PROV  = if_else(
+            condition = use_curr == 1,
+            true      = CURR_PSGC_PROV,
+            false     = PERM_PSGC_PROV
+         ),
+         PERM_PSGC_MUNC  = if_else(
+            condition = use_curr == 1,
+            true      = CURR_PSGC_MUNC,
+            false     = PERM_PSGC_MUNC
+         ),
+
+         # Age
+         AGE             = coalesce(AGE, AGE_MO / 12),
+         AGE_DTA         = calc_age(BIRTHDATE, visit_date),
+
+         HTS_REC         = REC_ID,
+         FORM_SORT       = if_else(REC_ID == HTS_REC, 1, 9999, 9999),
+
+         p10y            = year(visit_date %m-% years(10)),
+         CONFIRM_REMARKS = NA_character_
+      ) %>%
+      rename(
+         TEST_FACI     = SERVICE_FACI,
+         TEST_SUB_FACI = SERVICE_SUB_FACI,
+      ) %>%
+      mutate(
+         # calculate distance from confirmatory date
+         CD4_DATE                  = NA_Date_,
+         CD4_CONFIRM               = NA_integer_,
+
+         # baseline is within 182 days
+         BASELINE_CD4              = NA_integer_,
+         idnum                     = NA_integer_,
+
+         # report date
+         year                      = params$yr,
+         month                     = params$mo,
+
+         # Perm Region (as encoded)
+         PERMONLY_PSGC_REG         = if_else(
+            condition = use_curr == 0,
+            true      = PERM_PSGC_REG,
+            false     = NA_character_
+         ),
+         PERMONLY_PSGC_PROV        = if_else(
+            condition = use_curr == 0,
+            true      = PERM_PSGC_PROV,
+            false     = NA_character_
+         ),
+         PERMONLY_PSGC_MUNC        = if_else(
+            condition = use_curr == 0,
+            true      = PERM_PSGC_MUNC,
+            false     = NA_character_
+         ),
+
+         # tagging vars
+         male                      = if_else(
+            condition = StrLeft(SEX, 1) == "1",
+            true      = 1,
+            false     = 0
+         ),
+         female                    = if_else(
+            condition = StrLeft(SEX, 1) == "2",
+            true      = 1,
+            false     = 0
+         ),
+
+         # confirmatory info
+         test_done                 = case_when(
+            str_detect(toupper(T3_KIT), "GEENIUS") ~ "GEENIUS",
+            str_detect(toupper(T3_KIT), "STAT-PAK") ~ "STAT-PAK",
+            str_detect(toupper(T3_KIT), "MP DIAGNOSTICS") ~ "WESTERN BLOT",
+            AGE <= 1 ~ "PCR"
+         ),
+         rhivda_done               = if_else(
+            condition = StrLeft(CONFIRM_TYPE, 1) == "2",
+            true      = 1,
+            false     = as.numeric(NA)
+         ),
+         sample_source             = substr(SPECIMEN_REFER_TYPE, 3, 3),
+
+         # demographics
+         pxcode                    = str_squish(stri_c(StrLeft(FIRST, 1), StrLeft(MIDDLE, 1), StrLeft(LAST, 1))),
+         SEX                       = remove_code(stri_trans_toupper(SEX)),
+         self_identity             = remove_code(stri_trans_toupper(SELF_IDENT)),
+         self_identity             = case_when(
+            self_identity == "OTHER" ~ "OTHERS",
+            self_identity == "MAN" ~ "MALE",
+            self_identity == "WOMAN" ~ "FEMALE",
+            self_identity == "MALE" ~ "MALE",
+            self_identity == "FEMALE" ~ "FEMALE",
+            TRUE ~ self_identity
+         ),
+         self_identity_other       = stri_trans_toupper(SELF_IDENT_OTHER),
+         self_identity_other_sieve = str_replace_all(self_identity_other, "[^[:alnum:]]", ""),
+
+         CIVIL_STATUS              = stri_trans_toupper(CIVIL_STATUS),
+         nationalit                = case_when(
+            toupper(NATIONALITY) == "PHILIPPINES" ~ "FILIPINO",
+            toupper(NATIONALITY) != "PHILIPPINES" ~ "NON-FILIPINO",
+            TRUE ~ "UNKNOWN"
+         ),
+         current_school_level      = if_else(
+            condition = StrLeft(IS_STUDENT, 1) == "1",
+            true      = EDUC_LEVEL,
+            false     = NA_character_
+         ),
+
+         # occupation
+         curr_work                 = if_else(
+            condition = StrLeft(IS_EMPLOYED, 1) == "1",
+            true      = stri_trans_toupper(WORK),
+            false     = NA_character_
+         ),
+         prev_work                 = if_else(
+            condition = StrLeft(IS_EMPLOYED, 1) == "0" | is.na(IS_EMPLOYED),
+            true      = stri_trans_toupper(WORK),
+            false     = NA_character_
+         ),
+
+         # clinical pic
+         who_staging               = as.integer(keep_code(WHO_CLASS)),
+         other_reason_test         = stri_trans_toupper(TEST_REASON_OTHER_TEXT),
+
+         CLINICAL_PIC              = case_when(
+            StrLeft(CLINICAL_PIC, 1) == "1" ~ "0_Asymptomatic",
+            StrLeft(CLINICAL_PIC, 1) == "2" ~ "1_Symptomatic",
+         ),
+
+         OFW_STATION               = case_when(
+            StrLeft(OFW_STATION, 1) == "1" ~ "1_On ship",
+            StrLeft(OFW_STATION, 1) == "2" ~ "2_Land",
+         ),
+
+         REFER_TYPE                = case_when(
+            StrLeft(REFER_TYPE, 1) == "1" ~ "1",
+            StrLeft(REFER_TYPE, 1) == "2" ~ "1",
+         )
+      ) %>%
+      # exposure history
+      mutate_at(
+         .vars = vars(starts_with("EXPOSE_") & !contains("DATE")),
+         ~if_else(
+            condition = !is.na(.),
+            true      = StrLeft(., 1),
+            false     = NA_character_,
+         ) %>% as.integer()
+      ) %>%
+      # medical history
+      mutate_at(
+         .vars = vars(starts_with("MED_")),
+         ~if_else(
+            condition = !is.na(.),
+            true      = StrLeft(., 1),
+            false     = NA_character_
+         ) %>% as.integer()
+      ) %>%
+      # test reason
+      mutate_at(
+         .vars = vars(starts_with("TEST_REASON") & !matches("_OTHER")),
+         ~if_else(
+            condition = !is.na(.),
+            true      = StrLeft(., 1),
+            false     = NA_character_
+         ) %>% as.integer()
+      ) %>%
+      # mode of reach (HTS)
+      mutate_at(
+         .vars = vars(starts_with("REACH_")),
+         ~if_else(
+            condition = !is.na(.),
+            true      = StrLeft(., 1),
+            false     = NA_character_
+         ) %>% as.integer()
+      ) %>%
+      # mode of reach (HTS)
+      mutate_at(
+         .vars = vars(starts_with("REFER")),
+         ~if_else(
+            condition = !is.na(.),
+            true      = StrLeft(., 1),
+            false     = NA_character_
+         ) %>% as.integer()
+      ) %>%
+      # services provided (HTS)
+      mutate_at(
+         .vars = vars(starts_with("SERVICE_")),
+         ~if_else(
+            condition = !is.na(.),
+            true      = StrLeft(., 1),
+            false     = NA_character_
+         ) %>% as.integer()
+      ) %>%
+      generate_gender_identity(SEX, SELF_IDENT, SELF_IDENT_OTHER, gender_identity) %>%
+      # mode of transmission
+      mutate(
+         # for mot
+         motherisi1 = case_when(
+            EXPOSE_HIV_MOTHER > 0 ~ 1,
+            TRUE ~ 0
+         ),
+         sexwithf   = case_when(
+            EXPOSE_SEX_F > 0 ~ 1,                      # HTS Form
+            !is.na(EXPOSE_SEX_F_AV_DATE) ~ 1,          # HTS Form
+            !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ 1, # HTS Form
+            EXPOSE_SEX_F_NOCONDOM > 0 ~ 1,
+            TRUE ~ 0
+         ),
+         sexwithm   = case_when(
+            EXPOSE_SEX_M > 0 ~ 1,                      # HTS Form
+            !is.na(EXPOSE_SEX_M_AV_DATE) ~ 1,          # HTS Form
+            !is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ 1, # HTS Form
+            EXPOSE_SEX_M_NOCONDOM > 0 ~ 1,
+            TRUE ~ 0
+         ),
+         sexwithpro = case_when(
+            EXPOSE_SEX_PAYING > 0 ~ 1,
+            TRUE ~ 0
+         ),
+         regularlya = case_when(
+            EXPOSE_SEX_PAYMENT > 0 ~ 1,
+            TRUE ~ 0
+         ),
+         injectdrug = case_when(
+            EXPOSE_DRUG_INJECT > 0 ~ 1,
+            TRUE ~ 0
+         ),
+         chemsex    = case_when(
+            EXPOSE_SEX_DRUGS > 0 ~ 1, # HTS Form
+            TRUE ~ 0
+         ),
+         receivedbt = case_when(
+            EXPOSE_BLOOD_TRANSFUSE > 0 ~ 1,
+            TRUE ~ 0
+         ),
+         sti        = case_when(
+            EXPOSE_STI > 0 ~ 1,
+            TRUE ~ 0
+         ),
+         needlepri1 = case_when(
+            EXPOSE_OCCUPATION > 0 ~ 1,
+            TRUE ~ 0
+         ),
+
+         mot        = 0,
+         # m->m only
+         mot        = case_when(
+            male == 1 & EXPOSE_SEX_M_NOCONDOM == 1 ~ 1,
+            male == 1 & YR_LAST_M >= p10y ~ 1,
+            male == 1 & year(EXPOSE_SEX_M_AV_DATE) >= p10y ~ 1,          # HTS Form
+            male == 1 & year(EXPOSE_SEX_M_AV_NOCONDOM_DATE) >= p10y ~ 1, # HTS Form
+            TRUE ~ mot
+         ),
+
+         # m->m+f
+         mot        = case_when(
+            mot == 1 & EXPOSE_SEX_F_NOCONDOM == 1 ~ 2,
+            mot == 1 & YR_LAST_F >= p10y ~ 2,
+            mot == 1 & year(EXPOSE_SEX_F_AV_DATE) >= p10y ~ 2,          # HTS Form
+            mot == 1 & year(EXPOSE_SEX_F_AV_NOCONDOM_DATE) >= p10y ~ 2, # HTS Form
+            TRUE ~ mot
+         ),
+
+         # m->f only
+         mot        = case_when(
+            male == 1 & mot == 0 & EXPOSE_SEX_F_NOCONDOM == 1 ~ 3,
+            male == 1 &
+               mot == 0 &
+               YR_LAST_F >= p10y ~ 3,
+            male == 1 &
+               mot == 0 &
+               year(EXPOSE_SEX_F_AV_DATE) >= p10y ~ 3,          # HTS Form
+            male == 1 &
+               mot == 0 &
+               year(EXPOSE_SEX_F_AV_NOCONDOM_DATE) >= p10y ~ 3, # HTS Form
+            TRUE ~ mot
+         ),
+
+         # f->m
+         mot        = case_when(
+            female == 1 & EXPOSE_SEX_M_NOCONDOM == 1 ~ 4,
+            female == 1 & YR_LAST_M >= p10y ~ 4,
+            female == 1 & year(EXPOSE_SEX_M_AV_DATE) >= p10y ~ 4,          # HTS Form
+            female == 1 & year(EXPOSE_SEX_M_AV_NOCONDOM_DATE) >= p10y ~ 4, # HTS Form
+            TRUE ~ mot
+         ),
+
+         # ivdu
+         mot        = case_when(
+            EXPOSE_DRUG_INJECT > 0 & StrLeft(PERM_PSGC_PROV, 4) == "0722" ~ 5,
+            TRUE ~ mot
+         ),
+
+         # vertical
+         mot        = case_when(
+            mot == 0 & motherisi1 == 1 ~ 6,
+            TRUE ~ mot
+         ),
+
+         # m->m-f hx
+         mot        = case_when(
+            male == 1 &
+               mot == 0 &
+               NUM_M_PARTNER > 0 &
+               is.na(YR_LAST_M) ~ 11,
+            male == 1 &
+               mot == 0 &
+               YR_LAST_M >= p10y ~ 11,
+            male == 1 &
+               mot == 0 &
+               !is.na(EXPOSE_SEX_M_AV_DATE) ~ 11,                     # HTS Form
+            male == 1 &
+               mot == 0 &
+               !is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ 11,            # HTS Form
+            male == 1 & mot == 0 & EXPOSE_SEX_M > 0 ~ 11,             # HTS Form
+            TRUE ~ mot
+         ),
+
+         # m->m+f hx
+         mot        = case_when(
+            mot == 1 & NUM_F_PARTNER > 0 & is.na(YR_LAST_F) ~ 21,
+            mot == 3 & NUM_M_PARTNER > 0 & is.na(YR_LAST_M) ~ 21,
+            mot == 11 & NUM_F_PARTNER > 0 & is.na(YR_LAST_F) ~ 21,
+            mot == 11 & YR_LAST_F >= p10y ~ 21,
+            mot == 11 & !is.na(EXPOSE_SEX_F_AV_DATE) ~ 21,          # HTS Form,
+            mot == 11 & !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ 21, # HTS Form,
+            mot == 11 & EXPOSE_SEX_F > 0 ~ 21,                      # HTS Form,
+            TRUE ~ mot
+         ),
+
+         # m->f hx
+         mot        = case_when(
+            male == 1 &
+               mot == 0 &
+               NUM_F_PARTNER > 0 &
+               is.na(YR_LAST_F) ~ 31,
+            male == 1 &
+               mot == 0 &
+               YR_LAST_F >= p10y ~ 31,
+            male == 1 &
+               mot == 0 &
+               !is.na(EXPOSE_SEX_F_AV_DATE) ~ 31,                     # HTS Form,
+            male == 1 &
+               mot == 0 &
+               !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ 31,            # HTS Form,
+            male == 1 & mot == 0 & EXPOSE_SEX_F > 0 ~ 31,             # HTS Form,
+            TRUE ~ mot
+         ),
+
+         # f->m hx
+         mot        = case_when(
+            female == 1 &
+               mot == 0 &
+               NUM_M_PARTNER > 0 &
+               is.na(YR_LAST_M) ~ 41,
+            female == 1 &
+               mot == 0 &
+               YR_LAST_M >= p10y ~ 41,
+            female == 1 &
+               mot == 0 &
+               !is.na(EXPOSE_SEX_M_AV_DATE) ~ 41,              # HTS Form,
+            female == 1 &
+               mot == 0 &
+               !is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ 41,     # HTS Form,
+            female == 1 & mot == 0 & EXPOSE_SEX_M > 0 ~ 41,    # HTS Form,
+            TRUE ~ mot
+         ),
+
+         # ivdu hx
+         mot        = case_when(
+            injectdrug > 0 & StrLeft(PERM_PSGC_PROV, 4) == "0722" ~ 51,
+            TRUE ~ mot
+         ),
+
+         # mtct
+         mot        = case_when(
+            mot == 0 & AGE < 5 ~ 61,
+            TRUE ~ mot
+         ),
+
+         # all else fails
+         mot        = case_when(
+            male == 1 & mot == 0 & NUM_M_PARTNER > 0 ~ 1,
+            TRUE ~ mot
+         ),
+         mot        = case_when(
+            mot == 1 & NUM_F_PARTNER > 0 ~ 2,
+            TRUE ~ mot
+         ),
+
+         # needlestick
+         mot        = case_when(
+            mot == 0 & needlepri1 == 1 ~ 7,
+            TRUE ~ mot
+         ),
+
+         # transfusion
+         mot        = case_when(
+            mot == 0 & receivedbt == 1 ~ 8,
+            TRUE ~ mot
+         ),
+
+         # no data
+         mot        = case_when(
+            mot == 0 ~ 9,
+            TRUE ~ mot
+         ),
+
+         # f->f
+         mot        = case_when(
+            female == 1 & mot == 0 & NUM_F_PARTNER > 0 ~ 10,
+            female == 1 & mot == 0 & !is.na(YR_LAST_F) > 0 ~ 10,
+            female == 1 &
+               mot == 0 &
+               !is.na(EXPOSE_SEX_F_AV_DATE) ~ 10,
+            female == 1 &
+               mot == 0 &
+               !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ 10,
+            female == 1 & mot == 0 & EXPOSE_SEX_F > 0 ~ 10,
+            TRUE ~ mot
+         ),
+
+         # # clean mot_09
+         # mot                  = case_when(
+         #    mot %in% c(7, 8) ~ 9,
+         #    TRUE ~ mot
+         # ),
+
+         # final filtering of mot using risk_*
+         mot        = case_when(
+            mot %in% c(7, 8, 9, 10) &
+               male == 1 &
+               str_detect(risk_sexwithm, "^yes") &
+               str_detect(risk_sexwithf, "^yes") ~ 22,
+            mot %in% c(7, 8, 9, 10) &
+               male == 1 &
+               str_detect(risk_sexwithm, "^yes") &
+               !str_detect(risk_sexwithf, "^yes") ~ 12,
+            mot %in% c(7, 8, 9, 10) &
+               male == 1 &
+               !str_detect(risk_sexwithm, "^yes") &
+               str_detect(risk_sexwithf, "^yes") ~ 32,
+            mot %in% c(7, 8, 9, 10) &
+               female == 1 &
+               str_detect(risk_sexwithm, "^yes") &
+               !str_detect(risk_sexwithf, "^yes") ~ 42,
+            mot %in% c(7, 8, 9, 10) & str_detect(risk_injectdrug, "^yes") ~ 52,
+            TRUE ~ mot
+         ),
+
+         # transmit
+         transmit   = case_when(
+            mot %in% c(1, 2, 3, 4, 11, 12, 21, 22, 31, 32, 41, 42) ~ "SEX",
+            mot %in% c(5, 51, 52) ~ "IVDU",
+            mot %in% c(6, 61) ~ "PERINATAL",
+            mot %in% c(8, 9, 10) ~ "UNKNOWN",
+            mot == 7 ~ "OTHERS",
+         ),
+
+         # sexhow
+         sexhow     = case_when(
+            mot %in% c(1, 11, 12) ~ "HOMOSEXUAL",
+            mot %in% c(2, 21, 22) ~ "BISEXUAL",
+            mot %in% c(3, 4, 31, 32, 41, 42) ~ "HETEROSEXUAL",
+         ),
+      ) %>%
+      mutate(
+         # cd4 tagging
+         days_cd4_confirm     = interval(CD4_DATE, confirm_date) / days(1),
+         cd4_is_baseline      = if_else(abs(days_cd4_confirm) <= 182, 1, 0, 0),
+
+         CD4_RESULT           = NA_character_,
+         CD4_DATE             = NA_Date_,
+         CD4_DATE             = case_when(
+            cd4_is_baseline == 0 ~ NA_Date_,
+            is.na(CD4_RESULT) ~ NA_Date_,
+            TRUE ~ CD4_DATE
+         ),
+         CD4_RESULT           = case_when(
+            cd4_is_baseline == 0 ~ NA_character_,
+            TRUE ~ CD4_RESULT
+         ),
+         CD4_RESULT           = parse_number(CD4_RESULT),
+         baseline_cd4         = case_when(
+            CD4_RESULT >= 500 ~ 1,
+            CD4_RESULT >= 350 & CD4_RESULT < 500 ~ 2,
+            CD4_RESULT >= 200 & CD4_RESULT < 350 ~ 3,
+            CD4_RESULT >= 50 & CD4_RESULT < 200 ~ 4,
+            CD4_RESULT < 50 ~ 5,
+         ),
+
+         # WHO Case Definition of advanced HIV classification
+         # refined ahd
+         ahd                  = case_when(
+            who_staging %in% c(3, 4) ~ 1,
+            AGE >= 5 & baseline_cd4 %in% c(4, 5) ~ 1,
+            AGE < 5 ~ 1,
+            !is.na(baseline_cd4) ~ 0
+         ),
+         baseline_cd4         = labelled(
+            baseline_cd4,
+            c(
+               "1_500+ cells/μL"    = 1,
+               "2_350-499 cells/μL" = 2,
+               "3_200-349 cells/μL" = 3,
+               "4_50-199 cells/μL"  = 4,
+               "5_below 50"         = 5
+            )
+         ),
+
+         # tb patient
+         # class
+         classd               = if_else(
+            condition = !is.na(who_staging),
+            true      = who_staging,
+            false     = NA_integer_
+         ) %>% as.numeric(),
+         description_symptoms = stri_trans_toupper(SYMPTOMS),
+         MED_TB_PX            = case_when(
+            stri_detect_fixed(description_symptoms, "TB") ~ 1,
+            TRUE ~ as.numeric(MED_TB_PX)
+         ),
+         classd               = case_when(
+            stri_detect_regex(description_symptoms, paste(collapse = "|", (corr_classd %>% filter(as.numeric(class) == 3))$symptom)) ~ 3,
+            MED_TB_PX == 1 ~ 3,
+            TRUE ~ classd
+         ),
+         classd               = case_when(
+            stri_detect_regex(description_symptoms, paste(collapse = "|", (corr_classd %>% filter(as.numeric(class) == 4))$symptom)) ~ 4,
+            TRUE ~ classd
+         ),
+
+         # final class
+         class                = case_when(
+            classd %in% c(3, 4) ~ "AIDS",
+            TRUE ~ "HIV"
+         ),
+
+         # new class for 2022
+         class2022            = case_when(
+            class == "AIDS" ~ "AIDS",
+            ahd == 1 ~ "AIDS",
+            TRUE ~ "HIV"
+         ),
+
+         # no data for stage of hiv
+         nodata_hiv_stage     = if_else(
+            if_all(c(who_staging, description_symptoms, MED_TB_PX, CLINICAL_PIC), ~is.na(.)),
+            1,
+            0,
+            0
+         ),
+
+         # form (HTS)
+         FORM_VERSION         = if_else(FORM_VERSION == " (vNA)", NA_character_, FORM_VERSION),
+
+         # provider type (HTS)
+         PROVIDER_TYPE        = as.integer(keep_code(PROVIDER_TYPE)),
+
+         # other services (HTS)
+         given_ssnt           = case_when(
+            SERVICE_SSNT_ACCEPT == 1 ~ "Accepted",
+            SERVICE_SSNT_OFFER == 1 ~ "Offered",
+         ),
+
+         # combi prev (HTS)
+         SERVICE_CONDOMS      = if_else(SERVICE_CONDOMS == 0, NA_integer_, as.integer(SERVICE_CONDOMS), NA_integer_),
+         SERVICE_LUBES        = if_else(SERVICE_LUBES == 0, NA_integer_, as.integer(SERVICE_LUBES), NA_integer_),
+      ) %>%
+      arrange(CENTRAL_ID, desc(cd4_is_baseline), days_cd4_confirm, CD4_DATE) %>%
+      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      ohasis$get_addr(
+         c(
+            region   = "PERM_PSGC_REG",
+            province = "PERM_PSGC_PROV",
+            muncity  = "PERM_PSGC_MUNC"
+         ),
+         "nhsss"
+      ) %>%
+      ohasis$get_addr(
+         c(
+            region_c   = "CURR_PSGC_REG",
+            province_c = "CURR_PSGC_PROV",
+            muncity_c  = "CURR_PSGC_MUNC"
+         ),
+         "nhsss"
+      ) %>%
+      ohasis$get_addr(
+         c(
+            region01   = "BIRTH_PSGC_REG",
+            province01 = "BIRTH_PSGC_PROV",
+            placefbir  = "BIRTH_PSGC_MUNC"
+         ),
+         "nhsss"
+      ) %>%
+      ohasis$get_addr(
+         c(
+            region_p   = "PERMONLY_PSGC_REG",
+            province_p = "PERMONLY_PSGC_PROV",
+            muncity_p  = "PERMONLY_PSGC_MUNC"
+         ),
+         "nhsss"
+      ) %>%
+      ohasis$get_addr(
+         c(
+            venue_region   = "HIV_SERVICE_PSGC_REG",
+            venue_province = "HIV_SERVICE_PSGC_PROV",
+            venue_muncity  = "HIV_SERVICE_PSGC_MUNC"
+         ),
+         "nhsss"
+      ) %>%
+      # country names
+      left_join(
+         y  = ohasis$ref_country %>%
+            select(COUNTRY_CODE, ocw_country = COUNTRY_NAME),
+         by = join_by(OFW_COUNTRY == COUNTRY_CODE)
+      ) %>%
+      relocate(ocw_country, .before = OFW_COUNTRY) %>%
+      # dxlab_standard
+      mutate(
+         use_specimen_source = is.na(TEST_FACI) & !is.na(SPECIMEN_SOURCE),
+         TEST_FACI           = coalesce(if_else(use_specimen_source, SPECIMEN_SOURCE, TEST_FACI, TEST_FACI), ""),
+         TEST_SUB_FACI       = coalesce(if_else(use_specimen_source, SPECIMEN_SUB_SOURCE, TEST_SUB_FACI, TEST_SUB_FACI), ""),
+      ) %>%
+      left_join(
+         na_matches = "never",
+         y          = read_sheet("1aOqYjx5wbc403xy-64YHJU6NzhEBRUu6Ldg59yDEUMw", "Sheet1", range = "A:D", col_types = "c") %>%
+            select(
+               TEST_FACI = HARP_FACI,
+               pubpriv   = FINAL_PUBPRIV
+            ) %>%
+            distinct(TEST_FACI, .keep_all = TRUE) %>%
+            mutate_all(~toupper(coalesce(., ""))),
+         by         = join_by(TEST_FACI)
+      ) %>%
+      mutate(
+         FORM_FACI_2        = TEST_FACI,
+         FORM_FACI          = TEST_FACI,
+         SUB_FORM_FACI      = TEST_SUB_FACI,
+         diff_source_v_form = if_else(coalesce(FORM_FACI, "") != coalesce(SPECIMEN_SOURCE, "") & (sample_source == "R" | is.na(sample_source)), 1, 0, 0)
+      ) %>%
+      ohasis$get_faci(
+         list(HTS_FACI = c("FORM_FACI", "SUB_FORM_FACI")),
+         "name"
+      ) %>%
+      ohasis$get_faci(
+         list(SOURCE_FACI = c("SPECIMEN_SOURCE", "SPECIMEN_SUB_SOURCE")),
+         "name"
+      ) %>%
+      # confirmlab
+      ohasis$get_faci(
+         list(confirmlab = c("CONFIRM_FACI", "CONFIRM_SUB_FACI")),
+         "code",
+         c("confirm_region", "confirm_province", "confirm_muncity")
+      ) %>%
+      ohasis$get_faci(
+         list(dxlab_standard = c("TEST_FACI", "TEST_SUB_FACI")),
+         "nhsss",
+         c("dx_region", "dx_province", "dx_muncity")
+      ) %>%
+      rename(
+         FORM_FACI = FORM_FACI_2
+      ) %>%
+      mutate(
+         labcode2    = CONFIRM_CODE,
+         confirm_rec = REC_ID,
+      ) %>%
+      # same vars as registry
+      select(
+         REC_ID,
+         CENTRAL_ID,
+         PATIENT_ID,
+         idnum,
+         confirm_rec,
+         hts_rec                   = HTS_REC,
+         form                      = FORM_VERSION,
+         modality                  = hts_modality,          # HTS Form
+         consent_test              = test_agreed,           # HTS Form
+         labcode                   = CONFIRM_CODE,
+         labcode2,
+         year,
+         month,
+         uic                       = UIC,
+         firstname                 = FIRST,
+         middle                    = MIDDLE,
+         last                      = LAST,
+         name_suffix               = SUFFIX,
+         bdate                     = BIRTHDATE,
+         patient_code              = PATIENT_CODE,
+         pxcode,
+         age                       = AGE,
+         age_months                = AGE_MO,
+         sex                       = SEX,
+         philhealth                = PHILHEALTH_NO,
+         philsys_id                = PHILSYS_ID,
+         mobile                    = CLIENT_MOBILE,
+         email                     = CLIENT_EMAIL,
+         muncity,
+         province,
+         region,
+         muncity_c,
+         province_c,
+         region_c,
+         muncity_p,
+         province_p,
+         region_p,
+         ocw                       = IS_OFW,
+         motherisi1,
+         pregnant                  = IS_PREGNANT,
+         tbpatient1                = MED_TB_PX,
+         nationalit,
+         civilstat                 = CIVIL_STATUS,
+         self_identity,
+         self_identity_other,
+         gender_identity,
+         nationality               = NATIONALITY,
+         highest_educ              = EDUC_LEVEL,
+         in_school                 = IS_STUDENT,
+         current_school_level,
+         with_partner              = LIVING_WITH_PARTNER,
+         child_count               = CHILDREN,
+         sexwithf,
+         sexwithm,
+         sexwithpro,
+         regularlya,
+         injectdrug,
+         chemsex,
+         receivedbt,
+         sti,
+         needlepri1,
+         transmit,
+         sexhow,
+         mot,
+         starts_with("risk_", ignore.case = FALSE),
+         class,
+         class2022,
+         ahd,
+         baseline_cd4,
+         baseline_cd4_date         = CD4_DATE,
+         baseline_cd4_result       = CD4_RESULT,
+         confirm_date,
+         confirmlab,
+         confirm_region,
+         confirm_province,
+         confirm_muncity,
+         confirm_result            = CONFIRM_RESULT,
+         confirm_remarks           = CONFIRM_REMARKS,
+         region01,
+         province01,
+         placefbir,
+         curr_work,
+         prev_work,
+         ocw_based                 = OFW_STATION,
+         ocw_country,
+         age_sex                   = AGE_FIRST_SEX,
+         age_inj                   = AGE_FIRST_INJECT,
+         howmanymse                = NUM_M_PARTNER,
+         yrlastmsex                = YR_LAST_M,
+         howmanyfse                = NUM_F_PARTNER,
+         yrlastfsex                = YR_LAST_F,
+         past12mo_injdrug          = EXPOSE_DRUG_INJECT,
+         past12mo_rcvbt            = EXPOSE_BLOOD_TRANSFUSE,
+         past12mo_sti              = EXPOSE_STI,
+         past12mo_sexfnocondom     = EXPOSE_SEX_F_NOCONDOM,
+         past12mo_sexmnocondom     = EXPOSE_SEX_M_NOCONDOM,
+         past12mo_sexprosti        = EXPOSE_SEX_PAYING,
+         past12mo_acceptpayforsex  = EXPOSE_SEX_PAYMENT,
+         past12mo_needle           = EXPOSE_OCCUPATION,
+         past12mo_hadtattoo        = EXPOSE_TATTOO,
+         history_sex_m             = EXPOSE_SEX_M,
+         date_lastsex_m            = EXPOSE_SEX_M_AV_DATE,
+         date_lastsex_condomless_m = EXPOSE_SEX_M_AV_NOCONDOM_DATE,
+         history_sex_f             = EXPOSE_SEX_F,
+         date_lastsex_f            = EXPOSE_SEX_F_AV_DATE,
+         date_lastsex_condomless_f = EXPOSE_SEX_F_AV_NOCONDOM_DATE,
+         prevtest                  = PREV_TESTED,
+         prev_test_result          = PREV_TEST_RESULT,
+         prev_test_faci            = PREV_TEST_FACI,
+         prevtest_date             = PREV_TEST_DATE,
+         clinicalpicture           = CLINICAL_PIC,
+         recombyph1                = TEST_REASON_PHYSICIAN,
+         recomby_peer_ed           = TEST_REASON_PEER_ED,   # HTS Form
+         insurance1                = TEST_REASON_INSURANCE,
+         recheckpr1                = TEST_REASON_RETEST,
+         no_test_reason            = TEST_REASON_NO_REASON,
+         possible_exposure         = TEST_REASON_HIV_EXPOSE,
+         emp_local                 = TEST_REASON_EMPLOY_LOCAL,
+         emp_abroad                = TEST_REASON_EMPLOY_OFW,
+         other_reason_test,
+         description_symptoms,
+         who_staging,
+         hx_hepb                   = MED_HEP_B,
+         hx_hepc                   = MED_HEP_C,
+         hx_cbs                    = MED_CBS_REACTIVE,
+         hx_prep                   = MED_PREP_PX,
+         hx_pep                    = MED_PEP_PX,
+         hx_sti                    = MED_STI,
+         reach_clinical            = REACH_CLINICAL,
+         reach_online              = REACH_ONLINE,
+         reach_it                  = REACH_INDEX_TESTING,
+         reach_ssnt                = REACH_SSNT,
+         reach_venue               = REACH_VENUE,
+         refer_art                 = REFER_ART,
+         refer_confirm             = REFER_CONFIRM,
+         retest                    = REFER_RETEST,
+         retest_in_mos             = RETEST_MOS,
+         retest_in_wks             = RETEST_WKS,
+         retest_date               = RETEST_DATE,
+         given_hiv101              = SERVICE_HIV_101,
+         given_iec_mats            = SERVICE_IEC_MATS,
+         given_risk_reduce         = SERVICE_RISK_COUNSEL,
+         given_prep_pep            = SERVICE_PREP_REFER,
+         given_ssnt,
+         provider_type             = PROVIDER_TYPE,
+         provider_type_other       = PROVIDER_TYPE_OTHER,
+         venue_region,
+         venue_province,
+         venue_muncity,
+         venue_text                = HIV_SERVICE_ADDR,
+         px_type                   = CLIENT_TYPE,
+         referred_by               = REFER_TYPE,
+         hts_date,
+         t0_date                   = T0_DATE,
+         t0_result                 = T0_RESULT,
+         test_done,
+         name,
+         t1_date                   = T1_DATE,
+         t1_kit                    = T1_KIT,
+         t1_result                 = T1_RESULT,
+         t2_date                   = T2_DATE,
+         t2_kit                    = T2_KIT,
+         t2_result                 = T2_RESULT,
+         t3_date                   = T3_DATE,
+         t3_kit                    = T3_KIT,
+         t3_result                 = T3_RESULT,
+         final_interpretation      = CONFIRM_RESULT,
+         visit_date,
+         blood_extract_date,
+         specimen_receipt_date,
+         rhivda_done,
+         sample_source,
+         dxlab_standard,
+         pubpriv,
+         dx_region,
+         dx_province,
+         dx_muncity,
+         diff_source_v_form,
+         SOURCE_FACI,
+         HTS_FACI,
+         # DUP_MUNC,
+         FORM_FACI
+      ) %>%
+      # turn into codes
+      mutate_at(
+         .vars = vars(
+            ocw,
+            highest_educ,
+            current_school_level,
+            in_school,
+            pregnant,
+            with_partner,
+            ocw_based,
+            prev_test_result,
+            clinicalpicture,
+            prevtest,
+            px_type,
+            t1_result,
+            t2_result,
+            t3_result,
+         ),
+         ~as.integer(keep_code(.))
+      ) %>%
+      # remove codes
+      mutate_at(
+         .vars = vars(
+            sex,
+            civilstat,
+            final_interpretation
+         ),
+         ~remove_code(.)
+      ) %>%
+      # fix test data
+      mutate_at(
+         .vars = vars(
+            t1_result,
+            t2_result,
+            t3_result
+         ),
+         ~case_when(
+            . == 1 ~ "Positive / Reactive",
+            . == 2 ~ "Negative / Non-reactive",
+            . == 3 ~ "Indeterminate",
+            TRUE ~ NA_character_
+         )
+      ) %>%
+      mutate(
+         age_pregnant = if_else(
+            condition = pregnant == 1,
+            true      = age,
+            false     = as.numeric(NA)
+         ),
+         age_vertical = if_else(
+            condition = transmit == "PERINATAL",
+            true      = age,
+            false     = as.numeric(NA)
+         ),
+         age_unknown  = if_else(
+            condition = transmit == "UNKNOWN",
+            true      = age,
+            false     = as.numeric(NA)
+         ),
+         pubpriv      = if_else(pubpriv == "0", NA_character_, as.character(pubpriv))
+      ) %>%
+      distinct_all() %>%
+      mutate(
+         confirm_date     = coalesce(confirm_date, as.Date(t3_date)),
+         nodata_hiv_stage = if_else(
+            is.na(ahd) &
+               is.na(baseline_cd4) &
+               ((coalesce(description_symptoms, "") == "" & clinicalpicture == 1) | is.na(clinicalpicture)) &
+               is.na(tbpatient1) &
+               is.na(who_staging) &
+               class2022 == "HIV",
+            1,
+            0,
+            0
+         )
+      )
+
+   return(converted)
+}
+
+changes_dx_v_hts <- function(rec_ids, yr, mo) {
+   dx   <- stri_c("harp_dx.reg_", yr, stri_pad_left(mo, 2, "0"))
+   con  <- connect("ohasis-lw")
+   hts  <- QB$new(con)$
+      from("ohasis_warehouse.form_hts AS rec")$
+      select("rec.*")$
+      selectRaw("COALESCE(id.CENTRAL_ID, rec.PATIENT_ID) AS CENTRAL_ID")$
+      leftJoin("ohasis_interim.registry AS id", "rec.PATIENT_ID", "=", "id.PATIENT_ID")$
+      whereIn("REC_ID", rec_ids)$
+      get()
+   a    <- QB$new(con)$
+      from("ohasis_warehouse.form_a AS rec")$
+      select("rec.*")$
+      selectRaw("COALESCE(id.CENTRAL_ID, rec.PATIENT_ID) AS CENTRAL_ID")$
+      leftJoin("ohasis_interim.registry AS id", "rec.PATIENT_ID", "=", "id.PATIENT_ID")$
+      whereIn("REC_ID", rec_ids)$
+      get()
+   cfbs <- QB$new(con)$
+      from("ohasis_warehouse.form_cfbs AS rec")$
+      select("rec.*")$
+      selectRaw("COALESCE(id.CENTRAL_ID, rec.PATIENT_ID) AS CENTRAL_ID")$
+      leftJoin("ohasis_interim.registry AS id", "rec.PATIENT_ID", "=", "id.PATIENT_ID")$
+      whereIn("REC_ID", rec_ids)$
+      get()
+   dx   <- QB$new(con)$
+      from(dx)$
+      whereIn("REC_ID", rec_ids)$
+      get()
+   dbDisconnect(con)
+
+   records <- process_hts(hts, a, cfbs)
+
+   convert <- convert_dx(records)
+
+   variables <- dx %>%
+      summary.default %>%
+      as.data.frame %>%
+      group_by(Var1) %>%
+      spread(key = Var2, value = Freq) %>%
+      ungroup %>%
+      mutate(
+         format = case_when(
+            Class == "Date" ~ "Date",
+            TRUE ~ Mode
+         )
+      )
+
+   check <- convert %>%
+      select(-idnum) %>%
+      left_join(
+         y  = dx %>%
+            select(REC_ID, idnum),
+         by = join_by(REC_ID)
+      ) %>%
+      mutate_all(as.character) %>%
+      pivot_longer(
+         cols      = !matches("REC_ID"),
+         values_to = "new_value",
+         names_to  = "variable",
+      ) %>%
+      right_join(
+         y  = dx %>%
+            mutate(
+               REC_ID = coalesce(hts_rec, REC_ID)
+            ) %>%
+            mutate_all(as.character) %>%
+            pivot_longer(
+               cols      = !matches("REC_ID"),
+               values_to = "old_value",
+               names_to  = "variable",
+            ),
+         by = join_by(REC_ID, variable)
+      ) %>%
+      mutate(
+         period = stri_c(yr, ".", stri_pad_left(mo, 2, "0")),
+      ) %>%
+      left_join(
+         y  = variables %>%
+            select(variable = Var1, format),
+         by = join_by(variable)
+      ) %>%
+      left_join(
+         y  = dx %>%
+            mutate(
+               REC_ID = coalesce(hts_rec, REC_ID)
+            ) %>%
+            select(REC_ID, idnum),
+         by = join_by(REC_ID)
+      ) %>%
+      select(
+         period,
+         idnum,
+         variable,
+         old_value,
+         new_value,
+         format
+      ) %>%
+      filter(coalesce(old_value, "") != coalesce(new_value, "")) %>%
+      mutate(
+         new_value = coalesce(new_value, "NULL")
+      ) %>%
+      filter(!(variable %in% c('final_interpretation', 'confirm_result', 'confirm_remarks')))
+
+   return(check)
+}
+
+# recs  <- c('20240708104656A1300000044')
+# check <- changes_dx_v_hts(recs, 2024, 8)
+#
+# check %>%
+#    filter(coalesce(old_value, "") != coalesce(new_value, ""))
