@@ -86,29 +86,29 @@ SELECT rec.REC_ID,
        MAX(IF(sti.STI = '118000' AND sti.TEST_TYPE = 8888, sti.RESULT_OTHER,
               NULL))                                                               AS TRICHO_OTHER_QUANTI,
 
-       MAX(IF(sti.STI = '101000' AND sti.TEST_TYPE = 181, test.DATE_PERFORM,
+       MAX(IF(sti.STI = '101000' AND sti.TEST_TYPE = 10, test.DATE_PERFORM,
               NULL))                                                               AS HIV_TEST_DATE,
        MAX(CASE
-               WHEN sti.STI = '101000' AND sti.TEST_TYPE = 181 AND sti.FINAL_RESULT = '10' THEN '1_Reactive'
-               WHEN sti.STI = '101000' AND sti.TEST_TYPE = 181 AND sti.FINAL_RESULT = '20' THEN '2_Non-reactive'
+               WHEN sti.STI = '101000' AND sti.TEST_TYPE = 10 AND sti.FINAL_RESULT = '10' THEN '1_Reactive'
+               WHEN sti.STI = '101000' AND sti.TEST_TYPE = 10 AND sti.FINAL_RESULT = '20' THEN '2_Non-reactive'
                ELSE NULL END)                                                      AS HIV_TEST_RESULT,
-       MAX(IF(sti.STI = '101000' AND sti.TEST_TYPE = 181, sti.RESULT_OTHER, NULL)) AS HIV_TEST_QUANTI,
+       MAX(IF(sti.STI = '101000' AND sti.TEST_TYPE = 10, sti.RESULT_OTHER, NULL)) AS HIV_TEST_QUANTI,
 
-       MAX(IF(sti.STI = '102000' AND sti.TEST_TYPE = 181, test.DATE_PERFORM,
+       MAX(IF(sti.STI = '102000' AND sti.TEST_TYPE = 60, test.DATE_PERFORM,
               NULL))                                                               AS HEPB_TEST_DATE,
        MAX(CASE
-               WHEN sti.STI = '102000' AND sti.TEST_TYPE = 181 AND sti.FINAL_RESULT = '10' THEN '1_Reactive'
-               WHEN sti.STI = '102000' AND sti.TEST_TYPE = 181 AND sti.FINAL_RESULT = '20' THEN '2_Non-reactive'
+               WHEN sti.STI = '102000' AND sti.TEST_TYPE = 60 AND sti.FINAL_RESULT = '10' THEN '1_Reactive'
+               WHEN sti.STI = '102000' AND sti.TEST_TYPE = 60 AND sti.FINAL_RESULT = '20' THEN '2_Non-reactive'
                ELSE NULL END)                                                      AS HEPB_TEST_RESULT,
-       MAX(IF(sti.STI = '102000' AND sti.TEST_TYPE = 181, sti.RESULT_OTHER, NULL)) AS HEPB_TEST_QUANTI,
+       MAX(IF(sti.STI = '102000' AND sti.TEST_TYPE = 60, sti.RESULT_OTHER, NULL)) AS HEPB_TEST_QUANTI,
 
-       MAX(IF(sti.STI = '103000' AND sti.TEST_TYPE = 181, test.DATE_PERFORM,
+       MAX(IF(sti.STI = '103000' AND sti.TEST_TYPE = 70, test.DATE_PERFORM,
               NULL))                                                               AS HEPC_TEST_DATE,
        MAX(CASE
-               WHEN sti.STI = '103000' AND sti.TEST_TYPE = 181 AND sti.FINAL_RESULT = '10' THEN '1_Reactive'
-               WHEN sti.STI = '103000' AND sti.TEST_TYPE = 181 AND sti.FINAL_RESULT = '20' THEN '2_Non-reactive'
+               WHEN sti.STI = '103000' AND sti.TEST_TYPE = 70 AND sti.FINAL_RESULT = '10' THEN '1_Reactive'
+               WHEN sti.STI = '103000' AND sti.TEST_TYPE = 70 AND sti.FINAL_RESULT = '20' THEN '2_Non-reactive'
                ELSE NULL END)                                                      AS HEPC_TEST_RESULT,
-       MAX(IF(sti.STI = '103000' AND sti.TEST_TYPE = 181, sti.RESULT_OTHER, NULL)) AS HEPC_TEST_QUANTI
+       MAX(IF(sti.STI = '103000' AND sti.TEST_TYPE = 70, sti.RESULT_OTHER, NULL)) AS HEPC_TEST_QUANTI
 FROM ohasis_interim.px_record AS rec
     JOIN ohasis_interim.px_test AS test
 ON rec.REC_ID = test.REC_ID
