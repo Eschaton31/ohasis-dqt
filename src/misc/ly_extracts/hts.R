@@ -1,17 +1,17 @@
 source("src/misc/ly_extracts/site_list.R")
 
-con <- ohasis$conn("lw")
+con <- connect("ohasis-lw")
 
 forms <- QB$new(con)
-# forms$where(function(query = QB$new(con)) {
-#    query$whereBetween('RECORD_DATE', c(min, max), "or")
-#    query$whereBetween('DATE_CONFIRM', c(min, max), "or")
-#    query$whereBetween('T0_DATE', c(min, max), "or")
-#    query$whereBetween('T1_DATE', c(min, max), "or")
-#    query$whereBetween('T2_DATE', c(min, max), "or")
-#    query$whereBetween('T3_DATE', c(min, max), "or")
-#    query$whereNested
-# })
+forms$where(function(query = QB$new(con)) {
+   query$whereBetween('RECORD_DATE', c(min, max), "or")
+   query$whereBetween('DATE_CONFIRM', c(min, max), "or")
+   query$whereBetween('T0_DATE', c(min, max), "or")
+   query$whereBetween('T1_DATE', c(min, max), "or")
+   query$whereBetween('T2_DATE', c(min, max), "or")
+   query$whereBetween('T3_DATE', c(min, max), "or")
+   query$whereNested
+})
 forms$where(function(query = QB$new(con)) {
    query$whereIn('FACI_ID', sites$FACI_ID, boolean = "or")
    query$whereIn('SERVICE_FACI', sites$FACI_ID, boolean = "or")
@@ -233,10 +233,10 @@ ly_test %>%
    filter(!drop) %>%
    tab(SEX)
 ly_test %>%
-   # left_join(
-   #    y = tx_out %>%
-   #       select(CENTRAL_ID, outcome, latest_ffupdate, latest_nextpickup, latest_regimen),
-   #    by = join_by(CENTRAL_ID)
-   # ) %>%
+   left_join(
+      y = tx_out %>%
+         select(CENTRAL_ID, outcome, latest_ffupdate, latest_nextpickup, latest_regimen),
+      by = join_by(CENTRAL_ID)
+   ) %>%
    format_stata() %>%
-   write_dta("H:/20240706_hts-ly_ever.dta")
+   write_dta("H:/20240907_hts-ly_ever.dta")

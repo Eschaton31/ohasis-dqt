@@ -1,6 +1,6 @@
 source("src/misc/ly_extracts/site_list.R")
 
-con   <- ohasis$conn("lw")
+con   <- connect("ohasis-lw")
 forms <- QB$new(con)
 # forms$whereBetween('VISIT_DATE', c(min, max))
 forms$where(function(query = QB$new(con)) {
@@ -17,6 +17,8 @@ form_prep <- forms$get()
 rec_link <- QB$new(con)$from("ohasis_warehouse.rec_link")$get()
 dbDisconnect(con)
 
+prep_all <- read_dta(hs_data("prep", "reg", 2024, 7)) %>%
+   get_cid(id_reg, PATIENT_ID)
 
 ly_prep <- process_prep(form_prep, testing, rec_link) %>%
    get_cid(id_reg, PATIENT_ID) %>%
@@ -42,12 +44,71 @@ ly_prep <- process_prep(form_prep, testing, rec_link) %>%
 ly_prep %>%
    mutate(
       prep_plan = case_when(
-         prep_plan == "paid" ~ "FREE",
-         prep_plan == "free" ~ "PAID",
+         prep_plan == "paid" ~ "PAID",
+         prep_plan == "free" ~ "FREE",
       )
    ) %>%
+   left_join(
+      y  = prep_all %>%
+         select(
+            CENTRAL_ID,
+            first,
+            middle,
+            last,
+            suffix,
+            uic,
+            birthdate,
+            sex
+         ) %>%
+         distinct(CENTRAL_ID, .keep_all = TRUE),
+      by = join_by(CENTRAL_ID)
+   ) %>%
+   relocate(
+      first,
+      middle,
+      last,
+      suffix,
+      uic,
+      birthdate,
+      sex,
+      .after = CENTRAL_ID
+   ) %>%
    format_stata() %>%
-   write_dta("H:/20240706_prep-ly_ever.dta")
+   write_dta("H:/20240907_prep-ly_ever.dta")
+
+ly_prep %>%
+   mutate(
+      prep_plan = case_when(
+         prep_plan == "paid" ~ "PAID",
+         prep_plan == "free" ~ "FREE",
+      )
+   ) %>%
+   left_join(
+      y  = prep_all %>%
+         select(
+            CENTRAL_ID,
+            first,
+            middle,
+            last,
+            suffix,
+            uic,
+            birthdate,
+            sex
+         ) %>%
+         distinct(CENTRAL_ID, .keep_all = TRUE),
+      by = join_by(CENTRAL_ID)
+   ) %>%
+   relocate(
+      first,
+      middle,
+      last,
+      suffix,
+      uic,
+      birthdate,
+      sex,
+      .after = CENTRAL_ID
+   ) %>%
+   write_xlsx("H:/20240907_prep-ly_ever.xlsx")
 
 ly_prep %>%
    tab(PREP_HUB)
@@ -61,9 +122,9 @@ ly_prep %>%
    )
 
 lw_conn <- ohasis$conn("lw")
-dx      <- QB$new(lw_conn)$from("harp_dx.reg_202406")$get()
-tx_reg  <- QB$new(lw_conn)$from("harp_tx.reg_202406")$get()
-tx_out  <- QB$new(lw_conn)$from("harp_tx.outcome_202406")$get()
+dx      <- QB$new(lw_conn)$from("harp_dx.reg_202408")$get()
+tx_reg  <- QB$new(lw_conn)$from("harp_tx.reg_202408")$get()
+tx_out  <- QB$new(lw_conn)$from("harp_tx.outcome_202408")$get()
 dbDisconnect(lw_conn)
 
 ly_art_enroll <- tx_reg %>%
@@ -162,8 +223,19 @@ ly_art_enroll <- tx_reg %>%
       ),
       "name"
    )
-ly_art_curr   <- tx_out %>%
-   filter(realhub == "TLY") %>%
+
+reg_names <- names(tx_reg)
+out_names <- names(tx_out)
+names     <- setdiff(out_names, reg_names)
+names     <- c("art_id", names)
+
+ly_art_curr <- tx_reg %>%
+   inner_join(
+      y  = tx_out %>%
+         select(any_of(names)) %>%
+         filter(realhub == "TLY"),
+      by = join_by(art_id)
+   ) %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
       list(FACI_ID = "realhub", SUB_FACI_ID = "realhub_branch")
@@ -301,3 +373,13 @@ ly_art_curr %>%
       `undetectable rate (among tested)` = vl_ud / vl_tested_p12m,
    ) %>%
    write_clip()
+
+
+ly_art_curr %>%
+   format_stata %>%
+   write_dta("H:/20240921_tx-curr-ly_2024-08.dta")
+
+ly_art_enroll %>%
+   format_stata %>%
+   write_dta("H:/20240921_tx-enroll-ly_2024-08.dta")
+
