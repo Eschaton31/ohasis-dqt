@@ -1,4 +1,4 @@
-dir      <- "C:/Users/Administrator/Downloads/hts_logsheet_20240910"
+dir      <- "C:/Users/Administrator/Downloads/logsheet_20241104"
 files    <- list.files(dir, ".xlsx", recursive = TRUE, full.names = TRUE)
 gf_staff <- read_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "staff", col_types = "c")
 gf_site  <- read_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "site", col_types = "c")
@@ -12,7 +12,10 @@ read_logsheet <- function(file) {
    for (sheet in sheets) {
       test <- read_excel(file, sheet, n_max = 3, .name_repair = "unique_quiet")
 
-      if (ncol(test) == 121 | ncol(test) == 79) {
+      if (ncol(test) == 121 |
+         ncol(test) == 79 |
+         ncol(test) == 122 |
+         ncol(test) == 80) {
          logsheet[[sheet]] <- read_excel(file, sheet, skip = 2, .name_repair = "unique_quiet") %>%
             mutate_all(as.character) %>%
             mutate_all(~na_if(., "N/A")) %>%
@@ -135,6 +138,7 @@ read_logsheet <- function(file) {
                   . == "Venue: Province" ~ "HIV_SERVICE_NAME_PROV",
                   . == "Venue: City/Municipality" ~ "HIV_SERVICE_NAME_MUNC",
                   . == "Venue: Details" ~ "HIV_SERVICE_ADDR",
+                  . == "Record ID" ~ "REC_ID",
                   TRUE ~ .
                )
             ) %>%
@@ -188,7 +192,9 @@ data <- raw %>%
       by = join_by(id, HIV_SERVICE_NAME_REG, HIV_SERVICE_NAME_PROV, HIV_SERVICE_NAME_MUNC)
    ) %>%
    mutate(
-      CREATED_AT = coalesce(CREATED_AT, DATE_SUBMIT, RECORD_DATE)
+      CREATED_AT    = coalesce(CREATED_AT, DATE_SUBMIT, RECORD_DATE),
+      CLIENT_MOBILE = NA_character_,
+      CLIENT_EMAIL  = NA_character_,
    ) %>%
    filter(CREATED_AT != "Auto-fill")
 
@@ -197,8 +203,12 @@ data %>%
    arrange(HTS_FACI, id) %>%
    write_clip()
 
-con      <- ohasis$conn("lw")
-form_hts <- QB$new(con)$from("ohasis_warehouse.form_hts")$limit(0)$get()
+con <- ohasis$conn("lw")
+if ("REC_ID" %in% names(data)) {
+   form_hts <- QB$new(con)$from("ohasis_warehouse.form_hts")$whereIn("REC_ID", data$REC_ID)$get()
+} else {
+   form_hts <- QB$new(con)$from("ohasis_warehouse.form_hts")$limit(0)$get()
+}
 dbDisconnect(con)
 
 conso <- data %>%
@@ -408,37 +418,84 @@ check$clean_staff <- conso %>%
    distinct() %>%
    arrange(STAFF)
 
+if ("REC_ID" %in% names(conso)) {
+   conso %<>%
+      select(-CREATED_BY, -CREATED_AT) %>%
+      left_join(
+         y  = form_hts %>%
+            select(REC_ID, PATIENT_ID, CREATED_BY, CREATED_AT),
+         by = join_by(REC_ID)
+      ) %>%
+      filter(!is.na(PATIENT_ID))
+
+   pii_cols <- c(
+      "FIRST",
+      "MIDDLE",
+      "LAST",
+      "SUFFIX",
+      "BIRTHDATE",
+      "SEX",
+      "UIC",
+      "PHILHEALTH_NO",
+      "SELF_IDENT",
+      "SELF_IDENT_OTHER",
+      "PHILSYS_ID",
+      "CIVIL_STATUS",
+      "NATIONALITY",
+      "EDUC_LEVEL",
+      "CLIENT_MOBILE",
+      "CLIENT_EMAIL"
+   )
+
+   for (col in pii_cols) {
+      col <- as.name(col)
+      conso %<>%
+         left_join(
+            y  = form_hts %>%
+               select(REC_ID, CORR = {{col}}),
+            by = join_by(REC_ID)
+         ) %>%
+         mutate(
+            {{col}} := coalesce({{col}}, as.character(CORR))
+         ) %>%
+         select(-CORR)
+   }
+} else {
+   conso %<>%
+      mutate(
+         REC_ID        = NA_character_,
+         PATIENT_ID    = NA_character_,
+         CLIENT_MOBILE = NA_character_,
+         CLIENT_EMAIL  = NA_character_,
+      )
+}
+
 conso %<>%
    select(
       -ends_with("NAME_REG"),
       -ends_with("NAME_PROV"),
       -ends_with("NAME_MUNC"),
    ) %>%
-   mutate(
-      CLIENT_MOBILE = NA_character_,
-      CLIENT_EMAIL  = NA_character_,
-      REC_ID        = NA_character_,
-      PATIENT_ID    = NA_character_,
-   ) %>%
    relocate(any_of(names(form_hts)), .before = 1)
 
 convert <- conso %>%
    mutate(
       DISEASE                  = "101000",
-      MODULE                   = "2",
+      MODULE                   = "2_Testing",
       SEX                      = case_when(
-         SEX == "Male" ~ "1",
-         SEX == "MALE" ~ "1",
-         SEX == "Man" ~ "1",
-         SEX == "Female" ~ "2",
+         SEX == "Male" ~ "1_Male",
+         SEX == "MALE" ~ "1_Male",
+         SEX == "Man" ~ "1_Male",
+         SEX == "Female" ~ "2_Female",
          TRUE ~ SEX
       ),
       SELF_IDENT               = case_when(
-         SELF_IDENT == "Man" ~ "1",
-         SELF_IDENT == "MAN" ~ "1",
-         SELF_IDENT == "Woman" ~ "2",
-         SELF_IDENT == "WOMAN" ~ "2",
-         SELF_IDENT == "Others" ~ "3",
+         SELF_IDENT == "Man" ~ "1_Man",
+         SELF_IDENT == "MAN" ~ "1_Man",
+         SELF_IDENT == "Woman" ~ "2_Woman",
+         SELF_IDENT == "WOMAN" ~ "2_Woman",
+         SELF_IDENT == "Others" ~ "3_Other",
+         SELF_IDENT == "Other" ~ "3_Other",
          TRUE ~ SELF_IDENT
       ),
       BIRTHDATE                = if_else(
@@ -449,28 +506,34 @@ convert <- conso %>%
       ),
 
       EDUC_LEVEL               = case_when(
-         EDUC_LEVEL == "None" ~ "1",
-         EDUC_LEVEL == "Elementary" ~ "2",
-         EDUC_LEVEL == "High School" ~ "3",
-         EDUC_LEVEL == "HIGHSCHOOL" ~ "3",
-         EDUC_LEVEL == "College" ~ "4",
-         EDUC_LEVEL == "COLLEGE" ~ "4",
-         EDUC_LEVEL == "Vocational" ~ "5",
-         EDUC_LEVEL == "Post-Graduate" ~ "6",
-         EDUC_LEVEL == "Post-graduate" ~ "6",
-         EDUC_LEVEL == "Pre-school" ~ "7",
+         EDUC_LEVEL == "None" ~ "1_None",
+         EDUC_LEVEL == "Elementary" ~ "2_Elementary",
+         EDUC_LEVEL == "High School" ~ "3_High School",
+         EDUC_LEVEL == "HIGHSCHOOL" ~ "3_High School",
+         EDUC_LEVEL == "College" ~ "4_College",
+         EDUC_LEVEL == "COLLEGE" ~ "4_College",
+         EDUC_LEVEL == "Vocational" ~ "5_Vocational",
+         EDUC_LEVEL == "Post-Graduate" ~ "6_Post-Graduate",
+         EDUC_LEVEL == "Post-graduate" ~ "6_Post-Graduate",
+         EDUC_LEVEL == "Pre-school" ~ "7_Pre-school",
          TRUE ~ EDUC_LEVEL
       ),
       CIVIL_STATUS             = case_when(
-         CIVIL_STATUS == "Single" ~ "1",
-         CIVIL_STATUS == "SIngle" ~ "1",
-         CIVIL_STATUS == "SINGLE" ~ "1",
-         CIVIL_STATUS == "Married" ~ "2",
-         CIVIL_STATUS == "MARRIED" ~ "2",
-         CIVIL_STATUS == "Separated" ~ "3",
-         CIVIL_STATUS == "Widowed" ~ "4",
-         CIVIL_STATUS == "Divorced" ~ "5",
+         CIVIL_STATUS == "Single" ~ "1_Single",
+         CIVIL_STATUS == "SIngle" ~ "1_Single",
+         CIVIL_STATUS == "SINGLE" ~ "1_Single",
+         CIVIL_STATUS == "Married" ~ "2_Married",
+         CIVIL_STATUS == "MARRIED" ~ "2_Married",
+         CIVIL_STATUS == "Separated" ~ "3_Separated",
+         CIVIL_STATUS == "Widowed" ~ "4_Widowed",
+         CIVIL_STATUS == "Divorced" ~ "5_Divorced",
          TRUE ~ CIVIL_STATUS
+      ),
+
+      OFW_STATION              = case_when(
+         OFW_STATION == "On a ship" ~ "1_On a ship",
+         OFW_STATION == "Land" ~ "2_Land",
+         TRUE ~ as.character(OFW_STATION)
       ),
 
       SERVICE_TYPE             = case_when(
@@ -489,31 +552,31 @@ convert <- conso %>%
          TRUE ~ coalesce(SERVICE_TYPE, '101304')
       ),
       HTS_PROVIDER_TYPE        = case_when(
-         HTS_PROVIDER_TYPE == "Medical Technologist" ~ "1",
-         HTS_PROVIDER_TYPE == "MedTech" ~ "1",
-         HTS_PROVIDER_TYPE == "HIV Counselor" ~ "2",
-         HTS_PROVIDER_TYPE == "CBS Motivator" ~ "3",
-         HTS_PROVIDER_TYPE == "Other" ~ "8888",
-         HTS_PROVIDER_TYPE == "PEER NAVIGATOR" ~ "8888",
-         HTS_PROVIDER_TYPE == "Peer Navigator" ~ "8888",
-         HTS_PROVIDER_TYPE == "Others" ~ "8888",
-         HTS_PROVIDER_TYPE == "Case Finder" ~ "8888",
+         HTS_PROVIDER_TYPE == "Medical Technologist" ~ "1_Medical Technologist",
+         HTS_PROVIDER_TYPE == "MedTech" ~ "1_Medical Technologist",
+         HTS_PROVIDER_TYPE == "HIV Counselor" ~ "2_HIV Counselor",
+         HTS_PROVIDER_TYPE == "CBS Motivator" ~ "3_CBS Motivator",
+         HTS_PROVIDER_TYPE == "Other" ~ "8888_Other",
+         HTS_PROVIDER_TYPE == "PEER NAVIGATOR" ~ "8888_Other",
+         HTS_PROVIDER_TYPE == "Peer Navigator" ~ "8888_Other",
+         HTS_PROVIDER_TYPE == "Others" ~ "8888_Other",
+         HTS_PROVIDER_TYPE == "Case Finder" ~ "8888_Other",
          TRUE ~ HTS_PROVIDER_TYPE
       ),
       CLIENT_TYPE              = case_when(
-         CLIENT_TYPE == "Inpatient" ~ "1",
-         CLIENT_TYPE == "Walk-in / Outpatient" ~ "2",
-         CLIENT_TYPE == "Walk-in" ~ "2",
-         CLIENT_TYPE == "WALK-IN" ~ "2",
-         CLIENT_TYPE == "Outpatient" ~ "2",
-         CLIENT_TYPE == "Mobile HTS Client" ~ "3",
-         CLIENT_TYPE == "MOBIle HTS Client" ~ "3",
-         CLIENT_TYPE == "mobile HTS Client" ~ "3",
-         CLIENT_TYPE == "Satellite Client" ~ "5",
-         CLIENT_TYPE == "Referral" ~ "4",
-         CLIENT_TYPE == "Transient" ~ "6",
-         CLIENT_TYPE == "Persons Deprived of Liberty" ~ "7",
-         CLIENT_TYPE == "Courier" ~ "8",
+         CLIENT_TYPE == "Inpatient" ~ "1_Inpatient",
+         CLIENT_TYPE == "Walk-in / Outpatient" ~ "2_Walk-in / Outpatient",
+         CLIENT_TYPE == "Walk-in" ~ "2_Walk-in / Outpatient",
+         CLIENT_TYPE == "WALK-IN" ~ "2_Walk-in / Outpatient",
+         CLIENT_TYPE == "Outpatient" ~ "2_Walk-in / Outpatient",
+         CLIENT_TYPE == "Mobile HTS Client" ~ "3_Mobile HTS Client",
+         CLIENT_TYPE == "MOBIle HTS Client" ~ "3_Mobile HTS Client",
+         CLIENT_TYPE == "mobile HTS Client" ~ "3_Mobile HTS Client",
+         CLIENT_TYPE == "Satellite Client" ~ "5_Satellite Client",
+         CLIENT_TYPE == "Referral" ~ "4_Referral",
+         CLIENT_TYPE == "Transient" ~ "6_Transient",
+         CLIENT_TYPE == "Persons Deprived of Liberty" ~ "7_Persons Deprived of Liberty",
+         CLIENT_TYPE == "Courier" ~ "8_Courier",
          TRUE ~ CLIENT_TYPE
       ),
 
@@ -523,35 +586,35 @@ convert <- conso %>%
       T0_DATE                  = RECORD_DATE,
 
       SCREEN_AGREED            = case_when(
-         SCREEN_AGREED == "Accept" ~ "1",
+         SCREEN_AGREED == "Accept" ~ "1_Yes",
       ),
 
       # TODO: Add conversion for ofw data
 
-      EXPOSE_SEX_M_AV          = if_else(!is.na(EXPOSE_SEX_M_AV_DATE), "Yes", NA_character_),
-      EXPOSE_SEX_M_AV_NOCONDOM = if_else(!is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE), "Yes", NA_character_),
+      EXPOSE_SEX_M_AV          = if_else(!is.na(EXPOSE_SEX_M_AV_DATE), "1_Yes", NA_character_),
+      EXPOSE_SEX_M_AV_NOCONDOM = if_else(!is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE), "1_Yes", NA_character_),
 
-      EXPOSE_SEX_F_AV          = if_else(!is.na(EXPOSE_SEX_F_AV_DATE), "Yes", NA_character_),
-      EXPOSE_SEX_F_AV_NOCONDOM = if_else(!is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE), "Yes", NA_character_),
+      EXPOSE_SEX_F_AV          = if_else(!is.na(EXPOSE_SEX_F_AV_DATE), "1_Yes", NA_character_),
+      EXPOSE_SEX_F_AV_NOCONDOM = if_else(!is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE), "1_Yes", NA_character_),
 
       PREV_TEST_RESULT         = case_when(
-         PREV_TEST_RESULT == "Reactive" ~ "1",
-         PREV_TEST_RESULT == "Non-reactive" ~ "2",
-         PREV_TEST_RESULT == "NA" ~ "4",
-         PREV_TEST_RESULT == "Was not able to get result" ~ "4",
+         PREV_TEST_RESULT == "Reactive" ~ "1_Reactive",
+         PREV_TEST_RESULT == "Non-reactive" ~ "2_Non-reactive",
+         PREV_TEST_RESULT == "NA" ~ "4_Was not able to get result",
+         PREV_TEST_RESULT == "Was not able to get result" ~ "4_Was not able to get result",
          TRUE ~ PREV_TEST_RESULT
       ),
 
       CLINICAL_PIC             = case_when(
-         CLINICAL_PIC == "Asymptomatic" ~ "1",
-         CLINICAL_PIC == "Symptomatic" ~ "2",
+         CLINICAL_PIC == "Asymptomatic" ~ "1_Symptomatic",
+         CLINICAL_PIC == "Symptomatic" ~ "2_Symptomatic",
          TRUE ~ CLINICAL_PIC
       ),
       WHO_CLASS                = case_when(
-         WHO_CLASS == "I" ~ "1",
-         WHO_CLASS == "II" ~ "2",
-         WHO_CLASS == "III" ~ "3",
-         WHO_CLASS == "IV" ~ "4",
+         WHO_CLASS == "I" ~ "1_I",
+         WHO_CLASS == "II" ~ "2_II",
+         WHO_CLASS == "III" ~ "3_III",
+         WHO_CLASS == "IV" ~ "4_IV",
          TRUE ~ WHO_CLASS
       ),
 
@@ -575,10 +638,17 @@ convert <- conso %>%
          starts_with("SERVICE_"),
       ),
       ~case_when(
-         str_squish(toupper(.)) == "YES" ~ "1",
-         str_squish(toupper(.)) == "NO" ~ "0",
+         str_squish(toupper(.)) == "YES" ~ "1_Yes",
+         str_squish(toupper(.)) == "NO" ~ "0_No",
          TRUE ~ .
       )
+   ) %>%
+   mutate_at(
+      .vars = vars(
+         starts_with("REACH_"),
+         starts_with("SERVICE_"),
+      ),
+      ~na_if(., "0_No")
    ) %>%
    relocate(any_of(names(form_hts)), .before = 1) %>%
    mutate_at(
@@ -606,21 +676,41 @@ convert %<>%
    relocate(any_of(names(form_hts)), .before = 1) %>%
    mutate(
       T0_RESULT = case_when(
-         T0_RESULT == "NON-REACTIVE" ~ "2",
-         T0_RESULT == "Non-reactive" ~ "2",
-         T0_RESULT == "REACTIVE" ~ "1",
-         T0_RESULT == "Reactive" ~ "1",
+         T0_RESULT == "NON-REACTIVE" ~ "2_Non-reactive",
+         T0_RESULT == "Non-reactive" ~ "2_Non-reactive",
+         T0_RESULT == "REACTIVE" ~ "1_Reactive",
+         T0_RESULT == "Reactive" ~ "1_Reactive",
          T0_RESULT == "CBS" ~ NA_character_,
          TRUE ~ T0_RESULT
       )
+   ) %>%
+   rename(
+      PROVIDER_TYPE       = HTS_PROVIDER_TYPE,
+      PROVIDER_TYPE_OTHER = HTS_PROVIDER_TYPE_OTHER,
    )
 
+match_vars <- intersect(names(conso), names(form_hts))
+match_vars <- match_vars[!(match_vars %in% c("PRIME", "UPDATED_BY", "UPDATED_AT", "DELETED_BY", "DELETED_AT", "FORM_VERSION", "DISEASE", "HTS_MSM", "HTS_TGW", "SNAPSHOT", "CONFIRMATORY_CODE", "PHILHEALTH_NO", "PHILSYS_ID"))]
+match_vars <- match_vars[!(match_vars %in% c("EXPOSE_HIV_MOTHER", "EXPOSE_SEX_M_AV_NOCONDOM", "EXPOSE_SEX_M_AV_NOCONDOM_DATE", "EXPOSE_SEX_F_AV_NOCONDOM", "EXPOSE_SEX_F_AV_NOCONDOM_DATE", "SERVICE_BY", "TEST_REASON_OTHER_TEXT"))]
+match_vars <- match_vars[!(match_vars %in% c("AGE_MO", "GENDER_AFFIRM_THERAPY", "IS_PREGNANT"))]
+rec_id     <- "20240301092897T0400010028"
+convert %>%
+   filter(REC_ID == rec_id) %>%
+   mutate(type = "new", .before = 1) %>%
+   mutate_all(as.character) %>%
+   bind_rows(form_hts %>%
+                filter(REC_ID == rec_id) %>%
+                mutate_all(as.character) %>%
+                mutate(type = "old", .before = 1)) %>%
+   select(any_of(match_vars)) %>%
+   View('review')
+
 tables <- deconstruct_hts(convert)
-wide   <- c("px_test_refuse", "px_other_service", "px_reach", "px_med_profile", "px_test_reason")
+long   <- c("px_test_refuse", "px_other_service", "px_reach", "px_med_profile", "px_test_reason")
 delete <- tables$px_record$data %>% select(REC_ID)
 
 db_conn <- ohasis$conn("db")
-lapply(wide, function(table) dbxDelete(db_conn, Id(schema = "ohasis_interim", table = table), delete))
+lapply(long, function(table) dbxDelete(db_conn, Id(schema = "ohasis_interim", table = table), delete))
 lapply(tables, function(ref, db_conn) {
    log_info("Uploading {green(ref$name)}.")
    table_space <- Id(schema = "ohasis_interim", table = ref$name)
