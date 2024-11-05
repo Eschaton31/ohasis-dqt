@@ -1302,6 +1302,37 @@ deconstruct_hts <- function(hts) {
       "px_remarks"
    )
 
+   hts %<>%
+      mutate_at(
+         .vars = vars(
+            MODULE,
+            SEX,
+            SELF_IDENT,
+            CIVIL_STATUS,
+            EDUC_LEVEL,
+            LIVING_WITH_PARTNER,
+            CLIENT_TYPE,
+            PROVIDER_TYPE,
+            T0_RESULT,
+            PREV_TEST_RESULT,
+            IS_PREGNANT,
+            IS_STUDENT,
+            IS_EMPLOYED,
+            IS_OFW,
+            SCREEN_AGREED,
+            CLINICAL_PIC,
+            WHO_CLASS,
+            REFER_ART,
+            REFER_CONFIRM,
+            OFW_STATION,
+            PREV_TESTED,
+            SIGNATURE,
+            VERBAL_CONSENT,
+            OFW_STATION
+         ),
+         ~keep_code(.)
+      )
+
    conn <- ohasis$conn("db")
 
    # primary keys
@@ -1539,6 +1570,7 @@ deconstruct_hts <- function(hts) {
       mutate(
          REACH    = str_replace(REACH, "^REACH_", ""),
          REACH    = case_when(
+            REACH == "CLINICAL" ~ "1",
             REACH == "ONLINE" ~ "2",
             REACH == "INDEX_TESTING" ~ "3",
             REACH == "INDEX" ~ "3",
