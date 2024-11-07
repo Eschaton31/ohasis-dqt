@@ -43,3 +43,4 @@ R6
 plumber
 keyring
 duckplyr
+pbapply
