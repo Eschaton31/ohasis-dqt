@@ -44,3 +44,4 @@ plumber
 keyring
 duckplyr
 pbapply
+reticulate
