@@ -231,8 +231,9 @@ Dedup <- R6Class(
                sp$block_on("given_name_sieve"),
                sp$block_on("family_name_sieve"),
                sp$block_on("birthdate"),
+               sp$block_on("uic"),
                sp$block_on("given_name_3", "family_name_sieve"),
-               sp$block_on("birth_yr", "given_name_sieve"),
+               sp$block_on("birth_yr", "given_name_metaphone"),
                sp$block_on("residence_province", "given_name_sieve"),
                sp$block_on("residence_province", "family_name_sieve")
             ),
@@ -308,11 +309,95 @@ Dedup <- R6Class(
 
          log_info("Done!")
          self$review$splinkDedup <- matches %>%
-            select(
-               -starts_with("gamma"),
-               -ends_with("metaphone")
+            rename_all(
+               ~case_when(
+                  . == "idnum_l" ~ "left_id",
+                  . == "idnum_r" ~ "right_id",
+                  . == "art_id_l" ~ "left_id",
+                  . == "art_id_r" ~ "right_id",
+                  . == "mort_id_l" ~ "left_id",
+                  . == "mort_id_r" ~ "right_id",
+                  TRUE ~ .
+               )
             ) %>%
-            arrange(desc(match_probability))
+            select(
+               posterior = match_probability,
+               left_id,
+               right_id,
+            ) %>%
+            arrange(desc(posterior)) %>%
+            mutate(
+               match_id = row_number()
+            ) %>%
+            left_join(
+               y  = self$match$left %>%
+                  select(
+                     self$left$id,
+                     left_cid          = CENTRAL_ID,
+                     left_given_name   = given_name,
+                     left_middle_name  = middle_name,
+                     left_family_name  = family_name,
+                     left_suffix_name  = suffix_name,
+                     left_birthdate    = birthdate,
+                     left_confirmatory = confirmatory_code,
+                     left_uic          = uic,
+                     left_pxcode       = patient_code,
+                     left_region       = residence_region,
+                     left_province     = residence_province,
+                     left_muncity      = residence_muncity,
+                     left_philhealth   = philhealth_no,
+                     left_philsys      = philsys_id,
+                     left_mobile       = client_mobile,
+                     left_email        = client_email,
+                     left_occupation   = occupation,
+                  ),
+               by = join_by(left_id == self$left$id)
+            ) %>%
+            left_join(
+               y  = self$match$left %>%
+                  select(
+                     self$left$id,
+                     right_cid          = CENTRAL_ID,
+                     right_given_name   = given_name,
+                     right_middle_name  = middle_name,
+                     right_family_name  = family_name,
+                     right_suffix_name  = suffix_name,
+                     right_birthdate    = birthdate,
+                     right_confirmatory = confirmatory_code,
+                     right_uic          = uic,
+                     right_pxcode       = patient_code,
+                     right_region       = residence_region,
+                     right_province     = residence_province,
+                     right_muncity      = residence_muncity,
+                     right_philhealth   = philhealth_no,
+                     right_philsys      = philsys_id,
+                     right_mobile       = client_mobile,
+                     right_email        = client_email,
+                     right_occupation   = occupation,
+                  ),
+               by = join_by(idnum_r == self$left$id)
+            ) %>%
+            mutate_at(
+               .vars = vars(ends_with("_name")),
+               ~coalesce(., "")
+            ) %>%
+            mutate(
+               left_name  = stri_c(left_family_name, ", ", left_given_name, " ", left_middle_name, " ", left_suffix_name),
+               right_name = stri_c(right_family_name, ", ", right_given_name, " ", right_middle_name, " ", right_suffix_name),
+            ) %>%
+            select(
+               -ends_with("given_name"),
+               -ends_with("middle_name"),
+               -ends_with("family_name"),
+               -ends_with("suffix_name"),
+            ) %>%
+            mutate(
+               .before = 1,
+               Bene    = NA_character_,
+               Gab     = NA_character_,
+               Lala    = NA_character_,
+               Angie   = NA_character_,
+            )
 
          invisible(self)
       }
@@ -335,7 +420,8 @@ Dedup <- R6Class(
          "client_email",
          "residence_region",
          "residence_province",
-         "residence_muncity"
+         "residence_muncity",
+         "occupation"
       ),
 
       renameColumns   = function(name) {
@@ -542,98 +628,61 @@ Dedup <- R6Class(
    )
 )
 
-hs_download("harp_dx", "reg", 2024, 10)
-dx <- read_dta(hs_data("harp_dx", "reg", 2024, 10)) %>%
-   select(-first)
-# new <- dx %>%
-#    filter(year == 2024, month == 9) %>%
-#    select(-first)
-# old <- dx %>%
-#    anti_join(new, join_by(idnum)) %>%
-#    select(-first)
+upload_splink <- function(data, surv_name, dedup_type) {
+   db     <- "nhsss_validations"
+   issue  <- "splink"
+   table  <- paste0(surv_name, "-", dedup_type, "-", issue)
+   schema <- Id(schema = db, table = table)
+   id_col <- "match_id"
 
+   lw_conn <- connect("ohasis-lw")
+   if (dbExistsTable(lw_conn, schema)) {
+      dbRemoveTable(lw_conn, schema)
+   }
+   ohasis$upsert(lw_conn, db, table, data, id_col)
+   dbDisconnect(lw_conn)
+}
 
-try <- Dedup$new()
-try$setMaster(dx, "idnum")
-# try$setUsing(old, "idnum")
-try$preparePii()
-# try$reclink()
-try$splinkDedupe()
+generate_splink <- function(yr, mo, surv_name, download = FALSE) {
+   if (download) {
+      hs_download("harp_dx", "reg", yr, mo)
+   }
 
-check <- try$review$splinkDedup %>%
-   select(
-      posterior = match_probability,
-      idnum_l,
-      idnum_r,
-   ) %>%
-   mutate(
-      match_id = row_number()
-   ) %>%
-   left_join(
-      y  = try$match$left %>%
-         select(
-            idnum,
-            left_cid          = CENTRAL_ID,
-            left_given_name   = given_name,
-            left_middle_name  = middle_name,
-            left_family_name  = family_name,
-            left_suffix_name  = suffix_name,
-            left_birthdate    = birthdate,
-            left_confirmatory = confirmatory_code,
-            left_uic          = uic,
-            left_pxcode       = patient_code
-         ),
-      by = join_by(idnum_l == idnum)
-   ) %>%
-   left_join(
-      y  = try$match$left %>%
-         select(
-            idnum,
-            right_cid          = CENTRAL_ID,
-            right_given_name   = given_name,
-            right_middle_name  = middle_name,
-            right_family_name  = family_name,
-            right_suffix_name  = suffix_name,
-            right_birthdate    = birthdate,
-            right_confirmatory = confirmatory_code,
-            right_uic          = uic,
-            right_pxcode       = patient_code,
-         ),
-      by = join_by(idnum_r == idnum)
-   ) %>%
-   mutate_at(
-      .vars = vars(ends_with("_name")),
-      ~coalesce(., "")
-   ) %>%
-   mutate(
-      left_name  = stri_c(left_family_name, ", ", left_given_name, " ", left_middle_name, " ", left_suffix_name),
-      right_name = stri_c(right_family_name, ", ", right_given_name, " ", right_middle_name, " ", right_suffix_name),
-   ) %>%
-   select(
-      -ends_with("given_name"),
-      -ends_with("middle_name"),
-      -ends_with("family_name"),
-      -ends_with("suffix_name"),
-   ) %>%
-   mutate(
-      .before = 1,
-      Bene    = NA_character_,
-      Gab     = NA_character_,
-      Lala    = NA_character_,
-      Angie   = NA_character_,
+   data <- switch(
+      surv_name,
+      harp_dx   = select(read_dta(hs_data("harp_dx", "reg", yr, mo)), -first),
+      harp_tx   = select(read_dta(hs_data("harp_tx", "reg", yr, mo))),
+      harp_dead = select(read_dta(hs_data("harp_dead", "reg", yr, mo)))
    )
 
-db           <- "nhsss_validations"
-surv_name    <- "harp_dx"
-process_step <- "dedup_old"
-issue        <- "splink"
-table        <- paste0(surv_name, "-", process_step, "-", issue)
-schema       <- Id(schema = db, table = table)
-id_col       <- "match_id"
+   if (surv_name %in% c("harp_tx", "harp_dead")) {
+      data %<>%
+         left_join(
+            y  = hs_data("harp_dx", "reg", yr, mo) %>%
+               read_dta(col_select = c(idnum, job, curr_work, prev_work, region, province, muncity)),
+            by = join_by(idnum)
+         ) %>%
+         mutate_at(vars(job, curr_work, prev_work, job), ~na_if(., "")) %>%
+         mutate(
+            occupation = coalesce(curr_work, prev_work, job)
+         )
+   }
 
-lw_conn <- connect("ohasis-lw")
-if (dbExistsTable(lw_conn, schema)) {
-   dbRemoveTable(lw_conn, schema)
+   id <- switch(
+      surv_name,
+      harp_dx   = "idnum",
+      harp_tx   = "art_id",
+      harp_dead = "mort_id"
+   )
+
+   dedup <- Dedup$new()
+   dedup$setMaster(data, id)
+   dedup$preparePii()
+   dedup$splinkDedupe()
+
+   return(selfdedup$review$splinkDedup)
 }
-ohasis$upsert(lw_conn, db, table, check, id_col)
-dbDisconnect(lw_conn)
+
+## sample run for surveillance
+data <- generate_splink(2024, 10, "harp_dx", FALSE)
+upload_splink(data, "harp_dx", "dedup_old")
