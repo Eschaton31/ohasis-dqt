@@ -34,7 +34,7 @@ id_reg <- QB$new(con)$
    get()
 dbDisconnect(con)
 
-dx         <- read_dta(hs_data("harp_dx", "reg", 2024, 6)) %>%
+dx         <- read_dta(hs_data("harp_dx", "reg", yr, mo)) %>%
    get_cid(id_reg, PATIENT_ID) %>%
    mutate(
       confirm_branch = NA_character_
@@ -47,9 +47,9 @@ dx         <- read_dta(hs_data("harp_dx", "reg", 2024, 6)) %>%
       list(confirm_lab = c("CONFIRM_FACI", "CONFIRM_SUB_FACI")),
       "name"
    )
-dead       <- read_dta(hs_data("harp_dead", "reg", 2024, 6)) %>%
+dead       <- read_dta(hs_data("harp_dead", "reg", yr, mo)) %>%
    get_cid(id_reg, PATIENT_ID)
-tx_reg     <- read_dta(hs_data("harp_tx", "reg", 2024, 6)) %>%
+tx_reg     <- read_dta(hs_data("harp_tx", "reg", yr, mo)) %>%
    get_cid(id_reg, PATIENT_ID) %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
@@ -64,7 +64,7 @@ tx_reg     <- read_dta(hs_data("harp_tx", "reg", 2024, 6)) %>%
       "name",
       c("tx_reg", "tx_prov", "tx_munc")
    )
-tx_out     <- read_dta(hs_data("harp_tx", "outcome", 2024, 6)) %>%
+tx_out     <- read_dta(hs_data("harp_tx", "outcome", yr, mo)) %>%
    select(-any_of("CENTRAL_ID")) %>%
    left_join(y = tx_reg %>% select(art_id, CENTRAL_ID), by = join_by(art_id)) %>%
    faci_code_to_id(
@@ -81,7 +81,7 @@ tx_out     <- read_dta(hs_data("harp_tx", "outcome", 2024, 6)) %>%
       "name",
       c("tx_reg", "tx_prov", "tx_munc")
    )
-prep_curr  <- read_dta(hs_data("prep", "outcome", 2024, 6)) %>%
+prep_curr  <- read_dta(hs_data("prep", "outcome", yr, mo)) %>%
    get_cid(id_reg, PATIENT_ID) %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
@@ -95,7 +95,7 @@ prep_curr  <- read_dta(hs_data("prep", "outcome", 2024, 6)) %>%
       list(site_name = c("FACI_ID", "SUB_FACI_ID")),
       "name",
    )
-prep_start <- read_dta("H:/_R/library/prep/20240710_prepstart_2024-06.dta") %>%
+prep_start <- read_dta("H:/_R/library/prep/20241029_prepstart_2024-09.dta") %>%
    get_cid(id_reg, PATIENT_ID) %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
@@ -394,6 +394,8 @@ testing <- process_hts(hts, a, cfbs) %>%
             confirm_date,
             confirm_lab,
             confirm_code      = labcode2,
+            class2022,
+            ahd,
          ),
       by = join_by(CENTRAL_ID)
    ) %>%
