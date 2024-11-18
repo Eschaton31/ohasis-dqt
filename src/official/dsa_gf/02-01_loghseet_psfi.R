@@ -6,7 +6,8 @@ currEnv <- ls()[ls() != "currEnv"]
 ##  Download relevant form data ------------------------------------------------
 
 logsheet_dir  <- file.path("archive", ohasis$ym, ohasis$output_title, "dsa_gf")
-logsheet_file <- file.path(logsheet_dir, "gf_logsheet_raw.xlsx")
+# logsheet_file <- file.path(logsheet_dir, "gf_logsheet_raw.xlsx")
+logsheet_file <- "C:/Users/johnb/Downloads/Raw_Data_for Jul-Dec 2023_as of 01092024.xlsx"
 check_dir(logsheet_dir)
 
 .log_info("Checking if file is downloaded.")
@@ -42,9 +43,11 @@ for (kp in c("MSM", "TGW", "PWID", "MSMTGW")) {
             . == "Validation Status" ~ "gf_validated",
             . == "Logsheet Type" ~ "ls_type",
             . == "Logsheet Subtype" ~ "ls_subtype",
-            . == "Loghseet Subtype" ~ "ls_subtype",
             . == "Logsheet Kind" ~ "ls_kind",
+            . == "Facility Type" ~ "ls_subtype",
+            . == "Facility Name" ~ "ls_kind",
             . == "Peer Navigator Name" ~ "provider_name",
+            . == "PN Name" ~ "provider_name",
             . == "Reach Date" ~ "reach_date",
             . == "Date of Reach" ~ "reach_date",
             . == "Type of Venue" ~ "venue_type",
@@ -52,6 +55,8 @@ for (kp in c("MSM", "TGW", "PWID", "MSMTGW")) {
             . == "Client UIC" ~ "uic",
             . == "UIC" ~ "uic",
             . == "Type of KAP" ~ "kap_type",
+            . == "KAP" ~ "kap_type",
+            . == "Sex" ~ "sex",
             . == "Date of Last Sex" ~ "date_last_sex_msm",
             . == "Oral" ~ "sextype_oral",
             . == "Anal Inserter" ~ "sextype_anal_insert",
@@ -73,7 +78,9 @@ for (kp in c("MSM", "TGW", "PWID", "MSMTGW")) {
             . == "Date of Confirmatory" ~ "confirm_date",
             . == "Date Link to Care" ~ "link2care_date",
             . == "Date of Link to Care" ~ "link2care_date",
+            . == "Date of L2C" ~ "link2care_date",
             . == "Date of Enrollment" ~ "artstart_date",
+            . == "Date Enrolled" ~ "artstart_date",
             . == "Treatment Hub" ~ "tx_hub",
             . == "UIC Length" ~ "uic_len",
             . == "Birth Month" ~ "bmo",
@@ -88,8 +95,11 @@ for (kp in c("MSM", "TGW", "PWID", "MSMTGW")) {
             . == "With Anal Sex" ~ "with_anal_sex",
             . == "DT>DR" ~ "dols_great_dor",
             . == "Venue of Last Injection" ~ "venue_last_inject",
+            . == "Injection Venue" ~ "venue_last_inject",
             . == "Date Last Injected" ~ "date_last_inject",
+            . == "Date of Last Injection" ~ "date_last_inject",
             . == "Shared Injection" ~ "shared_inject",
+            . == "Shared Needles" ~ "shared_inject",
             . == "Type of Test" ~ "tested",
             TRUE ~ .
          )
@@ -104,12 +114,13 @@ for (kp in c("MSM", "TGW", "PWID", "MSMTGW")) {
             matches("artstart_date"),
             matches("date_last_inject")
          ),
-         ~case_when(
-            StrIsNumeric(.) ~ excel_numeric_to_date(as.numeric(.)),
-            stri_detect_fixed(., "/") ~ as.Date(., "%m/%d/%Y"),
-            stri_detect_fixed(., "-") ~ as.Date(., "%Y-%m-%d"),
-            # TRUE ~ as.Date(.)
-         )
+         # ~case_when(
+         #    StrIsNumeric(.) ~ excel_numeric_to_date(as.numeric(.)),
+         #    stri_detect_fixed(., "/") ~ as.Date(., "%m/%d/%Y"),
+         #    stri_detect_fixed(., "-") ~ as.Date(., "%Y-%m-%d"),
+         #    # TRUE ~ as.Date(.)
+         # )
+         ~if_else(StrIsNumeric(.), as.Date(excel_numeric_to_date(as.numeric(.))), as.Date(parse_date_time(., c("YmdHMS", "Ymd", "mdY", "mdy"))))
       ) %>%
       mutate(
          sheet         = kp,
@@ -132,7 +143,7 @@ gf$logsheet$psfi <- bind_rows(psfi) %>%
       reach_date <= as.Date(gf$coverage$max)
    ) %>%
    left_join(
-      y  = gf$corr$logsheet_psfi$site_addr,
+      y  = gf$corr$site_addr,
       by = c("site_region", "site_province", "site_muncity")
    )
 

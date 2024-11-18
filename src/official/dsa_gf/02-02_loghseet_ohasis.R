@@ -356,7 +356,7 @@ gf$logsheet$ohasis <- reach %>%
          #    GF_FACI != "130605" ~ "Facility/Clinic (by MedTech)",
          hts_modality == "REACH" ~ "Not Tested",
          is.na(hts_date) ~ "Not Tested",
-         TRUE ~ MODALITY
+         TRUE ~ hts_modality
       ),
       EVERONPREP       = if_else(!is.na(prepstart_date), "N", "Y"),
       REACTIVE         = case_when(
@@ -378,10 +378,15 @@ gf$logsheet$ohasis <- reach %>%
          # is.na(TEST_DATE) & !is.na(T1_RESULT) ~ RECORD_DATE,
          TESTED != "Not Tested" ~ hts_date
       ),
+      # FORM             = case_when(
+      #    src == "hts2021" ~ "HTS Form",
+      #    src == "a2017" ~ "Form A",
+      #    src == "cfbs2020" ~ "CFBS Form",
+      # ),
       FORM             = case_when(
-         src == "hts2021" ~ "HTS Form",
-         src == "a2017" ~ "Form A",
-         src == "cfbs2020" ~ "CFBS Form",
+         FORM_VERSION == "HTS Form (v2021)" ~ "HTS Form",
+         FORM_VERSION == "Form A (v2017)" ~ "Form A",
+         FORM_VERSION == "CFBS Form (v2020)" ~ "CFBS Form",
       ),
       DOH_FORM         = glue::glue("DOH-EB Form: {FORM}"),
    ) %>%
@@ -526,7 +531,7 @@ gf$logsheet$ohasis <- reach %>%
       ~as.Date(.)
    ) %>%
    arrange(RECORD_DATE, DATE_CONFIRMED) %>%
-   distinct(CENTRAL_ID, GF_SITE, RECORD_DATE, MODALITY, .keep_all = TRUE) %>%
+   distinct(CENTRAL_ID, GF_SITE, RECORD_DATE, hts_modality, .keep_all = TRUE) %>%
    arrange(GF_SITE, reach_date) %>%
    # mutate(
    #    reach_date = case_when(

@@ -19,12 +19,28 @@ gf$linelist$ohasis_uic <- bind_rows(gf$forms$form_cfbs, gf$forms$form_a, gf$form
 
 gf$linelist$psfi_matched <- gf$logsheet$psfi %>%
    filter(sheet %in% c("MSMTGW", "PWID")) %>%
+   rename_all(
+      ~case_when(
+         . == "Facility Type" ~ "ls_subtype",
+         . == "Facility Name" ~ "ls_kind",
+         . == "PN Name" ~ "provider_name",
+         . == "Testing Modality" ~ "tested",
+         . == "Date of L2C" ~ "link2care_date",
+         . == "DOLS" ~ "date_last_sex_msm",
+         . == "Condom Use" ~ "stage_condom_use",
+         TRUE ~ .
+      )
+   ) %>%
+   mutate_at(
+      .vars = vars(link2care_date, date_last_sex_msm),
+      ~if_else(StrIsNumeric(.), as.Date(excel_numeric_to_date(as.numeric(.))), as.Date(parse_date_time(., c("YmdHMS", "Ymd", "mdY", "mdy"))))
+   ) %>%
    left_join(
-      y  = gf$corr$logsheet_psfi$ls_site,
+      y  = gf$corr$ls_site,
       by = c("ls_subtype", "ls_kind")
    ) %>%
    left_join(
-      y  = gf$corr$logsheet_psfi$staff %>%
+      y  = gf$corr$staff %>%
          rename(
             site_region = 2
          ) %>%
@@ -149,6 +165,9 @@ gf$linelist$psfi_matched %<>%
             ls_subtype == "LGU" ~ "Hub PN (LGU)",
          is.na(site_name) &
             ls_kind == "OTHER CBOS" ~ "Other CBOs",
+         is.na(site_name) &
+            ls_kind == "OHASIS DATA" &
+            ls_subtype == "TREATMENT HUB" ~ "",
          is.na(site_name) &
             provider_name == "JUNARDNAMOC" &
             tested == "CBS" ~ "Global Fund PN (LGU)",

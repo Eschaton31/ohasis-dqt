@@ -60,8 +60,8 @@ gf$linelist$kp6a <- gf$harp$prep$new_reg %>%
          select(
             CENTRAL_ID,
             reach_date,
-            sextype_anal_receive,
-            sextype_anal_insert,
+            # sextype_anal_receive,
+            # sextype_anal_insert,
             date_last_sex_msm
          ),
       by = "CENTRAL_ID"
@@ -154,7 +154,7 @@ gf$linelist$kp6a <- gf$harp$prep$new_reg %>%
 
 
       # Age Band
-      curr_age         = floor(curr_age),
+      curr_age         = floor(age),
       `Age Group`      = case_when(
          curr_age %in% seq(0, 14) ~ "01_<15",
          curr_age %in% seq(15, 17) ~ "02_15-17",
@@ -241,7 +241,7 @@ gf$linelist$kp6a <- gf$harp$prep$new_reg %>%
          date_last_sex_msm >= RECORD_P6M ~ "1) Sexual Risk (anal sex) past 6 months",
          date_last_sex_msm >= RECORD_P12M ~ "2) Sexual Risk (anal sex) past 12 months",
          date_last_sex_msm < RECORD_P12M ~ "3) Sexual Risk (anal sex) >12 months",
-         sextype_anal_receive == "Y" | sextype_anal_insert == "Y" ~ "2) Sexual Risk (anal sex) past 12 months",
+         # sextype_anal_receive == "Y" | sextype_anal_insert == "Y" ~ "2) Sexual Risk (anal sex) past 12 months",
          TRUE ~ "(no data)"
       ),
       `DISAG 4`        = NA_character_,

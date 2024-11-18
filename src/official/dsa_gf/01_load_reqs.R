@@ -38,18 +38,18 @@ local(envir = gf, {
 	coverage$ym <- paste(sep = ".", coverage$curr_yr, coverage$curr_mo)
 })
 
-check <- input(
-   prompt  = glue("Check the {green('GDrive Endpoints')}?"),
-   options = c("1" = "yes", "2" = "no"),
-   default = "2"
-)
-if (check == "1") {
-   .log_info("Checking endpoints.")
-   local(envir = gf, {
-	  gdrive      <- list()
-	  gdrive$path <- gdrive_endpoint("DSA - GF", coverage$ym)
-   })
-}
+# check <- input(
+#    prompt  = glue("Check the {green('GDrive Endpoints')}?"),
+#    options = c("1" = "yes", "2" = "no"),
+#    default = "2"
+# )
+# if (check == "1") {
+#    .log_info("Checking endpoints.")
+#    local(envir = gf, {
+# 	  gdrive      <- list()
+# 	  gdrive$path <- gdrive_endpoint("DSA - GF", coverage$ym)
+#    })
+# }
 
 check <- input(
    prompt  = glue("Re-download the {green('data corrections')}?"),
@@ -60,7 +60,11 @@ if (check == "1") {
    .log_info("Downloading corrections list.")
    local(envir = gf, {
 	  .log_info("Getting corrections.")
-	  corr <- gdrive_correct(gdrive$path, coverage$ym)
+	  # corr <- gdrive_correct(gdrive$path, coverage$ym)
+	   sheets <- c("ls_site", "site_addr", "ohasis_faci", "staff")
+   		corr <- lapply(sheets, read_sheet, ss = "1qR9sp9VjwGO23vVEr4rMukX6jhDilCa3dbAxcsm2eFI", col_types = "c", .name_repair = "unique_quiet")
+	   names(corr) <- sheets
+	   rm(sheets)
    })
 }
 

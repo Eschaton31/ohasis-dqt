@@ -29,7 +29,7 @@ gf$final <- bind_rows(gf$flat) %>%
       ~remove_code(.)
    )
 
-gf$xlsx$dir          <- glue("E:/Data Sharing/PSFI/{ohasis$ym}")
+gf$xlsx$dir          <- glue("G:/Data Sharing/PSFI/{ohasis$ym}")
 gf$xlsx$file         <- glue("PSFI Indicators ({gf$coverage$curr_yr}.{gf$coverage$curr_mo}).xlsx")
 gf$xlsx$logsheet_dta <- glue("ohasis_logsheet_{gf$coverage$curr_yr}-{gf$coverage$curr_mo}.dta")
 gf$xlsx$logsheet_xl <- glue("ohasis_logsheet_{gf$coverage$curr_yr}-{gf$coverage$curr_mo}.xlsx")
