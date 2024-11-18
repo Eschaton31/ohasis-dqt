@@ -74,10 +74,7 @@ splinkDedup <- function(data) {
             datetime_thresholds = c(1, 1, 10),
          ),
          cl$ExactMatch("region"),
-         cl$ExactMatch("province"),
-         uic_comparison,
-         first_last_comparison,
-         middle_last_comparison
+         cl$ExactMatch("province")
       )
    )
 
@@ -129,7 +126,7 @@ splinkDedup <- function(data) {
    estimates <- pairwise_predictions$as_pandas_dataframe()
 
    log_info("Collecting estimation data.")
-   matches <- estimates$to_dict() %>% py_to_r() %>% as_tibble()
+   matches <- estimates %>% py_to_r() %>% as_tibble()
 
    log_info("Done!")
    return(matches)

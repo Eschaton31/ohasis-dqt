@@ -129,7 +129,7 @@ Dedup <- R6Class(
                   ~coalesce(., "")
                ) %>%
                mutate(
-                  left_name  = stri_c(left_family_name, ", ", left_given_name, " ", left_middle_name, " ", left_suffix_name,),
+                  left_name  = stri_c(left_family_name, ", ", left_given_name, " ", left_middle_name, " ", left_suffix_name),
                   right_name = stri_c(right_family_name, ", ", right_given_name, " ", right_middle_name, " ", right_suffix_name),
                ) %>%
                select(
@@ -248,11 +248,11 @@ Dedup <- R6Class(
                   datetime_metrics    = c("year", "month", "day"),
                   datetime_thresholds = c(1, 1, 10),
                ),
+               # uic_comparison,
+               # full_name_comparison,
+               # last_name_comparison,
                cl$ExactMatch("residence_region"),
-               cl$ExactMatch("residence_province"),
-               uic_comparison,
-               full_name_comparison,
-               last_name_comparison
+               cl$ExactMatch("residence_province")
             )
          )
 
@@ -606,7 +606,7 @@ check <- try$review$splinkDedup %>%
       ~coalesce(., "")
    ) %>%
    mutate(
-      left_name  = stri_c(left_family_name, ", ", left_given_name, " ", left_middle_name, " ", left_suffix_name,),
+      left_name  = stri_c(left_family_name, ", ", left_given_name, " ", left_middle_name, " ", left_suffix_name),
       right_name = stri_c(right_family_name, ", ", right_given_name, " ", right_middle_name, " ", right_suffix_name),
    ) %>%
    select(
