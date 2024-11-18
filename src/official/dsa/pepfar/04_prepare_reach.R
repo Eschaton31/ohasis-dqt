@@ -266,6 +266,7 @@ generate_disagg <- function(data) {
 
          # Age Band
          curr_age        = calc_age(coalesce(HARPDX_BIRTHDATE, BIRTHDATE), hts_date),
+         curr_age        = if_else(curr_age <= 0 & !is.na(AGE), AGE, curr_age, curr_age),
          curr_age        = floor(coalesce(curr_age, AGE)),
          Age_Band        = case_when(
             curr_age >= 0 & curr_age < 5 ~ "01_0-4",

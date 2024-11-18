@@ -1,11 +1,11 @@
 source("src/official/dsa/protects-upscale/01_load_reqs.R")
 
-prep_gf <- read_dta(hs_data("prep", "reg", 2024, 6)) %>%
+prep_gf <- read_dta(hs_data("prep", "reg", yr, mo)) %>%
    get_cid(id_reg, PATIENT_ID) %>%
    select(-any_of(c("prep_reg", "prep_prov", "prep_munc", "prep_faci", 'REC_ID'))) %>%
    left_join(
       y  = read_dta(
-         hs_data("prep", "outcome", 2024, 6),
+         hs_data("prep", "outcome", yr, mo),
          col_select = c(
             REC_ID,
             prep_id,
