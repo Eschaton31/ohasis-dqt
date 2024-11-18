@@ -1,169 +1,152 @@
 Dedup <- R6Class(
    "Dedup",
    public  = list(
-      master     = list(
+      left         = list(
          data = tibble(),
          id   = character()
       ),
-      using      = list(
+      right        = list(
          data = tibble(),
          id   = character()
       ),
-      match      = list(),
-      review     = list(),
+      match        = list(),
+      review       = list(),
 
-      setMaster  = function(data, id) {
-         self$master$data <- data
-         self$master$id   <- id
+      setMaster    = function(data, id) {
+         self$left$data <- data
+         self$left$id   <- id
       },
 
-      setUsing   = function(data, id) {
-         self$using$data <- data
-         self$using$id   <- id
+      setUsing     = function(data, id) {
+         self$right$data <- data
+         self$right$id   <- id
       },
 
-      preparePii = function() {
-         self$match$master <- self$master$data %>%
+      preparePii   = function() {
+         self$match$left <- self$left$data %>%
             rename_all(private$renameColumns) %>%
             select(
                CENTRAL_ID,
-               all_of(self$master$id),
+               all_of(self$left$id),
                all_of(private$requiredColumns)
             ) %>%
-            private$auxColumns(self$master$id)
-         self$match$using  <- self$using$data %>%
-            rename_all(private$renameColumns) %>%
-            select(
-               CENTRAL_ID,
-               all_of(self$using$id),
-               all_of(private$requiredColumns)
-            ) %>%
-            private$auxColumns(self$using$id)
+            private$auxColumns(self$left$id)
+
+         if (nrow(self$right$data) > 0) {
+            self$match$right <- self$right$data %>%
+               rename_all(private$renameColumns) %>%
+               select(
+                  CENTRAL_ID,
+                  all_of(self$right$id),
+                  all_of(private$requiredColumns)
+               ) %>%
+               private$auxColumns(self$right$id)
+         }
 
          invisible(self)
       },
 
-      reclink    = function() {
+      reclink      = function() {
          reclink_df <- fastLink(
-            dfA              = self$match$master,
-            dfB              = self$match$using,
+            dfA              = self$match$left,
+            dfB              = self$match$right,
             varnames         = c(
-               "FIRST",
-               "MIDDLE",
-               "LAST",
-               "SUFFIX",
-               "BIRTH_YR",
-               "BIRTH_MO",
-               "BIRTH_DY"
+               "given_name",
+               "middle_name",
+               "family_name",
+               "suffix_name",
+               "birth_yr",
+               "birth_mo",
+               "birth_dy"
             ),
             stringdist.match = c(
-               "FIRST",
-               "MIDDLE",
-               "LAST"
+               "given_name",
+               "middle_name",
+               "family_name"
             ),
             partial.match    = c(
-               "FIRST",
-               "LAST"
+               "given_name",
+               "family_name"
             ),
             numeric.match    = c(
-               "BIRTH_YR",
-               "BIRTH_MO",
-               "BIRTH_DY"
+               "birth_yr",
+               "birth_mo",
+               "birth_dy"
             ),
             threshold.match  = 0.95,
             cut.a            = 0.90,
             cut.p            = 0.85,
             dedupe.matches   = FALSE,
-            n.cores          = 6
+            n.cores          = 4
          )
 
          if (length(reclink_df$matches$inds.a) > 0) {
             reclink_matched <- getMatches(
-               dfA         = self$match$master,
-               dfB         = self$match$using,
+               dfA         = self$match$left,
+               dfB         = self$match$right,
                fl.out      = reclink_df,
                combine.dfs = FALSE
             )
 
             reclink_review <- reclink_matched$dfA.match %>%
                mutate(
-                  MATCH_ID = row_number()
+                  match_id = row_number()
                ) %>%
                select(
                   posterior,
-                  MATCH_ID,
-                  MASTER_CID          = CENTRAL_ID,
-                  MASTER_FIRST        = FIRST,
-                  MASTER_MIDDLE       = MIDDLE,
-                  MASTER_LAST         = LAST,
-                  MASTER_SUFFIX       = SUFFIX,
-                  MASTER_BIRTHDATE    = BIRTHDATE,
-                  MASTER_CONFIRMATORY = CONFIRMATORY_CODE,
-                  MASTER_UIC          = UIC,
-                  MASTER_PXCODE       = PATIENT_CODE
+                  match_id,
+                  left_cid          = central_id,
+                  left_given_name   = given_name,
+                  left_middle_name  = middle_name,
+                  left_family_name  = family_name,
+                  left_suffix_name  = suffix_name,
+                  left_birthdate    = birthdate,
+                  left_confirmatory = confirmatory_code,
+                  left_uic          = uic,
+                  left_pxcode       = patient_code
                ) %>%
                left_join(
                   y  = reclink_matched$dfB.match %>%
                      mutate(
-                        MATCH_ID = row_number()
+                        match_id = row_number()
                      ) %>%
                      select(
-                        MATCH_ID,
-                        USING_CID          = CENTRAL_ID,
-                        USING_FIRST        = FIRST,
-                        USING_MIDDLE       = MIDDLE,
-                        USING_LAST         = LAST,
-                        USING_SUFFIX       = SUFFIX,
-                        USING_BIRTHDATE    = BIRTHDATE,
-                        USING_CONFIRMATORY = CONFIRMATORY_CODE,
-                        USING_UIC          = UIC,
-                        USING_PXCODE       = PATIENT_CODE,
+                        match_id,
+                        right_cid          = central_id,
+                        right_given_name   = given_name,
+                        right_middle_name  = middle_name,
+                        right_family_name  = family_name,
+                        right_suffix_name  = suffix_name,
+                        right_birthdate    = birthdate,
+                        right_confirmatory = confirmatory_code,
+                        right_uic          = uic,
+                        right_pxcode       = patient_code,
                      ),
-                  by = "MATCH_ID"
+                  by = join_by(match_id)
                ) %>%
-               unite(
-                  col   = "MASTER_FMS",
-                  sep   = " ",
-                  MASTER_FIRST,
-                  MASTER_MIDDLE,
-                  MASTER_SUFFIX,
-                  na.rm = TRUE
+               mutate(
+                  left_name  = stri_c(left_family_name, ", ", left_given_name, " ", left_middle_name, " ", left_suffix_name, ignore_null = TRUE),
+                  right_name = stri_c(right_family_name, ", ", right_given_name, " ", right_middle_name, " ", right_suffix_name, ignore_null = TRUE),
                ) %>%
-               unite(
-                  col   = "MASTER_NAME",
-                  sep   = ", ",
-                  MASTER_LAST,
-                  MASTER_FMS,
-                  na.rm = TRUE
-               ) %>%
-               unite(
-                  col   = "USING_FMS",
-                  sep   = " ",
-                  USING_FIRST,
-                  USING_MIDDLE,
-                  USING_SUFFIX,
-                  na.rm = TRUE
-               ) %>%
-               unite(
-                  col   = "USING_NAME",
-                  sep   = ", ",
-                  USING_LAST,
-                  USING_FMS,
-                  na.rm = TRUE
+               select(
+                  -ends_with("given_name"),
+                  -ends_with("middle_name"),
+                  -ends_with("family_name"),
+                  -ends_with("suffix_name"),
                ) %>%
                arrange(desc(posterior)) %>%
                # Additional sift through of matches
                mutate(
                   # levenshtein
-                  LV       = stringsim(MASTER_NAME, USING_NAME, method = 'lv'),
+                  name_levenshtein = stringsim(left_name, right_name, method = 'levenshtein'),
                   # jaro-winkler
-                  JW       = stringsim(MASTER_NAME, USING_NAME, method = 'jw'),
+                  name_jarowinkler = stringsim(left_name, right_name, method = 'jw'),
                   # qgram
-                  QGRAM    = stringsim(MASTER_NAME, USING_NAME, method = 'qgram', q = 3),
-                  AVG_DIST = (LV + QGRAM + JW) / 3,
+                  name_qgram       = stringsim(left_name, right_name, method = 'qgram', q = 3),
+                  avg_dist         = (name_levenshtein + name_jarowinkler + name_qgram) / 3,
                ) %>%
                # choose 60% and above match
-               filter(AVG_DIST >= 0.60, !is.na(posterior))
+               filter(avg_dist >= 0.60, !is.na(posterior))
 
             # assign to global env
             self$review$reclink <- reclink_review %>%
@@ -183,58 +166,208 @@ Dedup <- R6Class(
          log_success("Done.")
 
          invisible(self)
+      },
+
+      splinkDedupe = function() {
+         env <- "dqt-dedup"
+
+         if (!virtualenv_exists(env)) {
+            virtualenv_create(env)
+            virtualenv_install(env, c("pandas", "splink"))
+         }
+
+         log_info("Initializing virtual environment.")
+         suppress_warnings(use_virtualenv(env), "The request to")
+
+         log_info("Loading Splink.")
+         sp  <- import("splink", as = "sp", convert = FALSE)
+         cl  <- import("splink.comparison_library", as = "cl", convert = FALSE)
+         cll <- import("splink.comparison_level_library", as = "cll", convert = FALSE)
+
+         log_info("Use DuckDB.")
+         db_api <- sp$DuckDBAPI()
+
+         uic_comparison       <- cl$CustomComparison(
+            output_column_name     = "uic",
+            comparison_description = "UIC",
+            comparison_levels      = c(
+               cll$NullLevel("uic"),
+               cll$ExactMatchLevel("uic"),
+               cll$CustomLevel("concat(uic_mom_l, uic_order_l, birthdate_l) = concat(uic_dad_r, uic_order_r, birthdate_r)"),
+               cll$CustomLevel("concat(uic_dad_l, uic_order_l, birthdate_l) = concat(uic_mom_r, uic_order_r, birthdate_r)"),
+               cll$ElseLevel()
+            )
+         )
+         full_name_comparison <- cl$CustomComparison(
+            output_column_name     = "full_name",
+            comparison_description = "First+Last",
+            comparison_levels      = c(
+               cll$NullLevel("full_name"),
+               cll$ExactMatchLevel("full_name"),
+               cll$ColumnsReversedLevel("given_name", "family_name"),
+               cll$ElseLevel()
+            )
+         )
+         last_name_comparison <- cl$CustomComparison(
+            output_column_name     = "last_name",
+            comparison_description = "Middle+Last",
+            comparison_levels      = c(
+               cll$NullLevel("last_name"),
+               cll$ExactMatchLevel("last_name"),
+               cll$ColumnsReversedLevel("middle_name", "family_name"),
+               cll$ElseLevel()
+            )
+         )
+
+         log_info("Creating settings.")
+         settings <- sp$SettingsCreator(
+            unique_id_column_name                  = self$left$id,
+            link_type                              = "dedupe_only",
+            blocking_rules_to_generate_predictions = c(
+               sp$block_on("given_name_sieve"),
+               sp$block_on("family_name_sieve"),
+               sp$block_on("birthdate"),
+               sp$block_on("given_name_3", "family_name_sieve"),
+               sp$block_on("birth_yr", "given_name_sieve"),
+               sp$block_on("residence_province", "given_name_sieve"),
+               sp$block_on("residence_province", "family_name_sieve")
+            ),
+            comparisons                            = c(
+               cl$NameComparison("given_name_metaphone"),
+               cl$NameComparison("family_name_metaphone"),
+               cl$NameComparison("given_name"),
+               cl$NameComparison("middle_name"),
+               cl$NameComparison("family_name"),
+               cl$DateOfBirthComparison(
+                  "birthdate",
+                  input_is_string     = TRUE,
+                  datetime_metrics    = c("year", "month", "day"),
+                  datetime_thresholds = c(1, 1, 10),
+               ),
+               cl$ExactMatch("residence_region"),
+               cl$ExactMatch("residence_province"),
+               uic_comparison,
+               full_name_comparison,
+               last_name_comparison
+            )
+         )
+
+         log_info("Cleaning data.")
+         df <- self$match$left %>%
+            mutate_if(
+               .predicate = is.labelled,
+               ~to_character(.)
+            ) %>%
+            mutate_if(
+               .predicate = is.Date,
+               ~as.character(.)
+            ) %>%
+            mutate_if(
+               .predicate = is.character,
+               ~na_if(., "")
+            ) %>%
+            r_to_py()
+
+         log_info("Starting linker.")
+         linker <- sp$Linker(df, settings, db_api)
+
+         # Model training: Estimate the parameters of the model
+         log_info("Creating Fellegi-Sunter Model.")
+         linker$
+            training$
+            estimate_probability_two_random_records_match(sp$block_on("given_name_sieve", "family_name_sieve"), recall = 0.7)
+         linker$training$estimate_u_using_random_sampling(max_pairs = 1e6)
+
+         log_info("EM Algorithm = {green('First Name')}.")
+         linker$
+            training$
+            estimate_parameters_using_expectation_maximisation(sp$block_on("given_name_sieve"))
+
+         log_info("EM Algorithm = {green('Last Name')}.")
+         linker$
+            training$
+            estimate_parameters_using_expectation_maximisation(sp$block_on("family_name_sieve"))
+
+         log_info("EM Algorithm = {green('Birth Date')}.")
+         linker$
+            training$
+            estimate_parameters_using_expectation_maximisation(sp$block_on("birthdate"))
+
+         log_info("Generating match pairs.")
+         pairwise_predictions <- linker$inference$predict(threshold_match_weight = -10)
+
+         log_info("Finalizing estimation object.")
+         estimates <- pairwise_predictions$as_pandas_dataframe()
+
+         log_info("Collecting estimation data.")
+         matches <- bind_rows(py_to_r(estimates))
+
+         log_info("Done!")
+         self$review$splinkDedup <- matches
+
+         invisible(self)
       }
    ),
 
    private = list(
       requiredColumns = c(
-         "FIRST",
-         "MIDDLE",
-         "LAST",
-         "SUFFIX",
-         "BIRTHDATE",
-         "SEX",
-         "UIC",
-         "CONFIRMATORY_CODE",
-         "PATIENT_CODE",
-         "PHILHEALTH_NO",
-         "PHILSYS_ID",
-         "CLIENT_MOBILE",
-         "CLIENT_EMAIL"
+         "given_name",
+         "middle_name",
+         "family_name",
+         "suffix_name",
+         "birthdate",
+         "sex",
+         "uic",
+         "confirmatory_code",
+         "patient_code",
+         "philhealth_no",
+         "philsys_id",
+         "client_mobile",
+         "client_email",
+         "residence_region",
+         "residence_province",
+         "residence_muncity"
       ),
 
       renameColumns   = function(name) {
-         new <- case_when(
-            name == "labcode2" ~ "CONFIRMATORY_CODE",
-            name == "confirmatory_code" ~ "CONFIRMATORY_CODE",
-            name == "uic" ~ "UIC",
-            name == "px_code" ~ "PATIENT_CODE",
-            name == "patient_code" ~ "PATIENT_CODE",
-            name == "CLIENT_CODE" ~ "PATIENT_CODE",
-            name == "firstname" ~ "FIRST",
-            name == "first" ~ "FIRST",
-            name == "fname" ~ "FIRST",
-            name == "middle" ~ "MIDDLE",
-            name == "mname" ~ "MIDDLE",
-            name == "last" ~ "LAST",
-            name == "lname" ~ "LAST",
-            name == "suffix" ~ "SUFFIX",
-            name == "name_suffix" ~ "SUFFIX",
-            name == "bdate" ~ "BIRTHDATE",
-            name == "birthdate" ~ "BIRTHDATE",
-            name == "DATE_OF_BIRTH" ~ "BIRTHDATE",
-            name == "philhealth" ~ "PHILHEALTH_NO",
-            name == "philhealth_no" ~ "PHILHEALTH_NO",
-            name == "philhealth_num" ~ "PHILHEALTH_NO",
-            name == "philsys" ~ "PHILSYS_ID",
-            name == "philsys_id" ~ "PHILSYS_ID",
-            name == "sex" ~ "SEX",
-            name == "sex_at_birtH" ~ "SEX",
-            name == "client_mobile" ~ "CLIENT_MOBILE",
-            name == "mobile" ~ "CLIENT_MOBILE",
-            name == "mobile_no" ~ "CLIENT_MOBILE",
-            name == "email" ~ "CLIENT_EMAIL",
-            name == "email_address" ~ "CLIENT_EMAIL",
+         lower_name <- tolower(name)
+         new        <- case_when(
+            lower_name == "labcode2" ~ "confirmatory_code",
+            lower_name == "confirmatory_code" ~ "confirmatory_code",
+            lower_name == "uic" ~ "uic",
+            lower_name == "px_code" ~ "patient_code",
+            lower_name == "patient_code" ~ "patient_code",
+            lower_name == "client_code" ~ "patient_code",
+            lower_name == "firstname" ~ "given_name",
+            lower_name == "first" ~ "given_name",
+            lower_name == "fname" ~ "given_name",
+            lower_name == "middle" ~ "middle_name",
+            lower_name == "mname" ~ "middle_name",
+            lower_name == "last" ~ "family_name",
+            lower_name == "lname" ~ "family_name",
+            lower_name == "suffix" ~ "suffix_name",
+            lower_name == "name_suffix" ~ "suffix_name",
+            lower_name == "bdate" ~ "birthdate",
+            lower_name == "birthdate" ~ "birthdate",
+            lower_name == "date_of_birth" ~ "birthdate",
+            lower_name == "philhealth" ~ "philhealth_no",
+            lower_name == "philhealth_no" ~ "philhealth_no",
+            lower_name == "philhealth_num" ~ "philhealth_no",
+            lower_name == "philsys" ~ "philsys_id",
+            lower_name == "philsys_id" ~ "philsys_id",
+            lower_name == "sex" ~ "sex",
+            lower_name == "sex_at_birth" ~ "sex",
+            lower_name == "client_mobile" ~ "client_mobile",
+            lower_name == "mobile" ~ "client_mobile",
+            lower_name == "mobile_no" ~ "client_mobile",
+            lower_name == "email" ~ "client_email",
+            lower_name == "email_address" ~ "client_email",
+            lower_name == "permcurr_reg" ~ "residence_region",
+            lower_name == "permcurr_prov" ~ "residence_province",
+            lower_name == "permcurr_munc" ~ "residence_muncity",
+            lower_name == "region" ~ "residence_region",
+            lower_name == "province" ~ "residence_province",
+            lower_name == "muncity" ~ "residence_muncity",
             TRUE ~ name
          )
 
@@ -247,10 +380,10 @@ Dedup <- R6Class(
             for (col in missing_cols) {
                data %<>%
                   mutate(
-                     NEW_COL = if (col == "BIRTHDATE") NEW_COL = NA_Date_ else NA_character_,
+                     new_col = if (col == "birthdate") new_col = NA_Date_ else NA_character_,
                   ) %>%
                   rename_at(
-                     .vars = vars(NEW_COL),
+                     .vars = vars(new_col),
                      ~col
                   )
             }
@@ -267,76 +400,84 @@ Dedup <- R6Class(
             mutate_if(is.character, clean_pii) %>%
             mutate(
                # get components of birthdate
-               BIRTH_YR         = as.numeric(year(BIRTHDATE)),
-               BIRTH_MO         = as.numeric(month(BIRTHDATE)),
-               BIRTH_DY         = as.numeric(day(BIRTHDATE)),
+               birth_yr                = as.numeric(year(birthdate)),
+               birth_mo                = as.numeric(month(birthdate)),
+               birth_dy                = as.numeric(day(birthdate)),
 
                # extract parent info from uic
-               UIC_MOM          = substr(UIC, 1, 2),
-               UIC_DAD          = substr(UIC, 3, 4),
-               UIC_ORDER        = substr(UIC, 5, 6),
+               uic_mom                 = substr(uic, 1, 2),
+               uic_dad                 = substr(uic, 3, 4),
+               uic_order               = substr(uic, 5, 6),
 
                # variables for first 3 letters of names
-               FIRST_A          = substr(FIRST, 1, 3),
-               MIDDLE_A         = substr(MIDDLE, 1, 3),
-               LAST_A           = substr(LAST, 1, 3),
+               given_name_1            = substr(given_name, 1, 1),
+               middle_name_1           = substr(middle_name, 1, 1),
+               family_name_1           = substr(family_name, 1, 1),
+               given_name_3            = substr(given_name, 1, 3),
+               middle_name_3           = substr(middle_name, 1, 3),
+               family_name_3           = substr(family_name, 1, 3),
 
-               LAST             = coalesce(LAST, MIDDLE),
-               MIDDLE           = coalesce(MIDDLE, LAST),
+               # family_name       = coalesce(family_name, middle_name),
+               # middle_name       = coalesce(middle_name, family_name),
+               full_name               = stri_c(given_name, " ", family_name, ignore_null = TRUE),
+               last_name               = stri_c(middle_name, " ", family_name, ignore_null = TRUE),
 
                # clean ids
-               CONFIRM_SIEVE    = CONFIRMATORY_CODE,
-               PXCODE_SIEVE     = PATIENT_CODE,
-               FIRST_SIEVE      = FIRST,
-               MIDDLE_SIEVE     = MIDDLE,
-               LAST_SIEVE       = LAST,
-               PHILHEALTH_SIEVE = PHILHEALTH_NO,
-               PHILSYS_SIEVE    = PHILSYS_ID,
+               confirmatory_code_sieve = confirmatory_code,
+               patient_code_sieve      = patient_code,
+               given_name_sieve        = given_name,
+               middle_name_sieve       = middle_name,
+               family_name_sieve       = family_name,
+               philhealth_no_sieve     = philhealth_no,
+               philsys_id_sieve        = philsys_id,
             ) %>%
             mutate_at(
-               .vars = vars(ends_with("_SIEVE", ignore.case = TRUE)),
+               .vars = vars(ends_with("_sieve", ignore.case = TRUE)),
                ~str_replace_all(., "[^[:alnum:]]", "")
             ) %>%
             mutate_at(
-               .vars = vars(FIRST_SIEVE, MIDDLE_SIEVE, LAST_SIEVE),
+               .vars = vars(given_name_sieve, middle_name_sieve, family_name_sieve),
                ~str_replace_all(., "([[:alnum:]])\\1+", "\\1")
             ) %>%
             mutate(
                # code standard names
-               FIRST_NY  = suppress_warnings(nysiis(FIRST_SIEVE, stri_length(FIRST_SIEVE)), "unknown characters"),
-               MIDDLE_NY = suppress_warnings(nysiis(MIDDLE_SIEVE, stri_length(MIDDLE_SIEVE)), "unknown characters"),
-               LAST_NY   = suppress_warnings(nysiis(LAST_SIEVE, stri_length(LAST_SIEVE)), "unknown characters"),
+               given_name_soundex    = soundex(given_name),
+               given_name_metaphone  = metaphone(given_name),
+               middle_name_soundex   = soundex(middle_name),
+               middle_name_metaphone = metaphone(middle_name),
+               family_name_soundex   = soundex(family_name),
+               family_name_metaphone = metaphone(family_name),
             )
 
          log_info("Splitting UIC.")
          # genearte UIC w/o 1 parent, 2 combinations
          dedup_new_uic <- dedup_new %>%
-            filter(!is.na(UIC)) %>%
+            filter(!is.na(uic)) %>%
             rename(
-               ROW_ID = id_col
+               row_id = id_col
             ) %>%
             select(
-               ROW_ID,
-               UIC_MOM,
-               UIC_DAD
+               row_id,
+               uic_mom,
+               uic_dad
             ) %>%
             pivot_longer(
-               cols      = c(UIC_MOM, UIC_DAD),
-               names_to  = 'UIC',
-               values_to = 'FIRST_TWO'
+               cols      = c(uic_mom, uic_dad),
+               names_to  = 'uic',
+               values_to = 'given_name_two'
             ) %>%
-            arrange(ROW_ID, FIRST_TWO) %>%
-            group_by(ROW_ID) %>%
-            mutate(UIC = row_number()) %>%
+            arrange(row_id, given_name_two) %>%
+            group_by(row_id) %>%
+            mutate(uic = row_number()) %>%
             ungroup() %>%
             pivot_wider(
-               id_cols      = ROW_ID,
-               names_from   = UIC,
-               names_prefix = 'UIC_',
-               values_from  = FIRST_TWO
+               id_cols      = row_id,
+               names_from   = uic,
+               names_prefix = 'uic_',
+               values_from  = given_name_two
             ) %>%
             rename(
-               !!id_col := ROW_ID
+               !!id_col := row_id
             )
 
          log_info("Sorting UIC.")
@@ -346,23 +487,23 @@ Dedup <- R6Class(
                by = id_col
             ) %>%
             mutate(
-               UIC_SORT = stri_c(UIC_1, UIC_2, substr(UIC, 5, 14))
+               uic_sort = stri_c(uic_1, uic_2, substr(uic, 5, 14))
             )
 
          log_info("Sorting Names.")
          dedup_new_names <- dedup_new %>%
             rename(
-               ROW_ID = id_col
+               row_id = id_col
             ) %>%
             select(
-               ROW_ID,
-               NAME_1 = FIRST_SIEVE,
-               NAME_2 = MIDDLE_SIEVE,
-               NAME_3 = LAST_SIEVE
+               row_id,
+               name_1 = given_name_sieve,
+               name_2 = middle_name_sieve,
+               name_3 = family_name_sieve
             ) %>%
-            filter(if_any(c(NAME_1, NAME_2, NAME_3), ~!is.na(.))) %>%
+            filter(if_any(c(name_1, name_2, name_3), ~!is.na(.))) %>%
             pivot_longer(
-               cols      = c(NAME_1, NAME_2, NAME_3),
+               cols      = c(name_1, name_2, name_3),
                names_to  = "name",
                values_to = "value",
             ) %>%
@@ -370,15 +511,15 @@ Dedup <- R6Class(
                value = if_else(nchar(value) == 1, NA_character_, value, value)
             ) %>%
             filter(!is.na(value)) %>%
-            arrange(ROW_ID, value) %>%
-            group_by(ROW_ID) %>%
+            arrange(row_id, value) %>%
+            group_by(row_id) %>%
             summarise(
-               NAMESORT_FIRST = first(value),
-               NAMESORT_LAST  = last(value),
+               namesort_given_name  = first(value),
+               namesort_family_name = last(value),
             ) %>%
             ungroup() %>%
             rename(
-               !!id_col := ROW_ID
+               !!id_col := row_id
             )
 
          dedup_new %<>%
@@ -392,8 +533,24 @@ Dedup <- R6Class(
    )
 )
 
+dx <- read_dta(hs_data("harp_dx", "reg", 2024, 10)) %>%
+   select(-first)
+# new <- dx %>%
+#    filter(year == 2024, month == 9) %>%
+#    select(-first)
+# old <- dx %>%
+#    anti_join(new, join_by(idnum)) %>%
+#    select(-first)
+
+
 try <- Dedup$new()
-try$setMaster(dx %>% select(-first) %>% filter(year == 2024, month == 6), "idnum")
-try$setUsing(dx %>% select(-first) %>% filter(year <= 2023), "idnum")
+try$setMaster(dx, "idnum")
+# try$setUsing(old, "idnum")
 try$preparePii()
-try$reclink()
+# try$reclink()
+try$splinkDedupe()
+
+check <- try$review$splinkDedup %>%
+   select(-starts_with("gamma")) %>%
+   # filter(match_probability >= .7) %>%
+   arrange(desc(match_probability))
