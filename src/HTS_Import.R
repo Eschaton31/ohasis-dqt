@@ -1,6 +1,3 @@
-dir   <- "H:/hts-imports/20241106"
-files <- list.files(dir, ".xlsx", recursive = TRUE, full.names = TRUE)
-
 HtsLogsheet <- R6Class(
    'HtsLogsheet',
    public = list(
@@ -20,148 +17,155 @@ HtsLogsheet <- R6Class(
       issues         = list(),
 
       read           = function(file) {
-         sheets   <- excel_sheets(file)
-         sheets   <- sheets[!str_detect(sheets, "Chart")]
-         logsheet <- list()
-         for (sheet in sheets) {
-            test <- read_excel(file, sheet, n_max = 3, .name_repair = "unique_quiet")
+         if (substr(basename(file), 1, 1) != "~") {
+            sheets   <- excel_sheets(file)
+            sheets   <- sheets[!str_detect(sheets, "Chart")]
+            logsheet <- list()
+            for (sheet in sheets) {
+               test <- read_excel(file, sheet, n_max = 3, .name_repair = "unique_quiet")
 
-            if (ncol(test) == 121 |
-               ncol(test) == 79 |
-               ncol(test) == 122 |
-               ncol(test) == 80) {
-               logsheet[[sheet]] <- read_excel(file, sheet, skip = 2, .name_repair = "unique_quiet") %>%
-                  mutate_all(as.character) %>%
-                  mutate_all(~na_if(., "N/A")) %>%
-                  mutate_all(~na_if(., "n/a")) %>%
-                  rename_all(
-                     ~case_when(
-                        . == "Encoded On" ~ "CREATED_AT",
-                        . == "Encoded By: (Full Name)" ~ "CREATED_BY",
-                        . == "Signed Consent" ~ "SIGNATURE",
-                        . == "Verbal Consent" ~ "VERBAL_CONSENT",
-                        . == "1. Date of Test/Reach" ~ "RECORD_DATE",
-                        . == "2. PhilHealth No." ~ "PHILHEALTH_NO",
-                        . == "3. PhilSys ID" ~ "PHILSYS_ID",
-                        . == "HIV Confirmatory Code" ~ "CONFIRM_CODE",
-                        . == "Patient Code" ~ "PATIENT_CODE",
-                        . == "4. First Name" ~ "FIRST",
-                        . == "Middle Name" ~ "MIDDLE",
-                        . == "Last Name" ~ "LAST",
-                        . == "Suffix (Jr., Sr., III, etc.)" ~ "SUFFIX",
-                        . == "UIC" ~ "UIC",
-                        . == "6. Birth Date" ~ "BIRTHDATE",
-                        . == "Age (in years)" ~ "AGE",
-                        . == "Age (in months)" ~ "AGE_MO",
-                        . == "7. Sex (at birth)" ~ "SEX",
-                        . == "Gender Identity" ~ "SELF_IDENT",
-                        . == "Gender Identity (Others)" ~ "SELF_IDENT_OTHER",
-                        . == "9. Nationality" ~ "NATIONALITY",
-                        . == "10. Civil Status" ~ "CIVIL_STATUS",
-                        . == "11. Currently living with a partner?" ~ "LIVING_WITH_PARTNER",
-                        . == "No. Of Children" ~ "CHILDREN",
-                        . == "12. Currently Pregnant?" ~ "IS_PREGNANT",
-                        . == "13. Highest Education Attainment" ~ "EDUC_LEVEL",
-                        . == "14. Currently in school?" ~ "IS_STUDENT",
-                        . == "15. Currently working?" ~ "IS_EMPLOYED",
-                        . == "16. Worked/Resided abroad/overseas in the past 5 years?" ~ "IS_OFW",
-                        . == "Occupation" ~ "WORK_TEXT",
-                        . == "Year last returned" ~ "OFW_YR_RET",
-                        . == "Where were you based?" ~ "OFW_STATION",
-                        . == "Country last worked in" ~ "OFW_COUNTRY",
-                        . == "17. Birth mother had HIV" ~ "EXPOSE_HIV_MOTHER",
-                        . == "Sex w/ Male (Yes/No)" ~ "EXPOSE_SEX_M",
-                        . == "17. Sex w/ Male (Yes/No)" ~ "EXPOSE_SEX_M",
-                        . == "Anal/Neovaginal Sex w/ Male (Date Most Recent)" ~ "EXPOSE_SEX_M_AV_DATE",
-                        . == "Anal/Neovaginal Sex w/ Male (Date Most Recent Condomless)" ~ "EXPOSE_SEX_M_AV_NOCONDOM_DATE",
-                        . == "Sex w/ Female (Yes/No)" ~ "EXPOSE_SEX_F",
-                        . == "Anal/Neovaginal Sex w/ Female (Date Most Recent)" ~ "EXPOSE_SEX_F_AV_DATE",
-                        . == "Anal/Neovaginal Sex w/ Female (Date Most Recent Condomless)" ~ "EXPOSE_SEX_F_AV_NOCONDOM_DATE",
-                        . == "Paid for Sex (Yes/No)" ~ "EXPOSE_SEX_PAYMENT",
-                        . == "Paid for Sex (Date Most Recent)" ~ "EXPOSE_SEX_PAYMENT_DATE",
-                        . == "Paying for Sex (Yes/No)" ~ "EXPOSE_SEX_PAYING",
-                        . == "Paying for Sex (Date Most Recent)" ~ "EXPOSE_SEX_PAYING_DATE",
-                        . == "Sex under influence of drugs (Yes/No)" ~ "EXPOSE_SEX_DRUGS",
-                        . == "Sex under influence of drugs (Date Most Recent)" ~ "EXPOSE_SEX_DRUGS_DATE",
-                        . == "Shared needles during drug injection (Yes/No)" ~ "EXPOSE_DRUG_INJECT",
-                        . == "Shared needles during drug injection (Date Most Recent)" ~ "EXPOSE_DRUG_INJECT_DATE",
-                        . == "Received blood transfusion (Yes/No)" ~ "EXPOSE_BLOOD_TRANSFUSE",
-                        . == "Received blood transfusion (Date Most Recent)" ~ "EXPOSE_BLOOD_TRANSFUSE_DATE",
-                        . == "Occupational Exposure" ~ "EXPOSE_OCCUPATION",
-                        . == "Occupational Exposure  (Date Most Recent)" ~ "EXPOSE_OCCUPATION_DATE",
-                        . == "Occupational Exposure (Date Most Recent)" ~ "EXPOSE_OCCUPATION_DATE",
-                        . == "18. Possible exposure to HIV" ~ "TEST_REASON_HIV_EXPOSE",
-                        . == "Recommended by physician/nurse/midwife" ~ "TEST_REASON_PHYSICIAN",
-                        . == "Referred by a peer educator" ~ "TEST_REASON_PEER_ED",
-                        . == "Employment - Overseas" ~ "TEST_REASON_EMPLOY_OFW",
-                        . == "Employment - Local" ~ "TEST_REASON_EMPLOY_LOCAL",
-                        . == "Received a text message/email" ~ "TEST_REASON_TEXT_EMAIL",
-                        . == "Requirement for insurance" ~ "TEST_REASON_INSURANCE",
-                        . == "Other reasons (Specify)" ~ "TEST_REASON_OTHER",
-                        . == "19. Ever been tested for HIV?" ~ "PREV_TESTED",
-                        . == "Date of most recent HIV test" ~ "PREV_TEST_DATE",
-                        . == "Site/Organization or City/Municipality where you got tested" ~ "PREV_TEST_FACI",
-                        . == "Result of last test" ~ "PREV_TEST_RESULT",
-                        . == "20. Current TB patient" ~ "MED_TB_PX",
-                        . == "With Hepatitis B" ~ "MED_HEP_B",
-                        . == "With Hepatitis C" ~ "MED_HEP_C",
-                        . == "Diagnosed with other STIs" ~ "MED_STI",
-                        . == "Taken PEP" ~ "MED_PEP_PX",
-                        . == "Taking PrEP" ~ "MED_PREP_PX",
-                        . == "21. Clinical Picture" ~ "CLINICAL_PIC",
-                        . == "Describe S/Sx" ~ "SYMPTOMS",
-                        . == "WHO Staging" ~ "WHO_CLASS",
-                        . == "22. Client Type" ~ "CLIENT_TYPE",
-                        . == "23. Clinical" ~ "REACH_CLINICAL",
-                        . == "Online" ~ "REACH_ONLINE",
-                        . == "Index testing" ~ "REACH_INDEX",
-                        . == "SSNT" ~ "REACH_SSNT",
-                        . == "Outreach" ~ "REACH_VENUE",
-                        . == "24. HIV Test (Accept/Refuse)" ~ "SCREEN_AGREED",
-                        . == "Refer to ART" ~ "REFER_ART",
-                        . == "Refer for Confirmatory" ~ "REFER_CONFIRM",
-                        . == "Advise for retesting in: Months" ~ "RETEST_MOS",
-                        . == "Advise for retesting in: Weeks" ~ "RETEST_WKS",
-                        . == "25. HIV 101" ~ "SERVICE_HIV_101",
-                        . == "IEC materials" ~ "SERVICE_IEC_MATS",
-                        . == "Risk reduction planning" ~ "SERVICE_RISK_COUNSEL",
-                        . == "Referred to PrEP or given PEP" ~ "SERVICE_PREP_REFER",
-                        . == "Offered SSNT" ~ "SERVICE_SSNT_OFFER",
-                        . == "Accepted SSNT" ~ "SERVICE_SSNT_ACCEPT",
-                        . == "Condoms: # distributed" ~ "SERVICE_CONDOMS",
-                        . == "Lubricants: # distributed" ~ "SERVICE_LUBES",
-                        . == "HIV testing modality" ~ "SERVICE_TYPE",
-                        . == "HIV test result" ~ "T0_RESULT",
-                        . == "Reason for refusal" ~ "TEST_REFUSE_REASON_OTHER_TEXT",
-                        . == "26. Name of Testing Site/Organization" ~ "HTS_FACI",
-                        . == "27. Primary HTS Provider" ~ "PROVIDER_ID",
-                        . == "HTS Provider Type" ~ "PROVIDER_TYPE",
-                        . == "HTS Provider Type (Others)" ~ "PROVIDER_TYPE_OTHER",
-                        . == "Clinical Notes" ~ "CLINIC_NOTES",
-                        . == "Counseling Notes" ~ "COUNSEL_NOTES",
-                        . == "Permanent Residence: Region" ~ "PERM_NAME_REG",
-                        . == "Permanent Residence: Province" ~ "PERM_NAME_PROV",
-                        . == "Permanent Residence:  City/Municipality" ~ "PERM_NAME_MUNC",
-                        . == "8. Current Residence: Region" ~ "CURR_NAME_REG",
-                        . == "Current Residence: Province" ~ "CURR_NAME_PROV",
-                        . == "Current Residence:  City/Municipality" ~ "CURR_NAME_MUNC",
-                        . == "Place of Birth: Region" ~ "BIRTH_NAME_REG",
-                        . == "Place of Birth: Province" ~ "BIRTH_NAME_PROV",
-                        . == "Place of Birth:  City/Municipality" ~ "BIRTH_NAME_MUNC",
-                        . == "Venue: Region" ~ "HIV_SERVICE_NAME_REG",
-                        . == "Venue: Province" ~ "HIV_SERVICE_NAME_PROV",
-                        . == "Venue: City/Municipality" ~ "HIV_SERVICE_NAME_MUNC",
-                        . == "Venue: Details" ~ "HIV_SERVICE_ADDR",
-                        . == "Record ID" ~ "REC_ID",
-                        TRUE ~ .
+               if (ncol(test) == 121 |
+                  ncol(test) == 79 |
+                  ncol(test) == 122 |
+                  ncol(test) == 80) {
+                  logsheet[[sheet]] <- openxlsx::read.xlsx(file, sheet, startRow = 3, sep.names = " ") %>%
+                     # logsheet[[sheet]] <- read_excel(file, sheet, skip = 2, .name_repair = "unique_quiet") %>%
+                     mutate_all(as.character) %>%
+                     mutate_if(is.character, ~na_if(., "N/A")) %>%
+                     mutate_if(is.character, ~na_if(., "n/a")) %>%
+                     mutate_if(is.character, ~na_if(., "--")) %>%
+                     mutate_if(is.character, ~na_if(., "#REF!")) %>%
+                     remove_empty("rows") %>%
+                     rename_all(
+                        ~case_when(
+                           . == "Encoded On" ~ "CREATED_AT",
+                           . == "Encoded By: (Full Name)" ~ "CREATED_BY",
+                           . == "Signed Consent" ~ "SIGNATURE",
+                           . == "Verbal Consent" ~ "VERBAL_CONSENT",
+                           . == "1. Date of Test/Reach" ~ "RECORD_DATE",
+                           . == "2. PhilHealth No." ~ "PHILHEALTH_NO",
+                           . == "3. PhilSys ID" ~ "PHILSYS_ID",
+                           . == "HIV Confirmatory Code" ~ "CONFIRM_CODE",
+                           . == "Patient Code" ~ "PATIENT_CODE",
+                           . == "4. First Name" ~ "FIRST",
+                           . == "Middle Name" ~ "MIDDLE",
+                           . == "Last Name" ~ "LAST",
+                           . == "Suffix (Jr., Sr., III, etc.)" ~ "SUFFIX",
+                           . == "UIC" ~ "UIC",
+                           . == "5. UIC" ~ "UIC",
+                           . == "6. Birth Date" ~ "BIRTHDATE",
+                           . == "Age (in years)" ~ "AGE",
+                           . == "Age (in months)" ~ "AGE_MO",
+                           . == "7. Sex (at birth)" ~ "SEX",
+                           . == "Gender Identity" ~ "SELF_IDENT",
+                           . == "Gender Identity (Others)" ~ "SELF_IDENT_OTHER",
+                           . == "9. Nationality" ~ "NATIONALITY",
+                           . == "10. Civil Status" ~ "CIVIL_STATUS",
+                           . == "11. Currently living with a partner?" ~ "LIVING_WITH_PARTNER",
+                           . == "No. Of Children" ~ "CHILDREN",
+                           . == "12. Currently Pregnant?" ~ "IS_PREGNANT",
+                           . == "13. Highest Education Attainment" ~ "EDUC_LEVEL",
+                           . == "14. Currently in school?" ~ "IS_STUDENT",
+                           . == "15. Currently working?" ~ "IS_EMPLOYED",
+                           . == "16. Worked/Resided abroad/overseas in the past 5 years?" ~ "IS_OFW",
+                           . == "Occupation" ~ "WORK_TEXT",
+                           . == "Year last returned" ~ "OFW_YR_RET",
+                           . == "Where were you based?" ~ "OFW_STATION",
+                           . == "Country last worked in" ~ "OFW_COUNTRY",
+                           . == "17. Birth mother had HIV" ~ "EXPOSE_HIV_MOTHER",
+                           . == "Sex w/ Male (Yes/No)" ~ "EXPOSE_SEX_M",
+                           . == "17. Sex w/ Male (Yes/No)" ~ "EXPOSE_SEX_M",
+                           . == "Anal/Neovaginal Sex w/ Male (Date Most Recent)" ~ "EXPOSE_SEX_M_AV_DATE",
+                           . == "Anal/Neovaginal Sex w/ Male (Date Most Recent Condomless)" ~ "EXPOSE_SEX_M_AV_NOCONDOM_DATE",
+                           . == "Sex w/ Female (Yes/No)" ~ "EXPOSE_SEX_F",
+                           . == "Anal/Neovaginal Sex w/ Female (Date Most Recent)" ~ "EXPOSE_SEX_F_AV_DATE",
+                           . == "Anal/Neovaginal Sex w/ Female (Date Most Recent Condomless)" ~ "EXPOSE_SEX_F_AV_NOCONDOM_DATE",
+                           . == "Paid for Sex (Yes/No)" ~ "EXPOSE_SEX_PAYMENT",
+                           . == "Paid for Sex (Date Most Recent)" ~ "EXPOSE_SEX_PAYMENT_DATE",
+                           . == "Paying for Sex (Yes/No)" ~ "EXPOSE_SEX_PAYING",
+                           . == "Paying for Sex (Date Most Recent)" ~ "EXPOSE_SEX_PAYING_DATE",
+                           . == "Sex under influence of drugs (Yes/No)" ~ "EXPOSE_SEX_DRUGS",
+                           . == "Sex under influence of drugs (Date Most Recent)" ~ "EXPOSE_SEX_DRUGS_DATE",
+                           . == "Shared needles during drug injection (Yes/No)" ~ "EXPOSE_DRUG_INJECT",
+                           . == "Shared needles during drug injection (Date Most Recent)" ~ "EXPOSE_DRUG_INJECT_DATE",
+                           . == "Received blood transfusion (Yes/No)" ~ "EXPOSE_BLOOD_TRANSFUSE",
+                           . == "Received blood transfusion (Date Most Recent)" ~ "EXPOSE_BLOOD_TRANSFUSE_DATE",
+                           . == "Occupational Exposure" ~ "EXPOSE_OCCUPATION",
+                           . == "Occupational Exposure  (Date Most Recent)" ~ "EXPOSE_OCCUPATION_DATE",
+                           . == "Occupational Exposure (Date Most Recent)" ~ "EXPOSE_OCCUPATION_DATE",
+                           . == "18. Possible exposure to HIV" ~ "TEST_REASON_HIV_EXPOSE",
+                           . == "Recommended by physician/nurse/midwife" ~ "TEST_REASON_PHYSICIAN",
+                           . == "Referred by a peer educator" ~ "TEST_REASON_PEER_ED",
+                           . == "Employment - Overseas" ~ "TEST_REASON_EMPLOY_OFW",
+                           . == "Employment - Local" ~ "TEST_REASON_EMPLOY_LOCAL",
+                           . == "Received a text message/email" ~ "TEST_REASON_TEXT_EMAIL",
+                           . == "Requirement for insurance" ~ "TEST_REASON_INSURANCE",
+                           . == "Other reasons (Specify)" ~ "TEST_REASON_OTHER",
+                           . == "19. Ever been tested for HIV?" ~ "PREV_TESTED",
+                           . == "Date of most recent HIV test" ~ "PREV_TEST_DATE",
+                           . == "Site/Organization or City/Municipality where you got tested" ~ "PREV_TEST_FACI",
+                           . == "Result of last test" ~ "PREV_TEST_RESULT",
+                           . == "20. Current TB patient" ~ "MED_TB_PX",
+                           . == "With Hepatitis B" ~ "MED_HEP_B",
+                           . == "With Hepatitis C" ~ "MED_HEP_C",
+                           . == "Diagnosed with other STIs" ~ "MED_STI",
+                           . == "Taken PEP" ~ "MED_PEP_PX",
+                           . == "Taking PrEP" ~ "MED_PREP_PX",
+                           . == "21. Clinical Picture" ~ "CLINICAL_PIC",
+                           . == "Describe S/Sx" ~ "SYMPTOMS",
+                           . == "WHO Staging" ~ "WHO_CLASS",
+                           . == "22. Client Type" ~ "CLIENT_TYPE",
+                           . == "23. Clinical" ~ "REACH_CLINICAL",
+                           . == "Online" ~ "REACH_ONLINE",
+                           . == "Index testing" ~ "REACH_INDEX",
+                           . == "SSNT" ~ "REACH_SSNT",
+                           . == "Outreach" ~ "REACH_VENUE",
+                           . == "24. HIV Test (Accept/Refuse)" ~ "SCREEN_AGREED",
+                           . == "Refer to ART" ~ "REFER_ART",
+                           . == "Refer for Confirmatory" ~ "REFER_CONFIRM",
+                           . == "Advise for retesting in: Months" ~ "RETEST_MOS",
+                           . == "Advise for retesting in: Weeks" ~ "RETEST_WKS",
+                           . == "25. HIV 101" ~ "SERVICE_HIV_101",
+                           . == "IEC materials" ~ "SERVICE_IEC_MATS",
+                           . == "Risk reduction planning" ~ "SERVICE_RISK_COUNSEL",
+                           . == "Referred to PrEP or given PEP" ~ "SERVICE_PREP_REFER",
+                           . == "Offered SSNT" ~ "SERVICE_SSNT_OFFER",
+                           . == "Accepted SSNT" ~ "SERVICE_SSNT_ACCEPT",
+                           . == "Condoms: # distributed" ~ "SERVICE_CONDOMS",
+                           . == "Lubricants: # distributed" ~ "SERVICE_LUBES",
+                           . == "HIV testing modality" ~ "SERVICE_TYPE",
+                           . == "HIV test result" ~ "T0_RESULT",
+                           . == "Reason for refusal" ~ "TEST_REFUSE_REASON_OTHER_TEXT",
+                           . == "26. Name of Testing Site/Organization" ~ "HTS_FACI",
+                           . == "27. Primary HTS Provider" ~ "PROVIDER_ID",
+                           . == "HTS Provider Type" ~ "PROVIDER_TYPE",
+                           . == "HTS Provider Type (Others)" ~ "PROVIDER_TYPE_OTHER",
+                           . == "Clinical Notes" ~ "CLINIC_NOTES",
+                           . == "Counseling Notes" ~ "COUNSEL_NOTES",
+                           . == "Permanent Residence: Region" ~ "PERM_NAME_REG",
+                           . == "Permanent Residence: Province" ~ "PERM_NAME_PROV",
+                           . == "Permanent Residence: City/Municipality" ~ "PERM_NAME_MUNC",
+                           . == "8. Current Residence: Region" ~ "CURR_NAME_REG",
+                           . == "Current Residence: Province" ~ "CURR_NAME_PROV",
+                           . == "Current Residence: City/Municipality" ~ "CURR_NAME_MUNC",
+                           . == "Place of Birth: Region" ~ "BIRTH_NAME_REG",
+                           . == "Place of Birth: Province" ~ "BIRTH_NAME_PROV",
+                           . == "Place of Birth: City/Municipality" ~ "BIRTH_NAME_MUNC",
+                           . == "Venue: Region" ~ "HIV_SERVICE_NAME_REG",
+                           . == "Venue: Province" ~ "HIV_SERVICE_NAME_PROV",
+                           . == "Venue: City/Municipality" ~ "HIV_SERVICE_NAME_MUNC",
+                           . == "Venue: Details" ~ "HIV_SERVICE_ADDR",
+                           . == "Record ID" ~ "REC_ID",
+                           TRUE ~ .
+                        )
+                     ) %>%
+                     mutate(
+                        row_num = as.character(row_number())
                      )
-                  ) %>%
-                  mutate(
-                     row_num = as.character(row_number())
-                  )
+               }
             }
+            return(logsheet %>% bind_rows(.id = 'sheet'))
          }
-         return(logsheet %>% bind_rows(.id = 'sheet'))
       },
       batchRead      = function(path) {
          files         <- list.files(path, ".xlsx", recursive = TRUE, full.names = TRUE)
@@ -217,7 +221,11 @@ HtsLogsheet <- R6Class(
                      select(REC_ID, PATIENT_ID, CREATED_BY, CREATED_AT),
                   by = join_by(REC_ID)
                ) %>%
-               filter(!is.na(PATIENT_ID))
+               filter(is.na(REC_ID) | (!is.na(REC_ID) & !is.na(PATIENT_ID))) %>%
+               mutate(
+                  CLIENT_MOBILE = NA_character_,
+                  CLIENT_EMAIL  = NA_character_,
+               )
 
             pii_cols <- c(
                "FIRST",
@@ -267,9 +275,7 @@ HtsLogsheet <- R6Class(
                by = join_by(id, HIV_SERVICE_NAME_REG, HIV_SERVICE_NAME_PROV, HIV_SERVICE_NAME_MUNC)
             ) %>%
             mutate(
-               CREATED_AT    = coalesce(CREATED_AT, DATE_SUBMIT, RECORD_DATE),
-               CLIENT_MOBILE = NA_character_,
-               CLIENT_EMAIL  = NA_character_,
+               CREATED_AT = coalesce(as.character(CREATED_AT), DATE_SUBMIT, RECORD_DATE),
             ) %>%
             mutate_at(
                .vars = vars(
@@ -550,7 +556,7 @@ HtsLogsheet <- R6Class(
                ),
 
                # TODO: Add conversion for ofw data
-               NATIONALITY = case_when(
+               NATIONALITY              = case_when(
                   toupper(NATIONALITY_RAW) == "FILIPINO" ~ "PH",
                   TRUE ~ NATIONALITY
                ),
@@ -631,7 +637,7 @@ HtsLogsheet <- R6Class(
             ) %>%
             mutate_at(
                .vars = vars(contains("_DATE"), contains("DATE_"), BIRTHDATE),
-               ~as.character(as.Date(parse_date_time(., c("Ymd", "mdY", "mY", "Ym", "Y"))))
+               ~as.character(parse_date_time(., c("Ymd", "mdY", "mY", "Ym", "Y")))
             ) %>%
             mutate(
                UPDATED_BY = "1300000048",
@@ -749,12 +755,45 @@ HtsLogsheet <- R6Class(
    )
 )
 
+for_upload  <- dir_info("R:/File requests/HTS Logsheet", recurse = TRUE)
+done_upload <- dir_info("H:/hts-imports", recurse = TRUE)
+
+new_uploads <- for_upload %>%
+   mutate(
+      name = basename(path)
+   ) %>%
+   anti_join(
+      y  = done_upload %>%
+         mutate(
+            name = basename(path)
+         ),
+      by = join_by(name)
+   ) %>%
+   mutate(
+      folder = str_replace(path, stri_c("/", name), ""),
+      folder = basename(folder)
+   ) %>%
+   filter(type == "file")
+
+
+file_copy(new_uploads$path, "H:/hts-imports/20241112")
+
+
 import <- HtsLogsheet$new()
-import$batchRead("H:/hts-imports/20241106")
+import$batchRead("H:/hts-imports/20241112")
 import$getExisting()
 import$getRefs()
 import$convert()
 import$checkIssues()
+import$data$convert %>%
+   filter(!is.na(RECORD_DATE)) %>%
+   filter(CREATED_AT != "Auto-fill") %>%
+   select(
+      -ends_with("NAME_REG"),
+      -ends_with("NAME_PROV"),
+      -ends_with("NAME_MUNC"),
+   ) %>%
+   nrow()
 import$removeBlanks()
 
 tables <- deconstruct_hts(import$data$filtered)
@@ -764,7 +803,6 @@ delete <- tables$px_record$data %>% select(REC_ID)
 db_conn <- ohasis$conn("db")
 pblapply(long, function(table) dbxDelete(db_conn, Id(schema = "ohasis_interim", table = table), delete))
 pblapply(tables, function(ref, db_conn) {
-   log_info("Uploading {green(ref$name)}.")
    table_space <- Id(schema = "ohasis_interim", table = ref$name)
    dbxUpsert(db_conn, table_space, ref$data, ref$pk)
    # dbExecute(db_conn, glue("DELETE FROM ohasis_interim.{ref$name} WHERE REC_ID IN (?)"), params = list(unique(ref$data$REC_ID)))
@@ -772,5 +810,5 @@ pblapply(tables, function(ref, db_conn) {
 dbDisconnect(db_conn)
 
 
-delete <- tables$px_record$data %>% select(REC_ID)
-pblapply(names(tables), function(table) dbxDelete(db_conn, Id(schema = "ohasis_interim", table = table), delete))
+# delete <- tables$px_record$data %>% select(REC_ID)
+# pb
