@@ -124,9 +124,13 @@ Dedup <- R6Class(
                      ),
                   by = join_by(match_id)
                ) %>%
+               mutate_at(
+                  .vars = vars(ends_with("_name")),
+                  ~coalesce(., "")
+               ) %>%
                mutate(
-                  left_name  = stri_c(left_family_name, ", ", left_given_name, " ", left_middle_name, " ", left_suffix_name, ignore_null = TRUE),
-                  right_name = stri_c(right_family_name, ", ", right_given_name, " ", right_middle_name, " ", right_suffix_name, ignore_null = TRUE),
+                  left_name  = stri_c(left_family_name, ", ", left_given_name, " ", left_middle_name, " ", left_suffix_name,),
+                  right_name = stri_c(right_family_name, ", ", right_given_name, " ", right_middle_name, " ", right_suffix_name),
                ) %>%
                select(
                   -ends_with("given_name"),
@@ -597,9 +601,13 @@ check <- try$review$splinkDedup %>%
          ),
       by = join_by(idnum_r == idnum)
    ) %>%
+   mutate_at(
+      .vars = vars(ends_with("_name")),
+      ~coalesce(., "")
+   ) %>%
    mutate(
-      left_name  = stri_c(left_family_name, ", ", left_given_name, " ", left_middle_name, " ", left_suffix_name, ignore_null = TRUE),
-      right_name = stri_c(right_family_name, ", ", right_given_name, " ", right_middle_name, " ", right_suffix_name, ignore_null = TRUE),
+      left_name  = stri_c(left_family_name, ", ", left_given_name, " ", left_middle_name, " ", left_suffix_name,),
+      right_name = stri_c(right_family_name, ", ", right_given_name, " ", right_middle_name, " ", right_suffix_name),
    ) %>%
    select(
       -ends_with("given_name"),
