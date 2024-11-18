@@ -30,8 +30,7 @@ load_packages <- function(path_to_file) {
 load_packages("requirements.txt")
 p_load_gh(
    "lmullen/genderdata",
-   "schardtbc/DBIExt",
-   "agstn/dataxray"
+   "schardtbc/DBIExt"
 )
 
 # nhsss unique functions
