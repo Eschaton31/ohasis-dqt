@@ -767,45 +767,18 @@ EpiCenter <- R6Class(
    )
 )
 
-try <- EpiCenter$new(2024, 8)
-try$fetchRefs()
-try$fetchDx()
-try$fetchTx()
-try$createLinelist()
-try$uploadLinelist()
-# try$uploadEstimates()
-# try$uploadFacilities()
-# try$uploadAddress()
+## SAMPLE RUN ------------------------------------------------------------------
 
-# try$dx %>%
-#    distinct(PERM_PSGC_REG)
+# db <- EpiCenter$new(2024, 9)
+# db$fetchRefs()
+# db$fetchDx()
+# db$fetchTx()
+# db$createLinelist()
+# db$uploadLinelist()
+# db$uploadEstimates()  # upload only with new estimates
+# db$uploadFacilities() # upload when new facilities are available
+# db$uploadAddress()    # upload when psgc are updated
 
-migrate <- try$linelist %>%
-   mutate(
-      PERM_NAME_REG = stri_c("Resident: ", PERM_NAME_REG),
-      DX_NAME_REG   = stri_c("Diagnosed: ", DX_NAME_REG),
-   ) %>%
-   select(
-      source      = PERM_NAME_REG,
-      destination = DX_NAME_REG
-   ) %>%
-   group_by(source, destination) %>%
-   summarise(
-      value = n()
-   ) %>%
-   ungroup() %>%
-   bind_rows(
-      try$linelist %>%
-         mutate(
-            DX_NAME_REG  = stri_c("Diagnosed: ", DX_NAME_REG),
-            ART_NAME_REG = stri_c("Treat: ", ART_NAME_REG),
-         ) %>%
-         select(
-            source      = DX_NAME_REG,
-            destination = ART_NAME_REG
-         ) %>%
-         group_by(source, destination) %>%
-         summarise(
-            value = n()
-         )
-   )
+## END -------------------------------------------------------------------------
+
+
