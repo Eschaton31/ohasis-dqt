@@ -233,11 +233,11 @@ Dedup <- R6Class(
                sp$block_on("residence_province", "family_name_sieve")
             ),
             comparisons                            = c(
-               cl$NameComparison("given_name_metaphone"),
-               cl$NameComparison("family_name_metaphone"),
                cl$NameComparison("given_name"),
                cl$NameComparison("middle_name"),
                cl$NameComparison("family_name"),
+               cl$NameComparison("given_name_metaphone"),
+               cl$NameComparison("family_name_metaphone"),
                cl$DateOfBirthComparison(
                   "birthdate",
                   input_is_string     = TRUE,
@@ -303,7 +303,12 @@ Dedup <- R6Class(
          matches <- bind_rows(py_to_r(estimates))
 
          log_info("Done!")
-         self$review$splinkDedup <- matches
+         self$review$splinkDedup <- matches %>%
+            select(
+               -starts_with("gamma"),
+               -ends_with("metaphone")
+            ) %>%
+            arrange(desc(match_probability))
 
          invisible(self)
       }
@@ -533,6 +538,7 @@ Dedup <- R6Class(
    )
 )
 
+hs_download("harp_dx", "reg", 2024, 10)
 dx <- read_dta(hs_data("harp_dx", "reg", 2024, 10)) %>%
    select(-first)
 # new <- dx %>%
@@ -551,6 +557,75 @@ try$preparePii()
 try$splinkDedupe()
 
 check <- try$review$splinkDedup %>%
-   select(-starts_with("gamma")) %>%
-   # filter(match_probability >= .7) %>%
-   arrange(desc(match_probability))
+   select(
+      posterior = match_probability,
+      idnum_l,
+      idnum_r,
+   ) %>%
+   mutate(
+      match_id = row_number()
+   ) %>%
+   left_join(
+      y  = try$match$left %>%
+         select(
+            idnum,
+            left_cid          = CENTRAL_ID,
+            left_given_name   = given_name,
+            left_middle_name  = middle_name,
+            left_family_name  = family_name,
+            left_suffix_name  = suffix_name,
+            left_birthdate    = birthdate,
+            left_confirmatory = confirmatory_code,
+            left_uic          = uic,
+            left_pxcode       = patient_code
+         ),
+      by = join_by(idnum_l == idnum)
+   ) %>%
+   left_join(
+      y  = try$match$left %>%
+         select(
+            idnum,
+            right_cid          = CENTRAL_ID,
+            right_given_name   = given_name,
+            right_middle_name  = middle_name,
+            right_family_name  = family_name,
+            right_suffix_name  = suffix_name,
+            right_birthdate    = birthdate,
+            right_confirmatory = confirmatory_code,
+            right_uic          = uic,
+            right_pxcode       = patient_code,
+         ),
+      by = join_by(idnum_r == idnum)
+   ) %>%
+   mutate(
+      left_name  = stri_c(left_family_name, ", ", left_given_name, " ", left_middle_name, " ", left_suffix_name, ignore_null = TRUE),
+      right_name = stri_c(right_family_name, ", ", right_given_name, " ", right_middle_name, " ", right_suffix_name, ignore_null = TRUE),
+   ) %>%
+   select(
+      -ends_with("given_name"),
+      -ends_with("middle_name"),
+      -ends_with("family_name"),
+      -ends_with("suffix_name"),
+   ) %>%
+   mutate(
+      .before = 1,
+      Bene    = NA_character_,
+      Gab     = NA_character_,
+      Lala    = NA_character_,
+      Angie   = NA_character_,
+   )
+
+db           <- "nhsss_validations"
+surv_name    <- "harp_dx"
+process_step <- "dedup_old"
+issue        <- "splink"
+table        <- paste0(surv_name, "-", process_step, "-", issue)
+schema       <- Id(schema = db, table = table)
+id_col       <- "match_id"
+
+lw_conn <- connect("ohasis-lw")
+if (dbExistsTable(lw_conn, schema)) {
+   dbRemoveTable(lw_conn, schema)
+}
+ohasis$upsert(lw_conn, db, table, check, id_col)
+dbDisconnect(lw_conn)
