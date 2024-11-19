@@ -1108,8 +1108,16 @@ append_data <- function(old, new) {
       mutate(
          confirm_date = coalesce(confirm_date, as.Date(t3_date)),
       ) %>%
+      mutate_if(
+         .predicate = is.labelled,
+         ~to_character(.)
+      ) %>%
       bind_rows(
          old %>%
+            mutate_if(
+               .predicate = is.labelled,
+               ~to_character(.)
+            ) %>%
             mutate_at(
                .vars = vars(highest_educ, in_school, current_school_level, with_partner, baseline_cd4, ocw_based, starts_with("past12mo_"), prevtest, prev_test_result, clinicalpicture, who_staging, provider_type, px_type),
                ~as.integer(remove_code(.))
