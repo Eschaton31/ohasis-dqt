@@ -105,8 +105,8 @@ psgc_aem <- function(ref_addr) {
    new_ref <- ref_addr %>%
       mutate(
          drop = case_when(
-            StrLeft(PSGC_PROV, 4) == "1339" & (PSGC_MUNC != "133900000" | is.na(PSGC_MUNC)) ~ 1,
-            StrLeft(PSGC_REG, 4) == "1300" & PSGC_MUNC == "" ~ 1,
+            str_left(PSGC_PROV, 4) == "1339" & (PSGC_MUNC != "133900000" | is.na(PSGC_MUNC)) ~ 1,
+            str_left(PSGC_REG, 4) == "1300" & PSGC_MUNC == "" ~ 1,
             stri_detect_fixed(NAME_PROV, "City") & NHSSS_MUNC == "UNKNOWN" ~ 1,
             TRUE ~ 0
          ),
@@ -337,8 +337,8 @@ harp_addr_to_id <- function(data, ref_addr, harp_addr, aem_sub_ntl = FALSE, add_
          y  = ref_addr %>%
             mutate(
                drop = case_when(
-                  StrLeft(PSGC_PROV, 4) == "1339" & (PSGC_MUNC != "133900000" | is.na(PSGC_MUNC)) ~ 1,
-                  StrLeft(PSGC_REG, 4) == "1300" & PSGC_MUNC == "" ~ 1,
+                  str_left(PSGC_PROV, 4) == "1339" & (PSGC_MUNC != "133900000" | is.na(PSGC_MUNC)) ~ 1,
+                  str_left(PSGC_REG, 4) == "1300" & PSGC_MUNC == "" ~ 1,
                   stri_detect_fixed(NAME_PROV, "City") & NHSSS_MUNC == "UNKNOWN" ~ 1,
                   TRUE ~ 0
                ),

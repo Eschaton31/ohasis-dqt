@@ -1,9 +1,9 @@
-epictr$iso3166_2 <- read_dta("E:/_R/iso3166_2_ph.dta")
+epictr$iso3166_2 <- read_dta("C:/Users/johnb/Downloads/iso3166_2_ph.dta")
 epictr$ref_addr  <- ohasis$ref_addr %>%
    mutate(
       drop = case_when(
-         StrLeft(PSGC_PROV, 4) == "1339" & (PSGC_MUNC != "133900000" | is.na(PSGC_MUNC)) ~ 1,
-         StrLeft(PSGC_REG, 4) == "1300" & PSGC_MUNC == "" ~ 1,
+         str_left(PSGC_PROV, 4) == "1339" & (PSGC_MUNC != "133900000" | is.na(PSGC_MUNC)) ~ 1,
+         str_left(PSGC_REG, 4) == "1300" & PSGC_MUNC == "" ~ 1,
          stri_detect_fixed(NAME_PROV, "City") & NHSSS_MUNC == "UNKNOWN" ~ 1,
          TRUE ~ 0
       ),
@@ -97,13 +97,13 @@ epictr$ref_addr  <- ohasis$ref_addr %>%
       )
    )
 
-lw_conn     <- ohasis$conn("lw")
-table_space <- Id(schema = "harp", table = "ref_addr")
-if (dbExistsTable(lw_conn, table_space))
-   dbRemoveTable(lw_conn, table_space)
-
-dbWriteTable(lw_conn, table_space, epictr$ref_addr %>% filter(!(NAME_AEM %in% c("Unknown", "Overseas"))))
-dbDisconnect(lw_conn)
+# lw_conn     <- ohasis$conn("lw")
+# table_space <- Id(schema = "harp", table = "ref_addr")
+# if (dbExistsTable(lw_conn, table_space))
+#    dbRemoveTable(lw_conn, table_space)
+#
+# dbWriteTable(lw_conn, table_space, epictr$ref_addr %>% filter(!(NAME_AEM %in% c("Unknown", "Overseas"))))
+# dbDisconnect(lw_conn)
 
 epictr$ref_faci <- ohasis$ref_faci_code %>%
    mutate(

@@ -210,7 +210,7 @@ tag_curr_data <- function(data, prev_outcome, prep_first, prepdisp_first, prep_l
          ),
 
          # demographics
-         initials                  = str_squish(stri_c(StrLeft(FIRST, 1), StrLeft(MIDDLE, 1), StrLeft(LAST, 1))),
+         initials                  = str_squish(stri_c(str_left(FIRST, 1), str_left(MIDDLE, 1), str_left(LAST, 1))),
          SEX                       = remove_code(stri_trans_toupper(SEX)),
          self_identity             = remove_code(stri_trans_toupper(SELF_IDENT)),
          self_identity_other       = toupper(SELF_IDENT_OTHER),
@@ -456,7 +456,7 @@ tag_first_data <- function(data) {
       # prepare screening taggings
       mutate(
          # demographics
-         initials                  = str_squish(stri_c(StrLeft(FIRST, 1), StrLeft(MIDDLE, 1), StrLeft(LAST, 1))),
+         initials                  = str_squish(stri_c(str_left(FIRST, 1), str_left(MIDDLE, 1), str_left(LAST, 1))),
          SEX                       = remove_code(stri_trans_toupper(SEX)),
          self_identity             = remove_code(stri_trans_toupper(SELF_IDENT)),
          self_identity_other       = toupper(SELF_IDENT_OTHER),
@@ -878,7 +878,7 @@ get_checks <- function(data, run_checks = NULL) {
       log_info("Checking for no prep plan.")
       check[["no_plan"]] <- data %>%
          filter(
-            !(StrLeft(curr_outcome, 1) %in% c("0", "3")) | !is.na(prepstart_date),
+            !(str_left(curr_outcome, 1) %in% c("0", "3")) | !is.na(prepstart_date),
             curr_prep_plan == "(no data)"
          ) %>%
          select(
@@ -888,7 +888,7 @@ get_checks <- function(data, run_checks = NULL) {
       log_info("Checking for no prep type.")
       check[["no_type"]] <- data %>%
          filter(
-            !(StrLeft(curr_outcome, 1) %in% c("0", "3")) | !is.na(prepstart_date),
+            !(str_left(curr_outcome, 1) %in% c("0", "3")) | !is.na(prepstart_date),
             curr_prep_type == "(no data)"
          ) %>%
          select(
@@ -898,7 +898,7 @@ get_checks <- function(data, run_checks = NULL) {
       log_info("Checking for supposedly not on prep but with plan/type.")
       check[["not_but_on_prep"]] <- data %>%
          filter(
-            StrLeft(curr_outcome, 1) == "5",
+            str_left(curr_outcome, 1) == "5",
             curr_prep_type != "(no data)" | curr_prep_plan != "(no data)"
          ) %>%
          select(

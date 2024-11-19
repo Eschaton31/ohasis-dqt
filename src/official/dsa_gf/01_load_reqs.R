@@ -6,7 +6,7 @@ local(envir = gf, {
    coverage$curr_mo <- input(prompt = "What is the reporting month for the reports?", max.char = 2)
    coverage$curr_mo <- stri_pad_left(coverage$curr_mo, 2, "0")
 
-   if (StrLeft(coverage$fy, 2) == "S1") {
+   if (str_left(coverage$fy, 2) == "S1") {
 	  # coverage dates
 	  coverage$min <- paste(
 		 sep = "-",
@@ -14,7 +14,7 @@ local(envir = gf, {
 		 "01",
 		 "01"
 	  )
-   } else if (StrLeft(coverage$fy, 2) == "S2") {
+   } else if (str_left(coverage$fy, 2) == "S2") {
 	  coverage$min <- paste(
 		 sep = "-",
 		 paste0("20", StrRight(coverage$fy, 2)),

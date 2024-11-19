@@ -348,7 +348,7 @@ WHERE px_record.MODULE = 2
       ) %>%
       mutate(
          priority     = case_when(
-            StrLeft(CREATED_AT, 6) == "130000" ~ 1,
+            str_left(CREATED_AT, 6) == "130000" ~ 1,
             TRUE ~ 2
          ),
 

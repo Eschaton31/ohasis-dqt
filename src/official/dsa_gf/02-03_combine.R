@@ -73,7 +73,7 @@ gf$linelist$psfi_matched <- gf$logsheet$psfi %>%
       SERVICE_FACI     = case_when(
          !is.na(LS_FACI) ~ LS_FACI,
          !is.na(FACI_ID) ~ FACI_ID,
-         !is.na(USER_ID) ~ StrLeft(USER_ID, 6),
+         !is.na(USER_ID) ~ str_left(USER_ID, 6),
       ),
       with_uic         = if_else(
          condition = !is.na(SERVICE_FACI),

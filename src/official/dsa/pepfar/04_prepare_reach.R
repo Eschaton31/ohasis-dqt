@@ -196,7 +196,7 @@ generate_disagg <- function(data) {
    data %<>%
       mutate(
          # sex
-         Sex             = coalesce(StrLeft(coalesce(HARPDX_SEX, remove_code(SEX)), 1), "(no data)"),
+         Sex             = coalesce(str_left(coalesce(HARPDX_SEX, remove_code(SEX)), 1), "(no data)"),
 
          # KAP
          msm             = case_when(

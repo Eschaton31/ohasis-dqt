@@ -10,7 +10,7 @@ check_pii <- function(data, checklist, view_vars = everything(), ...) {
          BIRTHDATE      = if (!is.null(vars$birthdate)) !!vars$birthdate else BIRTHDATE,
 
          STANDARD_FIRST = stri_trans_general(FIRST, "latin-ascii"),
-         SEX            = StrLeft(SEX, 1),
+         SEX            = str_left(SEX, 1),
          SEX            = case_when(
             SEX %in% c("1", "M") ~ "1_Male",
             SEX %in% c("2", "F") ~ "2_Female",
@@ -159,7 +159,7 @@ check_preggy <- function(data, checklist, view_vars = everything(), ...) {
    data %<>%
       mutate(
          SEX = if (!is.null(vars$sex)) !!vars$sex else SEX,
-         SEX = StrLeft(SEX, 1),
+         SEX = str_left(SEX, 1),
          SEX = case_when(
             SEX %in% c("1", "M") ~ "1_Male",
             SEX %in% c("2", "F") ~ "2_Female",
@@ -169,10 +169,10 @@ check_preggy <- function(data, checklist, view_vars = everything(), ...) {
 
    log_info("Checking for males tagged as pregnant.")
    checklist[["pregnant_m"]] <- data %>%
-      filter(StrLeft(SEX, 1) == "1") %>%
+      filter(str_left(SEX, 1) == "1") %>%
       filter_at(
          .vars = vars(any_of(c("MED_IS_PREGNANT", "IS_PREGNANT", "pregnant"))),
-         ~StrLeft(., 1) == "1"
+         ~str_left(., 1) == "1"
       ) %>%
       select(
          any_of(view_vars),
@@ -181,10 +181,10 @@ check_preggy <- function(data, checklist, view_vars = everything(), ...) {
 
    log_info("Checking for pregnant females.")
    checklist[["pregnant_f"]] <- data %>%
-      filter(StrLeft(SEX, 1) == "2") %>%
+      filter(str_left(SEX, 1) == "2") %>%
       filter_at(
          .vars = vars(any_of(c("MED_IS_PREGNANT", "IS_PREGNANT", "pregnant"))),
-         ~StrLeft(., 1) == "1"
+         ~str_left(., 1) == "1"
       ) %>%
       select(
          any_of(view_vars),

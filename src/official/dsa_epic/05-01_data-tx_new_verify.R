@@ -2,7 +2,7 @@
 
 epic$linelist$tx_new_verify <- bind_rows(epic$forms$form_cfbs, epic$forms$form_hts) %>%
    filter(
-      StrLeft(MODALITY, 6) != "101101" | is.na(MODALITY)
+      str_left(MODALITY, 6) != "101101" | is.na(MODALITY)
    ) %>%
    mutate(
       # get confirm msm or not
@@ -77,9 +77,9 @@ epic$linelist$tx_new_verify <- bind_rows(epic$forms$form_cfbs, epic$forms$form_h
       # sex variable (use registry if available)
       Sex             = if_else(
          condition = !is.na(transmit),
-         true      = StrLeft(reg_sex, 1),
-         false     = StrLeft(art_sex, 1),
-         missing   = StrLeft(art_sex, 1)
+         true      = str_left(reg_sex, 1),
+         false     = str_left(art_sex, 1),
+         missing   = str_left(art_sex, 1)
       ),
 
       # KAP

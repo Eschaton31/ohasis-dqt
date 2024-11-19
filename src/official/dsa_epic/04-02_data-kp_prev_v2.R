@@ -86,7 +86,7 @@ epic$linelist$kp_prev %<>%
    mutate(
       # sex
       Sex             = case_when(
-         use_central == 1 ~ StrLeft(reg_sex, 1),
+         use_central == 1 ~ str_left(reg_sex, 1),
          use_central == 0 ~ substr(SEX, 3, 3),
          TRUE ~ "(no data)"
       ),
@@ -107,7 +107,7 @@ epic$linelist$kp_prev %<>%
             self_identity %in% c("FEMALE", "OTHERS") ~ 1,
          use_central == 0 &
             msm == 1 &
-            StrLeft(SELF_IDENT, 1) %in% c("2", "3") ~ 1,
+            str_left(SELF_IDENT, 1) %in% c("2", "3") ~ 1,
          TRUE ~ 0
       ),
       hetero          = case_when(

@@ -56,10 +56,10 @@ clean_data <- function(forms, old_reg) {
          fullname       = str_squish(stri_c(LAST, ", ", FIRST, " ", MIDDLE, " ", SUFFIX)),
 
          # Permanent
-         PERM_PSGC_PROV = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
-         PERM_PSGC_MUNC = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
+         PERM_PSGC_PROV = if_else(str_left(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
+         PERM_PSGC_MUNC = if_else(str_left(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
          use_curr       = if_else(
-            condition = !is.na(CURR_PSGC_MUNC) & (is.na(PERM_PSGC_MUNC) | StrLeft(PERM_PSGC_MUNC, 2) == "99"),
+            condition = !is.na(CURR_PSGC_MUNC) & (is.na(PERM_PSGC_MUNC) | str_left(PERM_PSGC_MUNC, 2) == "99"),
             true      = 1,
             false     = 0
          ),
@@ -85,7 +85,7 @@ clean_data <- function(forms, old_reg) {
 
          # tag wrong reports
          not_dead       = if_else(
-            condition = StrLeft(EB_VALIDATED, 1) == "0",
+            condition = str_left(EB_VALIDATED, 1) == "0",
             true      = 1,
             false     = 0,
             missing   = 0
@@ -149,7 +149,7 @@ standardize_data <- function(initial, params) {
          ),
 
          # demographics
-         pxcode             = str_squish(stri_c(StrLeft(FIRST, 1), StrLeft(MIDDLE, 1), StrLeft(LAST, 1))),
+         pxcode             = str_squish(stri_c(str_left(FIRST, 1), str_left(MIDDLE, 1), str_left(LAST, 1))),
 
          SEX                = remove_code(stri_trans_toupper(SEX)),
          CIVIL_STATUS       = remove_code(stri_trans_toupper(CIVIL_STATUS)),
@@ -205,7 +205,7 @@ convert_faci_addr <- function(data) {
          ),
          MORT_SUB_FACI = case_when(
             is.na(MORT_SUB_FACI) ~ "",
-            StrLeft(MORT_SUB_FACI, 6) != MORT_FACI ~ "",
+            str_left(MORT_SUB_FACI, 6) != MORT_FACI ~ "",
             TRUE ~ MORT_SUB_FACI
          )
       ) %>%
@@ -765,7 +765,7 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
       log_info("Checking for death reports that are still for investigation.")
       check[["confirm_if_dead"]] <- data %>%
          filter(
-            StrLeft(is_valid, 1) == "3" | is.na(is_valid)
+            str_left(is_valid, 1) == "3" | is.na(is_valid)
          ) %>%
          select(
             any_of(view_vars),

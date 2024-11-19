@@ -49,7 +49,7 @@ generate_disagg <- function(data, coverage) {
    data %<>%
       mutate(
          # sex variable (use registry if available)
-         Sex             = coalesce(StrLeft(sex, 1), "(no data)"),
+         Sex             = coalesce(str_left(sex, 1), "(no data)"),
 
          # KAP
          msm             = case_when(

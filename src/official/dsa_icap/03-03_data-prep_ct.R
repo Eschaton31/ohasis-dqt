@@ -24,7 +24,7 @@ icap$linelist$prep_ct <- icap$harp$prep$new_reg %>%
    ) %>%
    mutate(
       # sex variable (use registry if available)
-      Sex             = StrLeft(sex, 1),
+      Sex             = str_left(sex, 1),
 
       # KAP
       msm             = case_when(

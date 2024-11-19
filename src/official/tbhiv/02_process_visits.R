@@ -168,65 +168,65 @@ standardize_visits <- function(forms, coverage, itis_tpt = NULL, itis_drtb = NUL
             TRUE ~ 0
          ),
          visit_withtb     = case_when(
-            StrLeft(TB_STATUS, 1) == '1' ~ 1,
-            StrLeft(TB_STATUS, 1) == '0' ~ 0,
+            str_left(TB_STATUS, 1) == '1' ~ 1,
+            str_left(TB_STATUS, 1) == '0' ~ 0,
             # TRUE ~ 0
          ),
          visit_startedipt = case_when(
-            StrLeft(TB_IPT_STATUS, 2) == '12' ~ 1,
+            str_left(TB_IPT_STATUS, 2) == '12' ~ 1,
             year(TB_IPT_START_DATE) == curr_yr ~ 1,
             # year(IPT_PROXY_START) == curr_yr ~ 1,
             # TRUE ~ 0
          ),
          visit_onipt      = case_when(
-            StrLeft(TB_IPT_STATUS, 2) == '11' ~ 1,
-            StrLeft(TB_IPT_STATUS, 2) == '12' ~ 1,
-            StrLeft(TB_IPT_STATUS, 2) == '13' ~ 0,
-            StrLeft(TB_IPT_STATUS, 1) == '0' ~ 0,
+            str_left(TB_IPT_STATUS, 2) == '11' ~ 1,
+            str_left(TB_IPT_STATUS, 2) == '12' ~ 1,
+            str_left(TB_IPT_STATUS, 2) == '13' ~ 0,
+            str_left(TB_IPT_STATUS, 1) == '0' ~ 0,
             # TRUE ~ 0
          ),
          visit_endipt     = case_when(
-            StrLeft(TB_IPT_STATUS, 2) == '13' ~ 1, # new code
-            StrLeft(TB_IPT_OUTCOME, 1) == '1' ~ 1, # new code
-            StrLeft(TB_IPT_OUTCOME, 1) == '2' ~ 1, # new code
+            str_left(TB_IPT_STATUS, 2) == '13' ~ 1, # new code
+            str_left(TB_IPT_OUTCOME, 1) == '1' ~ 1, # new code
+            str_left(TB_IPT_OUTCOME, 1) == '2' ~ 1, # new code
             # TRUE ~ 0
          ),
          visit_tbtx       = case_when(
             !is.na(TB_TX_OUTCOME) ~ 1,
             !is.na(TB_REGIMEN) ~ 1,
-            StrLeft(TB_TX_STATUS, 2) == '11' ~ 1,
-            StrLeft(TB_TX_STATUS, 2) == '12' ~ 1,
-            StrLeft(TB_TX_STATUS, 2) == '13' ~ 0,
-            StrLeft(TB_TX_STATUS, 1) == '0' ~ 0,
+            str_left(TB_TX_STATUS, 2) == '11' ~ 1,
+            str_left(TB_TX_STATUS, 2) == '12' ~ 1,
+            str_left(TB_TX_STATUS, 2) == '13' ~ 0,
+            str_left(TB_TX_STATUS, 1) == '0' ~ 0,
             # TRUE ~ 0
          ),
          visit_startedtx  = case_when(
-            StrLeft(TB_TX_STATUS, 2) == '12' ~ 1,
+            str_left(TB_TX_STATUS, 2) == '12' ~ 1,
             year(TB_TX_START_DATE) == curr_yr ~ 1,
             # year(TX_PROXY_START) == curr_yr ~ 1,
             # TRUE ~ 0
          ),
          visit_ontx       = case_when(
-            StrLeft(TB_TX_STATUS, 2) == '11' ~ 1,
-            StrLeft(TB_TX_STATUS, 2) == '12' ~ 1,
+            str_left(TB_TX_STATUS, 2) == '11' ~ 1,
+            str_left(TB_TX_STATUS, 2) == '12' ~ 1,
             !is.na(TB_REGIMEN) ~ 1,
-            StrLeft(TB_TX_STATUS, 2) == '13' ~ 0,
-            StrLeft(TB_TX_STATUS, 1) == '0' ~ 0,
+            str_left(TB_TX_STATUS, 2) == '13' ~ 0,
+            str_left(TB_TX_STATUS, 1) == '0' ~ 0,
             # TRUE ~ 0
          ),
          visit_endtx      = case_when(
-            StrLeft(TB_TX_STATUS, 2) == '13' ~ 1,  # new code
-            StrLeft(TB_TX_OUTCOME, 2) == '10' ~ 1, # new code
-            StrLeft(TB_TX_OUTCOME, 2) == '11' ~ 1, # new code
-            StrLeft(TB_TX_OUTCOME, 2) == '20' ~ 1, # new code
+            str_left(TB_TX_STATUS, 2) == '13' ~ 1,  # new code
+            str_left(TB_TX_OUTCOME, 2) == '10' ~ 1, # new code
+            str_left(TB_TX_OUTCOME, 2) == '11' ~ 1, # new code
+            str_left(TB_TX_OUTCOME, 2) == '20' ~ 1, # new code
             # TRUE ~ 0
          ),
          visit_curetx     = case_when(
-            StrLeft(TB_TX_OUTCOME, 2) == '11' ~ 1, # new code
+            str_left(TB_TX_OUTCOME, 2) == '11' ~ 1, # new code
             # TRUE ~ 0
          ),
          visit_failtx     = case_when(
-            StrLeft(TB_TX_OUTCOME, 2) == '20' ~ 1, # new code
+            str_left(TB_TX_OUTCOME, 2) == '20' ~ 1, # new code
             # TRUE ~ 0
          ),
       ) %>%

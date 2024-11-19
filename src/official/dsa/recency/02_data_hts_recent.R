@@ -64,10 +64,10 @@ clean_data <- function(forms, harp) {
          name            = str_squish(stri_c(LAST, ", ", FIRST, " ", MIDDLE, " ", SUFFIX)),
 
          # Permanent
-         PERM_PSGC_PROV  = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
-         PERM_PSGC_MUNC  = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
+         PERM_PSGC_PROV  = if_else(str_left(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
+         PERM_PSGC_MUNC  = if_else(str_left(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
          use_curr        = if_else(
-            condition = !is.na(CURR_PSGC_MUNC) & (is.na(PERM_PSGC_MUNC) | StrLeft(PERM_PSGC_MUNC, 2) == "99"),
+            condition = !is.na(CURR_PSGC_MUNC) & (is.na(PERM_PSGC_MUNC) | str_left(PERM_PSGC_MUNC, 2) == "99"),
             true      = 1,
             false     = 0
          ),
@@ -146,8 +146,8 @@ clean_data <- function(forms, harp) {
          kap_pwid    = if_else(str_detect(risk_injectdrug, "yes"), "PWID", NA_character_),
          kap_pip     = if_else(str_detect(risk_paymentforsex, "yes"), "PIP", NA_character_),
          kap_pdl     = case_when(
-            StrLeft(CLIENT_TYPE, 1) == "7" ~ "PDL",
-            StrLeft(CLIENT_TYPE, 1) == "7" ~ "PDL",
+            str_left(CLIENT_TYPE, 1) == "7" ~ "PDL",
+            str_left(CLIENT_TYPE, 1) == "7" ~ "PDL",
          ),
       ) %>%
       rename(
@@ -270,12 +270,12 @@ standardize_data <- function(initial) {
       mutate(
          # tagging vars
          male                   = if_else(
-            condition = StrLeft(SEX, 1) == "1",
+            condition = str_left(SEX, 1) == "1",
             true      = 1,
             false     = 0
          ),
          female                 = if_else(
-            condition = StrLeft(SEX, 1) == "2",
+            condition = str_left(SEX, 1) == "2",
             true      = 1,
             false     = 0
          ),
@@ -300,18 +300,18 @@ standardize_data <- function(initial) {
          WHO_CLASS              = as.integer(keep_code(WHO_CLASS)),
 
          CLINICAL_PIC           = case_when(
-            StrLeft(CLINICAL_PIC, 1) == "1" ~ "0_Asymptomatic",
-            StrLeft(CLINICAL_PIC, 1) == "2" ~ "1_Symptomatic",
+            str_left(CLINICAL_PIC, 1) == "1" ~ "0_Asymptomatic",
+            str_left(CLINICAL_PIC, 1) == "2" ~ "1_Symptomatic",
          ),
 
          OFW_STATION            = case_when(
-            StrLeft(OFW_STATION, 1) == "1" ~ "1_On ship",
-            StrLeft(OFW_STATION, 1) == "2" ~ "2_Land",
+            str_left(OFW_STATION, 1) == "1" ~ "1_On ship",
+            str_left(OFW_STATION, 1) == "2" ~ "2_Land",
          ),
 
          REFER_TYPE             = case_when(
-            StrLeft(REFER_TYPE, 1) == "1" ~ "1",
-            StrLeft(REFER_TYPE, 1) == "2" ~ "1",
+            str_left(REFER_TYPE, 1) == "1" ~ "1",
+            str_left(REFER_TYPE, 1) == "2" ~ "1",
          )
       ) %>%
       # exposure history
@@ -319,7 +319,7 @@ standardize_data <- function(initial) {
          .vars = vars(starts_with("EXPOSE_") & !contains("DATE")),
          ~if_else(
             condition = !is.na(.),
-            true      = StrLeft(., 1),
+            true      = str_left(., 1),
             false     = NA_character_,
          ) %>% as.integer()
       ) %>%
@@ -328,7 +328,7 @@ standardize_data <- function(initial) {
          .vars = vars(starts_with("MED_")),
          ~if_else(
             condition = !is.na(.),
-            true      = StrLeft(., 1),
+            true      = str_left(., 1),
             false     = NA_character_
          ) %>% as.integer()
       ) %>%
@@ -337,7 +337,7 @@ standardize_data <- function(initial) {
          .vars = vars(starts_with("TEST_REASON") & !matches("_OTHER")),
          ~if_else(
             condition = !is.na(.),
-            true      = StrLeft(., 1),
+            true      = str_left(., 1),
             false     = NA_character_
          ) %>% as.integer()
       ) %>%
@@ -346,7 +346,7 @@ standardize_data <- function(initial) {
          .vars = vars(starts_with("REACH_")),
          ~if_else(
             condition = !is.na(.),
-            true      = StrLeft(., 1),
+            true      = str_left(., 1),
             false     = NA_character_
          ) %>% as.integer()
       ) %>%
@@ -355,7 +355,7 @@ standardize_data <- function(initial) {
          .vars = vars(starts_with("REFER")),
          ~if_else(
             condition = !is.na(.),
-            true      = StrLeft(., 1),
+            true      = str_left(., 1),
             false     = NA_character_
          ) %>% as.integer()
       ) %>%
@@ -364,7 +364,7 @@ standardize_data <- function(initial) {
          .vars = vars(starts_with("SERVICE_") & !ends_with("FACI")),
          ~if_else(
             condition = !is.na(.),
-            true      = StrLeft(., 1),
+            true      = str_left(., 1),
             false     = NA_character_
          ) %>% as.integer()
       ) %>%
@@ -488,7 +488,7 @@ tag_mot <- function(data, params) {
 
          # ivdu
          mot        = case_when(
-            EXPOSE_DRUG_INJECT > 0 & StrLeft(PERM_PSGC_PROV, 4) == "0722" ~ 5,
+            EXPOSE_DRUG_INJECT > 0 & str_left(PERM_PSGC_PROV, 4) == "0722" ~ 5,
             TRUE ~ mot
          ),
 
@@ -569,7 +569,7 @@ tag_mot <- function(data, params) {
 
          # ivdu hx
          mot        = case_when(
-            injectdrug > 0 & StrLeft(PERM_PSGC_PROV, 4) == "0722" ~ 51,
+            injectdrug > 0 & str_left(PERM_PSGC_PROV, 4) == "0722" ~ 51,
             TRUE ~ mot
          ),
 
@@ -715,7 +715,7 @@ tag_class <- function(data) {
          nodata_hiv_stage     = if_else(
             is.na(ahd) &
                is.na(BASELINE_CD4) &
-               ((coalesce(description_symptoms, "") == "" & StrLeft(CLINICAL_PIC, 1) == "1") | is.na(CLINICAL_PIC)) &
+               ((coalesce(description_symptoms, "") == "" & str_left(CLINICAL_PIC, 1) == "1") | is.na(CLINICAL_PIC)) &
                is.na(MED_TB_PX) &
                is.na(WHO_CLASS) &
                HIV_STAGE == "HIV",
@@ -883,7 +883,7 @@ final_conversion <- function(data) {
          kap_heterof = if_else(SEX == "FEMALE" & !is.na(SEXUAL_RISK), "Hetero Female", NA_character_),
          kap_pip     = if_else(str_detect(risk_paymentforsex, "yes"), "PIP", NA_character_),
          kap_pdl     = case_when(
-            StrLeft(CLIENT_TYPE, 1) == "7" ~ "PDL",
+            str_left(CLIENT_TYPE, 1) == "7" ~ "PDL",
             str_detect(RT_LAB, "Jail") ~ "PDL",
             TRUE ~ NA_character_
          ),

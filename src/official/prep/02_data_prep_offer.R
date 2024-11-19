@@ -171,7 +171,7 @@ standardize_data <- function(initial, params) {
          month                     = params$mo,
 
          # demographics
-         initials                  = str_squish(stri_c(StrLeft(FIRST, 1), StrLeft(MIDDLE, 1), StrLeft(LAST, 1))),
+         initials                  = str_squish(stri_c(str_left(FIRST, 1), str_left(MIDDLE, 1), str_left(LAST, 1))),
          SEX                       = remove_code(stri_trans_toupper(SEX)),
          self_identity             = remove_code(stri_trans_toupper(SELF_IDENT)),
          self_identity_other       = toupper(SELF_IDENT_OTHER),

@@ -32,7 +32,7 @@ convert_faci_id <- function(linelist, facilities, input_set, return_type = "name
          ),
          {{sub_faci_id}} := case_when(
             is.na({{sub_faci_id}}) ~ "",
-            StrLeft({{sub_faci_id}}, 6) != {{faci_id}} ~ "",
+            str_left({{sub_faci_id}}, 6) != {{faci_id}} ~ "",
             TRUE ~ {{sub_faci_id}}
          )
       ) %>%

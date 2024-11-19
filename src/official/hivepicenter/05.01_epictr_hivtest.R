@@ -159,7 +159,7 @@ tests <- form_a %>%
             !is.na(CONFIRM_RESULT) ~ "confirm",
       ),
       drop     = case_when(
-         StrLeft(MODALITY, 6) == "101304" ~ 1,
+         str_left(MODALITY, 6) == "101304" ~ 1,
          is.na(use_test) & is.na(MODALITY) ~ 1,
          TRUE ~ 0
       )
@@ -167,11 +167,11 @@ tests <- form_a %>%
    filter(drop == 0) %>%
    mutate(
       modality    = case_when(
-         FINAL_FACI == "130605" & StrLeft(MODALITY, 6) %in% c("101101", 101104) ~ "CBS",
-         StrLeft(MODALITY, 6) == "101101" ~ "FBT",
-         StrLeft(MODALITY, 6) == "101103" ~ "CBS",
-         StrLeft(MODALITY, 6) == "101104" ~ "FBS",
-         StrLeft(MODALITY, 6) == "101105" ~ "ST",
+         FINAL_FACI == "130605" & str_left(MODALITY, 6) %in% c("101101", 101104) ~ "CBS",
+         str_left(MODALITY, 6) == "101101" ~ "FBT",
+         str_left(MODALITY, 6) == "101103" ~ "CBS",
+         str_left(MODALITY, 6) == "101104" ~ "FBS",
+         str_left(MODALITY, 6) == "101105" ~ "ST",
          TRUE ~ "FBT"
       ),
       test_date   = case_when(
@@ -187,8 +187,8 @@ tests <- form_a %>%
          use_test == "confirm" ~ CONFIRM_RESULT,
       ),
       test_result = case_when(
-         StrLeft(test_result, 1) == "1" ~ "Reactive",
-         StrLeft(test_result, 1) == "2" ~ "Non-reactive",
+         str_left(test_result, 1) == "1" ~ "Reactive",
+         str_left(test_result, 1) == "2" ~ "Non-reactive",
          test_result == "Duplicate" ~ "Reactive"
       )
    ) %>%
@@ -198,8 +198,8 @@ tests <- form_a %>%
    ) %>%
    mutate(
       FINAL_SUB_FACI = case_when(
-         FINAL_FACI == "130001" & StrLeft(FINAL_SUB_FACI, 6) == "130001" ~ FINAL_SUB_FACI,
-         FINAL_FACI == "130605" & StrLeft(FINAL_SUB_FACI, 6) == "130605" ~ FINAL_SUB_FACI,
+         FINAL_FACI == "130001" & str_left(FINAL_SUB_FACI, 6) == "130001" ~ FINAL_SUB_FACI,
+         FINAL_FACI == "130605" & str_left(FINAL_SUB_FACI, 6) == "130605" ~ FINAL_SUB_FACI,
          TRUE ~ ""
       )
    ) %>%
@@ -232,8 +232,8 @@ tests <- form_a %>%
          TEST_PSGC_PROV == "133900000" ~ "133900000",
          TRUE ~ TEST_PSGC_MUNC
       ),
-      TEST_PSGC_PROV = stri_pad_right(StrLeft(TEST_PSGC_MUNC, 4), 9, "0"),
-      TEST_PSGC_REG  = stri_pad_right(StrLeft(TEST_PSGC_MUNC, 2), 9, "0"),
+      TEST_PSGC_PROV = stri_pad_right(str_left(TEST_PSGC_MUNC, 4), 9, "0"),
+      TEST_PSGC_REG  = stri_pad_right(str_left(TEST_PSGC_MUNC, 2), 9, "0"),
    ) %>%
    distinct_all() %>%
    left_join(
@@ -249,7 +249,7 @@ tests <- form_a %>%
    mutate(
       TEST_PSGC_AEM = if_else(aem_class_test %in% c("a", "ncr", "cebu city", "cebu province"), TEST_PSGC_MUNC, TEST_PSGC_PROV, TEST_PSGC_PROV),
       # TEST_PSGC_PROV = case_when(
-      #    TEST_PSGC_PROV == TEST_PSGC_MUNC &StrLeft(TEST_PSGC_PROV, 2) != "13" ~ "",
+      #    TEST_PSGC_PROV == TEST_PSGC_MUNC &str_left(TEST_PSGC_PROV, 2) != "13" ~ "",
       # ),
    ) %>%
    left_join(

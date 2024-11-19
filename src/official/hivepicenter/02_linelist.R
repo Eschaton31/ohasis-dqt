@@ -88,8 +88,8 @@ convert_to_psgc <- function(harp, params) {
 
             # sex
             sex                   = case_when(
-               StrLeft(toupper(sex), 1) == "M" ~ "Male",
-               StrLeft(toupper(sex), 1) == "F" ~ "Female",
+               str_left(toupper(sex), 1) == "M" ~ "Male",
+               str_left(toupper(sex), 1) == "F" ~ "Female",
                TRUE ~ "(no data)"
             ),
 

@@ -47,24 +47,24 @@ get_latest_record <- function(form_data, new_reg, params) {
 
          # satellite
          SATELLITE_FACI     = if_else(
-            condition = StrLeft(CLIENT_TYPE, 1) == "5",
+            condition = str_left(CLIENT_TYPE, 1) == "5",
             true      = FACI_DISP,
             false     = NA_character_
          ),
          SATELLITE_SUB_FACI = if_else(
-            condition = StrLeft(CLIENT_TYPE, 1) == "5",
+            condition = str_left(CLIENT_TYPE, 1) == "5",
             true      = SUB_FACI_DISP,
             false     = NA_character_
          ),
 
          # transient
          TRANSIENT_FACI     = if_else(
-            condition = StrLeft(CLIENT_TYPE, 1) == "6",
+            condition = str_left(CLIENT_TYPE, 1) == "6",
             true      = FACI_DISP,
             false     = NA_character_
          ),
          TRANSIENT_SUB_FACI = if_else(
-            condition = StrLeft(CLIENT_TYPE, 1) == "6",
+            condition = str_left(CLIENT_TYPE, 1) == "6",
             true      = SUB_FACI_DISP,
             false     = NA_character_
          ),

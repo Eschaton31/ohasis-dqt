@@ -2,10 +2,10 @@
 
 icap$linelist$hts_tst_verify <- bind_rows(icap$forms$form_cfbs, icap$forms$form_hts) %>%
    filter(
-      StrLeft(MODALITY, 6) != "101101" | is.na(MODALITY),
-      StrLeft(T0_RESULT, 1) == "1" |
-         StrLeft(T1_RESULT, 1) == "1" |
-         StrLeft(TEST_RESULT, 1) == "1"
+      str_left(MODALITY, 6) != "101101" | is.na(MODALITY),
+      str_left(T0_RESULT, 1) == "1" |
+         str_left(T1_RESULT, 1) == "1" |
+         str_left(TEST_RESULT, 1) == "1"
    ) %>%
    mutate(
       # get confirm msm or not
@@ -33,7 +33,7 @@ icap$linelist$hts_tst_verify <- bind_rows(icap$forms$form_cfbs, icap$forms$form_
    inner_join(
       y  = bind_rows(icap$forms$form_hts, icap$forms$form_a) %>%
          filter(
-            StrLeft(CONFIRM_RESULT, 1) == "1"
+            str_left(CONFIRM_RESULT, 1) == "1"
          ) %>%
          mutate(
             # confirm date
@@ -79,7 +79,7 @@ icap$linelist$hts_tst_verify <- bind_rows(icap$forms$form_cfbs, icap$forms$form_
       # sex variable (use registry if available)
       Sex             = if_else(
          condition = !is.na(transmit),
-         true      = StrLeft(reg_sex, 1),
+         true      = str_left(reg_sex, 1),
          false     = substr(SEX, 3, 3),
          missing   = substr(SEX, 3, 3)
       ),

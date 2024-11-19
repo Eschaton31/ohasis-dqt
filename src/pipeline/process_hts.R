@@ -1,4 +1,4 @@
-get_hts <- function(min, max) {
+get_hts <- function(min, max, faci_ids = NULL) {
 
    con   <- ohasis$conn("lw")
    forms <- QB$new(con)
@@ -144,13 +144,13 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             TRUE ~ 0
          ),
          hts_client_type = case_when(
-            StrLeft(CLIENT_TYPE, 1) == "1" ~ "Inpatient",
+            str_left(CLIENT_TYPE, 1) == "1" ~ "Inpatient",
             hts_modality == "ST" ~ "ST",
             hts_modality %in% c("CBS", "FBS") ~ "CBS",
-            StrLeft(CLIENT_TYPE, 1) == "3" ~ "CBS",
-            StrLeft(CLIENT_TYPE, 1) == "7" ~ "PDL",
-            StrLeft(CLIENT_TYPE, 1) == "2" ~ "Walk-in",
-            StrLeft(CLIENT_TYPE, 1) == "4" ~ "Walk-in",
+            str_left(CLIENT_TYPE, 1) == "3" ~ "CBS",
+            str_left(CLIENT_TYPE, 1) == "7" ~ "PDL",
+            str_left(CLIENT_TYPE, 1) == "2" ~ "Walk-in",
+            str_left(CLIENT_TYPE, 1) == "4" ~ "Walk-in",
             TRUE ~ "Walk-in"
          )
       )
@@ -863,7 +863,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
 
          # ivdu
          mot                   = case_when(
-            EXPOSE_DRUG_INJECT > 0 & StrLeft(PERM_PSGC_PROV, 4) == "0722" ~ 5,
+            EXPOSE_DRUG_INJECT > 0 & str_left(PERM_PSGC_PROV, 4) == "0722" ~ 5,
             TRUE ~ mot
          ),
 
@@ -944,7 +944,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
 
          # ivdu hx
          mot                   = case_when(
-            injectdrug > 0 & StrLeft(PERM_PSGC_PROV, 4) == "0722" ~ 51,
+            injectdrug > 0 & str_left(PERM_PSGC_PROV, 4) == "0722" ~ 51,
             TRUE ~ mot
          ),
 
@@ -1145,8 +1145,8 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
          kap_pwid    = if_else(str_detect(risk_injectdrug, "yes"), "PWID", NA_character_),
          kap_pip     = if_else(str_detect(risk_paymentforsex, "yes"), "PIP", NA_character_),
          kap_pdl     = case_when(
-            StrLeft(CLIENT_TYPE, 1) == "7" ~ "PDL",
-            StrLeft(CLIENT_TYPE, 1) == "7" ~ "PDL",
+            str_left(CLIENT_TYPE, 1) == "7" ~ "PDL",
+            str_left(CLIENT_TYPE, 1) == "7" ~ "PDL",
          ),
       )
 
@@ -1159,10 +1159,10 @@ convert_hts <- function(hts_data, convert_type = c("nhsss", "name", "code")) {
          use_record_faci    = if_else(is.na(SERVICE_FACI), 1, 0, 0),
          SERVICE_FACI       = if_else(use_record_faci == 1, FACI_ID, SERVICE_FACI),
 
-         PERM_PSGC_PROV     = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
-         PERM_PSGC_MUNC     = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
+         PERM_PSGC_PROV     = if_else(str_left(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
+         PERM_PSGC_MUNC     = if_else(str_left(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
          use_curr           = if_else(
-            condition = !is.na(CURR_PSGC_MUNC) & (is.na(PERM_PSGC_MUNC) | StrLeft(PERM_PSGC_MUNC, 2) == "99"),
+            condition = !is.na(CURR_PSGC_MUNC) & (is.na(PERM_PSGC_MUNC) | str_left(PERM_PSGC_MUNC, 2) == "99"),
             true      = 1,
             false     = 0
          ),
@@ -1747,10 +1747,10 @@ convert_dx <- function(hts_data, yr, mo) {
          name            = str_squish(stri_c(LAST, ", ", FIRST, " ", MIDDLE, " ", SUFFIX)),
 
          # Permanent
-         PERM_PSGC_PROV  = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
-         PERM_PSGC_MUNC  = if_else(StrLeft(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
+         PERM_PSGC_PROV  = if_else(str_left(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
+         PERM_PSGC_MUNC  = if_else(str_left(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
          use_curr        = if_else(
-            condition = !is.na(CURR_PSGC_MUNC) & (is.na(PERM_PSGC_MUNC) | StrLeft(PERM_PSGC_MUNC, 2) == "99"),
+            condition = !is.na(CURR_PSGC_MUNC) & (is.na(PERM_PSGC_MUNC) | str_left(PERM_PSGC_MUNC, 2) == "99"),
             true      = 1,
             false     = 0
          ),
@@ -1816,12 +1816,12 @@ convert_dx <- function(hts_data, yr, mo) {
 
          # tagging vars
          male                      = if_else(
-            condition = StrLeft(SEX, 1) == "1",
+            condition = str_left(SEX, 1) == "1",
             true      = 1,
             false     = 0
          ),
          female                    = if_else(
-            condition = StrLeft(SEX, 1) == "2",
+            condition = str_left(SEX, 1) == "2",
             true      = 1,
             false     = 0
          ),
@@ -1834,14 +1834,14 @@ convert_dx <- function(hts_data, yr, mo) {
             AGE <= 1 ~ "PCR"
          ),
          rhivda_done               = if_else(
-            condition = StrLeft(CONFIRM_TYPE, 1) == "2",
+            condition = str_left(CONFIRM_TYPE, 1) == "2",
             true      = 1,
             false     = as.numeric(NA)
          ),
          sample_source             = substr(SPECIMEN_REFER_TYPE, 3, 3),
 
          # demographics
-         pxcode                    = str_squish(stri_c(StrLeft(FIRST, 1), StrLeft(MIDDLE, 1), StrLeft(LAST, 1))),
+         pxcode                    = str_squish(stri_c(str_left(FIRST, 1), str_left(MIDDLE, 1), str_left(LAST, 1))),
          SEX                       = remove_code(stri_trans_toupper(SEX)),
          self_identity             = remove_code(stri_trans_toupper(SELF_IDENT)),
          self_identity             = case_when(
@@ -1862,19 +1862,19 @@ convert_dx <- function(hts_data, yr, mo) {
             TRUE ~ "UNKNOWN"
          ),
          current_school_level      = if_else(
-            condition = StrLeft(IS_STUDENT, 1) == "1",
+            condition = str_left(IS_STUDENT, 1) == "1",
             true      = EDUC_LEVEL,
             false     = NA_character_
          ),
 
          # occupation
          curr_work                 = if_else(
-            condition = StrLeft(IS_EMPLOYED, 1) == "1",
+            condition = str_left(IS_EMPLOYED, 1) == "1",
             true      = stri_trans_toupper(WORK),
             false     = NA_character_
          ),
          prev_work                 = if_else(
-            condition = StrLeft(IS_EMPLOYED, 1) == "0" | is.na(IS_EMPLOYED),
+            condition = str_left(IS_EMPLOYED, 1) == "0" | is.na(IS_EMPLOYED),
             true      = stri_trans_toupper(WORK),
             false     = NA_character_
          ),
@@ -1884,18 +1884,18 @@ convert_dx <- function(hts_data, yr, mo) {
          other_reason_test         = stri_trans_toupper(TEST_REASON_OTHER_TEXT),
 
          CLINICAL_PIC              = case_when(
-            StrLeft(CLINICAL_PIC, 1) == "1" ~ "0_Asymptomatic",
-            StrLeft(CLINICAL_PIC, 1) == "2" ~ "1_Symptomatic",
+            str_left(CLINICAL_PIC, 1) == "1" ~ "0_Asymptomatic",
+            str_left(CLINICAL_PIC, 1) == "2" ~ "1_Symptomatic",
          ),
 
          OFW_STATION               = case_when(
-            StrLeft(OFW_STATION, 1) == "1" ~ "1_On ship",
-            StrLeft(OFW_STATION, 1) == "2" ~ "2_Land",
+            str_left(OFW_STATION, 1) == "1" ~ "1_On ship",
+            str_left(OFW_STATION, 1) == "2" ~ "2_Land",
          ),
 
          REFER_TYPE                = case_when(
-            StrLeft(REFER_TYPE, 1) == "1" ~ "1",
-            StrLeft(REFER_TYPE, 1) == "2" ~ "1",
+            str_left(REFER_TYPE, 1) == "1" ~ "1",
+            str_left(REFER_TYPE, 1) == "2" ~ "1",
          )
       ) %>%
       # exposure history
@@ -1903,7 +1903,7 @@ convert_dx <- function(hts_data, yr, mo) {
          .vars = vars(starts_with("EXPOSE_") & !contains("DATE")),
          ~if_else(
             condition = !is.na(.),
-            true      = StrLeft(., 1),
+            true      = str_left(., 1),
             false     = NA_character_,
          ) %>% as.integer()
       ) %>%
@@ -1912,7 +1912,7 @@ convert_dx <- function(hts_data, yr, mo) {
          .vars = vars(starts_with("MED_")),
          ~if_else(
             condition = !is.na(.),
-            true      = StrLeft(., 1),
+            true      = str_left(., 1),
             false     = NA_character_
          ) %>% as.integer()
       ) %>%
@@ -1921,7 +1921,7 @@ convert_dx <- function(hts_data, yr, mo) {
          .vars = vars(starts_with("TEST_REASON") & !matches("_OTHER")),
          ~if_else(
             condition = !is.na(.),
-            true      = StrLeft(., 1),
+            true      = str_left(., 1),
             false     = NA_character_
          ) %>% as.integer()
       ) %>%
@@ -1930,7 +1930,7 @@ convert_dx <- function(hts_data, yr, mo) {
          .vars = vars(starts_with("REACH_")),
          ~if_else(
             condition = !is.na(.),
-            true      = StrLeft(., 1),
+            true      = str_left(., 1),
             false     = NA_character_
          ) %>% as.integer()
       ) %>%
@@ -1939,7 +1939,7 @@ convert_dx <- function(hts_data, yr, mo) {
          .vars = vars(starts_with("REFER")),
          ~if_else(
             condition = !is.na(.),
-            true      = StrLeft(., 1),
+            true      = str_left(., 1),
             false     = NA_character_
          ) %>% as.integer()
       ) %>%
@@ -1948,7 +1948,7 @@ convert_dx <- function(hts_data, yr, mo) {
          .vars = vars(starts_with("SERVICE_")),
          ~if_else(
             condition = !is.na(.),
-            true      = StrLeft(., 1),
+            true      = str_left(., 1),
             false     = NA_character_
          ) %>% as.integer()
       ) %>%
@@ -2048,7 +2048,7 @@ convert_dx <- function(hts_data, yr, mo) {
 
          # ivdu
          mot        = case_when(
-            EXPOSE_DRUG_INJECT > 0 & StrLeft(PERM_PSGC_PROV, 4) == "0722" ~ 5,
+            EXPOSE_DRUG_INJECT > 0 & str_left(PERM_PSGC_PROV, 4) == "0722" ~ 5,
             TRUE ~ mot
          ),
 
@@ -2129,7 +2129,7 @@ convert_dx <- function(hts_data, yr, mo) {
 
          # ivdu hx
          mot        = case_when(
-            injectdrug > 0 & StrLeft(PERM_PSGC_PROV, 4) == "0722" ~ 51,
+            injectdrug > 0 & str_left(PERM_PSGC_PROV, 4) == "0722" ~ 51,
             TRUE ~ mot
          ),
 

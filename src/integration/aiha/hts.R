@@ -406,7 +406,7 @@ dbDisconnect(lw_conn)
 aiha$hts %<>%
    select(-any_of("PATIENT_ID")) %>%
    mutate(
-      UIC = StrLeft(UIC, 14)
+      UIC = str_left(UIC, 14)
    ) %>%
    # get records id if existing
    left_join(

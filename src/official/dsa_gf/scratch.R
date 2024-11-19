@@ -4,7 +4,7 @@
 try <- gf$logsheet$psfi %>%
    filter(sheet %in% c("MSMTGW", "PWID")) %>%
    left_join(
-	  y  = gf$corr$logsheet_psfi$staff %>%
+	  y  = gf$corr$staff %>%
 		 rename(
 			site_region = 2
 		 ) %>%
@@ -33,7 +33,7 @@ try <- gf$logsheet$psfi %>%
 	  ),
 	  SERVICE_FACI     = case_when(
 		 !is.na(FACI_ID) ~ FACI_ID,
-		 !is.na(USER_ID) ~ StrLeft(USER_ID, 6),
+		 !is.na(USER_ID) ~ str_left(USER_ID, 6),
 	  ),
 	  with_uic         = if_else(
 		 condition = !is.na(SERVICE_FACI),
@@ -130,7 +130,7 @@ combined <- bind_rows(
 
 faci_users <- ohasis$ref_staff %>%
    mutate(
-	  FACI_ID     = StrLeft(STAFF_ID, 6),
+	  FACI_ID     = str_left(STAFF_ID, 6),
 	  SUB_FACI_ID = NA_character_
    )
 

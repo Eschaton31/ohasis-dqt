@@ -274,7 +274,7 @@ local(envir = vlml, {
       mutate(
          confirmatory_code = if_else(str_squish(confirmatory_code) == "", NA_character_, confirmatory_code, confirmatory_code),
          uic               = stri_replace_all_fixed(uic, "-", ""),
-         sex               = StrLeft(sex, 1),
+         sex               = str_left(sex, 1),
          hub               = tolower(hub),
          PATIENT_ID        = NA_character_
       ) %>%

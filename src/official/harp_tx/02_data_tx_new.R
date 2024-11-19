@@ -72,24 +72,24 @@ get_enrollees <- function(art_first, old_reg, params) {
 
          # satellite
          SATELLITE_FACI     = if_else(
-            condition = StrLeft(CLIENT_TYPE, 1) == "5",
+            condition = str_left(CLIENT_TYPE, 1) == "5",
             true      = FACI_DISP,
             false     = NA_character_
          ),
          SATELLITE_SUB_FACI = if_else(
-            condition = StrLeft(CLIENT_TYPE, 1) == "5",
+            condition = str_left(CLIENT_TYPE, 1) == "5",
             true      = SUB_FACI_DISP,
             false     = NA_character_
          ),
 
          # transient
          TRANSIENT_FACI     = if_else(
-            condition = StrLeft(CLIENT_TYPE, 1) == "6",
+            condition = str_left(CLIENT_TYPE, 1) == "6",
             true      = FACI_DISP,
             false     = NA_character_
          ),
          TRANSIENT_SUB_FACI = if_else(
-            condition = StrLeft(CLIENT_TYPE, 1) == "6",
+            condition = str_left(CLIENT_TYPE, 1) == "6",
             true      = SUB_FACI_DISP,
             false     = NA_character_
          ),
@@ -254,7 +254,7 @@ standardize_data <- function(initial, params) {
          month             = params$mo,
 
          # demographics
-         initials          = str_squish(stri_c(StrLeft(FIRST, 1), StrLeft(MIDDLE, 1), StrLeft(LAST, 1))),
+         initials          = str_squish(stri_c(str_left(FIRST, 1), str_left(MIDDLE, 1), str_left(LAST, 1))),
          SEX               = remove_code(stri_trans_toupper(SEX)),
 
          # clinical pic
@@ -723,7 +723,7 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
       log_info("Checking for new clients tagged as refills.")
       check[["refill_enroll"]] <- data %>%
          filter(
-            StrLeft(tx_status, 1) == "2"
+            str_left(tx_status, 1) == "2"
          ) %>%
          select(
             any_of(view_vars),
@@ -735,7 +735,7 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
       check[["non_enrollee"]] <- data %>%
          filter(
             artstart_date < params$min,
-            coalesce(StrLeft(tx_status, 1), "") != "1"
+            coalesce(str_left(tx_status, 1), "") != "1"
          ) %>%
          select(
             any_of(view_vars),
@@ -745,7 +745,7 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
       check[["late_report"]] <- data %>%
          filter(
             artstart_date < params$min,
-            coalesce(StrLeft(tx_status, 1), "") == "1"
+            coalesce(str_left(tx_status, 1), "") == "1"
          ) %>%
          select(
             any_of(view_vars),

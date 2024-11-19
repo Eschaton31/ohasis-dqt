@@ -44,7 +44,7 @@ ihbss_flag_issues <- function(data, survey) {
 
       issues[["Source Stranger"]] <- data %>%
          filter(is.na(review_state) | review_state != "rejected") %>%
-         filter(StrLeft(sq1_source_coupon, 1) == "1") %>%
+         filter(str_left(sq1_source_coupon, 1) == "1") %>%
          relocate(sq1_source_coupon, .after = sq1_rid)
 
       issues[["No Recruiter"]] <- data %>%

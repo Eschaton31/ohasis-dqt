@@ -219,7 +219,7 @@ gf$logsheet$ohasis <- reach %>%
 
       # special TGW tagging for GF
       TEST_TGW         = if_else(
-         condition = StrLeft(SEX, 1) == "1" & StrLeft(SELF_IDENT, 1) == "2",
+         condition = str_left(SEX, 1) == "1" & str_left(SELF_IDENT, 1) == "2",
          true      = 1,
          false     = 0,
          missing   = 0
@@ -231,7 +231,7 @@ gf$logsheet$ohasis <- reach %>%
          TRUE ~ substr(SEX, 3, 3)
       ),
 
-      SELF_IDENT       = StrLeft(SELF_IDENT, 1),
+      SELF_IDENT       = str_left(SELF_IDENT, 1),
       SELF_IDENT       = case_when(
          SELF_IDENT == "1" ~ "M",
          SELF_IDENT == "2" ~ "F",
@@ -273,9 +273,9 @@ gf$logsheet$ohasis <- reach %>%
          RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ EXPOSE_SEX_M_AV_NOCONDOM_DATE,
       ),
       SEX_ORAL         = case_when(
-         StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "1" ~ "Y",
-         StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "2" ~ "Y",
-         StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "0" ~ "N",
+         str_left(EXPOSE_M_SEX_ORAL_ANAL, 1) == "1" ~ "Y",
+         str_left(EXPOSE_M_SEX_ORAL_ANAL, 1) == "2" ~ "Y",
+         str_left(EXPOSE_M_SEX_ORAL_ANAL, 1) == "0" ~ "N",
          TRUE ~ "N"
       ),
       SEX_ANAL_RECEIVE = case_when(
@@ -284,11 +284,11 @@ gf$logsheet$ohasis <- reach %>%
          # RECORD_P12M <= EXPOSE_SEX_M_AV_NOCONDOM_DATE & is.na(EXPOSE_SEX_M_AV_DATE) ~ "Y",
          # RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE > EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
          # RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
-         # StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "1" ~ "Y",
-         # StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "2" ~ "Y",
-         # StrLeft(EXPOSE_CONDOMLESS_ANAL, 1) == "1" ~ "Y",
-         # StrLeft(EXPOSE_CONDOMLESS_ANAL, 1) == "2" ~ "Y",
-         # StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == "1" ~ "Y",
+         # str_left(EXPOSE_M_SEX_ORAL_ANAL, 1) == "1" ~ "Y",
+         # str_left(EXPOSE_M_SEX_ORAL_ANAL, 1) == "2" ~ "Y",
+         # str_left(EXPOSE_CONDOMLESS_ANAL, 1) == "1" ~ "Y",
+         # str_left(EXPOSE_CONDOMLESS_ANAL, 1) == "2" ~ "Y",
+         # str_left(EXPOSE_SEX_M_NOCONDOM, 1) == "1" ~ "Y",
          TRUE ~ "N"
       ),
       SEX_ANAL_INSERT  = case_when(
@@ -297,11 +297,11 @@ gf$logsheet$ohasis <- reach %>%
          # RECORD_P12M <= EXPOSE_SEX_M_AV_NOCONDOM_DATE & is.na(EXPOSE_SEX_M_AV_DATE) ~ "Y",
          # RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE > EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
          # RECORD_P12M <= EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
-         # StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "1" ~ "Y",
-         # StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "2" ~ "Y",
-         # StrLeft(EXPOSE_CONDOMLESS_ANAL, 1) == "1" ~ "Y",
-         # StrLeft(EXPOSE_CONDOMLESS_ANAL, 1) == "2" ~ "Y",
-         # StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == "1" ~ "Y",
+         # str_left(EXPOSE_M_SEX_ORAL_ANAL, 1) == "1" ~ "Y",
+         # str_left(EXPOSE_M_SEX_ORAL_ANAL, 1) == "2" ~ "Y",
+         # str_left(EXPOSE_CONDOMLESS_ANAL, 1) == "1" ~ "Y",
+         # str_left(EXPOSE_CONDOMLESS_ANAL, 1) == "2" ~ "Y",
+         # str_left(EXPOSE_SEX_M_NOCONDOM, 1) == "1" ~ "Y",
          TRUE ~ "N"
       ),
       analp12m         = case_when(
@@ -317,20 +317,20 @@ gf$logsheet$ohasis <- reach %>%
          RECORD_P12M > EXPOSE_SEX_M_AV_NOCONDOM_DATE & is.na(EXPOSE_SEX_M_AV_DATE) ~ ">p12m",
          RECORD_P12M > EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE > EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ ">p12m",
          RECORD_P12M > EXPOSE_SEX_M_AV_DATE & EXPOSE_SEX_M_AV_DATE < EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ ">p12m",
-         StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "1" ~ "w/in 12m",
-         StrLeft(EXPOSE_M_SEX_ORAL_ANAL, 1) == "2" ~ ">p12m",
-         StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == "2" ~ ">p12m",
-         StrLeft(EXPOSE_CONDOMLESS_ANAL, 1) == "1" ~ "w/in 12m",
-         StrLeft(EXPOSE_CONDOMLESS_ANAL, 1) == "2" ~ ">p12m",
-         StrLeft(EXPOSE_SEX_M_NOCONDOM, 1) == "1" ~ "w/in 12m",
+         str_left(EXPOSE_M_SEX_ORAL_ANAL, 1) == "1" ~ "w/in 12m",
+         str_left(EXPOSE_M_SEX_ORAL_ANAL, 1) == "2" ~ ">p12m",
+         str_left(EXPOSE_SEX_M_NOCONDOM, 1) == "2" ~ ">p12m",
+         str_left(EXPOSE_CONDOMLESS_ANAL, 1) == "1" ~ "w/in 12m",
+         str_left(EXPOSE_CONDOMLESS_ANAL, 1) == "2" ~ ">p12m",
+         str_left(EXPOSE_SEX_M_NOCONDOM, 1) == "1" ~ "w/in 12m",
          SEX_ANAL_INSERT == "Y" | SEX_ANAL_RECEIVE == "Y" ~ ">p12m",
          TRUE ~ "(no data)"
       ),
       SEX_VAGINAL      = case_when(
          risk_sexwithf %in% c("yes-p01m", "yes-p03m", "yes-p06m", "yes-p12m") ~ "Y",
-         # StrLeft(EXPOSE_CONDOMLESS_VAGINAL, 1) == "1" ~ "Y",
-         #  StrLeft(EXPOSE_CONDOMLESS_VAGINAL, 1) == "0" ~ "N",
-         #  StrLeft(EXPOSE_CONDOMLESS_VAGINAL, 1) == "2" ~ "N",
+         # str_left(EXPOSE_CONDOMLESS_VAGINAL, 1) == "1" ~ "Y",
+         #  str_left(EXPOSE_CONDOMLESS_VAGINAL, 1) == "0" ~ "N",
+         #  str_left(EXPOSE_CONDOMLESS_VAGINAL, 1) == "2" ~ "N",
          #  RECORD_P12M <= EXPOSE_SEX_M_AV_DATE ~ "Y",
          #  RECORD_P12M <= EXPOSE_SEX_M_AV_NOCONDOM_DATE ~ "Y",
          #  RECORD_P12M <= EXPOSE_SEX_F_AV_DATE ~ "Y",
@@ -343,7 +343,7 @@ gf$logsheet$ohasis <- reach %>%
       ),
       CONDOM_STAGE     = "N/A",
       TESTED           = case_when(
-         StrLeft(SCREEN_AGREED, 1) == "0" ~ "Not Tested",
+         str_left(SCREEN_AGREED, 1) == "0" ~ "Not Tested",
          hts_modality == "FBT" ~ "Facility/Clinic (by MedTech)",
          hts_modality == "FBS" ~ "Outreach/Community (by MedTech)",
          hts_modality == "CBS" ~ "CBS",
@@ -361,16 +361,16 @@ gf$logsheet$ohasis <- reach %>%
       EVERONPREP       = if_else(!is.na(prepstart_date), "N", "Y"),
       REACTIVE         = case_when(
          hts_result == "R" ~ "Y",
-         # StrLeft(TEST_RESULT, 1) == "1" ~ "Y",
-         # StrLeft(T1_RESULT, 1) == "1" ~ "Y",
-         # StrLeft(TEST_RESULT, 1) == "2" ~ "N",
-         # StrLeft(TEST_RESULT, 1) == "3" ~ "N",
-         # StrLeft(T1_RESULT, 1) == "2" ~ "N",
-         # StrLeft(T1_RESULT, 1) == "3" ~ "N",
-         # StrLeft(FINAL_RESULT, 1) == "1" ~ "Y",
-         # StrLeft(FINAL_RESULT, 1) == "2" ~ "N",
-         # StrLeft(FINAL_RESULT, 1) == "3" ~ "N",
-         # StrLeft(FINAL_RESULT, 1) == "4" ~ "N",
+         # str_left(TEST_RESULT, 1) == "1" ~ "Y",
+         # str_left(T1_RESULT, 1) == "1" ~ "Y",
+         # str_left(TEST_RESULT, 1) == "2" ~ "N",
+         # str_left(TEST_RESULT, 1) == "3" ~ "N",
+         # str_left(T1_RESULT, 1) == "2" ~ "N",
+         # str_left(T1_RESULT, 1) == "3" ~ "N",
+         # str_left(FINAL_RESULT, 1) == "1" ~ "Y",
+         # str_left(FINAL_RESULT, 1) == "2" ~ "N",
+         # str_left(FINAL_RESULT, 1) == "3" ~ "N",
+         # str_left(FINAL_RESULT, 1) == "4" ~ "N",
          TRUE ~ "N"
       ),
       TEST_DATE        = case_when(
@@ -428,9 +428,9 @@ gf$logsheet$ohasis <- reach %>%
             #    TRUE ~ RECORD_DATE
             # ),
             # T1_RESULT  = case_when(
-            #    use_test == "t0" ~ StrLeft(TEST_RESULT, 1),
-            #    use_test == "t1" ~ StrLeft(T1_RESULT, 1),
-            #    use_test == "confirm" ~ StrLeft(CONFIRM_RESULT, 1),
+            #    use_test == "t0" ~ str_left(TEST_RESULT, 1),
+            #    use_test == "t1" ~ str_left(T1_RESULT, 1),
+            #    use_test == "confirm" ~ str_left(CONFIRM_RESULT, 1),
             #    TRUE ~ NA_character_
             # ),
             T1_DATE   = hts_date,

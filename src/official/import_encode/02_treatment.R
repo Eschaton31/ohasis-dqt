@@ -163,7 +163,7 @@ local(envir = import, {
             na.rm = TRUE
          ) %>%
          mutate(
-            TX_FACI = if_else(TX_FACI == "", StrLeft(PAGE_ID, 3), TX_FACI, TX_FACI)
+            TX_FACI = if_else(TX_FACI == "", str_left(PAGE_ID, 3), TX_FACI, TX_FACI)
          ) %>%
          filter(
             !is.na(CREATED_TIME),
@@ -268,13 +268,13 @@ local(envir = import, {
             DISEASE            = "101000",
             SERVICE_TYPE       = "101201",
             TB_SITE_P          = if_else(
-               condition = StrLeft(TB_SITE, 1) == "1",
+               condition = str_left(TB_SITE, 1) == "1",
                true      = 1,
                false     = 0,
                missing   = 0
             ),
             TB_SITE_EP         = if_else(
-               condition = StrLeft(TB_SITE, 1) == "2",
+               condition = str_left(TB_SITE, 1) == "2",
                true      = 1,
                false     = 0,
                missing   = 0

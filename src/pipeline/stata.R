@@ -24,7 +24,7 @@ format_stata <- function(data) {
 
    data %<>%
       rename_all(
-         ~if_else(nchar(.) > 32, StrLeft(., 32), ., .)
+         ~if_else(nchar(.) > 32, str_left(., 32), ., .)
       )
 
    return(data)

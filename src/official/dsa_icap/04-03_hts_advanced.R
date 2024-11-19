@@ -39,7 +39,7 @@ icap$linelist$hts_advanced <- icap$harp$dx %>%
    ) %>%
    mutate(
       # sex
-      Sex              = StrLeft(reg_sex, 1),
+      Sex              = str_left(reg_sex, 1),
 
       # KAP
       msm              = case_when(

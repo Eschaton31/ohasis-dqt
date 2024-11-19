@@ -212,7 +212,7 @@ dbTable2 <- function(conn, dbname, table, cols = ..1, where = ..2, join = NULL, 
 
    # if cols defined, limit to columns
    if (!is.na(cols)) {
-      cols     <- ifelse(StrLeft(cols, stri_locate_first_fixed(cols, "(")) == "list(",
+      cols     <- ifelse(str_left(cols, stri_locate_first_fixed(cols, "(")) == "list(",
                          substr(cols, 6, nchar(cols) - 1),
                          substr(cols, 3, nchar(cols) - 1))
       cols     <- str_split(cols, ", ")[[1]]
@@ -228,7 +228,7 @@ dbTable2 <- function(conn, dbname, table, cols = ..1, where = ..2, join = NULL, 
       if (raw_where == TRUE) {
          sql_where <- paste0("WHERE ", where)
       } else {
-         where     <- ifelse(StrLeft(where, stri_locate_first_fixed(where, "(")) == "list(",
+         where     <- ifelse(str_left(where, stri_locate_first_fixed(where, "(")) == "list(",
                              substr(where, 6, nchar(where) - 1),
                              substr(where, 3, nchar(where) - 1))
          where     <- str_split(where, ", ")[[1]]
@@ -580,9 +580,9 @@ batch_px_ids <- function(data, px_id, faci_id, row_ids) {
       pb$tick(0)
       for (i in seq_len(nrow(data))) {
          letters <- stri_rand_shuffle(letters)
-         letter  <- StrLeft(letters, 1)
+         letter  <- str_left(letters, 1)
          numbers <- stri_rand_shuffle(numbers)
-         number  <- StrLeft(numbers, 3)
+         number  <- str_left(numbers, 3)
 
          date <- Sys.time()
          if ("RECORD_DATE" %in% names(data)) {
@@ -601,10 +601,10 @@ batch_px_ids <- function(data, px_id, faci_id, row_ids) {
       #    mutate(
       #       letter    = stri_c(collapse = "", strrep(LETTERS[1:26], 5)),
       #       letter    = stri_rand_shuffle(letter),
-      #       letter    = StrLeft(letter, 1),
+      #       letter    = str_left(letter, 1),
       #       number    = strrep("0123456789", 5),
       #       number    = stri_rand_shuffle(number),
-      #       number    = StrLeft(number, 3),
+      #       number    = str_left(number, 3),
       #
       #       OHASIS_ID = stri_c(letter, number),
       #       OHASIS_ID = stri_rand_shuffle(OHASIS_ID),
@@ -673,9 +673,9 @@ batch_rec_ids <- function(data, rec_id, user_id, row_ids) {
       pb <- progress_bar$new(format = ":current of :total rows | [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = nrow(data), width = 100, clear = FALSE)
       for (i in seq_len(nrow(data))) {
          letters <- stri_rand_shuffle(letters)
-         letter  <- StrLeft(letters, 2)
+         letter  <- str_left(letters, 2)
          numbers <- stri_rand_shuffle(numbers)
-         number  <- StrLeft(numbers, 3)
+         number  <- str_left(numbers, 3)
 
          rec_id <- stri_c(letter, number)
          rec_id <- stri_rand_shuffle(rec_id)
@@ -940,7 +940,7 @@ change_rhivda_code <- function(rec_id) {
 
    log_info("Getting reference data.")
    data_rec     <- dbGetQuery(conn, query_rec, params = rec_id)
-   faci_code    <- StrLeft(data_rec[1,]$CONFIRM_CODE, 3)
+   faci_code    <- str_left(data_rec[1,]$CONFIRM_CODE, 3)
    date_receive <- data_rec[1,]$DATE_RECEIVE
    code_year    <- stri_c(faci_code, format(date_receive, "%y"))
    code_month   <- format(date_receive, "%m")

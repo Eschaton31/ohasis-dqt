@@ -5,7 +5,7 @@ gf$as_of <- as.POSIXct(
       strsplit(ohasis$timestamp, "\\.")[[1]][1], "-",
       strsplit(ohasis$timestamp, "\\.")[[1]][2], "-",
       strsplit(ohasis$timestamp, "\\.")[[1]][3], " ",
-      StrLeft(strsplit(ohasis$timestamp, "\\.")[[1]][4], 2), ":",
+      str_left(strsplit(ohasis$timestamp, "\\.")[[1]][4], 2), ":",
       substr(strsplit(ohasis$timestamp, "\\.")[[1]][4], 3, 4), ":",
       StrRight(strsplit(ohasis$timestamp, "\\.")[[1]][4], 2), ":"
    )
@@ -112,7 +112,7 @@ gf$as_of <- as.POSIXct(
       strsplit(ohasis$timestamp, "\\.")[[1]][1], "-",
       strsplit(ohasis$timestamp, "\\.")[[1]][2], "-",
       strsplit(ohasis$timestamp, "\\.")[[1]][3], " ",
-      StrLeft(strsplit(ohasis$timestamp, "\\.")[[1]][4], 2), ":",
+      str_left(strsplit(ohasis$timestamp, "\\.")[[1]][4], 2), ":",
       substr(strsplit(ohasis$timestamp, "\\.")[[1]][4], 3, 4), ":",
       StrRight(strsplit(ohasis$timestamp, "\\.")[[1]][4], 2), ":"
    )

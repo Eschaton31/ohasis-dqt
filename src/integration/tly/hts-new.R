@@ -138,7 +138,7 @@ tly$data$convert <- tly$data$raw %>%
       SERVICE_FACI      = FACI_ID,
       SERVICE_SUB_FACI  = SUB_FACI_ID,
 
-      UIC               = StrLeft(str_squish(UIC), 14),
+      UIC               = str_left(str_squish(UIC), 14),
 
       SEX               = case_when(
          SEX == "Male" ~ "1_Male",

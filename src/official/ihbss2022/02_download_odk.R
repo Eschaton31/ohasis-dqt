@@ -253,7 +253,7 @@ ihbss_rename <- function(data, survey, medtech = NULL) {
             c1        = paste0(cn, "1"),
             c2        = paste0(cn, "2"),
             c3        = paste0(cn, "3"),
-            recruiter = StrLeft(cn, nchar(cn) - 1),
+            recruiter = str_left(cn, nchar(cn) - 1),
          ) %>%
          # time start
          mutate(
@@ -337,7 +337,7 @@ ihbss_recruiter <- function(data) {
       mutate(
          recruiter_exist = case_when(
             sq1_rid %in% seeds ~ "SEED",
-            StrLeft(StrRight(sq1_rid, 2), 1) == "-" ~ "SEED",
+            str_left(StrRight(sq1_rid, 2), 1) == "-" ~ "SEED",
             recruiter == "" ~ "N",
             recruiter_exist == "Y" ~ "Y",
             TRUE ~ "N"

@@ -707,9 +707,9 @@ DB <- R6Class(
             mutate(
                {{faci_id}}     := coalesce({{faci_id}}, ""),
                {{sub_faci_id}} := case_when(
-                  StrLeft({{sub_faci_id}}, 6) != {{faci_id}} ~ "",
+                  str_left({{sub_faci_id}}, 6) != {{faci_id}} ~ "",
                   {{sub_faci_id}} == "130023_001" ~ "130023_001",
-                  StrLeft({{sub_faci_id}}, 6) %in% c("130001", "130605", "040200", "130797") ~ {{sub_faci_id}},
+                  str_left({{sub_faci_id}}, 6) %in% c("130001", "130605", "040200", "130797") ~ {{sub_faci_id}},
                   TRUE ~ ""
                )
             ) %>%

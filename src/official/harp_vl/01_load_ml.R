@@ -40,7 +40,7 @@ docx_files <- docx_files[!stri_detect_regex(docx_files, "~")]
 if (length(docx_files) > 0) {
    for (docx in docx_files) {
 	  # extract hub name from file
-	  hub <- basename(docx) %>% StrLeft(3)
+	  hub <- basename(docx) %>% str_left(3)
 
 	  # special consideration processing
 	  if (hub == "smd")
@@ -201,7 +201,7 @@ pdf_files <- pdf_files[!stri_detect_regex(pdf_files, "~")]
 if (length(pdf_files) > 0) {
    for (pdf in pdf_files) {
 	  # extract hub name from file
-	  hub <- basename(pdf) %>% StrLeft(3)
+	  hub <- basename(pdf) %>% str_left(3)
 
 	  if (hub == "btn") {
 		 lst <- tabulizer::extract_tables(file = pdf, method = "lattice")
@@ -317,7 +317,7 @@ xlsx_files <- list.files(dir_output, glue(".xls*"), full.names = TRUE)
 xlsx_files <- xlsx_files[!stri_detect_regex(xlsx_files, "~")]
 for (xlsx in xlsx_files) {
    # extract hub name from file
-   hub <- basename(xlsx) %>% StrLeft(3)
+   hub <- basename(xlsx) %>% str_left(3)
 
    # get xlsx configurations
    # password

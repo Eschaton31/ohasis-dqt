@@ -111,9 +111,9 @@ epic$data$tx <- epic$harp$tx$new_reg %>%
       # sex variable (use registry if available)
       Sex              = if_else(
          condition = !is.na(transmit) & !is.na(reg_sex),
-         true      = StrLeft(reg_sex, 1),
-         false     = StrLeft(art_sex, 1),
-         missing   = StrLeft(art_sex, 1)
+         true      = str_left(reg_sex, 1),
+         false     = str_left(art_sex, 1),
+         missing   = str_left(art_sex, 1)
       ),
 
       # KAP

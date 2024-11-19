@@ -11,15 +11,15 @@ local(envir = epic, {
       coverage$min <- paste(
          sep = "-",
          case_when(
-            StrLeft(coverage$fy, 2) == "Q1" ~ paste0("20", as.numeric(StrRight(coverage$fy, 2)) - 1),
-            StrLeft(coverage$fy, 2) == "Q2" ~ paste0("20", StrRight(coverage$fy, 2)),
-            StrLeft(coverage$fy, 2) == "Q3" ~ paste0("20", StrRight(coverage$fy, 2)),
-            StrLeft(coverage$fy, 2) == "Q4" ~ paste0("20", StrRight(coverage$fy, 2)),
+            str_left(coverage$fy, 2) == "Q1" ~ paste0("20", as.numeric(StrRight(coverage$fy, 2)) - 1),
+            str_left(coverage$fy, 2) == "Q2" ~ paste0("20", StrRight(coverage$fy, 2)),
+            str_left(coverage$fy, 2) == "Q3" ~ paste0("20", StrRight(coverage$fy, 2)),
+            str_left(coverage$fy, 2) == "Q4" ~ paste0("20", StrRight(coverage$fy, 2)),
          ), case_when(
-            StrLeft(coverage$fy, 2) == "Q1" ~ "10",
-            StrLeft(coverage$fy, 2) == "Q2" ~ "01",
-            StrLeft(coverage$fy, 2) == "Q3" ~ "04",
-            StrLeft(coverage$fy, 2) == "Q4" ~ "07",
+            str_left(coverage$fy, 2) == "Q1" ~ "10",
+            str_left(coverage$fy, 2) == "Q2" ~ "01",
+            str_left(coverage$fy, 2) == "Q3" ~ "04",
+            str_left(coverage$fy, 2) == "Q4" ~ "07",
          ),
          "01"
       )
@@ -31,7 +31,7 @@ local(envir = epic, {
       coverage$curr_mo <- stri_pad_left(month(as.Date(coverage$max)), 2, "0")
       coverage$curr_yr <- stri_pad_left(year(as.Date(coverage$max)), 2, "0")
 
-      coverage$ym <- paste(sep = ".", coverage$curr_yr, StrLeft(coverage$fy, 2))
+      coverage$ym <- paste(sep = ".", coverage$curr_yr, str_left(coverage$fy, 2))
    }
 
    if (coverage$type == "HFR") {

@@ -98,7 +98,7 @@ icap$linelist$kp_prev <- icap$linelist$hts_tst %>%
       # sex
       Sex             = case_when(
          !is.na(HTS_SEX) ~ HTS_SEX,
-         use_central == 1 ~ StrLeft(reg_sex, 1),
+         use_central == 1 ~ str_left(reg_sex, 1),
          !is.na(SEX) ~ substr(SEX, 3, 3),
          TRUE ~ "(no data)"
       ),
@@ -200,9 +200,9 @@ icap$linelist$kp_prev <- icap$linelist$hts_tst %>%
       `DISAG 2`       = NA_character_,
       `DISAG 3`       = case_when(
          old_dx == 1 ~ "Known Pos",
-         StrLeft(MODALITY, 6) == "101304" ~ "Reach (Not offered tesing)",
-         StrLeft(SCREEN_AGREED, 1) == "0" ~ "Declined Testing",
-         StrLeft(SCREEN_AGREED, 1) == "1" ~ "Tested/Referred for Testing",
+         str_left(MODALITY, 6) == "101304" ~ "Reach (Not offered tesing)",
+         str_left(SCREEN_AGREED, 1) == "0" ~ "Declined Testing",
+         str_left(SCREEN_AGREED, 1) == "1" ~ "Tested/Referred for Testing",
          is.na(SCREEN_AGREED) & !is.na(FINAL_TEST_RESULT) ~ "Tested/Referred for Testing",
          TRUE ~ "Reach (Not offered tesing)"
       ),

@@ -56,7 +56,7 @@ icap$linelist$hts_tst <- bind_rows(icap$forms$form_hts, icap$forms$form_a) %>%
       y  = bind_rows(icap$forms$form_hts, icap$forms$form_a) %>%
          filter(
             is.na(CONFIRM_RESULT) | CONFIRM_RESULT == "4_Pending",
-            StrLeft(MODALITY, 6) == "101101"
+            str_left(MODALITY, 6) == "101101"
          ) %>%
          mutate(
             LATEST_TEST_DATE   = case_when(
@@ -113,7 +113,7 @@ icap$linelist$hts_tst <- bind_rows(icap$forms$form_hts, icap$forms$form_a) %>%
    full_join(
       y  = bind_rows(icap$forms$form_hts, icap$forms$form_cfbs) %>%
          filter(
-            (StrLeft(MODALITY, 6) %in% c("101103", "101104")) | is.na(MODALITY)
+            (str_left(MODALITY, 6) %in% c("101103", "101104")) | is.na(MODALITY)
          ) %>%
          mutate(
             LATEST_CFBS_DATE   = case_when(
@@ -172,7 +172,7 @@ icap$linelist$hts_tst <- bind_rows(icap$forms$form_hts, icap$forms$form_a) %>%
    full_join(
       y  = icap$forms$form_hts %>%
          filter(
-            StrLeft(MODALITY, 6) == "101105"
+            str_left(MODALITY, 6) == "101105"
          ) %>%
          mutate(
             LATEST_ST_DATE   = case_when(
@@ -334,7 +334,7 @@ icap$linelist$hts_tst <- bind_rows(icap$forms$form_hts, icap$forms$form_a) %>%
    mutate(
       # sex
       Sex             = case_when(
-         use_central == 1 ~ StrLeft(reg_sex, 1),
+         use_central == 1 ~ str_left(reg_sex, 1),
          use_test == "confirm" ~ substr(CONFIRM_SEX, 3, 3),
          use_test == "test" ~ substr(TEST_SEX, 3, 3),
          use_test == "cfbs" ~ substr(CFBS_SEX, 3, 3),

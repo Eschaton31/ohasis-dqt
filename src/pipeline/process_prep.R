@@ -15,8 +15,8 @@ process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_
          src              = case_when(
             FORM_VERSION == "PrEP Screening (v2020)" ~ "screen2020",
             FORM_VERSION == "PrEP Follow-up (v2020)" ~ "ffup2020",
-            StrLeft(PREP_VISIT, 1) == "1" ~ "screen2020",
-            StrLeft(PREP_VISIT, 1) == "2" ~ "ffup2020",
+            str_left(PREP_VISIT, 1) == "1" ~ "screen2020",
+            str_left(PREP_VISIT, 1) == "2" ~ "ffup2020",
             TRUE ~ NA_character_
          )
       ) %>%
@@ -110,8 +110,8 @@ process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_
 
          # sex events
          risk_avgsexweek        = case_when(
-            StrLeft(WEEK_AVG_SEX, 1) == "1" ~ "<= 1",
-            StrLeft(WEEK_AVG_SEX, 1) == "2" ~ ">= 2",
+            str_left(WEEK_AVG_SEX, 1) == "1" ~ "<= 1",
+            str_left(WEEK_AVG_SEX, 1) == "2" ~ ">= 2",
             TRUE ~ "(no data)"
          )
       ) %>%
@@ -259,15 +259,15 @@ process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_
 
          # sti reactivity
          lab_hep     = case_when(
-            StrLeft(LAB_HBSAG_RESULT, 2) == "2_" ~ "nonreactive",
-            StrLeft(LAB_HBSAG_RESULT, 2) != "2_" ~ "hepb",
+            str_left(LAB_HBSAG_RESULT, 2) == "2_" ~ "nonreactive",
+            str_left(LAB_HBSAG_RESULT, 2) != "2_" ~ "hepb",
             !is.na(LAB_HBSAG_DATE) & is.na(LAB_HBSAG_RESULT) ~ "pending",
             TRUE ~ "(no data)"
          ),
          lab_syph    = case_when(
             toupper(LAB_SYPH_TITER) %in% c("NONREACTIVE", "NON REACTIVE") ~ "nonreactive",
-            StrLeft(LAB_SYPH_RESULT, 1) == "2" ~ "nonreactive",
-            StrLeft(LAB_SYPH_RESULT, 1) != "2" ~ "syph",
+            str_left(LAB_SYPH_RESULT, 1) == "2" ~ "nonreactive",
+            str_left(LAB_SYPH_RESULT, 1) != "2" ~ "syph",
             !is.na(LAB_SYPH_TITER) ~ "syph",
             !is.na(LAB_SYPH_DATE) & is.na(LAB_SYPH_RESULT) ~ "pending",
             TRUE ~ "(no data)"

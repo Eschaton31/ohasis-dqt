@@ -129,17 +129,17 @@ newmom_pmtct <- nhsss$harp_pmtct$forms$form_pmtct %>%
       initials   = paste0(
          if_else(
             condition = !is.na(FIRST),
-            true      = StrLeft(FIRST, 1),
+            true      = str_left(FIRST, 1),
             false     = ""
          ),
          if_else(
             condition = !is.na(MIDDLE),
-            true      = StrLeft(MIDDLE, 1),
+            true      = str_left(MIDDLE, 1),
             false     = ""
          ),
          if_else(
             condition = !is.na(LAST),
-            true      = StrLeft(LAST, 1),
+            true      = str_left(LAST, 1),
             false     = ""
          )
       ),

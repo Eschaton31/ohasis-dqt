@@ -151,8 +151,8 @@ encoded$data$records <- encoded$HTS_FINAL %>%
       encoder   = stri_replace_all_fixed(encoder, glue("{ohasis$ym}(Form A/HTS)_"), ""),
       FACI_ID   = "130000",
       TEST_FACI = if_else(
-         condition = StrIsNumeric(StrLeft(TEST_FACI, 6)),
-         true      = StrLeft(TEST_FACI, 6),
+         condition = StrIsNumeric(str_left(TEST_FACI, 6)),
+         true      = str_left(TEST_FACI, 6),
          false     = NA_character_,
          missing   = NA_character_
       ),

@@ -285,26 +285,26 @@ dsa$oh$hts_all <- process_hts(dsa$oh$hts, dsa$oh$a, dsa$oh$cfbs) %>%
    ) %>%
    mutate(
       PERM_PSGC_REG  = case_when(
-         is.na(PERM_PSGC_REG) & !is.na(PERM_PSGC_PROV) ~ stri_pad_right(StrLeft(PERM_PSGC_PROV, 2), 9, "0"),
-         is.na(PERM_PSGC_REG) & !is.na(PERM_PSGC_MUNC) ~ stri_pad_right(StrLeft(PERM_PSGC_MUNC, 2), 9, "0"),
+         is.na(PERM_PSGC_REG) & !is.na(PERM_PSGC_PROV) ~ stri_pad_right(str_left(PERM_PSGC_PROV, 2), 9, "0"),
+         is.na(PERM_PSGC_REG) & !is.na(PERM_PSGC_MUNC) ~ stri_pad_right(str_left(PERM_PSGC_MUNC, 2), 9, "0"),
          TRUE ~ PERM_PSGC_REG
       ),
       PERM_PSGC_PROV = case_when(
-         is.na(PERM_PSGC_PROV) & !is.na(PERM_PSGC_MUNC) ~ stri_pad_right(StrLeft(PERM_PSGC_MUNC, 4), 9, "0"),
+         is.na(PERM_PSGC_PROV) & !is.na(PERM_PSGC_MUNC) ~ stri_pad_right(str_left(PERM_PSGC_MUNC, 4), 9, "0"),
          TRUE ~ PERM_PSGC_PROV
       ),
       CURR_PSGC_REG  = case_when(
-         is.na(CURR_PSGC_REG) & !is.na(CURR_PSGC_PROV) ~ stri_pad_right(StrLeft(CURR_PSGC_PROV, 2), 9, "0"),
-         is.na(CURR_PSGC_REG) & !is.na(CURR_PSGC_MUNC) ~ stri_pad_right(StrLeft(CURR_PSGC_MUNC, 2), 9, "0"),
+         is.na(CURR_PSGC_REG) & !is.na(CURR_PSGC_PROV) ~ stri_pad_right(str_left(CURR_PSGC_PROV, 2), 9, "0"),
+         is.na(CURR_PSGC_REG) & !is.na(CURR_PSGC_MUNC) ~ stri_pad_right(str_left(CURR_PSGC_MUNC, 2), 9, "0"),
          TRUE ~ CURR_PSGC_REG
       ),
       CURR_PSGC_PROV = case_when(
-         is.na(CURR_PSGC_PROV) & !is.na(CURR_PSGC_MUNC) ~ stri_pad_right(StrLeft(CURR_PSGC_MUNC, 4), 9, "0"),
+         is.na(CURR_PSGC_PROV) & !is.na(CURR_PSGC_MUNC) ~ stri_pad_right(str_left(CURR_PSGC_MUNC, 4), 9, "0"),
          TRUE ~ CURR_PSGC_PROV
       ),
 
       use_curr       = if_else(
-         condition = (is.na(PERM_PSGC_MUNC) & !is.na(CURR_PSGC_MUNC)) | StrLeft(PERM_PSGC_MUNC, 2) == '99',
+         condition = (is.na(PERM_PSGC_MUNC) & !is.na(CURR_PSGC_MUNC)) | str_left(PERM_PSGC_MUNC, 2) == '99',
          true      = 1,
          false     = 0
       ),
@@ -324,8 +324,8 @@ dsa$oh$hts_all <- process_hts(dsa$oh$hts, dsa$oh$a, dsa$oh$cfbs) %>%
          false     = PERM_PSGC_MUNC
       ),
 
-      PERM_PSGC_REG  = if_else(!is.na(PERM_PSGC_REG), stri_pad_right(StrLeft(PERM_PSGC_REG, 2), 9, "0"), NA_character_, NA_character_),
-      PERM_PSGC_PROV = if_else(!is.na(PERM_PSGC_PROV), stri_pad_right(StrLeft(PERM_PSGC_PROV, 4), 9, "0"), NA_character_, NA_character_),
+      PERM_PSGC_REG  = if_else(!is.na(PERM_PSGC_REG), stri_pad_right(str_left(PERM_PSGC_REG, 2), 9, "0"), NA_character_, NA_character_),
+      PERM_PSGC_PROV = if_else(!is.na(PERM_PSGC_PROV), stri_pad_right(str_left(PERM_PSGC_PROV, 4), 9, "0"), NA_character_, NA_character_),
       PERM_PSGC_PROV = if_else(PERM_PSGC_MUNC == "129804000", "124700000", PERM_PSGC_PROV, PERM_PSGC_PROV),
       PERM_PSGC_MUNC = coalesce(PERM_PSGC_MUNC, ""),
       PERM_PSGC_MUNC = if_else(PERM_PSGC_PROV == "133900000", "133900000", PERM_PSGC_MUNC, PERM_PSGC_MUNC)
@@ -474,7 +474,7 @@ dsa$gis$data$hts <- dsa$oh$hts_all %>%
       ),
 
       # kp
-      Sex        = coalesce(StrLeft(coalesce(HARPDX_SEX, remove_code(SEX)), 1), "(no data)"),
+      Sex        = coalesce(str_left(coalesce(HARPDX_SEX, remove_code(SEX)), 1), "(no data)"),
       msm        = case_when(
          use_harpdx == 1 &
             Sex == "M" &
@@ -612,9 +612,9 @@ dsa$gis$data$hts <- dsa$oh$hts_all %>%
       ),
       FACILITY_SUB_CODE = case_when(
          is.na(FACILITY_SUB_CODE) ~ "",
-         StrLeft(FACILITY_SUB_CODE, 6) != FACILITY_CODE ~ "",
+         str_left(FACILITY_SUB_CODE, 6) != FACILITY_CODE ~ "",
          FACILITY_SUB_CODE == "130023_001" ~ "130023_001",
-         !(StrLeft(FACILITY_SUB_CODE, 6) %in% c("130001", "130605", "040200")) ~ "",
+         !(str_left(FACILITY_SUB_CODE, 6) %in% c("130001", "130605", "040200")) ~ "",
          TRUE ~ FACILITY_SUB_CODE
       )
    ) %>%

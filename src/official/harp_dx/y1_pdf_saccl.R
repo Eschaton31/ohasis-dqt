@@ -167,7 +167,7 @@ read_pdf <- function(dir_output) {
          name       <- pdf_section(df[[1]], seq(77, 365), seq(110, 150))
          name_addtl <- pdf_section(df[[1]], seq(77, 365), seq(150, 170))
 
-         if (stri_count_fixed(name[4, "text"], "-") == 2 & StrIsNumeric(StrLeft(name[4, "text"], 4))) {
+         if (stri_count_fixed(name[4, "text"], "-") == 2 & StrIsNumeric(str_left(name[4, "text"], 4))) {
             name[2, "text"] <- name[3, "text"]
             name[3, "text"] <- name[4, "text"]
             name[4, "text"] <- name_addtl[1, "text"]
