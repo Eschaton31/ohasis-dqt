@@ -1118,12 +1118,9 @@ append_data <- function(old, new) {
                .predicate = is.labelled,
                ~to_character(.)
             ) %>%
-            mutate_at(
-               .vars = vars(highest_educ, in_school, current_school_level, with_partner, baseline_cd4, ocw_based, starts_with("past12mo_"), prevtest, prev_test_result, clinicalpicture, who_staging, provider_type, px_type),
-               ~as.integer(remove_code(.))
-            ) %>%
-            mutate(
-               consent_test = as.integer(consent_test),
+            mutate_if(
+               .predicate = is.labelled,
+               ~to_character(.)
             )
       ) %>%
       arrange(idnum) %>%

@@ -25,7 +25,6 @@ SELECT rec.REC_ID,
            WHEN '2' THEN '2_Formula feeding'
            WHEN '3' THEN '3_Mixed feeding'
            ELSE NULL END                                                                               AS FEED_TYPE,
-       ob.EDD,
        ob.ANC_FACI,
        ob.OB_SCORE
 FROM ohasis_interim.px_record AS rec

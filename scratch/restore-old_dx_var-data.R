@@ -59,5 +59,5 @@ pblapply(periods, function(period) {
    }, period)
 })
 
-period <- "2022.12"
-var    <- "ahd"
+period <- "2024.07"
+var    <- "consent_test"
