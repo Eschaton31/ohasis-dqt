@@ -1338,7 +1338,7 @@ oh_batch_newpx <- function(data, id_col) {
 
 lake_ref_table <- function(table) {
    log_info("Downloading references.")
-   lw_conn <- connection("ohasis-lw")
+   lw_conn <- connect("ohasis-lw")
    data <- QB$new(lw_conn)$from(stri_c("ohasis_lake.", table))$get()
    dbDisconnect(lw_conn)
 
