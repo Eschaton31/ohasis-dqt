@@ -1,6 +1,7 @@
 remotes
 R6
 fs
+here
 progress
 pbapply
 reticulate
@@ -11,12 +12,14 @@ magrittr
 haven
 labelled
 readr
+tidyr
 dplyr
 duckplyr
 stringr
 forstringr
 stringi
 furrr
+varhandle
 glue
 slackr
 janitor
