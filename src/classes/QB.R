@@ -1,32 +1,32 @@
 QB <- R6Class(
    "QB",
    public  = list(
-      columns      = c(),
-      wheres       = list(),
-      joins        = list(),
-      limits       = NULL,
-      title        = NULL,
-      unique       = FALSE,
+      columns         = c(),
+      wheres          = list(),
+      joins           = list(),
+      limits          = NULL,
+      title           = NULL,
+      unique          = FALSE,
 
-      initialize   = function(db_conn = NULL) {
+      initialize      = function(db_conn = NULL) {
          private$conn <- db_conn
       },
 
-      from         = function(table) {
+      from            = function(table) {
          private$main <- private$quoteIdentifier(table)
          self$title   <- private$getAlias(private$main)
 
          invisible(self)
       },
 
-      table        = function(table) {
+      table           = function(table) {
          private$main <- private$quoteIdentifier(table)
          self$title   <- private$getAlias(private$main)
 
          invisible(self)
       },
 
-      select       = function(...) {
+      select          = function(...) {
          columns      <- match.call(expand.dots = FALSE)$`...`
          columns      <- as.character(columns)
          self$columns <- lapply(columns, private$quoteIdentifier)
@@ -34,13 +34,13 @@ QB <- R6Class(
          invisible(self)
       },
 
-      selectRaw    = function(expression) {
+      selectRaw       = function(expression) {
          self$columns <- append(self$columns, expression)
 
          invisible(self)
       },
 
-      where        = function(column, operator = NULL, value = NULL, boolean = "and") {
+      where           = function(column, operator = NULL, value = NULL, boolean = "and") {
          if (class(column) != "function") {
             if (!is.null(operator) & is.null(value)) {
                value    <- operator
@@ -59,7 +59,7 @@ QB <- R6Class(
          invisible(self)
       },
 
-      whereIn      = function(column, value, boolean = "and") {
+      whereIn         = function(column, value, boolean = "and") {
          column <- private$quoteIdentifier(column)
          column <- stri_c(column, " IN ('", str_flatten(collapse = "','", value), "')")
 
@@ -68,7 +68,7 @@ QB <- R6Class(
          invisible(self)
       },
 
-      whereNotIn   = function(column, value, boolean = "and") {
+      whereNotIn      = function(column, value, boolean = "and") {
          column <- private$quoteIdentifier(column)
          column <- stri_c(column, " NOT IN ('", str_flatten(collapse = "','", value), "')")
 
@@ -77,7 +77,7 @@ QB <- R6Class(
          invisible(self)
       },
 
-      whereNull    = function(column, boolean = "and") {
+      whereNull       = function(column, boolean = "and") {
          column <- private$quoteIdentifier(column)
          column <- stri_c(column, " IS NULL")
 
@@ -86,7 +86,7 @@ QB <- R6Class(
          invisible(self)
       },
 
-      whereNotNull = function(column, boolean = "and") {
+      whereNotNull    = function(column, boolean = "and") {
          column <- private$quoteIdentifier(column)
          column <- stri_c(column, " IS NOT NULL")
 
@@ -95,7 +95,7 @@ QB <- R6Class(
          invisible(self)
       },
 
-      whereBetween = function(column, values, boolean = "and") {
+      whereBetween    = function(column, values, boolean = "and") {
          start <- dbQuoteString(private$conn, values[1])
          end   <- dbQuoteString(private$conn, values[2])
 
@@ -119,13 +119,13 @@ QB <- R6Class(
          invisible(self)
       },
 
-      whereRaw = function(raw, boolean = "and") {
+      whereRaw        = function(raw, boolean = "and") {
          private$addWhere(raw, boolean)
 
          invisible(self)
       },
 
-      leftJoin     = function(right, col_left, operator, col_right) {
+      leftJoin        = function(right, col_left, operator, col_right) {
          join       <- private$joinQuery(right, col_left, operator, col_right)
          join       <- stri_c(sep = " ", "LEFT", join)
          self$joins <- append(self$joins, join)
@@ -133,7 +133,7 @@ QB <- R6Class(
          invisible(self)
       },
 
-      rightJoin    = function(right, col_left, operator, col_right) {
+      rightJoin       = function(right, col_left, operator, col_right) {
          join       <- private$joinQuery(right, col_left, operator, col_right)
          join       <- stri_c(sep = " ", "RIGHT", join)
          self$joins <- append(self$joins, join)
@@ -141,25 +141,30 @@ QB <- R6Class(
          invisible(self)
       },
 
-      join         = function(right, col_left, operator, col_right) {
+      join            = function(right, col_left, operator, col_right) {
          self$joins <- append(self$joins, private$joinQuery(right, col_left, operator, col_right))
 
          invisible(self)
       },
 
-      limit        = function(value) {
+      limit           = function(value) {
          self$limits <- stri_c(sep = " ", "LIMIT", value)
 
          invisible(self)
       },
 
-      distinct     = function() {
+      distinct        = function() {
          self$unique <- TRUE
 
          invisible(self)
       },
 
-      get          = function() {
+      raw             = function(query) {
+         class(query) <- "RawQB"
+         return(query)
+      },
+
+      get             = function() {
          n_rows <- self$count()
 
          results <- list()
@@ -189,14 +194,14 @@ QB <- R6Class(
          return(results)
       },
 
-      count        = function() {
+      count           = function() {
          n_rows <- dbGetQuery(private$conn, self$query$nrow)
          n_rows <- sum(as.numeric(n_rows$nrow), na.rm = TRUE)
 
          return(n_rows)
       },
 
-      create       = function(data) {
+      create          = function(data) {
          cols <- list(
             user       = c(
                "CREATED_BY",
@@ -288,6 +293,10 @@ QB <- R6Class(
       quoteIdentifier  = function(identifier) {
          if (is.null(identifier)) {
             return()
+         }
+
+         if (class(identifier) == "RawQB") {
+            return(identifier)
          }
 
          identifier <- str_replace(identifier, " as ", " AS ")
