@@ -106,7 +106,7 @@ EpiCenter <- R6Class(
                   TRUE ~ confirmlab
                ),
                confirm_branch = NA_character_,
-               who_staging    = as.integer(StrLeft(who_staging, 1)),
+               who_staging    = as.integer(str_left(who_staging, 1)),
             ) %>%
             left_join(
                y  = hs_data("harp_vl", "naive_dx", self$yr, self$mo) %>%
@@ -335,8 +335,8 @@ EpiCenter <- R6Class(
                # sex
                sex              = toupper(sex),
                sex              = case_when(
-                  StrLeft(sex, 1) == "M" ~ "Male",
-                  StrLeft(sex, 1) == "F" ~ "Female",
+                  str_left(sex, 1) == "M" ~ "Male",
+                  str_left(sex, 1) == "F" ~ "Female",
                   TRUE ~ "(no data)"
                ),
 
@@ -375,10 +375,10 @@ EpiCenter <- R6Class(
                tat_artstart_c   = private$tat(reactive_date, artstart_date, "initiation", add_days = TRUE),
 
                enroll_type      = case_when(
-                  StrLeft(tat_artstart_c, 1) %in% c("a", "b", "c") ~ "a) Rapid initiation (RAI)",
-                  StrLeft(tat_artstart_c, 1) %in% c("d", "e") ~ "b) Same month initiation",
-                  StrLeft(tat_artstart_c, 1) %in% c("f", "g", "h") ~ "c) Same year initiation",
-                  StrLeft(tat_artstart_c, 1) %in% c("i", "j", "k", "l") ~ "d) Late initiation",
+                  str_left(tat_artstart_c, 1) %in% c("a", "b", "c") ~ "a) Rapid initiation (RAI)",
+                  str_left(tat_artstart_c, 1) %in% c("d", "e") ~ "b) Same month initiation",
+                  str_left(tat_artstart_c, 1) %in% c("f", "g", "h") ~ "c) Same year initiation",
+                  str_left(tat_artstart_c, 1) %in% c("i", "j", "k", "l") ~ "d) Late initiation",
                ),
 
                nodata_hiv_stage = if_else(
@@ -394,8 +394,8 @@ EpiCenter <- R6Class(
                ),
                class2022_c      = case_when(
                   nodata_hiv_stage == 1 ~ "No info to classify",
-                  StrLeft(who_staging, 1) %in% c(3, 4) ~ "Stage III/IV",
-                  dx_age >= 5 & StrLeft(baseline_cd4, 1) %in% c("4", "5") ~ "CD4 <200",
+                  str_left(who_staging, 1) %in% c(3, 4) ~ "Stage III/IV",
+                  dx_age >= 5 & str_left(baseline_cd4, 1) %in% c("4", "5") ~ "CD4 <200",
                   dx_age < 5 ~ "<5 y.o.",
                   class2022 == "AIDS" & tbpatient1 == 1 ~ "TB Patient",
                   class == "AIDS" ~ "Symptomatic",
@@ -579,7 +579,7 @@ EpiCenter <- R6Class(
                .vars = vars(all_of(subid)),
                ~case_when(
                   . == "130023_001" ~ "130023_001",
-                  StrLeft(., 6) %in% c("130001", "130605", "040200", "130797") ~ .,
+                  str_left(., 6) %in% c("130001", "130605", "040200", "130797") ~ .,
                   TRUE ~ ""
                )
             ) %>%
