@@ -1339,8 +1339,219 @@ oh_batch_newpx <- function(data, id_col) {
 lake_ref_table <- function(table) {
    log_info("Downloading references.")
    lw_conn <- connect("ohasis-lw")
-   data <- QB$new(lw_conn)$from(stri_c("ohasis_lake.", table))$get()
+   data    <- QB$new(lw_conn)$from(stri_c("ohasis_lake.", table))$get()
    dbDisconnect(lw_conn)
 
    return(data)
+}
+
+coalesce_faci_cols <- function(warehouse_table) {
+   log_info("Cleaning facility columns.")
+   schema  <- "ohasis_warehouse"
+   sql_id  <- Id(schema = schema, table = warehouse_table)
+   queries <- list()
+
+   sub_notequal_main <- function(faci, sub) {
+      set   <- stri_c("`", sub, "` = ''")
+      where <- stri_c("`", faci, "` <> LEFT(`", sub, "`, 6) AND `", faci, "` <> ''")
+      return(c(set, where))
+   }
+
+   use_other_faci_col <- function(main_faci, main_sub, other_faci, other_sub) {
+      set   <- stri_c("`", main_faci, "` = `", other_faci, "`, `", main_sub, "` = `", other_sub, "`")
+      where <- stri_c("`", main_faci, "` = '' AND `", other_faci, "` <> ''")
+      return(c(set, where))
+   }
+
+   remove_nulls <- function(col) {
+      set   <- stri_c("`", col, "` = ''")
+      where <- stri_c("`", col, "` IS NULL")
+      return(c(set, where))
+   }
+
+   if (warehouse_table %in% c("form_hts", "form_a")) {
+      queries <- list(
+         remove_nulls("SERVICE_SUB_FACI"),
+         remove_nulls("SERVICE_FACI"),
+         remove_nulls("CONFIRM_SUB_FACI"),
+         remove_nulls("CONFIRM_FACI"),
+         remove_nulls("SPECIMEN_SUB_SOURCE"),
+         remove_nulls("SPECIMEN_SOURCE"),
+         remove_nulls("SUB_FACI_ID"),
+         remove_nulls("FACI_ID"),
+         sub_notequal_main("SERVICE_FACI", "SERVICE_SUB_FACI"),
+         sub_notequal_main("CONFIRM_FACI", "CONFIRM_SUB_FACI"),
+         sub_notequal_main("SPECIMEN_SOURCE", "SPECIMEN_SUB_SOURCE"),
+         use_other_faci_col("SERVICE_FACI", "SERVICE_SUB_FACI", "SPECIMEN_SOURCE", "SPECIMEN_SUB_SOURCE"),
+         use_other_faci_col("SERVICE_FACI", "SERVICE_SUB_FACI", "FACI_ID", "SUB_FACI_ID")
+      )
+   }
+
+   if (warehouse_table == "form_art_bc") {
+      queries <- list(
+         remove_nulls("SERVICE_SUB_FACI"),
+         remove_nulls("SERVICE_FACI"),
+         remove_nulls("SUB_FACI_DISP"),
+         remove_nulls("FACI_DISP"),
+         remove_nulls("SUB_FACI_ID"),
+         remove_nulls("FACI_ID"),
+         sub_notequal_main("SERVICE_FACI", "SERVICE_SUB_FACI"),
+         sub_notequal_main("FACI_DISP", "SUB_FACI_DISP"),
+         use_other_faci_col("SERVICE_FACI", "SERVICE_SUB_FACI", "FACI_DISP", "SUB_FACI_DISP"),
+         use_other_faci_col("SERVICE_FACI", "SERVICE_SUB_FACI", "FACI_ID", "SUB_FACI_ID")
+      )
+   }
+
+   collapse_update <- function(elems, warehouse_table) {
+      statement <- stri_c("UPDATE ohasis_warehouse.", warehouse_table, " SET ")
+
+      return(stri_c(statement, elems[[1]], " WHERE ", elems[[2]], ";"))
+   }
+
+   if (length(queries) > 0) {
+      queries <- lapply(queries, collapse_update, warehouse_table)
+
+      conn     <- connect("ohasis-lw")
+      affected <- pblapply(queries, dbExecute, conn = conn)
+      dbDisconnect(conn)
+   }
+
+   log_success("Done!")
+   return(queries)
+}
+
+trial_to_live <- function(form, faci_id, min, max) {
+   lw_conn <- connect("ohasis-lw")
+   rec_ids <- QB$new(lw_conn)$
+      select("REC_ID")$
+      from("ohasis_interim.px_record")$
+      where('FACI_ID', faci_id)$
+      where('MODULE', '3')$
+      whereBetween("CREATED_AT", c(min, max))$
+      get()
+
+   tables                  <- list()
+   tables$px_record        <- list(
+      name = "px_record",
+      pk   = c("REC_ID", "PATIENT_ID"),
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_record WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_info          <- list(
+      name = "px_info",
+      pk   = c("REC_ID", "PATIENT_ID"),
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_info WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_name          <- list(
+      name = "px_name",
+      pk   = c("REC_ID", "PATIENT_ID"),
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_name WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_contact       <- list(
+      name = "px_contact",
+      pk   = c("REC_ID", "CONTACT_TYPE"),
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_contact WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_addr          <- list(
+      name = "px_addr",
+      pk   = c("REC_ID", "ADDR_TYPE"),
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_addr WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_profile       <- list(
+      name = "px_profile",
+      pk   = "REC_ID",
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_profile WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_form          <- list(
+      name = "px_form",
+      pk   = c("REC_ID", "FORM"),
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_form WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_faci          <- list(
+      name = "px_faci",
+      pk   = c("REC_ID", "SERVICE_TYPE"),
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_faci WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_remarks       <- list(
+      name = "px_remarks",
+      pk   = c("REC_ID", "REMARK_TYPE"),
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_remarks WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_key_pop       <- list(
+      name = "px_key_pop",
+      pk   = c("REC_ID", "KP"),
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_key_pop WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_staging       <- list(
+      name = "px_staging",
+      pk   = "REC_ID",
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_staging WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_labs          <- list(
+      name = "px_labs",
+      pk   = c("REC_ID", "LAB_TEST"),
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_labs WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_vaccine       <- list(
+      name = "px_vaccine",
+      pk   = c("REC_ID", "DISEASE_VAX", "VAX_NUM"),
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_vaccine WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_tb            <- list(
+      name = "px_tb",
+      pk   = "REC_ID",
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_tb WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_tb_ipt        <- list(
+      name = "px_tb_ipt",
+      pk   = "REC_ID",
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_tb_ipt WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_tb_active     <- list(
+      name = "px_tb_active",
+      pk   = "REC_ID",
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_tb_active WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_prophylaxis   <- list(
+      name = "px_prophylaxis",
+      pk   = c("REC_ID", "PROPHYLAXIS"),
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_prophylaxis WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_oi            <- list(
+      name = "px_oi",
+      pk   = c("REC_ID", "OI"),
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_oi WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_ob            <- list(
+      name = "px_ob",
+      pk   = "REC_ID",
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_ob WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_medicine      <- list(
+      name = "px_medicine",
+      pk   = c("REC_ID", "MEDICINE", "DISP_NUM"),
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_medicine WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_medicine_disc <- list(
+      name = "px_medicine_disc",
+      pk   = c("REC_ID", "MEDICINE"),
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_medicine_disc WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   tables$px_other_service <- list(
+      name = "px_other_service",
+      pk   = c("REC_ID", "SERVICE"),
+      data = dbxSelect(lw_conn, "SELECT * FROM ohasis_interim.px_other_service WHERE REC_ID IN (?)", params = list(rec_ids$REC_ID))
+   )
+   dbDisconnect(lw_conn)
+
+   db_conn <- connect("ohasis-live")
+   pblapply(tables, function(ref, db_conn) {
+      table_space <- Id(schema = "ohasis_interim", table = ref$name)
+      dbxUpsert(db_conn, table_space, ref$data, ref$pk)
+      # dbExecute(db_conn, glue("DELETE FROM ohasis_interim.{ref$name} WHERE REC_ID IN (?)"), params = list(unique(ref$data$REC_ID)))
+   }, db_conn)
+   dbDisconnect(db_conn)
+
+   update_credentials(tables$px_record$data$REC_ID)
+
+   return(tables)
 }
