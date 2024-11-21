@@ -9,14 +9,13 @@ SELECT pii.REC_ID,
        pii.DELETED_AT,
        pii.SNAPSHOT,
        pii.FACI_ID,
-       pii.SUB_FACI_ID,
+       COALESCE(pii.SUB_FACI_ID, '')                                                          AS SUB_FACI_ID,
        CASE
-           WHEN pii.RECORD_DATE = DATE(meds.DISP_DATE) THEN pii.RECORD_DATE
-           WHEN pii.RECORD_DATE != DATE(meds.DISP_DATE) AND DATE(meds.DISP_DATE) != '0000-00-00'
-               THEN DATE(meds.DISP_DATE)
-           WHEN pii.RECORD_DATE IS NULL AND meds.DISP_DATE IS NOT NULL THEN DATE(meds.DISP_DATE)
+           WHEN pii.RECORD_DATE = meds.DISP_DATE THEN pii.RECORD_DATE
+           WHEN meds.DISP_DATE != '0000-00-00' THEN meds.DISP_DATE
+           WHEN pii.RECORD_DATE IS NULL THEN meds.DISP_DATE
            ELSE pii.RECORD_DATE
-           END                             AS VISIT_DATE,
+           END                                                                                AS VISIT_DATE,
        pii.RECORD_DATE,
        pii.DISEASE,
        pii.MODULE,
@@ -50,8 +49,19 @@ SELECT pii.REC_ID,
        pii.CURR_PSGC_MUNC,
        pii.CURR_ADDR,
        service.MODALITY,
-       service.SERVICE_FACI,
-       service.SERVICE_SUB_FACI,
+       CASE
+           WHEN service.SERVICE_FACI IS NULL AND meds.FACI_DISP IS NOT NULL THEN meds.FACI_DISP
+           WHEN service.SERVICE_FACI IS NOT NULL THEN service.SERVICE_FACI
+           ELSE COALESCE(pii.FACI_ID, '')
+           END                                                                                AS SERVICE_FACI,
+       CASE
+           WHEN service.SERVICE_FACI IS NULL AND LEFT(meds.SUB_FACI_DISP, 6) = meds.FACI_DISP THEN meds.SUB_FACI_DISP
+           WHEN service.SERVICE_FACI IS NULL AND LEFT(meds.SUB_FACI_DISP, 6) <> meds.FACI_DISP THEN ''
+           WHEN service.SERVICE_FACI IS NOT NULL AND LEFT(service.SERVICE_SUB_FACI, 6) = service.SERVICE_FACI
+               THEN service.SERVICE_SUB_FACI
+           WHEN service.SERVICE_FACI IS NOT NULL AND LEFT(service.SERVICE_SUB_FACI, 6) <> service.SERVICE_FACI THEN ''
+           ELSE COALESCE(pii.SUB_FACI_ID, '')
+           END                                                                                AS SERVICE_SUB_FACI,
        service.REFER_FACI,
        service.SERVICE_BY,
        service.TX_STATUS,
@@ -131,39 +141,39 @@ SELECT pii.REC_ID,
        tb.TB_IPT_END_DATE,
        tb.TB_IPT_OUTCOME,
        tb.TB_IPT_OUTCOME_OTHER,
-       proph.PROPH_COTRI_DONE              AS PROPH_COTRI,
-       proph.PROPH_AZITHRO_DONE            AS PROPH_AZITHRO,
-       proph.PROPH_FLUCANO_DONE            AS PROPH_FLUCANO,
-       oi.OI_SYPH                          AS OI_SYPH_PRESENT,
-       oi.OI_HEPB                          AS OI_HEPB_PRESENT,
-       oi.OI_HEPC                          AS OI_HEPC_PRESENT,
-       oi.OI_PCP                           AS OI_PCP_PRESENT,
-       oi.OI_CMV                           AS OI_CMV_PRESENT,
-       oi.OI_OROCAND                       AS OI_OROCAND_PRESENT,
-       oi.OI_HERPES                        AS OI_HERPES_PRESENT,
-       oi.OI_OTHER                         AS OI_OTHER_PRESENT,
-       oi.OI_OTHER_TEXT                    AS OI_OTHER_TEXT,
+       proph.PROPH_COTRI_DONE                                                                 AS PROPH_COTRI,
+       proph.PROPH_AZITHRO_DONE                                                               AS PROPH_AZITHRO,
+       proph.PROPH_FLUCANO_DONE                                                               AS PROPH_FLUCANO,
+       oi.OI_SYPH                                                                             AS OI_SYPH_PRESENT,
+       oi.OI_HEPB                                                                             AS OI_HEPB_PRESENT,
+       oi.OI_HEPC                                                                             AS OI_HEPC_PRESENT,
+       oi.OI_PCP                                                                              AS OI_PCP_PRESENT,
+       oi.OI_CMV                                                                              AS OI_CMV_PRESENT,
+       oi.OI_OROCAND                                                                          AS OI_OROCAND_PRESENT,
+       oi.OI_HERPES                                                                           AS OI_HERPES_PRESENT,
+       oi.OI_OTHER                                                                            AS OI_OTHER_PRESENT,
+       oi.OI_OTHER_TEXT                                                                       AS OI_OTHER_TEXT,
        ob.IS_PREGNANT,
        ob.LMP,
-       ob.PREG_WKS                         AS AOG,
+       ob.PREG_WKS                                                                            AS AOG,
        ob.EDD,
        ob.DELIVER_DATE,
        ob.DELIVER_FACI,
        ob.FEED_TYPE,
        meds.REC_ID_GRP,
-       meds.FACI_DISP,
-       meds.SUB_FACI_DISP,
+       COALESCE(meds.FACI_DISP, '')                                                           AS FACI_DISP,
+       COALESCE(IF(LEFT(meds.SUB_FACI_DISP, 6) = meds.FACI_DISP, meds.SUB_FACI_DISP, ''), '') AS SUB_FACI_DISP,
        meds.MEDICINE_SUMMARY,
        meds.DISP_DATE,
        meds.LATEST_NEXT_DATE,
        COALESCE(ROUND((LENGTH(meds.MEDICINE_SUMMARY) - LENGTH(REPLACE(meds.MEDICINE_SUMMARY, '+', ''))) /
-                      LENGTH('+')) + 1, 0) AS NUM_OF_DRUGS,
+                      LENGTH('+')) + 1, 0)                                                    AS NUM_OF_DRUGS,
        CASE
            WHEN MEDICINE_SUMMARY IS NOT NULL THEN 'ART'
            WHEN LEFT(TX_STATUS, 1) IN ('1', '2') THEN 'ART'
            WHEN LEFT(TX_STATUS, 1) = '0' THEN 'Care'
            ELSE 'Care'
-           END                             AS ART_RECORD
+           END                                                                                AS ART_RECORD
 FROM ohasis_lake.px_pii AS pii
          LEFT JOIN ohasis_lake.px_faci_info AS service ON pii.REC_ID = service.REC_ID
          LEFT JOIN ohasis_lake.px_key_pop AS kp ON pii.REC_ID = kp.REC_ID
@@ -179,8 +189,8 @@ FROM ohasis_lake.px_pii AS pii
                            disp.FACI_ID                                                     AS FACI_DISP,
                            disp.SUB_FACI_ID                                                 AS SUB_FACI_DISP,
                            GROUP_CONCAT(DISTINCT meds.SHORT ORDER BY `ORDER` SEPARATOR '+') AS MEDICINE_SUMMARY,
-                           MAX(DISP_DATE)                                                   AS DISP_DATE,
-                           MAX(NEXT_DATE)                                                   AS LATEST_NEXT_DATE
+                           DATE(MAX(DISP_DATE))                                             AS DISP_DATE,
+                           DATE(MAX(NEXT_DATE))                                             AS LATEST_NEXT_DATE
                     FROM ohasis_lake.disp_meds AS disp
                              LEFT JOIN ohasis_lake.disc_meds AS disc
                                        ON disp.REC_ID = disc.REC_ID AND disp.MEDICINE = disc.MEDICINE
@@ -193,6 +203,6 @@ WHERE pii.DISEASE = 'HIV'
   AND MODULE = '3_Treatment'
   AND ((pii.CREATED_AT BETWEEN ? AND ?) OR
        (pii.UPDATED_AT BETWEEN ? AND ?) OR
-       (pii.DELETED_AT BETWEEN ? AND ?));;
+       (pii.DELETED_AT BETWEEN ? AND ?));
 -- ID_COLS: REC_ID, REC_ID_GRP;
 -- DELETE: DELETED_AT IS NOT NULL OR (FORM_VERSION NOT LIKE '%ART%' AND FORM_VERSION NOT LIKE '%BC%');

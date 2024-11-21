@@ -9,7 +9,7 @@ SELECT pii.REC_ID,
        pii.DELETED_AT,
        pii.SNAPSHOT,
        pii.FACI_ID,
-       pii.SUB_FACI_ID,
+       COALESCE(pii.SUB_FACI_ID, '') AS SUB_FACI_ID,
        pii.RECORD_DATE,
        pii.DISEASE,
        pii.MODULE,
@@ -32,7 +32,7 @@ SELECT pii.REC_ID,
            WHEN '1' THEN '1_Man'
            WHEN '2' THEN '2_Woman'
            WHEN '3' THEN '3_Other'
-           END                     AS SELF_IDENT,
+           END                       AS SELF_IDENT,
        pii.SELF_IDENT_OTHER,
        pii.NATIONALITY,
        pii.EDUC_LEVEL,
@@ -53,12 +53,14 @@ SELECT pii.REC_ID,
        pii.BIRTH_ADDR,
        ob.IS_PREGNANT,
        test_hiv.CONFIRM_FACI,
-       test_hiv.CONFIRM_SUB_FACI,
+       IF(LEFT(test_hiv.CONFIRM_SUB_FACI, 6) = test_hiv.CONFIRM_FACI, test_hiv.CONFIRM_SUB_FACI,
+          '')                        AS CONFIRM_SUB_FACI,
        test_hiv.CONFIRM_TYPE,
        test_hiv.CONFIRM_CODE,
        test_hiv.SPECIMEN_REFER_TYPE,
        test_hiv.SPECIMEN_SOURCE,
-       test_hiv.SPECIMEN_SUB_SOURCE,
+       IF(LEFT(test_hiv.SPECIMEN_SUB_SOURCE, 6) = test_hiv.SPECIMEN_SOURCE, test_hiv.SPECIMEN_SUB_SOURCE,
+          '')                        AS SPECIMEN_SUB_SOURCE,
        test_hiv.CONFIRM_RESULT,
        test_hiv.SIGNATORY_1,
        test_hiv.SIGNATORY_2,
@@ -76,17 +78,17 @@ SELECT pii.REC_ID,
        CASE
            WHEN risk.RISK_HIV_MOTHER LIKE '%Yes%' THEN '1_Yes'
            WHEN risk.RISK_HIV_MOTHER LIKE '%No%' THEN '0_No'
-           ELSE NULL END           AS EXPOSE_HIV_MOTHER,
-       risk.RISK_SEX_M_AV_NOCONDOM AS EXPOSE_SEX_M_NOCONDOM,
-       risk.RISK_SEX_F_AV_NOCONDOM AS EXPOSE_SEX_F_NOCONDOM,
-       risk.RISK_SEX_HIV           AS EXPOSE_SEX_HIV,
-       risk.RISK_SEX_PAYING        AS EXPOSE_SEX_PAYING,
-       risk.RISK_SEX_PAYMENT       AS EXPOSE_SEX_PAYMENT,
-       risk.RISK_DRUG_INJECT       AS EXPOSE_DRUG_INJECT,
-       risk.RISK_BLOOD_TRANSFUSE   AS EXPOSE_BLOOD_TRANSFUSE,
-       risk.RISK_OCCUPATION        AS EXPOSE_OCCUPATION,
-       risk.RISK_TATTOO            AS EXPOSE_TATTOO,
-       risk.RISK_STI               AS EXPOSE_STI,
+           ELSE NULL END             AS EXPOSE_HIV_MOTHER,
+       risk.RISK_SEX_M_AV_NOCONDOM   AS EXPOSE_SEX_M_NOCONDOM,
+       risk.RISK_SEX_F_AV_NOCONDOM   AS EXPOSE_SEX_F_NOCONDOM,
+       risk.RISK_SEX_HIV             AS EXPOSE_SEX_HIV,
+       risk.RISK_SEX_PAYING          AS EXPOSE_SEX_PAYING,
+       risk.RISK_SEX_PAYMENT         AS EXPOSE_SEX_PAYMENT,
+       risk.RISK_DRUG_INJECT         AS EXPOSE_DRUG_INJECT,
+       risk.RISK_BLOOD_TRANSFUSE     AS EXPOSE_BLOOD_TRANSFUSE,
+       risk.RISK_OCCUPATION          AS EXPOSE_OCCUPATION,
+       risk.RISK_TATTOO              AS EXPOSE_TATTOO,
+       risk.RISK_STI                 AS EXPOSE_STI,
        risk_profile.AGE_FIRST_SEX,
        risk_profile.AGE_FIRST_INJECT,
        risk_profile.NUM_M_PARTNER,
@@ -117,8 +119,21 @@ SELECT pii.REC_ID,
        service.CLIENT_TYPE,
        test_hiv.T0_DATE,
        test_hiv.T0_RESULT,
-       service.SERVICE_FACI,
-       service.SERVICE_SUB_FACI,
+       CASE
+           WHEN service.SERVICE_FACI IS NULL AND test_hiv.SPECIMEN_SOURCE IS NOT NULL THEN test_hiv.SPECIMEN_SOURCE
+           WHEN service.SERVICE_FACI IS NOT NULL THEN service.SERVICE_FACI
+           ELSE COALESCE(pii.FACI_ID, '')
+           END                       AS SERVICE_FACI,
+       CASE
+           WHEN service.SERVICE_FACI IS NULL AND LEFT(test_hiv.SPECIMEN_SUB_SOURCE, 6) = test_hiv.SPECIMEN_SOURCE
+               THEN test_hiv.SPECIMEN_SUB_SOURCE
+           WHEN service.SERVICE_FACI IS NULL AND LEFT(test_hiv.SPECIMEN_SUB_SOURCE, 6) <> test_hiv.SPECIMEN_SOURCE
+               THEN ''
+           WHEN service.SERVICE_FACI IS NOT NULL AND LEFT(service.SERVICE_SUB_FACI, 6) = service.SERVICE_FACI
+               THEN service.SERVICE_SUB_FACI
+           WHEN service.SERVICE_FACI IS NOT NULL AND LEFT(service.SERVICE_SUB_FACI, 6) <> service.SERVICE_FACI THEN ''
+           ELSE COALESCE(pii.SUB_FACI_ID, '')
+           END                       AS SERVICE_SUB_FACI,
        service.SERVICE_BY,
        service.REFER_TYPE,
        service.CLINIC_NOTES,
@@ -139,12 +154,12 @@ SELECT pii.REC_ID,
            WHEN pii.SEX = '1_Male' AND risk_profile.NUM_M_PARTNER > 0 THEN 1
            WHEN pii.SEX = '1_Male' AND risk_profile.YR_LAST_M IS NOT NULL THEN 1
            ELSE 0
-           END                     AS FORMA_MSM,
+           END                       AS FORMA_MSM,
        CASE
            WHEN pii.SEX = '1_Male' AND LEFT(pii.SELF_IDENT, 1) = '2' THEN 1
            WHEN pii.SEX = '1_Male' AND LEFT(pii.SELF_IDENT, 1) = '3' THEN 1
            ELSE 0
-           END                     AS FORMA_TGW
+           END                       AS FORMA_TGW
 FROM ohasis_lake.px_pii AS pii
          LEFT JOIN ohasis_lake.px_faci_info AS service ON pii.REC_ID = service.REC_ID
          LEFT JOIN ohasis_lake.px_ob AS ob ON pii.REC_ID = ob.REC_ID
@@ -157,7 +172,9 @@ FROM ohasis_lake.px_pii AS pii
          LEFT JOIN ohasis_lake.px_test_previous AS test_previous ON pii.REC_ID = test_previous.REC_ID
          LEFT JOIN ohasis_lake.px_med_profile AS med_profile ON pii.REC_ID = med_profile.REC_ID
          LEFT JOIN ohasis_lake.px_staging AS staging ON pii.REC_ID = staging.REC_ID
-WHERE (FORM_VERSION LIKE 'Form A %' OR (pii.FORM_VERSION IS NULL AND pii.MODULE = '2_Testing' AND pii.DISEASE = 'HIV'))
+WHERE pii.DISEASE = 'HIV'
+  AND pii.MODULE = '2_Testing'
+  AND (FORM_VERSION LIKE 'Form A %' OR pii.FORM_VERSION IS NULL)
   AND ((pii.CREATED_AT BETWEEN ? AND ?) OR
        (pii.UPDATED_AT BETWEEN ? AND ?) OR
        (pii.DELETED_AT BETWEEN ? AND ?));
