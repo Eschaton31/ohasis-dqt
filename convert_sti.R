@@ -279,6 +279,10 @@ sti          <- form_sti %>%
 
 sti_qc <- sti %>%
    filter(`City/Municipality of STI Facility` == "Quezon City")
+sti_r5 <- sti %>%
+   filter(`Region of STI Facility` == "Region V (Bicol Region)")
 
-write_xlsx(list(`QC STI Forms` = sti_qc), "H:/20240809_QC-STI_ever.xlsx")
-write_xlsx(list(`PH STI Forms` = sti), "H:/20240809_QC-All_ever.xlsx")
+output_version <- format(Sys.time(), "%Y%m%d")
+write_xlsx(list(`QC STI Forms` = sti_qc), stri_c("H:/", output_version, "_QC-STI_ever.xlsx"))
+write_xlsx(list(`R5 STI Forms` = sti_r5), stri_c("H:/", output_version, "_R5-STI_ever.xlsx"))
+write_xlsx(list(`PH STI Forms` = sti), stri_c("H:/", output_version, "_All-STI_ever.xlsx"))
