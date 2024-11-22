@@ -1,22 +1,22 @@
-OhasisData <- R6Class(
+ OhasisData <- R6Class(
    "OhasisData",
    public  = list(
       periods      = list(
-         curr  = c(
+         curr  = list(
             yr  = NA_integer_,
             mo  = NA_integer_,
             ym  = NA_character_,
             min = NA_Date_,
             max = NA_Date_
          ),
-         prev  = c(
+         prev  = list(
             yr  = NA_integer_,
             mo  = NA_integer_,
             ym  = NA_character_,
             min = NA_Date_,
             max = NA_Date_
          ),
-         after = c(
+         after = list(
             yr  = NA_integer_,
             mo  = NA_integer_,
             ym  = NA_character_,
@@ -71,16 +71,36 @@ OhasisData <- R6Class(
       }
    ),
    private = list(
-      calculatePeriod = function(end_date) {
+      calculatePeriod      = function(end_date) {
          yr  <- year(end_date)
          mo  <- month(end_date)
          ym  <- format(end_date, "%Y.%m")
          min <- as.character(floor_date(end_date, "months"))
          max <- as.character(end_date)
 
-         return(c(yr = yr, mo = mo, ym = ym, min = min, max = max))
+         return(list(yr = yr, mo = mo, ym = ym, min = min, max = max))
       },
-      tables          = list(
+      fetchPreviousDataset = function(surv, type, period, id, corr, drop) {
+         table <- stri_c(surv, ".", type, "_", period)
+
+         conn <- connect("ohasis-lw")
+         data <- QB$new(conn)$from(table)$get()
+         dbDisconnect(conn)
+
+         data %<>%
+            apply_corrections(corr, id)
+
+         if (!missing(drop)) {
+            data %<>%
+               anti_join(
+                  y  = drop,
+                  by = id
+               )
+         }
+
+         return(data)
+      },
+      tables               = list(
          lake      = list(),
          warehouse = list()
       )
