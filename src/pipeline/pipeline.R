@@ -407,7 +407,7 @@ flow_corr <- function(report_period = NULL, surv_name = NULL) {
    # classd
    table_space <- Id(schema = surv_name, table = "corr_classd")
    if (dbExistsTable(con, table_space)) {
-      table_name     <- stri_c(surv_name, ".", "corr_classd")
+      table_name       <- stri_c(surv_name, ".", "corr_classd")
       corr$corr_classd <- QB$new(con)$
          from(table_name)$
          get()
@@ -416,7 +416,7 @@ flow_corr <- function(report_period = NULL, surv_name = NULL) {
    for (tbl in c("corr_reg", "corr_outcome", "corr_defer", "corr_drop")) {
       table_space <- Id(schema = surv_name, table = tbl)
       if (dbExistsTable(con, table_space)) {
-         table_name         <- stri_c(surv_name, ".", tbl)
+         table_name  <- stri_c(surv_name, ".", tbl)
          corr[[tbl]] <- QB$new(con)$
             from(table_name)$
             where("period", report_period)$
@@ -427,6 +427,54 @@ flow_corr <- function(report_period = NULL, surv_name = NULL) {
 
    log_success("Done.")
    return(corr)
+}
+
+infer_type <- function(value, format) {
+   return(
+      switch(
+         format,
+         character = as.character(value),
+         numeric   = as.numeric(value),
+         double    = as.numeric(value),
+         integer   = as.integer(value),
+         Date      = as.Date(value),
+      )
+   )
+}
+
+apply_corrections <- function(data, corr, id_name) {
+   id_col  <- as.name(id_name)
+   id_type <- typeof(data[[id_name]])
+
+   variables            <- mutate(corr, new_value = na_if(new_value, "NULL"))
+   variables[[id_name]] <- infer_type(variables[[id_name]], id_type)
+
+   variables <- split(variables, ~variable)
+   variables <- lapply(variables, function(corrections) {
+      format <- corrections[1,]$format
+      corrections %<>%
+         select({{id_col}}, new_value)
+
+      corrections[['new_value']] <- infer_type(corrections[['new_value']], format)
+
+      return(corrections)
+   })
+
+   for (variable in names(variables)) {
+      variable <- as.name(variable)
+      data %<>%
+         select(-matches("NEW_VALUE", ignore.case = FALSE)) %>%
+         left_join(
+            y  = variables[[variable]],
+            by = join_by({{id_col}})
+         ) %>%
+         mutate(
+            {{variable}} := coalesce(new_value, {{variable}})
+         ) %>%
+         select(-new_value)
+   }
+
+   return(data)
 }
 
 combine_validations <- function(data_src, corr_list, row_ids) {
