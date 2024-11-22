@@ -1,0 +1,127 @@
+cids <- c('20231119990005774R', '20231119990005774R', '2023112899000584Q5')
+
+prep_changed_names <- function(cids) {
+   conn <- connect("ohasis-lw")
+   prep <- QB$new(conn)$select(REC_ID, CENTRAL_ID, prep_id, first, middle, last, suffix)$from("prep.reg_202410")$whereIn("CENTRAL_ID", cids)$get()
+   dbDisconnect(conn)
+
+
+   conn <- connect("ohasis-live")
+   live <- QB$new(conn)$select(REC_ID, FIRST, MIDDLE, LAST, SUFFIX)$from("ohasis_interim.px_name")$whereIn("REC_ID", prep$REC_ID)$get()
+   dbDisconnect(conn)
+
+   corrections <- prep %>%
+      left_join(
+         y  = live,
+         by = join_by(REC_ID)
+      ) %>%
+      select(
+         prep_id,
+         new_value.first  = FIRST,
+         old_value.first  = first,
+         new_value.middle = MIDDLE,
+         old_value.middle = middle,
+         new_value.last   = LAST,
+         old_value.last   = last,
+         new_value.suffix = SUFFIX,
+         old_value.suffix = suffix,
+      ) %>%
+      pivot_longer(
+         cols      = c(contains("_value.")),
+         names_to  = c(".value", "variable"),
+         names_sep = "\\."
+      ) %>%
+      mutate_at(
+         .vars = vars(old_value, new_value),
+         ~toupper(coalesce(., "NULL"))
+      ) %>%
+      mutate(
+         period = "2024.10",
+         format = "character"
+      ) %>%
+      select(
+         period,
+         prep_id,
+         variable,
+         old_value,
+         new_value,
+         format
+      ) %>%
+      filter(old_value != new_value)
+
+   conn <- connect('ohasis-lw')
+   dbxUpsert(conn, Id(schema = "prep", table = "corr_reg"), corrections, c("period", "prep_id", "variable"))
+   dbDisconnect(conn)
+
+   return(corrections)
+}
+
+art_changed_names <- function(cids) {
+   conn <- connect("ohasis-lw")
+   prep <- QB$new(conn)$select(REC_ID, CENTRAL_ID, art_id, first, middle, last, suffix, uic, birthdate)$from("harp_tx.reg_202410")$whereIn("CENTRAL_ID", cids)$get()
+   dbDisconnect(conn)
+
+
+   conn <- connect("ohasis-live")
+   live <- QB$new(conn)$
+      select(px_name.REC_ID, FIRST, MIDDLE, LAST, SUFFIX, UIC, BIRTHDATE)$
+      from("ohasis_interim.px_name")$whereIn("REC_ID", prep$REC_ID)$
+      leftJoin("ohasis_interim.px_info", "px_name.REC_ID", "=", "px_info.REC_ID")$
+      get()
+   dbDisconnect(conn)
+
+   corrections <- prep %>%
+      mutate(birthdate = as.character(birthdate)) %>%
+      left_join(
+         y  = live %>% mutate(BIRTHDATE = as.character(BIRTHDATE)),
+         by = join_by(REC_ID)
+      ) %>%
+      select(
+         art_id,
+         new_value.first     = FIRST,
+         old_value.first     = first,
+         new_value.middle    = MIDDLE,
+         old_value.middle    = middle,
+         new_value.last      = LAST,
+         old_value.last      = last,
+         new_value.suffix    = SUFFIX,
+         old_value.suffix    = suffix,
+         new_value.uic       = UIC,
+         old_value.uic       = uic,
+         new_value.birthdate = BIRTHDATE,
+         old_value.birthdate = birthdate,
+      ) %>%
+      pivot_longer(
+         cols      = c(contains("_value.")),
+         names_to  = c(".value", "variable"),
+         names_sep = "\\."
+      ) %>%
+      mutate_at(
+         .vars = vars(old_value, new_value),
+         ~toupper(coalesce(., "NULL"))
+      ) %>%
+      mutate(
+         period = "2024.10",
+         format = "character"
+      ) %>%
+      select(
+         period,
+         art_id,
+         variable,
+         old_value,
+         new_value,
+         format
+      ) %>%
+      filter(old_value != new_value)
+
+   conn <- connect('ohasis-lw')
+   dbxUpsert(conn, Id(schema = "harp_tx", table = "corr_reg"), corrections, c("period", "art_id", "variable"))
+   dbDisconnect(conn)
+
+   return(corrections)
+}
+
+# prep_changed_names(c('20220504030081356T','2022081803008139H3','20230815030081B017','202309050300813C16','2023101203008157K8','2024012403008108F9','20240509030081F037','20240527030081084R','202405270300811L14','2024052703008142B2','20240527030081542Q','20240527030081M803','20240528030081693K','20240528030081L793','20240528030081N843','20240528030081V809','20240528030081Z759','20240605030081U299','20240618030081066J','202406180300811S67','20240619030081358G','2024062003008138D0','20240620030081456M','202406200300815P71','2024062403008194W7'))
+art_changed_names(c('20240827130002Q769'))
+
+
