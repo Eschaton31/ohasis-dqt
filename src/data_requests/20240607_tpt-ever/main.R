@@ -41,8 +41,40 @@ id_reg <- QB$new(conn)$from("ohasis_warehouse.id_registry")$select("CENTRAL_ID",
 
 dbDisconnect(conn)
 
-tpt_ever <- tpt_all %>%
-   get_cid(id_reg, PATIENT_ID) %>%
+tpt_id <- tpt_all %>% get_cid(id_reg, PATIENT_ID)
+
+tpt_started <- function (data, min, max, var) {
+   data %>%
+      filter(coalesce(TB_IPT_STATUS, "") != "0_Not on IPT") %>%
+      mutate(
+         keep = case_when(
+            TB_IPT_STATUS == "12_Started IPT" & VISIT_DATE %between% c(min, max) ~ 1,
+            TB_IPT_START_DATE %between% c(min, max) ~ 1,
+            TRUE ~ 0
+         )
+      ) %>%
+      filter(keep == 1) %>%
+      distinct(CENTRAL_ID) %>%
+      mutate({{var}} := 1) %>%
+      return()
+}
+tpt_given <- function (data, min, max, var) {
+   data %>%
+      filter(coalesce(TB_IPT_STATUS, "") != "0_Not on IPT") %>%
+      mutate(
+         keep = case_when(
+            VISIT_DATE %between% c(min, max) ~ 1,
+            TB_IPT_START_DATE %between% c(min, max) ~ 1,
+            TRUE ~ 0
+         )
+      ) %>%
+      filter(keep == 1) %>%
+      distinct(CENTRAL_ID) %>%
+      mutate({{var}} := 1) %>%
+      return()
+}
+
+tpt_ever <- tpt_id %>%
    mutate(
       keep = case_when(
          TB_IPT_STATUS == "0_Not on IPT" ~ 0,
@@ -53,112 +85,33 @@ tpt_ever <- tpt_all %>%
    distinct(CENTRAL_ID) %>%
    mutate(ever_tpt = 1)
 
-tpt_year <- tpt_all %>%
-   get_cid(id_reg, PATIENT_ID) %>%
-   mutate(
-      keep = case_when(
-         TB_IPT_STATUS == "0_Not on IPT" ~ 0,
-         TRUE ~ 1
-      )
-   ) %>%
-   # filter(keep == 1) %>%
-   filter((TB_IPT_STATUS == "12_Started IPT" & year(VISIT_DATE) == as.numeric(yr)) | (year(TB_IPT_START_DATE) == as.numeric(yr))) %>%
-   distinct(CENTRAL_ID) %>%
-   mutate(year_tpt = 1)
+startedtpt_year <- tpt_started(tpt_id, start_ym(yr, 1), end_ym(yr, 12), year_startedtpt)
+giventpt_year <- tpt_given(tpt_id, start_ym(yr, 1), end_ym(yr, 12), year_giventpt)
+tpt_year <- startedtpt_year %>% full_join(giventpt_year, join_by(CENTRAL_ID))
 
-tpt_s1 <- tpt_all %>%
-   get_cid(id_reg, PATIENT_ID) %>%
-   mutate(
-      keep = case_when(
-         TB_IPT_STATUS == "0_Not on IPT" ~ 0,
-         TRUE ~ 1
-      )
-   ) %>%
-   # filter(keep == 1) %>%
-   filter((TB_IPT_STATUS == "12_Started IPT" &
-      VISIT_DATE >= start_ym(yr, "01") &
-      VISIT_DATE <= start_ym(yr, "06")) | (TB_IPT_START_DATE >= start_ym(yr, "01") & TB_IPT_START_DATE <= start_ym(yr, "06"))) %>%
-   distinct(CENTRAL_ID) %>%
-   mutate(s1_tpt = 1)
-tpt_s2 <- tpt_all %>%
-   filter() %>%
-   get_cid(id_reg, PATIENT_ID) %>%
-   mutate(
-      keep = case_when(
-         TB_IPT_STATUS == "0_Not on IPT" ~ 0,
-         TRUE ~ 1
-      )
-   ) %>%
-   # filter(keep == 1) %>%
-   filter((TB_IPT_STATUS == "12_Started IPT" &
-      VISIT_DATE >= start_ym(yr, "07") &
-      VISIT_DATE <= start_ym(yr, "12")) | (TB_IPT_START_DATE >= start_ym(yr, "07") & TB_IPT_START_DATE <= start_ym(yr, "12"))) %>%
-   distinct(CENTRAL_ID) %>%
-   mutate(s2_tpt = 1)
+startedtpt_s1 <- tpt_started(tpt_id, start_ym(yr, 1), end_ym(yr, 6), s1_startedtpt)
+giventpt_s1 <- tpt_given(tpt_id, start_ym(yr, 1), end_ym(yr, 6), s1_giventpt)
+tpt_s1 <- startedtpt_s1 %>% full_join(giventpt_s1, join_by(CENTRAL_ID))
 
-qr <- list(
-   `1` = c(start_ym(yr, "01"), end_ym(yr, "03")),
-   `2` = c(start_ym(yr, "04"), end_ym(yr, "06")),
-   `3` = c(start_ym(yr, "07"), end_ym(yr, "09")),
-   `4` = c(start_ym(yr, "10"), end_ym(yr, "12"))
-)
+startedtpt_s2 <- tpt_started(tpt_id, start_ym(yr, 7), end_ym(yr, 12), s2_startedtpt)
+giventpt_s2 <- tpt_given(tpt_id, start_ym(yr, 7), end_ym(yr, 12), s2_giventpt)
+tpt_s2 <- startedtpt_s2 %>% full_join(giventpt_s2, join_by(CENTRAL_ID))
 
-tpt_q1 <- tpt_all %>%
-   get_cid(id_reg, PATIENT_ID) %>%
-   mutate(
-      keep = case_when(
-         TB_IPT_STATUS == "0_Not on IPT" ~ 0,
-         TRUE ~ 1
-      )
-   ) %>%
-   # filter(keep == 1) %>%
-   filter((TB_IPT_STATUS == "12_Started IPT" &
-      VISIT_DATE >= qr$`1`[1] &
-      VISIT_DATE <= qr$`1`[2]) | (TB_IPT_START_DATE >= qr$`1`[1] & TB_IPT_START_DATE <= qr$`1`[2])) %>%
-   distinct(CENTRAL_ID) %>%
-   mutate(q1_tpt = 1)
-tpt_q2 <- tpt_all %>%
-   get_cid(id_reg, PATIENT_ID) %>%
-   mutate(
-      keep = case_when(
-         TB_IPT_STATUS == "0_Not on IPT" ~ 0,
-         TRUE ~ 1
-      )
-   ) %>%
-   # filter(keep == 1) %>%
-   filter((TB_IPT_STATUS == "12_Started IPT" &
-      VISIT_DATE >= qr$`2`[1] &
-      VISIT_DATE <= qr$`2`[2]) | (TB_IPT_START_DATE >= qr$`2`[1] & TB_IPT_START_DATE <= qr$`2`[2])) %>%
-   distinct(CENTRAL_ID) %>%
-   mutate(q2_tpt = 2)
-tpt_q3 <- tpt_all %>%
-   get_cid(id_reg, PATIENT_ID) %>%
-   mutate(
-      keep = case_when(
-         TB_IPT_STATUS == "0_Not on IPT" ~ 0,
-         TRUE ~ 1
-      )
-   ) %>%
-   # filter(keep == 1) %>%
-   filter((TB_IPT_STATUS == "12_Started IPT" &
-      VISIT_DATE >= qr$`3`[1] &
-      VISIT_DATE <= qr$`3`[2]) | (TB_IPT_START_DATE >= qr$`3`[1] & TB_IPT_START_DATE <= qr$`3`[2])) %>%
-   distinct(CENTRAL_ID) %>%
-   mutate(q3_tpt = 1)
-tpt_q4 <- tpt_all %>%
-   get_cid(id_reg, PATIENT_ID) %>%
-   mutate(
-      keep = case_when(
-         TB_IPT_STATUS == "0_Not on IPT" ~ 0,
-         TRUE ~ 1
-      )
-   ) %>%
-   # filter(keep == 1) %>%
-   filter((TB_IPT_STATUS == "12_Started IPT" &
-      VISIT_DATE >= qr$`4`[1] &
-      VISIT_DATE <= qr$`4`[2]) | (TB_IPT_START_DATE >= qr$`4`[1] & TB_IPT_START_DATE <= qr$`4`[2])) %>%
-   distinct(CENTRAL_ID) %>%
-   mutate(q4_tpt = 1)
+startedtpt_q1 <- tpt_started(tpt_id, start_ym(yr, 1), end_ym(yr, 3), q1_startedtpt)
+giventpt_q1 <- tpt_given(tpt_id, start_ym(yr, 1), end_ym(yr, 3), q1_giventpt)
+tpt_q1 <- startedtpt_q1 %>% full_join(giventpt_q1, join_by(CENTRAL_ID))
+
+startedtpt_q2 <- tpt_started(tpt_id, start_ym(yr, 4), end_ym(yr, 6), q2_startedtpt)
+giventpt_q2 <- tpt_given(tpt_id, start_ym(yr, 4), end_ym(yr, 6), q2_giventpt)
+tpt_q2 <- startedtpt_q2 %>% full_join(giventpt_q2, join_by(CENTRAL_ID))
+
+startedtpt_q3 <- tpt_started(tpt_id, start_ym(yr, 7), end_ym(yr, 9), q3_startedtpt)
+giventpt_q3 <- tpt_given(tpt_id, start_ym(yr, 7), end_ym(yr, 9), q3_giventpt)
+tpt_q3 <- startedtpt_q3 %>% full_join(giventpt_q3, join_by(CENTRAL_ID))
+
+startedtpt_q4 <- tpt_started(tpt_id, start_ym(yr, 10), end_ym(yr, 12), q4_startedtpt)
+giventpt_q4 <- tpt_given(tpt_id, start_ym(yr, 10), end_ym(yr, 12), q4_giventpt)
+tpt_q4 <- startedtpt_q4 %>% full_join(giventpt_q4, join_by(CENTRAL_ID))
 
 notb_ever <- notb %>%
    get_cid(id_reg, PATIENT_ID) %>%
@@ -181,6 +134,10 @@ art_ever_tpt <- tx_curr %>%
    ) %>%
    left_join(
       y  = tpt_ever,
+      by = join_by(CENTRAL_ID)
+   ) %>%
+   left_join(
+      y  = tpt_year,
       by = join_by(CENTRAL_ID)
    ) %>%
    left_join(
