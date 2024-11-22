@@ -12,10 +12,11 @@ art <- QB$new(con)$from("ohasis_warehouse.form_art_bc AS pii")$
    )
 dbDisconnect(con)
 
-
+p_load(readODS)
 nmm_addr   <- read_excel("W:/Users/johnb/Downloads/NMM_Addr.xlsx", col_types = "text")
-nmm_file   <- "C:/Users/Administrator/Downloads/NMM- AUG 2024 ARV REFILL.ods"
+nmm_file   <- "C:/Users/johnb/Downloads/ARV REFILL OCT 2024 NMM.ods"
 nmm_sheets <- ods_sheets(nmm_file)
+nmm_sheets <- "OCT_2024"
 nmm        <- lapply(nmm_sheets, read_ods, path = nmm_file, col_types = cols(.default = "c")) %>%
    bind_rows() %>%
    select(
@@ -97,6 +98,8 @@ ss        <- "1PlcXdGNiKJF9TQO3e-79hlghVU33s5FLNMhItk-XQs8"
 ss        <- "1IqKHP8qd_NFveR1ONbfOdOI92G3oPZ0TOgMvNgqtq1U"
 ss        <- "1UB85P07MNAzZ2gvKElMyXAOkfY_QL9N1J0o5y9RZOl0"
 ss        <- "1h4o6HN6eoECeGamdTYfOPpPlW3BuWAd_Dv5u6rmzVH0"
+ss        <- "1vzEltWIRW9NeZPpRV07O5BkdHC_M-lgx-oDPAnW7lNo"
+ss        <- "1n34nte6dRp8HxeP07CWArOrerispfeiY8-60NBSEvRE"
 nmm       <- read_sheet(ss, col_types = "c")
 nmm_clean <- nmm %>%
    filter(is.na(CENTRAL_ID)) %>%
@@ -113,12 +116,11 @@ nmm_clean <- nmm %>%
 write_sheet(nmm_clean %>% filter(!is.na(CENTRAL_ID)), ss, "with_cid")
 write_sheet(nmm_clean %>% filter(is.na(CENTRAL_ID)), ss, "no_cid")
 
-
 min <- min(nmm_matched$RECORD_DATE, na.rm = TRUE)
 max <- max(nmm_matched$RECORD_DATE, na.rm = TRUE)
 
-min <- "2024-08-01"
-max <- "2024-08-31"
+min <- "2024-10-01"
+max <- "2024-10-31"
 
 conn        <- ohasis$conn("lw")
 id_reg      <- QB$new(conn)$from("ohasis_warehouse.id_registry")$select(CENTRAL_ID, PATIENT_ID)$get()
@@ -186,6 +188,9 @@ import      <- nmm_matched %>%
       keep = case_when(
          ARV == "NONE" ~ 0,
          CAT == "PREP" ~ 0,
+         CAT == "HBV" ~ 0,
+         CAT == "HCV" ~ 0,
+         CAT == "LBC" ~ 0,
          DISP_MONTHS == "NONE" ~ 0,
          is.na(UIC) ~ 0,
          TRUE ~ 1
@@ -364,6 +369,7 @@ tables$px_medicine <- list(
             MEDICINE == "TDF" ~ 1,
             MEDICINE == "TDF+3TC" ~ 1,
             MEDICINE == "3TC+TDF" ~ 1,
+            MEDICINE == "NVPsyr" ~ 2,
             TRUE ~ 1
          ),
          MEDICINE      = case_when(
@@ -384,6 +390,7 @@ tables$px_medicine <- list(
             MEDICINE == "TDF" ~ "2034",
             MEDICINE == "TDF+3TC" ~ "2016",
             MEDICINE == "3TC+TDF" ~ "2016",
+            MEDICINE == "NVPsyr" ~ "2012",
             TRUE ~ MEDICINE
          ),
          UNIT_BASIS    = "2",
