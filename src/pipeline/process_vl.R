@@ -334,17 +334,10 @@ process_vl <- function(data, result_old, result_new) {
             true      = substr(VL_RES, 1, stri_locate_first_fixed(VL_RES, "LOG") - 1),
             false     = NA_character_
          ),
-         log_multiplier = if_else(
-            condition = stri_detect_fixed(log_raw, "E"),
-            true      = substr(log_raw, stri_locate_first_fixed(log_raw, "E") + 1, nchar(log_raw)),
-            false     = NA_character_
-         ) %>%
-            stri_replace_all_regex("[^[:digit:]]", ""),
-         log_multiplier = if_else(
-            condition = !is.na(log_multiplier),
-            true      = stri_pad_right("1", parse_number(log_multiplier) + 1, "0"),
-            false     = NA_character_
-         ) %>% parse_number(),
+         log_multiplier = str_extract(log_raw, "E([^:]+)", 1),
+         log_multiplier = str_replace_all(log_multiplier, "[^[:digit:]]", 1),
+         log_multiplier = stri_pad_right("1", parse_number(log_multiplier) + 1, "0"),
+         log_multiplier = parse_number(log_multiplier),
          log_raw        = if_else(
             condition = stri_detect_fixed(log_raw, "E"),
             true      = substr(log_raw, 1, stri_locate_first_fixed(log_raw, "E") - 1) %>% stri_replace_all_regex("[^[:digit:]]", ""),
