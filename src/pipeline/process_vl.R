@@ -199,7 +199,7 @@ process_vl <- function(data, result_old, result_new) {
          scical_eo   = if_else(scical == "eo", VL_RES, NA_character_),
          scical_eo   = parse_number(str_squish(str_extract(scical_eo, "(.+)E", 1))) * (10^parse_number(str_extract(scical_eo, ".+E.+([0-9]+)", 1))),
          pure_number = str_replace_all(VL_RES, "[^[:digit:]]", ""),
-         pure_number = if_else(StrIsNumeric(pure_number), pure_number, NA_character_, NA_character_),
+         pure_number = if_else(check.numeric(pure_number), pure_number, NA_character_, NA_character_),
          pure_number = parse_number(pure_number),
          mega_number = if_else(str_detect(VL_RES, "[:digit:] *M$") & less_than == 0, str_replace_all(VL_RES, "[^[:digit:]]", ""), NA_character_, NA_character_),
          mega_number = parse_number(mega_number),
@@ -218,7 +218,7 @@ process_vl <- function(data, result_old, result_new) {
                stri_detect_fixed(VL_RES, "40") &
                stri_detect_fixed(VL_RES, "1.6") ~ 39,
             less_than == 1 & has_alpha == 0 ~ pure_number - 1,
-            StrIsNumeric(VL_RES) ~ pure_number,
+            check.numeric(VL_RES) ~ pure_number,
             !is.na(mega_number) ~ mega_number * 1000000,
             less_than == 1 & has_alpha == 1 & is.na(scical) ~ less_number - 1,
             stri_detect_fixed(VL_RES, "NO T DET") ~ 0,
@@ -378,7 +378,7 @@ process_vl <- function(data, result_old, result_new) {
                log_multiplier,
             is.na(VL_RES_2) &
                stri_count_fixed(VL_RES, ".") > 1 &
-               StrIsNumeric(str_replace_all(VL_RES, ".", "")) ~ parse_number(stri_replace_all_regex(VL_RES, ".", "")),
+               check.numeric(str_replace_all(VL_RES, ".", "")) ~ parse_number(stri_replace_all_regex(VL_RES, ".", "")),
             TRUE ~ VL_RES_2
          )
       ) %>%
