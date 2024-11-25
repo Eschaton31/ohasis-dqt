@@ -16,9 +16,9 @@ readr
 tidyr
 dplyr
 duckplyr
+stringi
 stringr
 forstringr
-stringi
 furrr
 varhandle
 glue
@@ -31,6 +31,7 @@ openxlsx
 clipr
 RMariaDB
 dbx
+pool
 gmailr
 googledrive
 googlesheets4

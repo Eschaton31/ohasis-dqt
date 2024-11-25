@@ -335,7 +335,7 @@ process_vl <- function(data, result_old, result_new) {
             false     = NA_character_
          ),
          log_multiplier = str_extract(log_raw, "E([^:]+)", 1),
-         log_multiplier = str_replace_all(log_multiplier, "[^[:digit:]]", 1),
+         log_multiplier = stri_replace_all_regex(log_multiplier, "[^[:digit:]]", ""),
          log_multiplier = stri_pad_right("1", parse_number(log_multiplier) + 1, "0"),
          log_multiplier = parse_number(log_multiplier),
          log_raw        = if_else(
