@@ -840,7 +840,8 @@ DB <- R6Class(
 
             if (!is.null(corr)) {
                log_info("Performing cleaning on the dataset.")
-               old_dataset <- .cleaning_list(old_dataset, as.data.frame(corr), toupper(names(id_col)), id_col)
+               # old_dataset <- .cleaning_list(old_dataset, as.data.frame(corr), toupper(names(id_col)), id_col)
+               old_dataset <- apply_corrections(old_dataset, corr, id_col)
             }
 
             # drop clients
