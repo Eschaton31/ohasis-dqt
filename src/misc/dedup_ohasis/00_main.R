@@ -206,8 +206,29 @@ check_dupes$registry %>%
 ohasis$data_factory("lake", "px_pii", "upsert", TRUE, to = format(Sys.time(), "%Y-%m-%d %H:%M:%S"))
 ohasis$data_factory("warehouse", "id_registry", "upsert", TRUE, to = format(Sys.time(), "%Y-%m-%d %H:%M:%S"))
 dedup      <- dedup_download()
-pii_unique <- dedup$pii %>%
+pii_unique <- pii %>%
+   get_cid(id_reg, PATIENT_ID) %>%
+   left_join(
+      y  = work,
+      by = join_by(REC_ID)
+   ) %>%
    select(-REC_ID, -FACI_ID, -SUB_FACI_ID, -DELETED_AT) %>%
+   unite(
+      col   = "PERM_ADDR",
+      sep   = ", ",
+      PERM_REG,
+      PERM_PROV,
+      PERM_MUNC,
+      na.rm = TRUE
+   ) %>%
+   unite(
+      col   = "CURR_ADDR",
+      sep   = ", ",
+      CURR_REG,
+      CURR_PROV,
+      CURR_MUNC,
+      na.rm = TRUE
+   ) %>%
    pivot_longer(
       cols = c(
          FIRST,
@@ -223,26 +244,75 @@ pii_unique <- dedup$pii %>%
          CLIENT_EMAIL,
          CLIENT_MOBILE,
          SEX,
-         PERM_REG,
-         PERM_PROV,
-         PERM_MUNC,
-         CURR_REG,
-         CURR_PROV,
-         CURR_MUNC,
+         WORK,
+         CURR_ADDR,
+         PERM_ADDR,
       )
    ) %>%
    mutate(
       sort = if_else(!is.na(value), 1, 9999, 9999)
    ) %>%
    arrange(sort, desc(SNAPSHOT)) %>%
-   distinct(PATIENT_ID, name, .keep_all = TRUE) %>%
+   distinct(CENTRAL_ID, name, .keep_all = TRUE) %>%
    pivot_wider(
-      id_cols     = PATIENT_ID,
+      id_cols     = CENTRAL_ID,
       names_from  = name,
       values_from = value
-   ) %>%
-   get_cid(dedup$id_registry, PATIENT_ID)
+   )
 
+write_rds(pii_unique, "H:/20241126-pii_unique.rds")
+pii_unique <- read_rds("H:/20241126-pii_unique.rds")
+
+data <- pii_unique %>%
+   mutate(id = row_number()) %>%
+   rename(occupation = WORK) %>%
+   separate_wider_delim(
+      cols    = CURR_ADDR,
+      delim   = ", ",
+      names   = c("CURR_REG", "CURR_PROV", "CURR_MUNC"),
+      too_few = "align_start"
+   ) %>%
+   separate_wider_delim(
+      cols    = PERM_ADDR,
+      delim   = ", ",
+      names   = c("PERM_REG", "PERM_PROV", "PERM_MUNC"),
+      too_few = "align_start"
+   ) %>%
+   mutate(
+      use_curr           = coalesce(CURR_MUNC == "UNKNOWN" | CURR_MUNC == "OVERSEAS", FALSE),
+      PERMCURR_REG  = if_else(
+         condition = use_curr == 1,
+         true      = CURR_REG,
+         false     = PERM_REG
+      ),
+      PERMCURR_PROV = if_else(
+         condition = use_curr == 1,
+         true      = CURR_PROV,
+         false     = PERM_PROV
+      ),
+      PERMCURR_MUNC = if_else(
+         condition = use_curr == 1,
+         true      = CURR_MUNC,
+         false     = PERM_MUNC
+      ),
+   ) %>%
+   select(
+      -use_curr,
+      -starts_with("PERM_"),
+      -starts_with("CURR_"),
+   ) %>%
+   rename_all(tolower) %>%
+   rename(CENTRAL_ID = central_id) %>%
+   mutate(
+      birthdate = as.Date(parse_date_time(birthdate, "Ymd"))
+   )
+try  <- Dedup$new()
+try$setMaster(data, "id")
+try$preparePii()
+try$splinkDedupe()
+
+work   <- QB$new(`oh-lw`)$select(REC_ID, WORK)$from("ohasis_lake.px_occupation")$whereNotNull("WORK")$get()
+id_reg <- QB$new(`oh-lw`)$select(CENTRAL_ID, PATIENT_ID)$from("ohasis_warehouse.id_registry")$get()
 
 lw_conn <- ohasis$conn("lw")
 dbExecute(lw_conn, "DELETE FROM ohasis_lake.pii_unique WHERE PATIENT_ID IS NOT NULL;")
@@ -293,24 +363,29 @@ lapply(
 )
 
 periods <- list(
-   c("2024-08-01 00:00:00", "2024-08-02 11:12:13"),
-   c("2024-08-02 11:12:13", "2024-08-07 14:54:11"),
-   c("2024-08-07 14:54:11", "2024-08-13 15:17:43"),
-   c("2024-08-13 15:17:43", "2024-08-18 14:04:05"),
-   c("2024-08-18 14:04:05", "2024-08-22 13:51:14"),
-   c("2024-08-22 13:51:14", "2024-08-29 13:49:07"),
-   c("2024-08-29 13:49:07", "2024-09-04 12:43:17"),
-   c("2024-09-04 12:43:17", "2024-09-09 12:32:49"),
-   c("2024-09-09 12:32:49", "2024-09-13 11:02:36"),
-   c("2024-09-13 11:02:36", "2024-09-19 10:34:00"),
-
+   # c(format(start_ym(2023, 7), "%Y-%m-%d 00:00:00"), format(end_ym(2023, 7), "%Y-%m-%d 11:59:59")),
+   # c(format(start_ym(2023, 8), "%Y-%m-%d 00:00:00"), format(end_ym(2023, 8), "%Y-%m-%d 11:59:59")),
+   # c(format(start_ym(2023, 9), "%Y-%m-%d 00:00:00"), format(end_ym(2023, 9), "%Y-%m-%d 11:59:59")),
+   c(format(start_ym(2023, 10), "%Y-%m-%d 00:00:00"), format(end_ym(2023, 10), "%Y-%m-%d 11:59:59")),
+   c(format(start_ym(2023, 11), "%Y-%m-%d 00:00:00"), format(end_ym(2023, 11), "%Y-%m-%d 11:59:59")),
+   c(format(start_ym(2023, 12), "%Y-%m-%d 00:00:00"), format(end_ym(2023, 12), "%Y-%m-%d 11:59:59"))
+   c(format(start_ym(2024, 1), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 1), "%Y-%m-%d 11:59:59")),
+   c(format(start_ym(2024, 2), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 2), "%Y-%m-%d 11:59:59")),
+   c(format(start_ym(2024, 3), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 3), "%Y-%m-%d 11:59:59")),
+   c(format(start_ym(2024, 4), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 4), "%Y-%m-%d 11:59:59")),
+   c(format(start_ym(2024, 5), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 5), "%Y-%m-%d 11:59:59")),
+   c(format(start_ym(2024, 6), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 6), "%Y-%m-%d 11:59:59")),
+   c(format(start_ym(2024, 7), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 7), "%Y-%m-%d 11:59:59")),
+   c(format(start_ym(2024, 8), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 8), "%Y-%m-%d 11:59:59")),
+   c(format(start_ym(2024, 9), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 9), "%Y-%m-%d 11:59:59")),
+   c(format(start_ym(2024, 10), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 10), "%Y-%m-%d 11:59:59")),
+   c(format(start_ym(2024, 11), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 11), "%Y-%m-%d 11:59:59"))
 )
 
-for (period in periods) {
-   min <- period[1]
-   max <- period[2]
-   download_pii(min, max)
-}
+for (period in periods) download_pii(period[1], period[2])
+
+pii <- read_rds(Sys.getenv("DEDUP_PII"))
+write_rds(pii, Sys.getenv("DEDUP_PII"))
 
 download_pii <- function(min, max) {
    if (missing(max)) {
@@ -319,8 +394,8 @@ download_pii <- function(min, max) {
 
    pii <- tibble(REC_ID = NA_character_, BIRTHDATE = NA_Date_) %>%
       slice(0)
-   if (file.exists(Sys.getenv("DEDUP_PII")))
-      pii <- read_rds(Sys.getenv("DEDUP_PII"))
+   # if (file.exists(Sys.getenv("DEDUP_PII")))
+   #    pii <- read_rds(Sys.getenv("DEDUP_PII"))
 
    lw_conn  <- connect("ohasis-lw")
    new_data <- QB$new(lw_conn)$
@@ -383,15 +458,15 @@ download_pii <- function(min, max) {
       mutate(
          CLIENT_MOBILE = str_replace_all(CLIENT_MOBILE, "[^[:digit:]]", ""),
          CLIENT_MOBILE = case_when(
-            StrLeft(CLIENT_MOBILE, 1) == "9" ~ stri_c("0", CLIENT_MOBILE),
-            StrLeft(CLIENT_MOBILE, 2) == "63" ~ str_replace(CLIENT_MOBILE, "^63", "0"),
+            str_left(CLIENT_MOBILE, 1) == "9" ~ stri_c("0", CLIENT_MOBILE),
+            str_left(CLIENT_MOBILE, 2) == "63" ~ str_replace(CLIENT_MOBILE, "^63", "0"),
             TRUE ~ CLIENT_MOBILE
          ),
          BIRTHDATE     = as.character(BIRTHDATE)
       )
 
    # finalize data
-   pii <- pii %>%
+   .GlobalEnv$pii %<>%
       # remove old version of record
       anti_join(select(new_data, REC_ID)) %>%
       # remove old data that were already deleted
@@ -401,5 +476,5 @@ download_pii <- function(min, max) {
       bind_rows(new_data)
 
    # write to local file for later use
-   write_rds(pii, Sys.getenv("DEDUP_PII"))
+   # write_rds(pii, Sys.getenv("DEDUP_PII"))
 }
