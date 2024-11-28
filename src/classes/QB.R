@@ -170,7 +170,12 @@ QB <- R6Class(
          results <- list()
 
          # get actual result set
-         rs         <- dbSendQuery(private$conn, self$query$results)
+         conn <- private$conn
+         if ("Pool" %in% class(private$conn)) {
+            conn <- localCheckout(conn)
+         }
+
+         rs         <- dbSendQuery(conn, self$query$results)
          chunk_size <- 1000
          if (n_rows >= chunk_size) {
             # upload in chunks to monitor progress
@@ -194,103 +199,38 @@ QB <- R6Class(
          return(results)
       },
 
+      max             = function(column) {
+         prefix <- if_else(self$unique, "SELECT DISTINCT", "SELECT")
+         select <- stri_c("MAX(", private$quoteIdentifier(column), ")")
+         select <- stri_c(sep = " ", prefix, select, "FROM")
+
+         where <- stri_c("WHERE ", self$whereNested)
+         join  <- str_flatten(collapse = "\n ", self$joins)
+
+         query <- str_flatten(c(select, private$main, join, where, self$limits), collapse = " ", na.rm = TRUE)
+
+         # get actual result set
+         conn <- private$conn
+         if ("Pool" %in% class(private$conn)) {
+            conn <- localCheckout(conn)
+         }
+         results <- dbGetQuery(conn, query)
+
+         return(results[[1]])
+      },
+
       count           = function() {
          n_rows <- dbGetQuery(private$conn, self$query$nrow)
          n_rows <- sum(as.numeric(n_rows$nrow), na.rm = TRUE)
 
          return(n_rows)
-      },
-
-      create          = function(data) {
-         cols <- list(
-            user       = c(
-               "CREATED_BY",
-               "UPDATED_BY",
-               "DELETED_BY",
-               "SERVICE_BY",
-               "PROVIDER_ID",
-               "SIGNATORY_1",
-               "SIGNATORY_2",
-               "SIGNATORY_2",
-               "USER_ID",
-               "STAFF_ID"
-            ),
-            faci_text  = c(
-               "PREV_TEST_FACI",
-               "DELIVER_FACI",
-               "FACI_LABEL",
-               "FACI_NAME",
-               "FACI_NAME_CLEAN",
-               "FACI_NAME_REG",
-               "FACI_NAME_PROV",
-               "FACI_NAME_MUNC",
-               "FACI_ADDR",
-               "FACI_NHSSS_REG",
-               "FACI_NHSSS_PROV",
-               "FACI_NHSSS_MUNC",
-               "FACI_TYPE"
-            ),
-            patient_id = c(
-               "PATIENT_ID",
-               "CENTRAL_ID",
-               "MOM_ID",
-               "DAD_ID"
-            ),
-            rec_id     = c(
-               "REC_ID",
-               "SOURCE_REC",
-               "DESTINATION_REC"
-            ),
-            percentage = c(
-               "LAT",
-               "LV",
-               "JW",
-               "QGRAM",
-               "AVG_DIST"
-            )
-         )
-
-         cols      <- data %>%
-            zap_labels() %>%
-            zap_formats() %>%
-            names()
-         types     <- sapply(data, class)
-         structure <- tibble(COLUMN = cols, CLASS = types) %>%
-            mutate(
-               COL_REF    = toupper(COLUMN),
-               DEFINITION = case_when(
-                  COL_REF %in% cols$faci_text ~ private$columnDefinition(COLUMN, "text"),
-                  COL_REF %in% cols$user ~ private$columnDefinition(COLUMN, "char", 10),
-                  COL_REF %in% cols$rec_ids ~ private$columnDefinition(COLUMN, "char", 25),
-                  COL_REF %in% cols$patient_ids ~ private$columnDefinition(COLUMN, "char", 18),
-                  COL_REF %in% cols$percentage ~ private$columnDefinition(COLUMN, "decimal", c(16, 15)),
-                  str_detect(COL_REF, "SUB_FACI") ~ private$columnDefinition(COLUMN, "char", 10),
-                  str_detect(COL_REF, "SUB_SOURCE") ~ private$columnDefinition(COLUMN, "char", 10),
-                  str_detect(COL_REF, "FACI$") ~ private$columnDefinition(COLUMN, "char", 6),
-                  str_detect(COL_REF, "SOURCE") ~ private$columnDefinition(COLUMN, "char", 6),
-                  str_detect(COL_REF, "PSGC") ~ private$columnDefinition(COLUMN, "char", 9),
-                  str_detect(COL_REF, "TEXT$") ~ private$columnDefinition(COLUMN, "text"),
-                  str_detect(COL_REF, "ADDR") ~ private$columnDefinition(COLUMN, "text"),
-                  str_detect(COL_REF, "REMARKS") ~ private$columnDefinition(COLUMN, "text"),
-                  COL_REF == "LONG" ~ private$columnDefinition(COLUMN, "decimal", c(10, 7)),
-                  COL_REF == "LAT" ~ private$columnDefinition(COLUMN, "decimal", c(9, 7)),
-                  COL_REF == "REC_ID_GRP" ~ "VARCHAR(100) NULL COLLATE 'utf8_general_ci'",
-                  CLASS == "numeric" ~ private$columnDefinition(COLUMN, "int"),
-                  CLASS == "Date" ~ private$columnDefinition(COLUMN, "date"),
-                  CLASS == "POSIXct" ~ private$columnDefinition(COLUMN, "datetime"),
-                  CLASS == "character" ~ private$columnDefinition(COLUMN, "char", 150),
-                  TRUE ~ private$columnDefinition(COLUMN, "text")
-               ),
-            )
-
-         invisible(self)
       }
    ),
    private = list(
-      main             = NULL,
-      conn             = NULL,
+      main            = NULL,
+      conn            = NULL,
 
-      quoteIdentifier  = function(identifier) {
+      quoteIdentifier = function(identifier) {
          if (is.null(identifier)) {
             return()
          }
@@ -319,7 +259,7 @@ QB <- R6Class(
          return(query)
       },
 
-      getAlias         = function(identifier) {
+      getAlias        = function(identifier) {
          if (!str_detect(identifier, " AS ")) {
             pieces <- str_split(identifier, "\\.", simplify = TRUE)
             pieces <- as.character(pieces)
@@ -329,7 +269,7 @@ QB <- R6Class(
          return(str_extract(identifier, " AS (.*)", 1))
       },
 
-      joinOn           = function(right, col_left, operator, col_right) {
+      joinOn          = function(right, col_left, operator, col_right) {
          join_on   <- ""
          col_left  <- private$quoteIdentifier(col_left)
          col_right <- private$quoteIdentifier(col_right)
@@ -343,13 +283,13 @@ QB <- R6Class(
          return(join_on)
       },
 
-      joinQuery        = function(right, col_left, operator, col_right) {
+      joinQuery       = function(right, col_left, operator, col_right) {
          right <- private$quoteIdentifier(right)
          on    <- private$joinOn(right, col_left, operator, col_right)
          return(stri_c(sep = " ", "JOIN", right, on))
       },
 
-      addWhere         = function(query, boolean) {
+      addWhere        = function(query, boolean) {
          if (length(self$wheres) > 0) {
             boolean <- ifelse(toupper(boolean) == "OR", "OR", "AND")
             query   <- stri_c(sep = " ", boolean, query)
@@ -357,23 +297,6 @@ QB <- R6Class(
          self$wheres <- append(self$wheres, query)
 
          invisible(self)
-      },
-
-      columnDefinition = function(column, type, length = NULL) {
-         column  <- private$quoteIdentifier(column)
-         type    <- tolower(type)
-         type    <- case_when(
-            type == "date" ~ "DATE",
-            type == "datetime" ~ "DATETIME",
-            type == "text" ~ "TEXT",
-            type == "integer" ~ "INT",
-            type == "char" ~ stri_c("CHAR(", length, ")"),
-            type == "varchar" ~ stri_c("VARCHAR(", length, ")"),
-            type == "decimal" ~ stri_c("DECIMAL(", length[[1]], ",", length[[2]], ")"),
-         )
-         collate <- ifelse(type %in% c("char", "varchar", "text"), "COLLATE 'utf8_general_ci'", "")
-
-         return(stri_c(sep = " ", column, "NULL", type, collate))
       }
    ),
    active  = list(
