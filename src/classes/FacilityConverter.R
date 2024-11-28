@@ -4,7 +4,7 @@ FacilityConverter <- R6Class(
       type       = character(),
 
       refs       = list(
-         faci      = lake_ref_table("ref_faci"),
+         faci      = QB$new(`oh-lw`)$from("ohasis_lake.ref_faci")$get(),
          faci_code = tibble()
       ),
 
