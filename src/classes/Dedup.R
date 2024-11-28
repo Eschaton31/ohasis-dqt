@@ -231,18 +231,19 @@ Dedup <- R6Class(
                sp$block_on("given_name_sieve"),
                sp$block_on("family_name_sieve"),
                sp$block_on("birthdate"),
-               sp$block_on("uic"),
                sp$block_on("given_name_3", "family_name_sieve"),
-               sp$block_on("birth_yr", "given_name_metaphone"),
-               sp$block_on("residence_province", "given_name_sieve"),
-               sp$block_on("residence_province", "family_name_sieve")
+               sp$block_on("birth_yr", "birth_mo", "given_name_metaphone"),
+               sp$block_on("birth_yr", "birth_dy", "given_name_metaphone"),
+               sp$block_on("birth_mo", "birth_dy", "given_name_metaphone"),
+               sp$block_on("residence_province", "given_name_metaphone"),
+               sp$block_on("residence_province", "family_name_metaphone")
             ),
             comparisons                            = c(
-               cl$NameComparison("given_name"),
-               cl$NameComparison("middle_name"),
-               cl$NameComparison("family_name"),
-               cl$NameComparison("given_name_metaphone"),
-               cl$NameComparison("family_name_metaphone"),
+               cl$NameComparison("given_name_sieve"),
+               cl$NameComparison("middle_name_sieve"),
+               cl$NameComparison("family_name_sieve"),
+               # cl$NameComparison("given_name_metaphone"),
+               # cl$NameComparison("family_name_metaphone"),
                cl$DateOfBirthComparison(
                   "birthdate",
                   input_is_string     = TRUE,
@@ -283,20 +284,34 @@ Dedup <- R6Class(
             estimate_probability_two_random_records_match(sp$block_on("given_name_sieve", "family_name_sieve"), recall = 0.7)
          linker$training$estimate_u_using_random_sampling(max_pairs = 1e6)
 
-         log_info("EM Algorithm = {green('First Name')}.")
-         linker$
-            training$
-            estimate_parameters_using_expectation_maximisation(sp$block_on("given_name_sieve"))
+         # log_info("EM Algorithm = {green('First Name')}.")
+         # linker$
+         #    training$
+         #    estimate_parameters_using_expectation_maximisation(sp$block_on("given_name_sieve"))
+         #
+         # log_info("EM Algorithm = {green('Last Name')}.")
+         # linker$
+         #    training$
+         #    estimate_parameters_using_expectation_maximisation(sp$block_on("family_name_sieve"))
 
-         log_info("EM Algorithm = {green('Last Name')}.")
+         log_info("EM Algorithm = {green('First+Last Name')}.")
          linker$
             training$
-            estimate_parameters_using_expectation_maximisation(sp$block_on("family_name_sieve"))
+            estimate_parameters_using_expectation_maximisation(sp$block_on("given_name_sieve", "family_name_sieve"))
 
-         log_info("EM Algorithm = {green('Birth Date')}.")
+         # log_info("EM Algorithm = {green('Birth Date')}.")
+         # linker$
+         #    training$
+         #    estimate_parameters_using_expectation_maximisation(sp$block_on("birthdate"))
+
+         log_info("EM Algorithm = {green('First Name+Birth Date')}.")
          linker$
             training$
-            estimate_parameters_using_expectation_maximisation(sp$block_on("birthdate"))
+            estimate_parameters_using_expectation_maximisation(sp$block_on("given_name_sieve", "birthdate"))
+         log_info("EM Algorithm = {green('Last Name+Birth Date')}.")
+         linker$
+            training$
+            estimate_parameters_using_expectation_maximisation(sp$block_on("family_name_sieve", "birthdate"))
 
          log_info("Generating match pairs.")
          pairwise_predictions <- linker$inference$predict(threshold_match_weight = -10)
@@ -308,6 +323,10 @@ Dedup <- R6Class(
          matches <- bind_rows(py_to_r(estimates))
 
          log_info("Done!")
+         id       <- as.name(self$left$id)
+         left_by  <- join_by(left_id == !!id)
+         right_by <- join_by(right_id == !!id)
+
          self$review$splinkDedup <- matches %>%
             rename_all(
                ~case_when(
@@ -317,6 +336,8 @@ Dedup <- R6Class(
                   . == "art_id_r" ~ "right_id",
                   . == "mort_id_l" ~ "left_id",
                   . == "mort_id_r" ~ "right_id",
+                  . == "prep_id_l" ~ "left_id",
+                  . == "prep_id_r" ~ "right_id",
                   TRUE ~ .
                )
             ) %>%
@@ -332,7 +353,7 @@ Dedup <- R6Class(
             left_join(
                y  = self$match$left %>%
                   select(
-                     self$left$id,
+                     !!id,
                      left_cid          = CENTRAL_ID,
                      left_given_name   = given_name,
                      left_middle_name  = middle_name,
@@ -351,12 +372,12 @@ Dedup <- R6Class(
                      left_email        = client_email,
                      left_occupation   = occupation,
                   ),
-               by = join_by(left_id == self$left$id)
+               by = left_by
             ) %>%
             left_join(
                y  = self$match$left %>%
                   select(
-                     self$left$id,
+                     !!id,
                      right_cid          = CENTRAL_ID,
                      right_given_name   = given_name,
                      right_middle_name  = middle_name,
@@ -375,7 +396,7 @@ Dedup <- R6Class(
                      right_email        = client_email,
                      right_occupation   = occupation,
                   ),
-               by = join_by(idnum_r == self$left$id)
+               by = right_by
             ) %>%
             mutate_at(
                .vars = vars(ends_with("_name")),
@@ -429,6 +450,7 @@ Dedup <- R6Class(
          new        <- case_when(
             lower_name == "labcode2" ~ "confirmatory_code",
             lower_name == "confirmatory_code" ~ "confirmatory_code",
+            lower_name == "saccl_lab_code" ~ "confirmatory_code",
             lower_name == "uic" ~ "uic",
             lower_name == "px_code" ~ "patient_code",
             lower_name == "patient_code" ~ "patient_code",
@@ -442,6 +464,7 @@ Dedup <- R6Class(
             lower_name == "lname" ~ "family_name",
             lower_name == "suffix" ~ "suffix_name",
             lower_name == "name_suffix" ~ "suffix_name",
+            lower_name == "sname" ~ "suffix_name",
             lower_name == "bdate" ~ "birthdate",
             lower_name == "birthdate" ~ "birthdate",
             lower_name == "date_of_birth" ~ "birthdate",
@@ -457,12 +480,22 @@ Dedup <- R6Class(
             lower_name == "mobile_no" ~ "client_mobile",
             lower_name == "email" ~ "client_email",
             lower_name == "email_address" ~ "client_email",
+            lower_name == "client_email" ~ "client_email",
+            lower_name == "permcurr_reg" ~ "residence_region",
+            lower_name == "permcurr_prov" ~ "residence_province",
+            lower_name == "permcurr_munc" ~ "residence_muncity",
+            lower_name == "curr_reg" ~ "residence_region",
+            lower_name == "curr_prov" ~ "residence_province",
+            lower_name == "curr_munc" ~ "residence_muncity",
             lower_name == "permcurr_reg" ~ "residence_region",
             lower_name == "permcurr_prov" ~ "residence_province",
             lower_name == "permcurr_munc" ~ "residence_muncity",
             lower_name == "region" ~ "residence_region",
             lower_name == "province" ~ "residence_province",
             lower_name == "muncity" ~ "residence_muncity",
+            lower_name == "final_region" ~ "residence_region",
+            lower_name == "final_province" ~ "residence_province",
+            lower_name == "final_muncity" ~ "residence_muncity",
             TRUE ~ name
          )
 
@@ -645,34 +678,43 @@ upload_splink <- function(data, surv_name, dedup_type) {
 
 generate_splink <- function(yr, mo, surv_name, download = FALSE) {
    if (download) {
-      hs_download("harp_dx", "reg", yr, mo)
+      hs_download(surv_name, "reg", yr, mo)
    }
 
    data <- switch(
       surv_name,
       harp_dx   = select(read_dta(hs_data("harp_dx", "reg", yr, mo)), -first),
-      harp_tx   = select(read_dta(hs_data("harp_tx", "reg", yr, mo))),
-      harp_dead = select(read_dta(hs_data("harp_dead", "reg", yr, mo)))
+      harp_tx   = read_dta(hs_data("harp_tx", "reg", yr, mo)),
+      harp_dead = read_dta(hs_data("harp_dead", "reg", yr, mo)),
+      prep      = read_dta(hs_data("prep", "reg", yr, mo)),
    )
 
    if (surv_name %in% c("harp_tx", "harp_dead")) {
       data %<>%
+         select(-any_of(c("curr_reg", "curr_prov", "curr_munc"))) %>%
          left_join(
             y  = hs_data("harp_dx", "reg", yr, mo) %>%
-               read_dta(col_select = c(idnum, job, curr_work, prev_work, region, province, muncity)),
+               read_dta(col_select = c(idnum, region, province, muncity, job, curr_work, prev_work)),
             by = join_by(idnum)
-         ) %>%
-         mutate_at(vars(job, curr_work, prev_work, job), ~na_if(., "")) %>%
-         mutate(
-            occupation = coalesce(curr_work, prev_work, job)
          )
    }
+
+   if (surv_name == "prep")
+      data %<>%
+         mutate(job = NA_character_, curr_work = NA_character_, prev_work = NA_character_, confirmatory_code = NA_character_)
+
+   data %<>%
+      mutate_at(vars(job, curr_work, prev_work, job), ~na_if(., "")) %>%
+      mutate(
+         occupation = coalesce(curr_work, prev_work, job)
+      )
 
    id <- switch(
       surv_name,
       harp_dx   = "idnum",
       harp_tx   = "art_id",
-      harp_dead = "mort_id"
+      harp_dead = "mort_id",
+      prep      = "prep_id",
    )
 
    dedup <- Dedup$new()
@@ -680,9 +722,10 @@ generate_splink <- function(yr, mo, surv_name, download = FALSE) {
    dedup$preparePii()
    dedup$splinkDedupe()
 
-   return(selfdedup$review$splinkDedup)
+   return(dedup$review$splinkDedup)
 }
 
 ## sample run for surveillance
-data <- generate_splink(2024, 10, "harp_dx", FALSE)
-upload_splink(data, "harp_dx", "dedup_old")
+surv <- "prep"
+data <- generate_splink(2024, 10, surv, TRUE)
+upload_splink(data, surv, "dedup_old")
