@@ -838,14 +838,14 @@ DB <- R6Class(
                ) %>%
                relocate(CENTRAL_ID, .before = 1)
 
-            if (!is.null(corr)) {
+            if (!is.null(corr) && nrow(corr) > 0) {
                log_info("Performing cleaning on the dataset.")
                # old_dataset <- .cleaning_list(old_dataset, as.data.frame(corr), toupper(names(id_col)), id_col)
                old_dataset <- apply_corrections(old_dataset, corr, names(id_col))
             }
 
             # drop clients
-            if (!is.null(remove_rows)) {
+            if (!is.null(remove_rows) && nrow(remove_rows) > 0) {
                col         <- as.name(names(id_col))
                old_dataset <- old_dataset %>%
                   mutate({{col}} := eval(parse(text = glue("as.{id_col}({names(id_col)})")))) %>%
