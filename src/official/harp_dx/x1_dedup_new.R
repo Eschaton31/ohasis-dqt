@@ -76,6 +76,27 @@ dedup_group_ids <- function(data) {
 
    data <- p$official$new %>%
       filter(year == p$params$yr, month == p$params$mo) %>%
+      select(
+         CENTRAL_ID,
+         idnum,
+         firstname,
+         middle,
+         last,
+         name_suffix,
+         uic,
+         bdate,
+         labcode,
+         patient_code,
+         philhealth,
+         philsys_id,
+         curr_work,
+         prev_work,
+         email,
+         mobile,
+         region,
+         province,
+         muncity
+      ) %>%
       dedup_prep(
          firstname,
          middle,
