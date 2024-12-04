@@ -794,9 +794,19 @@ convert_faci_addr <- function(data) {
       relocate(ocw_country, .before = OFW_COUNTRY) %>%
       # dxlab_standard
       mutate(
-         use_specimen_source = is.na(TEST_FACI) & !is.na(SPECIMEN_SOURCE),
+         use_specimen_source = case_when(
+            is.na(TEST_FACI) & !is.na(SPECIMEN_SOURCE) ~ TRUE,
+            # TEST_FACI == "990005" & str_left(SPECIMEN_REFER_TYPE, 1) == "2" ~ TRUE,
+            TRUE ~ FALSE
+         ),
+         use_confirm_faci    = case_when(
+            TEST_FACI == "990005" & str_left(SPECIMEN_REFER_TYPE, 1) == "2" ~ TRUE,
+            TRUE ~ FALSE
+         ),
          TEST_FACI           = coalesce(if_else(use_specimen_source, SPECIMEN_SOURCE, TEST_FACI, TEST_FACI), ""),
          TEST_SUB_FACI       = coalesce(if_else(use_specimen_source, SPECIMEN_SUB_SOURCE, TEST_SUB_FACI, TEST_SUB_FACI), ""),
+         TEST_FACI           = coalesce(if_else(use_confirm_faci, CONFIRM_FACI, TEST_FACI, TEST_FACI), ""),
+         TEST_SUB_FACI       = coalesce(if_else(use_confirm_faci, CONFIRM_SUB_FACI, TEST_SUB_FACI, TEST_SUB_FACI), ""),
       ) %>%
       left_join(
          na_matches = "never",
@@ -1107,6 +1117,7 @@ append_data <- function(old, new) {
    data <- new %>%
       mutate(
          confirm_date = coalesce(confirm_date, as.Date(t3_date)),
+         who_staging  = as.integer(who_staging)
       ) %>%
       mutate_if(
          .predicate = is.labelled,
@@ -1114,10 +1125,6 @@ append_data <- function(old, new) {
       ) %>%
       bind_rows(
          old %>%
-            mutate_if(
-               .predicate = is.labelled,
-               ~to_character(.)
-            ) %>%
             mutate_if(
                .predicate = is.labelled,
                ~to_character(.)
@@ -1646,7 +1653,7 @@ output_dta <- function(official, params, save = "2") {
    new_reg <- tag_fordrop(new_reg, p$corr)
    drops   <- subset_drops(new_reg)
    new_reg <- remove_drops(new_reg, p$params)
-   new_reg <- label_stata(new_reg, p$corr$label_values, p$corr$label_variables)
+   # new_reg <- label_stata(new_reg, p$corr$label_values, p$corr$label_variables)
 
    step$check <- get_checks(data, p$pdf_rhivda, p$corr, run_checks = vars$run_checks, exclude_drops = vars$exclude_drops)
    step$data  <- data
