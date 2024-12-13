@@ -20,6 +20,7 @@ source("src/dependencies/auth_acct.R")
 source("src/classes/Project.R")
 source("src/classes/QB.R")
 source("src/classes/DB.R")
+source("src/classes/Dedup.R")
 source("src/classes/OhasisData.R")
 source("src/dashboard/EpiCenter.R")
 
