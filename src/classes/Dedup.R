@@ -338,6 +338,10 @@ Dedup <- R6Class(
                   . == "mort_id_r" ~ "right_id",
                   . == "prep_id_l" ~ "left_id",
                   . == "prep_id_r" ~ "right_id",
+                  . == "row_id_l" ~ "left_id",
+                  . == "row_id_r" ~ "right_id",
+                  . == "id_l" ~ "left_id",
+                  . == "id_r" ~ "right_id",
                   TRUE ~ .
                )
             ) %>%
@@ -726,6 +730,6 @@ generate_splink <- function(yr, mo, surv_name, download = FALSE) {
 }
 
 ## sample run for surveillance
-surv <- "prep"
-data <- generate_splink(2024, 10, surv, TRUE)
-upload_splink(data, surv, "dedup_old")
+# surv <- "prep"
+# data <- generate_splink(2024, 10, surv, TRUE)
+# upload_splink(data, surv, "dedup_old")
