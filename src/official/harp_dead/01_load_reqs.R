@@ -81,7 +81,8 @@ download_tables <- function(params) {
    db_name <- "ohasis_warehouse"
 
    log_info("Downloading {green('Central IDs')}.")
-   forms$id_registry <- dbTable(lw_conn, db_name, "id_registry", cols = c("CENTRAL_ID", "PATIENT_ID"))
+   # forms$id_registry <- dbTable(lw_conn, db_name, "id_registry", cols = c("CENTRAL_ID", "PATIENT_ID"))
+   forms$id_registry <- update_idreg() %>% select(CENTRAL_ID, PATIENT_ID)
 
    log_info("Downloading {green('ART Visits w/in the scope')}.")
    forms$form_d <- dbTable(lw_conn, db_name, "form_d")

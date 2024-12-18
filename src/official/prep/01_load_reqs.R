@@ -278,7 +278,8 @@ download_tables <- function(params) {
    )"
 
    log_info("Downloading {green('Central IDs')}.")
-   forms$id_registry <- dbTable(lw_conn, db_name, "id_registry", cols = c("CENTRAL_ID", "PATIENT_ID"))
+   # forms$id_registry <- dbTable(lw_conn, db_name, "id_registry", cols = c("CENTRAL_ID", "PATIENT_ID"))
+   forms$id_registry <- update_idreg() %>% select(CENTRAL_ID, PATIENT_ID)
 
    log_info("Downloading {green('Form A')}.")
    forms$form_a <- dbTable(lw_conn, db_name, "form_a", where = hts_where, raw_where = TRUE)

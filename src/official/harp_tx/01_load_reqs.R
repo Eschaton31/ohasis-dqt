@@ -116,7 +116,8 @@ download_tables <- function(params) {
    db_name <- "ohasis_warehouse"
 
    log_info("Downloading {green('Central IDs')}.")
-   forms$id_registry <- dbTable(lw_conn, db_name, "id_registry", cols = c("CENTRAL_ID", "PATIENT_ID"))
+   # forms$id_registry <- dbTable(lw_conn, db_name, "id_registry", cols = c("CENTRAL_ID", "PATIENT_ID"))
+   forms$id_registry <- update_idreg() %>% select(CENTRAL_ID, PATIENT_ID)
 
    log_info("Downloading {green('Non-Dupes')}.")
    forms$non_dupes <- dbTable(lw_conn, db_name, "non_dupes", cols = c("PATIENT_ID", "NON_PAIR_ID"))
