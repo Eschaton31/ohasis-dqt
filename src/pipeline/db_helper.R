@@ -1555,3 +1555,59 @@ trial_to_live <- function(form, faci_id, min, max) {
 
    return(tables)
 }
+
+update_idreg <- function() {
+   if (!file.exists(Sys.getenv("LOC_IDREG"))) {
+      df <- data.frame(
+         PATIENT_ID = NA_character_,
+         CENTRAL_ID = NA_character_,
+         CREATED_BY = NA_character_,
+         CREATED_AT = NA_POSIXct_,
+         DELETED_BY = NA_character_,
+         DELETED_AT = NA_POSIXct_,
+         SNAPSHOT   = NA_character_
+      )
+      write_rds(df, Sys.getenv("LOC_IDREG"))
+      print("Hello")
+   }
+
+   log_info("Reading Local File")
+
+   idreg <- read_rds(Sys.getenv("LOC_IDREG"))
+
+   loc_snap <- max(idreg$SNAPSHOT)
+   loc_snap <- ifelse(is.na(loc_snap), "1970-01-01", loc_snap)
+
+   # conn_lw <- ohasis$conn("lw")
+   # lw_snap <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$selectRaw("MAX(SNAPSHOT) AS snap")$get()
+   # lw_snap <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$max("SNAPSHOT")
+   # lw_snap <- lw_snap [1,1]
+   # dbDisconnect(conn_lw)
+
+   log_info("Fetching Data")
+
+   conn_lw   <- ohasis$conn("lw")
+   new_idreg <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$where("SNAPSHOT",">=",loc_snap)$get()
+   # new_idreg <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$whereBetween("SNAPSHOT", c(loc_snap, lw_snap))$get()
+   dbDisconnect(conn_lw)
+
+   updated_idreg <- idreg %>%
+      anti_join(
+         y  = new_idreg,
+         by = join_by(PATIENT_ID)
+      ) %>%
+      bind_rows(
+         new_idreg
+      ) %>%
+      filter(
+         !is.na(PATIENT_ID)
+      )
+
+   write_rds(updated_idreg, Sys.getenv("LOC_IDREG"))
+
+   diff <- nrow(updated_idreg) - nrow(idreg)
+   log_info("diff = {red(diff)} rows added")
+   log_success("ID REGISTRY UPDATED!!!!")
+
+   return(updated_idreg)
+}
