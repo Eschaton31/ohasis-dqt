@@ -156,6 +156,7 @@ HtsLogsheet <- R6Class(
                            . == "Venue: City/Municipality" ~ "HIV_SERVICE_NAME_MUNC",
                            . == "Venue: Details" ~ "HIV_SERVICE_ADDR",
                            . == "Record ID" ~ "REC_ID",
+                           . == "REC_ID" ~ "REC_ID",
                            TRUE ~ .
                         )
                      ) %>%
@@ -437,14 +438,15 @@ HtsLogsheet <- R6Class(
             left_join(select(ohasis$ref_country, COUNTRY_NAME, OFW_COUNTRY = COUNTRY_CODE), join_by(COUNTRY_NAME)) %>%
             rename(OFW_COUNTRY_RAW = COUNTRY_NAME) %>%
             rename(STAFF_NAME = CREATED_BY) %>%
-            mutate(STAFF_NAME = toupper(STAFF_NAME)) %>%
+            mutate(STAFF_NAME = str_trim(toupper(STAFF_NAME))) %>%
             left_join(select(self$corr$staff, STAFF_NAME, CREATED_BY = USER_ID) %>% distinct(STAFF_NAME, .keep_all = TRUE), join_by(STAFF_NAME)) %>%
             rename(STAFF_NAME_RAW = STAFF_NAME) %>%
             rename(STAFF_NAME = PROVIDER_ID) %>%
-            mutate(STAFF_NAME = toupper(STAFF_NAME)) %>%
+            mutate(STAFF_NAME = str_trim(toupper(STAFF_NAME))) %>%
             left_join(select(self$corr$staff, STAFF_NAME, PROVIDER_ID = USER_ID) %>% distinct(STAFF_NAME, .keep_all = TRUE), join_by(STAFF_NAME)) %>%
             rename(PROVIDER_RAW = STAFF_NAME) %>%
             filter(!is.na(HTS_FACI)) %>%
+            mutate(HTS_FACI = str_trim(HTS_FACI)) %>%
             left_join(self$corr$site %>% distinct(HTS_FACI, .keep_all = TRUE), join_by(HTS_FACI)) %>%
             mutate(
                # FACI_ID          = coalesce(FACI_ID, substr(CREATED_BY, 1, 6)),
@@ -472,7 +474,7 @@ HtsLogsheet <- R6Class(
                ),
                BIRTHDATE                = if_else(
                   str_length(UIC) == 14 & is.na(BIRTHDATE),
-                  stri_c(sep = "-", StrRight(UIC, 4), substr(UIC, 7, 8), substr(UIC, 9, 10)),
+                  stri_c(sep = "-", str_right(UIC, 4), substr(UIC, 7, 8), substr(UIC, 9, 10)),
                   BIRTHDATE,
                   BIRTHDATE
                ),
@@ -699,11 +701,11 @@ HtsLogsheet <- R6Class(
 
             clean_staff          = self$data$convert %>%
                filter(!is.na(STAFF_NAME_RAW), is.na(CREATED_BY)) %>%
-               distinct(STAFF = STAFF_NAME_RAW) %>%
+               distinct(HTS_FACI, STAFF = STAFF_NAME_RAW) %>%
                bind_rows(
                   self$data$convert %>%
                      filter(!is.na(PROVIDER_RAW), is.na(PROVIDER_ID)) %>%
-                     distinct(STAFF = PROVIDER_RAW)
+                     distinct(HTS_FACI, STAFF = PROVIDER_RAW)
                ) %>%
                distinct() %>%
                arrange(STAFF)
@@ -719,6 +721,9 @@ HtsLogsheet <- R6Class(
                -ends_with("NAME_REG"),
                -ends_with("NAME_PROV"),
                -ends_with("NAME_MUNC"),
+            ) %>%
+            mutate(
+               CREATED_BY = coalesce(CREATED_BY, PROVIDER_ID, "1300000048")
             )
 
 
@@ -780,7 +785,7 @@ file_copy(new_uploads$path, "H:/hts-imports/20241112")
 
 
 import <- HtsLogsheet$new()
-import$batchRead("H:/hts-imports/20241112")
+import$batchRead("H:/hts-imports/20250113")
 import$getExisting()
 import$getRefs()
 import$convert()
