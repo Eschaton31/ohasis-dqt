@@ -95,7 +95,7 @@ prep_curr  <- read_dta(hs_data("prep", "outcome", yr, mo)) %>%
       list(site_name = c("FACI_ID", "SUB_FACI_ID")),
       "name",
    )
-prep_start <- read_dta("H:/_R/library/prep/20241029_prepstart_2024-09.dta") %>%
+prep_start <- read_dta("H:/_R/library/prep/20250127_prepstart_2024-12.dta") %>%
    get_cid(id_reg, PATIENT_ID) %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
@@ -110,7 +110,7 @@ prep_start <- read_dta("H:/_R/library/prep/20241029_prepstart_2024-09.dta") %>%
       "name",
    )
 
-testing <- process_hts(hts, a, cfbs) %>%
+testing   <- process_hts(hts, a, cfbs) %>%
    get_cid(id_reg, PATIENT_ID) %>%
    get_latest_pii(
       "CENTRAL_ID",
@@ -132,6 +132,11 @@ testing <- process_hts(hts, a, cfbs) %>%
          "BIRTH_PSGC_PROV",
          "BIRTH_PSGC_MUNC"
       )
+   ) %>%
+   mutate(
+      use_record_faci = if_else(is.na(SERVICE_FACI), 1, 0, 0),
+      SERVICE_FACI    = if_else(use_record_faci == 1, FACI_ID, SERVICE_FACI),
+      site_gf         = SERVICE_FACI %in% supported$FACI_ID
    ) %>%
    convert_hts("name") %>%
    generate_gender_identity(SEX, SELF_IDENT, SELF_IDENT_OTHER, gender_identity) %>%
@@ -311,6 +316,7 @@ testing <- process_hts(hts, a, cfbs) %>%
       kap_pwid,
       kap_pip,
       kap_pdl,
+      site_gf
    ) %>%
    mutate_at(
       .vars = vars(
@@ -466,8 +472,10 @@ testing <- process_hts(hts, a, cfbs) %>%
          PREV_TEST_RESULT == "Negative" ~ "Non-Reactive",
          TRUE ~ PREV_TEST_RESULT
       )
+   ) %>%
+   mutate(
+      HTS_FACI = if_else(!site_gf, "(non-gf site)", HTS_FACI, HTS_FACI)
    )
-
 variables <- read_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "hts")
 dict      <- data_dictionary(testing, variables)
 
