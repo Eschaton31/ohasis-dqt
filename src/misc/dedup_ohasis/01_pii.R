@@ -134,8 +134,8 @@ WHERE pii.DELETED_AT IS NULL
          mutate(
             CLIENT_MOBILE = str_replace_all(CLIENT_MOBILE, "[^[:digit:]]", ""),
             CLIENT_MOBILE = case_when(
-               StrLeft(CLIENT_MOBILE, 1) == "9" ~ stri_c("0", CLIENT_MOBILE),
-               StrLeft(CLIENT_MOBILE, 2) == "63" ~ str_replace(CLIENT_MOBILE, "^63", "0"),
+               str_left(CLIENT_MOBILE, 1) == "9" ~ stri_c("0", CLIENT_MOBILE),
+               str_left(CLIENT_MOBILE, 2) == "63" ~ str_replace(CLIENT_MOBILE, "^63", "0"),
                TRUE ~ CLIENT_MOBILE
             ),
             BIRTHDATE     = as.character(BIRTHDATE)
@@ -148,6 +148,7 @@ WHERE pii.DELETED_AT IS NULL
          # remove old data that were already deleted
          anti_join(dedup$deleted) %>%
          # append new data
+         mutate(BIRTHDATE = as.character(BIRTHDATE)) %>%
          bind_rows(new_data)
 
       # write to local file for later use
