@@ -1587,7 +1587,7 @@ update_idreg <- function() {
    log_info("Fetching Data")
 
    conn_lw   <- ohasis$conn("lw")
-   new_idreg <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$where("SNAPSHOT",">=",loc_snap)$get()
+   new_idreg <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$where("SNAPSHOT", ">=", loc_snap)$get()
    # new_idreg <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$whereBetween("SNAPSHOT", c(loc_snap, lw_snap))$get()
    dbDisconnect(conn_lw)
 
@@ -1610,4 +1610,42 @@ update_idreg <- function() {
    log_success("ID REGISTRY UPDATED!!!!")
 
    return(updated_idreg)
+}
+
+update_pending_positives <- function() {
+   log_info("Checking for new rows.")
+   con  <- connect("ohasis-lw")
+   data <- QB$new(con)$from("ohasis_lake.px_hiv_testing")$whereNotNull("T3_RESULT")$where("CONFIRM_RESULT", "like", "4%")$get()
+   dbDisconnect(con)
+
+   update <- data %>%
+      mutate(
+         FINAL_RESULT = case_when(
+            str_left(T3_RESULT, 1) == "1" ~ "Positive for HIV Antibodies",
+            str_left(T3_RESULT, 1) == "2" ~ "Inconclusive",
+         ),
+         REMARKS      = case_when(
+            str_left(T3_RESULT, 1) == "1" ~ "Client is advised to proceed to the nearest/preferred HIV treatment hub for linkage to management and care.",
+            str_left(T3_RESULT, 1) == "2" ~ "To come back after 2-6 weeks for retesting.",
+         )
+      ) %>%
+      filter(!is.na(FINAL_RESULT)) %>%
+      select(
+         REC_ID,
+         FINAL_RESULT,
+         REMARKS
+      )
+
+   if (nrow(update) > 0) {
+      log_info("Payload = {red(formatC(nrow(update), big.mark = ','))} rows.")
+      con <- connect("ohasis-live")
+      dbxUpsert(con, Id(schema = "ohasis_interim", table = "px_confirm"), update, "REC_ID")
+      dbDisconnect(con)
+
+      update_credentials(update$REC_ID)
+   } else {
+      log_info("No records found.")
+   }
+
+   log_success("Done.")
 }
