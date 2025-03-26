@@ -1,12 +1,12 @@
 local(envir = pepfar, {
    ip <- list()
-   for (program in c("EpiC", "ICAP", "AIHA")) {
+   for (program in c("EpiC", "ICAP")) {
       ip_data  <- list()
       partner  <- tolower(program)
       var      <- switch(
          partner,
-         epic = "site_epic_2022",
-         icap = "site_icap_2023",
+         epic = "site_epic_2024",
+         icap = "site_icap_2024",
          aiha = "site_aiha_2023"
       )
       var_name <- as.name(var)
