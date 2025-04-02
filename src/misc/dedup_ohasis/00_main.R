@@ -185,8 +185,8 @@ dedup$id_registry <- upload_dupes2(check_dupes$registry_up, dedup$id_registry)
 dedup$id_registry <- upload_dupes2(check_dupes$normal_up, dedup$id_registry)
 dedup             <- dedup_linelist2(dedup)
 
-from              <- "2024-09-17 14:55:00"
-dedup$id_registry <- upload_dupes2(check_dupes$normal_up, dedup$id_registry, TRUE, from)
+from              <- "2025-03-26 12:00:00"
+dedup$id_registry <- upload_dupes2(check_dupes$normal_up, dedup$id_registry %>% select(-SNAPSHOT), TRUE, from)
 
 check_dupes$registry %>%
    mutate(
@@ -206,6 +206,8 @@ check_dupes$registry %>%
 ohasis$data_factory("lake", "px_pii", "upsert", TRUE, to = format(Sys.time(), "%Y-%m-%d %H:%M:%S"))
 ohasis$data_factory("warehouse", "id_registry", "upsert", TRUE, to = format(Sys.time(), "%Y-%m-%d %H:%M:%S"))
 dedup      <- dedup_download()
+pii        <- dedup$pii
+id_reg     <- dedup$id_registry
 pii_unique <- pii %>%
    get_cid(id_reg, PATIENT_ID) %>%
    left_join(
@@ -260,8 +262,8 @@ pii_unique <- pii %>%
       values_from = value
    )
 
-write_rds(pii_unique, "H:/20241126-pii_unique.rds")
-pii_unique <- read_rds("H:/20241126-pii_unique.rds")
+write_rds(pii_unique, "H:/20250328-pii_unique.rds")
+pii_unique <- read_rds("H:/20250328-pii_unique.rds")
 
 data <- pii_unique %>%
    mutate(id = row_number()) %>%
@@ -279,7 +281,7 @@ data <- pii_unique %>%
       too_few = "align_start"
    ) %>%
    mutate(
-      use_curr           = coalesce(CURR_MUNC == "UNKNOWN" | CURR_MUNC == "OVERSEAS", FALSE),
+      use_curr      = coalesce(CURR_MUNC == "UNKNOWN" | CURR_MUNC == "OVERSEAS", FALSE),
       PERMCURR_REG  = if_else(
          condition = use_curr == 1,
          true      = CURR_REG,
@@ -478,3 +480,6 @@ download_pii <- function(min, max) {
    # write to local file for later use
    # write_rds(pii, Sys.getenv("DEDUP_PII"))
 }
+
+dupes <- read_excel("H:/splink_review.xlsx", col_types = "text")
+upload_dupes(dupes)
