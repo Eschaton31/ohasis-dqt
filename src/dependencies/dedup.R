@@ -313,7 +313,8 @@ upload_dupes2 <- function(dedup_upload, id_reg, upload = FALSE, from = NULL) {
       ) %>%
       left_join(
          y  = id_reg %>%
-            select(PATIENT_ID, CREATED_BY, CREATED_AT),
+            select(PATIENT_ID, CREATED_BY, CREATED_AT) %>%
+            mutate_all(as.character),
          by = join_by(PATIENT_ID)
       ) %>%
       mutate(old = if_else(!is.na(CREATED_AT), 1, 0, 0)) %>%
@@ -329,7 +330,7 @@ upload_dupes2 <- function(dedup_upload, id_reg, upload = FALSE, from = NULL) {
          DELETED_BY  = NA_character_,
          DELETED_AT  = NA_character_
       ) %>%
-      select(names(id_reg))
+      select(any_of(names(id_reg)))
 
    bind_cid <- dedup_upload %>%
       select(
@@ -341,7 +342,8 @@ upload_dupes2 <- function(dedup_upload, id_reg, upload = FALSE, from = NULL) {
       ) %>%
       left_join(
          y  = id_reg %>%
-            select(PATIENT_ID, CREATED_BY, CREATED_AT),
+            select(PATIENT_ID, CREATED_BY, CREATED_AT) %>%
+            mutate_all(as.character),
          by = join_by(PATIENT_ID)
       ) %>%
       mutate(old = if_else(!is.na(CREATED_AT), 1, 0, 0)) %>%
@@ -358,10 +360,11 @@ upload_dupes2 <- function(dedup_upload, id_reg, upload = FALSE, from = NULL) {
          DELETED_AT  = NA_character_
       ) %>%
       filter(old == 0) %>%
-      select(names(id_reg))
+      select(any_of(names(id_reg)))
 
    # updated old cids
    new_reg <- id_reg %>%
+      mutate_all(as.character) %>%
       left_join(
          y  = dedup_upload %>%
             select(NEW_CID = 1, CENTRAL_ID = 2),
