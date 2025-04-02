@@ -159,6 +159,7 @@ Dedup <- R6Class(
                   Gab   = NA_character_,
                   Lala  = NA_character_,
                   Angie = NA_character_,
+                  Jessa = NA_character_,
                   # ) %>%
                   # anti_join(
                   #    y  = non_dupes %>%
@@ -284,20 +285,20 @@ Dedup <- R6Class(
             estimate_probability_two_random_records_match(sp$block_on("given_name_sieve", "family_name_sieve"), recall = 0.7)
          linker$training$estimate_u_using_random_sampling(max_pairs = 1e6)
 
-         # log_info("EM Algorithm = {green('First Name')}.")
-         # linker$
-         #    training$
-         #    estimate_parameters_using_expectation_maximisation(sp$block_on("given_name_sieve"))
-         #
-         # log_info("EM Algorithm = {green('Last Name')}.")
-         # linker$
-         #    training$
-         #    estimate_parameters_using_expectation_maximisation(sp$block_on("family_name_sieve"))
-
-         log_info("EM Algorithm = {green('First+Last Name')}.")
+         log_info("EM Algorithm = {green('First Name')}.")
          linker$
             training$
-            estimate_parameters_using_expectation_maximisation(sp$block_on("given_name_sieve", "family_name_sieve"))
+            estimate_parameters_using_expectation_maximisation(sp$block_on("given_name_sieve"))
+
+         log_info("EM Algorithm = {green('Last Name')}.")
+         linker$
+            training$
+            estimate_parameters_using_expectation_maximisation(sp$block_on("family_name_sieve"))
+
+         # log_info("EM Algorithm = {green('First+Last Name')}.")
+         # linker$
+         #    training$
+         #    estimate_parameters_using_expectation_maximisation(sp$block_on("given_name_sieve", "family_name_sieve"))
 
          # log_info("EM Algorithm = {green('Birth Date')}.")
          # linker$
@@ -410,19 +411,30 @@ Dedup <- R6Class(
                left_name  = stri_c(left_family_name, ", ", left_given_name, " ", left_middle_name, " ", left_suffix_name),
                right_name = stri_c(right_family_name, ", ", right_given_name, " ", right_middle_name, " ", right_suffix_name),
             ) %>%
-            select(
-               -ends_with("given_name"),
-               -ends_with("middle_name"),
-               -ends_with("family_name"),
-               -ends_with("suffix_name"),
-            ) %>%
+            # select(
+            #    -ends_with("given_name"),
+            #    -ends_with("middle_name"),
+            #    -ends_with("family_name"),
+            #    -ends_with("suffix_name"),
+            # ) %>%
             mutate(
                .before = 1,
                Bene    = NA_character_,
                Gab     = NA_character_,
                Lala    = NA_character_,
                Angie   = NA_character_,
+               Jessa   = NA_character_,
             )
+
+         conn <- ohasis$conn("lw")
+         nonDupes <- QB$new(conn)$
+            from("ohasis_warehouse.non_dupes")$
+            select("PATIENT_ID AS left_cid", "NON_PAIR_ID AS right_cid")$
+            get()
+         dbDisconnect(conn)
+
+         self$review$splinkDedup %<>%
+            anti_join(nonDupes)
 
          invisible(self)
       }
@@ -731,5 +743,6 @@ generate_splink <- function(yr, mo, surv_name, download = FALSE) {
 
 ## sample run for surveillance
 # surv <- "prep"
-# data <- generate_splink(2024, 10, surv, TRUE)
+# data <- generate_splink(2025, 2, surv, FALSE)
+#
 # upload_splink(data, surv, "dedup_old")
