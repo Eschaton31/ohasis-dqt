@@ -1649,3 +1649,31 @@ update_pending_positives <- function() {
 
    log_success("Done.")
 }
+
+disp_update_px_medicine <- function(rec_ids) {
+   current <- QB$new(`oh-live`)$
+      from("ohasis_interim.px_medicine AS meds")$
+      join("ohasis_interim.px_record AS rec", "meds.REC_ID", "=", "rec.REC_ID")$
+      join("ohasis_interim.inventory_product AS items", "meds.MEDICINE", "=", "items.ITEM")$
+      whereIn("meds.REC_ID", rec_ids)$
+      select("meds.*", "items.TYPICAL_BATCH", "rec.RECORD_DATE")$
+      get()
+
+   update <- current %>%
+      filter(interval(DISP_DATE, RECORD_DATE) / years(1) > 1) %>%
+      mutate(
+         DISP_DATE   = RECORD_DATE,
+         TOTAL_PILLS = if_else(UNIT_BASIS == 1, DISP_TOTAL * coalesce(parse_number(TYPICAL_BATCH), 1), DISP_TOTAL, DISP_TOTAL) + coalesce(MEDICINE_LEFT, 0),
+         TOTAL_DAYS  = TOTAL_PILLS / PER_DAY,
+         NEXT_DATE   = as.character(as.Date(DISP_DATE) %m+% days(as.integer(TOTAL_DAYS)))
+      ) %>%
+      select(REC_ID, MEDICINE, DISP_NUM, DISP_DATE, DISP_DATE, NEXT_DATE)
+
+   conn <- connect("ohasis-live")
+   dbxUpsert(conn, Id(schema = "ohasis_interim", table = "px_medicine"), update, where_cols = c("REC_ID", "MEDICINE", "DISP_NUM"))
+   dbDisconnect(conn)
+
+   update_credentials(unique(update$REC_ID))
+
+   return(update)
+}
