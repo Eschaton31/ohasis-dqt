@@ -2,6 +2,10 @@ db_conn <- ohasis$conn("db")
 old     <- dbxSelect(db_conn, "SELECT * FROM ohasis_interim.facility")
 dbDisconnect(db_conn)
 
+db_conn <- ohasis$conn("lw")
+ref     <- dbxSelect(db_conn, "SELECT * FROM ohasis_interim.facilities")
+dbDisconnect(db_conn)
+
 new <- old %>%
    arrange(desc(EDIT_NUM)) %>%
    distinct(FACI_ID, .keep_all = TRUE) %>%
@@ -26,7 +30,7 @@ new <- old %>%
       UPDATED_AT     = CREATED_AT,
    ) %>%
    left_join(
-      y  = curr %>%
+      y  = old %>%
          arrange(EDIT_NUM) %>%
          distinct(FACI_ID, .keep_all = TRUE) %>%
          select(FACI_ID, CREATED_BY, CREATED_AT),
@@ -35,9 +39,12 @@ new <- old %>%
    relocate(CREATED_BY, CREATED_AT, .before = UPDATED_BY) %>%
    mutate(
       LOGO = basename(LOGO),
+      HEADER = NA_character_,
+      FOOTER = NA_character_,
       DELETED_BY = NA_character_,
       DELETED_AT = NA_POSIXct_
-   )
+   ) %>%
+   add_missing_columns(ref)
 
 lw_conn     <- ohasis$conn("lw")
 db_name     <- "ohasis_interim"
