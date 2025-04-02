@@ -341,27 +341,27 @@ if ((object %>% count() %>% collect())$n > 0) {
       # ohasis KP tagging
       mutate(
          CFBS_MSM    = case_when(
-            StrLeft(SEX, 1) == 1 & StrLeft(RISK_M_SEX_ORAL_ANAL, 1) %in% c("1", "2") ~ 1,
-            StrLeft(SEX, 1) == 1 & StrLeft(RISK_CONDOMLESS_ANAL, 1) %in% c("1", "2") ~ 1,
-            StrLeft(SEX, 1) == 1 & !is.na(RISK_CONDOMLESS_ANAL_DATE) ~ 1,
-            StrLeft(SEX, 1) == 1 &
+            str_left(SEX, 1) == 1 & str_left(RISK_M_SEX_ORAL_ANAL, 1) %in% c("1", "2") ~ 1,
+            str_left(SEX, 1) == 1 & str_left(RISK_CONDOMLESS_ANAL, 1) %in% c("1", "2") ~ 1,
+            str_left(SEX, 1) == 1 & !is.na(RISK_CONDOMLESS_ANAL_DATE) ~ 1,
+            str_left(SEX, 1) == 1 &
                !is.na(NUM_M_PARTNER) &
                NUM_M_PARTNER > 0 ~ 1,
             TRUE ~ 0
          ),
          CFBS_TGW    = case_when(
-            StrLeft(SEX, 1) == 1 & StrLeft(SELF_IDENT, 1) == 2 ~ 1,
-            StrLeft(SEX, 1) == 1 & StrLeft(SELF_IDENT, 1) == 3 ~ 1,
+            str_left(SEX, 1) == 1 & str_left(SELF_IDENT, 1) == 2 ~ 1,
+            str_left(SEX, 1) == 1 & str_left(SELF_IDENT, 1) == 3 ~ 1,
             TRUE ~ 0
          ),
          CFBS_PWID   = case_when(
-            StrLeft(RISK_NEEDLE_SHARE, 1) == 1 ~ 1,
+            str_left(RISK_NEEDLE_SHARE, 1) == 1 ~ 1,
             !is.na(RISK_NEEDLE_SHARE_DATE) ~ 1,
             TRUE ~ 0
          ),
          CFBS_FSW    = case_when(
-            StrLeft(SEX, 1) == 2 & StrLeft(RISK_SEX_PAYMENT, 1) %in% c("1", "2") ~ 1,
-            StrLeft(SEX, 1) == 2 & !is.na(RISK_SEX_PAYMENT_DATE) ~ 1,
+            str_left(SEX, 1) == 2 & str_left(RISK_SEX_PAYMENT, 1) %in% c("1", "2") ~ 1,
+            str_left(SEX, 1) == 2 & !is.na(RISK_SEX_PAYMENT_DATE) ~ 1,
             TRUE ~ 0
          ),
          CFBS_GENPOP = CFBS_MSM + CFBS_TGW + CFBS_PWID + CFBS_FSW,
