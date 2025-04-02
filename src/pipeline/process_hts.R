@@ -1,48 +1,76 @@
-get_hts <- function(min, max, faci_ids = NULL) {
+get_hts <- function(min, max) {
+   read_forms <- function(min, max) {
+      con   <- ohasis$conn("lw")
+      forms <- QB$new(con)
+      forms$select("*")
+      forms$from("ohasis_warehouse.form_hts")
+      forms$where(function(query = QB$new(con)) {
+         query$whereBetween('RECORD_DATE', c(min, max), "or")
+         query$whereBetween('DATE_CONFIRM', c(min, max), "or")
+         query$whereBetween('T0_DATE', c(min, max), "or")
+         query$whereBetween('T1_DATE', c(min, max), "or")
+         query$whereBetween('T2_DATE', c(min, max), "or")
+         query$whereBetween('T3_DATE', c(min, max), "or")
+         query$whereNested
+      })
+      form_hts <- forms$get()
 
-   con   <- ohasis$conn("lw")
-   forms <- QB$new(con)
-   forms$select("*")
-   forms$from("ohasis_warehouse.form_hts")
-   forms$where(function(query = QB$new(con)) {
-      query$whereBetween('RECORD_DATE', c(min, max), "or")
-      query$whereBetween('DATE_CONFIRM', c(min, max), "or")
-      query$whereBetween('T0_DATE', c(min, max), "or")
-      query$whereBetween('T1_DATE', c(min, max), "or")
-      query$whereBetween('T2_DATE', c(min, max), "or")
-      query$whereBetween('T3_DATE', c(min, max), "or")
-      query$whereNested
-   })
-   form_hts <- forms$get()
+      forms <- QB$new(con)
+      forms$from("ohasis_warehouse.form_a")
+      forms$where(function(query = QB$new(con)) {
+         query$whereBetween('RECORD_DATE', c(min, max), "or")
+         query$whereBetween('DATE_CONFIRM', c(min, max), "or")
+         query$whereBetween('T0_DATE', c(min, max), "or")
+         query$whereBetween('T1_DATE', c(min, max), "or")
+         query$whereBetween('T2_DATE', c(min, max), "or")
+         query$whereBetween('T3_DATE', c(min, max), "or")
+         query$whereNested
+      })
+      form_a <- forms$get()
 
-   forms <- QB$new(con)
-   forms$from("ohasis_warehouse.form_a")
-   forms$where(function(query = QB$new(con)) {
-      query$whereBetween('RECORD_DATE', c(min, max), "or")
-      query$whereBetween('DATE_CONFIRM', c(min, max), "or")
-      query$whereBetween('T0_DATE', c(min, max), "or")
-      query$whereBetween('T1_DATE', c(min, max), "or")
-      query$whereBetween('T2_DATE', c(min, max), "or")
-      query$whereBetween('T3_DATE', c(min, max), "or")
-      query$whereNested
-   })
-   form_a <- forms$get()
+      forms <- QB$new(con)
+      forms$from("ohasis_warehouse.form_cfbs")
+      forms$where(function(query = QB$new(con)) {
+         query$whereBetween('RECORD_DATE', c(min, max), "or")
+         query$whereBetween('TEST_DATE', c(min, max), "or")
+         query$whereNested
+      })
+      form_cfbs <- forms$get()
+      dbDisconnect(con)
+      return(list(hts = form_hts, a = form_a, cfbs = form_cfbs))
+   }
 
-   forms <- QB$new(con)
-   forms$from("ohasis_warehouse.form_cfbs")
-   forms$where(function(query = QB$new(con)) {
-      query$whereBetween('RECORD_DATE', c(min, max), "or")
-      query$whereBetween('TEST_DATE', c(min, max), "or")
-      query$whereNested
+
+   starts <- seq(as.Date(min), as.Date(max), by = "1 month")
+   ends   <- sapply(starts, function(date) date %m+% months(1) %m-% days(1), simplify = FALSE)
+
+   periods                       <- purrr::map2(lapply(starts, as.character), lapply(ends, as.character), list)
+   periods[[length(periods)]][2] <- max
+
+   hts    <- lapply(periods, function(period) {
+      log_info(r"({green(period[[1]])} to {green(period[[2]])})")
+      return(read_forms(period[[1]], period[[2]]))
    })
-   form_cfbs <- forms$get()
-   dbDisconnect(con)
+
+   hts_all  <- purrr::flatten(hts)
+   form_hts <- hts_all[names(hts_all) == "hts"] %>%
+      bind_rows() %>%
+      distinct(REC_ID, .keep_all = TRUE)
+
+   form_a <- hts_all[names(hts_all) == "a"] %>%
+      bind_rows() %>%
+      distinct(REC_ID, .keep_all = TRUE)
+
+   form_cfbs <- hts_all[names(hts_all) == "cfbs"] %>%
+      bind_rows() %>%
+      distinct(REC_ID, .keep_all = TRUE)
 
    return(list(hts = form_hts, a = form_a, cfbs = form_cfbs))
 }
 
 # process hts data
 process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfbs = data.frame()) {
+   log_info("Combining forms.")
    # use hts form as base
    hts <- form_hts %>%
       mutate(
@@ -155,6 +183,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
          )
       )
 
+   log_info("Tagging risks.")
    data <- hts %>%
       # risk information
       mutate_at(
@@ -1117,6 +1146,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
       ) %>%
       relocate(any_of(names(hts)), .before = 1)
 
+   log_info("Combining risks.")
    hts_risk <- data %>%
       select(
          REC_ID,
@@ -1130,6 +1160,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
          risks = stri_c(collapse = ", ", unique(sort(value)))
       )
 
+   log_info("Finalizing KPs.")
    data %<>%
       left_join(hts_risk, join_by(REC_ID)) %>%
       mutate(
@@ -2230,8 +2261,8 @@ convert_dx <- function(hts_data, yr, mo) {
          days_cd4_confirm     = interval(CD4_DATE, confirm_date) / days(1),
          cd4_is_baseline      = if_else(abs(days_cd4_confirm) <= 182, 1, 0, 0),
 
-         CD4_RESULT           = NA_character_,
-         CD4_DATE             = NA_Date_,
+         # CD4_RESULT           = NA_character_,
+         # CD4_DATE             = NA_Date_,
          CD4_DATE             = case_when(
             cd4_is_baseline == 0 ~ NA_Date_,
             is.na(CD4_RESULT) ~ NA_Date_,
@@ -2715,13 +2746,48 @@ changes_dx_v_hts <- function(rec_ids, yr, mo) {
       leftJoin("ohasis_interim.registry AS id", "rec.PATIENT_ID", "=", "id.PATIENT_ID")$
       whereIn("REC_ID", rec_ids)$
       get()
+   cd4  <- QB$new(con)$
+      from("ohasis_lake.lab_wide AS cd4")$
+      select("cd4.PATIENT_ID", "cd4.LAB_CD4_DATE AS CD4_DATE", "cd4.LAB_CD4_RESULT AS CD4_RESULT")$
+      selectRaw("COALESCE(id.CENTRAL_ID, cd4.PATIENT_ID) AS CENTRAL_ID")$
+      leftJoin("ohasis_interim.registry AS id", "cd4.PATIENT_ID", "=", "id.PATIENT_ID")$
+      whereNotNull("LAB_CD4_DATE")$
+      whereNotNull("LAB_CD4_RESULT")$
+      get()
    dx   <- QB$new(con)$
       from(dx)$
       whereIn("REC_ID", rec_ids)$
       get()
    dbDisconnect(con)
 
-   records <- process_hts(hts, a, cfbs)
+   records <- process_hts(hts, a, cfbs) %>%
+      left_join(
+         y  = cd4 %>%
+            select(
+               CD4_DATE,
+               CD4_RESULT,
+               CENTRAL_ID
+            ),
+         by = join_by(CENTRAL_ID)
+      ) %>%
+      mutate(
+         # calculate distance from confirmatory date
+         CD4_DATE     = as.Date(CD4_DATE),
+         CD4_CONFIRM  = interval(CD4_DATE, DATE_CONFIRM) / days(1),
+
+         # baseline is within 182 days
+         BASELINE_CD4 = if_else(
+            CD4_CONFIRM >= -182 & CD4_CONFIRM <= 182,
+            1,
+            0
+         ),
+
+         # make values absolute to take date nearest to confirmatory
+         CD4_CONFIRM  = abs(CD4_CONFIRM),
+      ) %>%
+      arrange(REC_ID, CD4_CONFIRM) %>%
+      distinct(REC_ID, .keep_all = TRUE) %>%
+      arrange(desc(CONFIRM_TYPE), CONFIRM_CODE)
 
    convert <- convert_dx(records)
 
