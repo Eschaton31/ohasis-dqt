@@ -32,14 +32,15 @@ dedup_download <- function() {
 
    # central id reference
    log_info("Downloading {green('id_registry')}.")
-   dedup$id_registry <- QB$new(lw_conn)$
-      from("ohasis_warehouse.id_registry")$
-      get() %>%
-      select(-SNAPSHOT) %>%
-      mutate_if(
-         .predicate = is.POSIXct,
-         ~as.character(.)
-      )
+   # dedup$id_registry <- QB$new(lw_conn)$
+   #    from("ohasis_warehouse.id_registry")$
+   #    get() %>%
+   #    select(-SNAPSHOT) %>%
+   #    mutate_if(
+   #       .predicate = is.POSIXct,
+   #       ~as.character(.)
+   #    )
+   dedup$id_registry <- update_idreg()
 
    # dedup$id_registry <- dbTable(
    #    lw_conn,
