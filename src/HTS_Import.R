@@ -25,6 +25,7 @@ HtsLogsheet <- R6Class(
                test <- read_excel(file, sheet, n_max = 3, .name_repair = "unique_quiet")
 
                if (ncol(test) == 121 |
+                  ncol(test) == 123 |
                   ncol(test) == 79 |
                   ncol(test) == 122 |
                   ncol(test) == 80) {
@@ -157,6 +158,8 @@ HtsLogsheet <- R6Class(
                            . == "Venue: Details" ~ "HIV_SERVICE_ADDR",
                            . == "Record ID" ~ "REC_ID",
                            . == "REC_ID" ~ "REC_ID",
+                           . == "Client Email" ~ "CLIENT_EMAIL",
+                           . == "Client Mobile" ~ "CLIENT_MOBILE",
                            TRUE ~ .
                         )
                      ) %>%
@@ -214,6 +217,14 @@ HtsLogsheet <- R6Class(
          invisible(self)
       },
       convert        = function() {
+         if ("CLIENT_MOBILE" %in% names(self$data$raw)) {
+            self$data$raw %<>%
+               mutate(
+                  CLIENT_MOBILE = NA_character_,
+                  CLIENT_EMAIL  = NA_character_,
+               )
+         }
+
          if ("REC_ID" %in% names(self$data$raw)) {
             self$data$convert <- self$data$raw %>%
                select(-CREATED_BY, -CREATED_AT) %>%
@@ -252,21 +263,19 @@ HtsLogsheet <- R6Class(
                self$data$convert %<>%
                   left_join(
                      y  = self$data$ref %>%
-                        select(REC_ID, CORR = {{col}}),
+                        select(REC_ID, CORR = { { col } }),
                      by = join_by(REC_ID)
                   ) %>%
                   mutate(
-                     {{col}} := coalesce({{col}}, as.character(CORR))
+                     { { col } } := coalesce({ { col } }, as.character(CORR))
                   ) %>%
                   select(-CORR)
             }
          } else {
             self$data$convert <- self$data$raw %>%
                mutate(
-                  REC_ID        = NA_character_,
-                  PATIENT_ID    = NA_character_,
-                  CLIENT_MOBILE = NA_character_,
-                  CLIENT_EMAIL  = NA_character_,
+                  REC_ID     = NA_character_,
+                  PATIENT_ID = NA_character_,
                )
          }
 
@@ -470,6 +479,7 @@ HtsLogsheet <- R6Class(
                   SELF_IDENT == "WOMAN" ~ "2_Woman",
                   SELF_IDENT == "Others" ~ "3_Other",
                   SELF_IDENT == "Other" ~ "3_Other",
+                  SELF_IDENT == "Non-Binary" ~ "3_Other",
                   TRUE ~ SELF_IDENT
                ),
                BIRTHDATE                = if_else(
@@ -484,12 +494,15 @@ HtsLogsheet <- R6Class(
                   EDUC_LEVEL == "Elementary" ~ "2_Elementary",
                   EDUC_LEVEL == "High School" ~ "3_High School",
                   EDUC_LEVEL == "HIGHSCHOOL" ~ "3_High School",
+                  EDUC_LEVEL == "Highschool" ~ "3_High School",
                   EDUC_LEVEL == "College" ~ "4_College",
                   EDUC_LEVEL == "COLLEGE" ~ "4_College",
                   EDUC_LEVEL == "Vocational" ~ "5_Vocational",
                   EDUC_LEVEL == "Post-Graduate" ~ "6_Post-Graduate",
                   EDUC_LEVEL == "Post-graduate" ~ "6_Post-Graduate",
                   EDUC_LEVEL == "Pre-school" ~ "7_Pre-school",
+                  EDUC_LEVEL == "Pre-School" ~ "7_Pre-school",
+                  EDUC_LEVEL == "No grade completed" ~ NA_character_,
                   TRUE ~ EDUC_LEVEL
                ),
                CIVIL_STATUS             = case_when(
@@ -507,12 +520,20 @@ HtsLogsheet <- R6Class(
                SERVICE_TYPE             = case_when(
                   SERVICE_TYPE == "Mortality" ~ "*00001",
                   SERVICE_TYPE == "Facility-based Testing (FBT)" ~ "101101",
+                  SERVICE_TYPE == "FACILITY-BASED TESTING (FBT)" ~ "101101",
+                  SERVICE_TYPE == "Facility-based testing (FBT)" ~ "101101",
                   SERVICE_TYPE == "FBT" ~ "101101",
+                  SERVICE_TYPE == "Community-based" ~ "101103",
+                  SERVICE_TYPE == "Community-based Testing" ~ "101103",
                   SERVICE_TYPE == "Community-based (CBS)" ~ "101103",
+                  SERVICE_TYPE == "COMMUNITY-BASED TESTING" ~ "101103",
                   SERVICE_TYPE == "CBS" ~ "101103",
                   SERVICE_TYPE == "Non-laboratory FBT (FBS)" ~ "101104",
                   SERVICE_TYPE == "Non-lab FBT" ~ "101104",
+                  SERVICE_TYPE == "NON-LABORATORY FBT" ~ "101104",
+                  SERVICE_TYPE == "Non-Laboratory FBT" ~ "101104",
                   SERVICE_TYPE == "Self-testing" ~ "101105",
+                  SERVICE_TYPE == "Self-Testing" ~ "101105",
                   SERVICE_TYPE == "Anti-Retroviral Treatment (ART)" ~ "101201",
                   SERVICE_TYPE == "Pre-Exposure Prophylaxis (PrEP)" ~ "101301",
                   SERVICE_TYPE == "Prevention of Mother-to-Child Transmission (PMTCT)" ~ "101303",
@@ -523,6 +544,7 @@ HtsLogsheet <- R6Class(
                   PROVIDER_TYPE == "Medical Technologist" ~ "1_Medical Technologist",
                   PROVIDER_TYPE == "MedTech" ~ "1_Medical Technologist",
                   PROVIDER_TYPE == "HIV Counselor" ~ "2_HIV Counselor",
+                  PROVIDER_TYPE == "HIV counselor" ~ "2_HIV Counselor",
                   PROVIDER_TYPE == "CBS Motivator" ~ "3_CBS Motivator",
                   PROVIDER_TYPE == "Other" ~ "8888_Other",
                   PROVIDER_TYPE == "PEER NAVIGATOR" ~ "8888_Other",
@@ -534,12 +556,14 @@ HtsLogsheet <- R6Class(
                CLIENT_TYPE              = case_when(
                   CLIENT_TYPE == "Inpatient" ~ "1_Inpatient",
                   CLIENT_TYPE == "Walk-in / Outpatient" ~ "2_Walk-in / Outpatient",
+                  CLIENT_TYPE == "Walk-in/outpatient" ~ "2_Walk-in / Outpatient",
                   CLIENT_TYPE == "Walk-in" ~ "2_Walk-in / Outpatient",
                   CLIENT_TYPE == "WALK-IN" ~ "2_Walk-in / Outpatient",
                   CLIENT_TYPE == "Outpatient" ~ "2_Walk-in / Outpatient",
                   CLIENT_TYPE == "Mobile HTS Client" ~ "3_Mobile HTS Client",
                   CLIENT_TYPE == "MOBIle HTS Client" ~ "3_Mobile HTS Client",
                   CLIENT_TYPE == "mobile HTS Client" ~ "3_Mobile HTS Client",
+                  CLIENT_TYPE == "Mobile HTS/Outreach in physical venues" ~ "3_Mobile HTS Client",
                   CLIENT_TYPE == "Satellite Client" ~ "5_Satellite Client",
                   CLIENT_TYPE == "Referral" ~ "4_Referral",
                   CLIENT_TYPE == "Transient" ~ "6_Transient",
@@ -554,11 +578,21 @@ HtsLogsheet <- R6Class(
                T0_DATE                  = RECORD_DATE,
 
                SCREEN_AGREED            = case_when(
+                  SCREEN_AGREED == "Accepted HIV testing" ~ "1_Yes",
                   SCREEN_AGREED == "Accept" ~ "1_Yes",
+                  TRUE ~ SCREEN_AGREED
                ),
 
                # TODO: Add conversion for ofw data
                NATIONALITY              = case_when(
+                  toupper(NATIONALITY_RAW) == "AMERICAN" ~ "US",
+                  toupper(NATIONALITY_RAW) == "BELGAIN" ~ "BE",
+                  toupper(NATIONALITY_RAW) == "BINANGONAN" ~ "PH",
+                  toupper(NATIONALITY_RAW) == "CHINESE" ~ "CN",
+                  toupper(NATIONALITY_RAW) == "GERMAN" ~ "DE",
+                  toupper(NATIONALITY_RAW) == "NIGERIAN" ~ "NG",
+                  toupper(NATIONALITY_RAW) == "TUNISIAN" ~ "TN",
+                  toupper(NATIONALITY_RAW) == "VANEZUELAN" ~ "VE",
                   toupper(NATIONALITY_RAW) == "FILIPINO" ~ "PH",
                   TRUE ~ NATIONALITY
                ),
@@ -566,6 +600,8 @@ HtsLogsheet <- R6Class(
                OFW_STATION              = case_when(
                   OFW_STATION == "On a ship" ~ "1_On a ship",
                   OFW_STATION == "Land" ~ "2_Land",
+                  OFW_STATION == "NOT APPLICABLE" ~ NA_character_,
+                  OFW_STATION == "Not applicable" ~ NA_character_,
                   TRUE ~ as.character(OFW_STATION)
                ),
 
@@ -578,6 +614,7 @@ HtsLogsheet <- R6Class(
                PREV_TEST_RESULT         = case_when(
                   PREV_TEST_RESULT == "Reactive" ~ "1_Reactive",
                   PREV_TEST_RESULT == "Non-reactive" ~ "2_Non-reactive",
+                  PREV_TEST_RESULT == "Indeterminate" ~ "3_Indeterminate",
                   PREV_TEST_RESULT == "NA" ~ "4_Was not able to get result",
                   PREV_TEST_RESULT == "Was not able to get result" ~ "4_Was not able to get result",
                   TRUE ~ PREV_TEST_RESULT
@@ -585,7 +622,9 @@ HtsLogsheet <- R6Class(
 
                CLINICAL_PIC             = case_when(
                   CLINICAL_PIC == "Asymptomatic" ~ "1_Symptomatic",
+                  CLINICAL_PIC == "ASYMPTOMATIC" ~ "1_Symptomatic",
                   CLINICAL_PIC == "Symptomatic" ~ "2_Symptomatic",
+                  CLINICAL_PIC == "SYMPTOMATIC" ~ "2_Symptomatic",
                   TRUE ~ CLINICAL_PIC
                ),
                WHO_CLASS                = case_when(
@@ -593,6 +632,7 @@ HtsLogsheet <- R6Class(
                   WHO_CLASS == "II" ~ "2_II",
                   WHO_CLASS == "III" ~ "3_III",
                   WHO_CLASS == "IV" ~ "4_IV",
+                  toupper(WHO_CLASS) == "NO PHYSICIAN TO DO STAGING" ~ NA_character_,
                   TRUE ~ WHO_CLASS
                ),
 
@@ -601,9 +641,12 @@ HtsLogsheet <- R6Class(
                T0_RESULT                = case_when(
                   T0_RESULT == "NON-REACTIVE" ~ "2_Non-reactive",
                   T0_RESULT == "Non-reactive" ~ "2_Non-reactive",
+                  T0_RESULT == "Non-Reactive" ~ "2_Non-reactive",
                   T0_RESULT == "REACTIVE" ~ "1_Reactive",
                   T0_RESULT == "Reactive" ~ "1_Reactive",
+                  T0_RESULT == "Reactive-2nd opinion" ~ "1_Reactive",
                   T0_RESULT == "CBS" ~ NA_character_,
+                  T0_RESULT == "Not Submitted" ~ NA_character_,
                   TRUE ~ T0_RESULT
                )
             ) %>%
@@ -627,6 +670,8 @@ HtsLogsheet <- R6Class(
                ~case_when(
                   str_squish(toupper(.)) == "YES" ~ "1_Yes",
                   str_squish(toupper(.)) == "NO" ~ "0_No",
+                  str_squish(toupper(.)) == "NOT APPLICABLE" ~ NA_character_,
+                  str_squish(toupper(.)) == "DO NOT KNOW" ~ NA_character_,
                   TRUE ~ .
                )
             ) %>%
@@ -785,9 +830,11 @@ file_copy(new_uploads$path, "H:/hts-imports/20241112")
 
 
 import <- HtsLogsheet$new()
-import$batchRead("H:/hts-imports/20250113")
+import$batchRead("H:/hts-imports/20250518")
 import$getExisting()
 import$getRefs()
+# import$data$raw %<>%
+#    mutate_at(.vars = vars(contains("DATE")), ~as.character(excel_numeric_to_date(parse_number(.))))
 import$convert()
 import$checkIssues()
 import$data$convert %>%
