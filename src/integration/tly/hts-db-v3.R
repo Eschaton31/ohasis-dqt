@@ -1,25 +1,28 @@
 LyHts <- R6Class(
    "LyHts",
    public = list(
-      root       = "",
-      months     = "",
-      data       = list(
-         raw       = tibble(),
+      root          = "",
+      months        = "",
+      data          = list(
+         raw      = tibble(),
          logsheet = tibble()
       ),
 
-      initialize = function(month = NULL) {
+      initialize    = function(month = NULL) {
          self$root <- file.path(getwd(), "data", "ly-imports", format(Sys.time(), "%Y%m%d"))
 
          if (missing(month)) {
             month <- month(Sys.time())
          }
 
-         self$months <- toupper(month.name[seq_len(month)])
+         self$months <- toupper(month.name[month])
 
          invisible(self)
       },
-      download   = function() {
+      download      = function() {
+         local_drive_quiet()
+         local_gs4_quiet()
+
          ss     <- "1smORFFrPwFFrbXQuUUqxNnxyD9VInEPFL7XgL-dmvUM"
          sheets <- range_speedread(ss, "hts", col_types = cols(.default = "c"))
 
@@ -36,7 +39,7 @@ LyHts <- R6Class(
 
          invisible(self)
       },
-      readAll    = function() {
+      readAll       = function() {
          files       <- list.files(file.path(self$root, "hts"), full.names = TRUE)
          data        <- lapply(files, self$readFile)
          names(data) <- tools::file_path_sans_ext(basename(files))
@@ -46,7 +49,7 @@ LyHts <- R6Class(
 
          invisible(self)
       },
-      toLogsheet = function() {
+      toLogsheet    = function() {
          self$data$logsheet <- self$data$raw %>%
             mutate(
                ENCODEBY            = ASSIGNEDCOUNSELOR,
@@ -334,7 +337,7 @@ LyHts <- R6Class(
          invisible(self)
       },
 
-      readFile   = function(file) {
+      readFile      = function(file) {
          log_info("Reading = {green(tools::file_path_sans_ext(basename(file)))}.")
          sheets      <- intersect(self$months, ods_sheets(file))
          data        <- lapply(sheets, read_ods, path = file, skip = 1, col_types = cols(.default = "c"), .name_repair = "unique_quiet")
@@ -346,14 +349,8 @@ LyHts <- R6Class(
 
          return(bind_rows(data, .id = "Sheet"))
       },
-      writeLogsheet = function (file) {
+      writeLogsheet = function(file) {
          write.xlsx(self$data$logsheet, file, startRow = 3, firstActiveRow = 4, colWidths = "auto")
       }
    )
 )
-
-try <- LyHts$new()
-# try$download()
-try$readAll()
-try$toLogsheet()
-try$writeLogsheet("H:/hts-imports/20250518/20250518_hts-ly.xlsx")
