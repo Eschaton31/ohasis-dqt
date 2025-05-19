@@ -116,7 +116,7 @@ LyArt <- R6Class(
                BIRTHDATE_MANUAL = `DATEOFBIRTHMM/DD/YYYY`,
             ) %>%
             mutate(
-               BIRTHDATE_AUTO = if_else(is.na(BIRTHDATE_AUTO) & !is.na(UIC), stri_c(sep = "-", substr(UIC, 7, 8), substr(UIC, 9, 10), str_right(UIC, 4)), BIRTHDATE_AUTO, BIRTHDATE_AUTO),
+               BIRTHDATE_AUTO = if_else(is.na(BIRTHDATE_AUTO) & nchar(UIC) == 14, stri_c(sep = "-", substr(UIC, 7, 8), substr(UIC, 9, 10), str_right(UIC, 4)), BIRTHDATE_AUTO, BIRTHDATE_AUTO),
                BIRTHDATE      = as.Date(parse_date_time(coalesce(BIRTHDATE_MANUAL, BIRTHDATE_AUTO), "mdY")),
                .after         = UIC
             ) %>%
@@ -240,7 +240,7 @@ LyArt <- R6Class(
             mutate(
                UIC           = coalesce(UIC.x, UIC.y),
                PHILHEALTH_NO = coalesce(PHILHEALTH_NO.x, PHILHEALTH_NO.y),
-               BIRTHDATE     = if_else(is.na(BIRTHDATE) & !is.na(UIC), as.Date(stri_c(sep = "-", str_right(UIC, 4), substr(UIC, 7, 8), substr(UIC, 9, 10))), BIRTHDATE, BIRTHDATE),
+               BIRTHDATE     = if_else(is.na(BIRTHDATE) & nchar(UIC) == 14, as.Date(stri_c(sep = "-", str_right(UIC, 4), substr(UIC, 7, 8), substr(UIC, 9, 10))), BIRTHDATE, BIRTHDATE),
             ) %>%
             select(-ends_with(".x"), -ends_with(".y")) %>%
             left_join(

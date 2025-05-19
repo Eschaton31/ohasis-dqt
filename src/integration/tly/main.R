@@ -22,5 +22,6 @@ art$checkIssues()
 art$getExisting()
 art$prepareUpload()
 art$deconstructTables()
+art$upload()
 
 google_account("nhsss@doh.gov.ph")
