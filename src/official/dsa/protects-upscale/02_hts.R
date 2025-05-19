@@ -1,5 +1,13 @@
 source("src/official/dsa/protects-upscale/01_load_reqs.R")
 
+aiha_staff <- c(
+   '9900050014', '9900050068', '9900050006', '9900050069', '9900050077', '9900050010', '9900050067', '9900050078',
+   '9900050027', '9900050074', '9900050054', '9900050048', '9900050064', '9900050076', '9900050076', '9900050060',
+   '9900050065', '9900050053', '9900050040', '9900050047', '9900050052', '9900050036', '9900050011', '9900050031',
+   '9900050004', '9900050070', '9900050003', '9900050080', '9900050029', '9900050081', '9900050071', '9900050005',
+   '9900050072', '9900050058', '9900050073'
+)
+
 con   <- ohasis$conn("lw")
 forms <- QB$new(con)
 forms$where(function(query = QB$new(con)) {
@@ -14,6 +22,8 @@ forms$where(function(query = QB$new(con)) {
 forms$where(function(query = QB$new(con)) {
    query$whereIn('FACI_ID', sites$FACI_ID, boolean = "or")
    query$whereIn('SERVICE_FACI', sites$FACI_ID, boolean = "or")
+   query$whereIn('CREATED_BY', aiha_staff, boolean = "or")
+   query$whereIn('SERVICE_BY', aiha_staff, boolean = "or")
    query$whereNested
 })
 
@@ -391,7 +401,8 @@ testing   <- process_hts(hts, a, cfbs) %>%
    left_join(
       y  = dx %>%
          mutate(
-            reactive_date = coalesce(blood_extract_date, specimen_receipt_date, test_date, t0_date, visit_date, confirm_date) %>% as.Date()
+            reactive_date = coalesce(blood_extract_date, specimen_receipt_date, test_date, t0_date, visit_date,
+                                     confirm_date) %>% as.Date()
          ) %>%
          select(
             CENTRAL_ID,
