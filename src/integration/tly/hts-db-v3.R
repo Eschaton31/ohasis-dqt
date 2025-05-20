@@ -15,7 +15,7 @@ LyHts <- R6Class(
             month <- month(Sys.time())
          }
 
-         self$months <- toupper(month.name[month])
+         self$months <- toupper(month.name[seq_len(month)])
 
          invisible(self)
       },
@@ -350,7 +350,7 @@ LyHts <- R6Class(
          return(bind_rows(data, .id = "Sheet"))
       },
       writeLogsheet = function(file) {
-         write.xlsx(self$data$logsheet, file, startRow = 3, firstActiveRow = 4, colWidths = "auto")
+         write.xlsx(self$data$logsheet %>% mutate_if(is.Date, as.character), file, startRow = 3, firstActiveRow = 4, colWidths = "auto")
       }
    )
 )
