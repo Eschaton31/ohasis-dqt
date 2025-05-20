@@ -92,7 +92,7 @@ check_dir <- function(dir) {
 
 # sheets cleaning per id
 .cleaning_list <- function(data_to_clean = NULL, cleaning_list = NULL, corr_id_name = NULL, corr_id_type = NULL) {
-   data    <- data_to_clean %>% filter(!is.na({{corr_id_name}}))
+   data    <- data_to_clean %>% filter(!is.na({ { corr_id_name } }))
    # for (i in seq_len(nrow(cleaning_list))) {
    #
    #    # load idnum and name of variable
@@ -128,8 +128,8 @@ check_dir <- function(dir) {
       var_clean <- cleaning_list %>%
          filter(VARIABLE == var) %>%
          mutate(
-            {{corr_id_name}} := eval(parse(text = glue("as.{id_type}({corr_id_name})"))),
-            NEW_VALUE        = na_if(NEW_VALUE, "NULL")
+            { { corr_id_name } } := eval(parse(text = glue("as.{id_type}({corr_id_name})"))),
+            NEW_VALUE            = na_if(NEW_VALUE, "NULL")
          )
 
       var_clean$NEW_VALUE <- switch(
@@ -145,7 +145,7 @@ check_dir <- function(dir) {
          left_join(
             y  = var_clean %>%
                select(
-                  {{eb_id}} := {{corr_id_name}},
+                  { { eb_id } } := { { corr_id_name } },
                   NEW_VALUE
                ) %>%
                mutate(
@@ -154,7 +154,7 @@ check_dir <- function(dir) {
             by = eb_id
          ) %>%
          mutate(
-            {{var}} := if_else(
+            { { var } } := if_else(
                condition = update == 1,
                true      = NEW_VALUE,
                false     = !!as.symbol(var),
@@ -167,7 +167,8 @@ check_dir <- function(dir) {
 }
 
 # upload to gdrive/gsheets validations
-.validation_gsheets <- function(data_name = NULL, parent_list = NULL, drive_path = NULL, surv_name = NULL, channels = NULL) {
+.validation_gsheets <- function(data_name = NULL, parent_list = NULL, drive_path = NULL, surv_name = NULL, channels =
+   NULL) {
    .log_info("Uploading to GSheets..")
    slack_by     <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
    empty_sheets <- ""
@@ -189,7 +190,8 @@ check_dir <- function(dir) {
    # acquire sheet_id
    drive_file <- drive_get(paste0(drive_path, gsheet))
    drive_link <- paste0("https://docs.google.com/spreadsheets/d/", drive_file$id, "/|GSheets Link: ", gsheet)
-   slack_msg  <- glue(">*{surv_name}*\n>Conso validation sheets for `{data_name}` have been updated by <@{slack_by}>.\n><{drive_link}>")
+   slack_msg  <- glue(">*{surv_name}*\n>Conso validation sheets for `{data_name}` have been updated by <@{slack_by}>
+   .\n><{drive_link}>")
    for (issue in issues_list) {
       # add issue
       if (nrow(parent_list[[issue]]) > 0) {
@@ -375,6 +377,19 @@ add_missing_columns <- function(data, ref) {
    return(new)
 }
 
-connect <- function (group) {
+connect <- function(group) {
    return(dbConnect(RMariaDB::MariaDB(), group = group, default.file = Sys.getenv("CONN")))
+}
+
+categorical_values <- function(data, variables) {
+   summary <- tibble()
+
+   for (variable in variables) {
+      column  <- as.name(variable)
+      summary <- bind_rows(summary, data %>%
+         distinct(values = { { column } }) %>%
+         mutate(.before = 1, variable = variable))
+   }
+
+   return(summary)
 }
