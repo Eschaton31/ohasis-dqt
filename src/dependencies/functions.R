@@ -92,7 +92,7 @@ check_dir <- function(dir) {
 
 # sheets cleaning per id
 .cleaning_list <- function(data_to_clean = NULL, cleaning_list = NULL, corr_id_name = NULL, corr_id_type = NULL) {
-   data    <- data_to_clean %>% filter(!is.na({ { corr_id_name } }))
+   data    <- data_to_clean %>% filter(!is.na({{corr_id_name}}))
    # for (i in seq_len(nrow(cleaning_list))) {
    #
    #    # load idnum and name of variable
@@ -128,8 +128,8 @@ check_dir <- function(dir) {
       var_clean <- cleaning_list %>%
          filter(VARIABLE == var) %>%
          mutate(
-            { { corr_id_name } } := eval(parse(text = glue("as.{id_type}({corr_id_name})"))),
-            NEW_VALUE            = na_if(NEW_VALUE, "NULL")
+            {{corr_id_name}} := eval(parse(text = glue("as.{id_type}({corr_id_name})"))),
+            NEW_VALUE        = na_if(NEW_VALUE, "NULL")
          )
 
       var_clean$NEW_VALUE <- switch(
@@ -145,7 +145,7 @@ check_dir <- function(dir) {
          left_join(
             y  = var_clean %>%
                select(
-                  { { eb_id } } := { { corr_id_name } },
+                  {{eb_id}} := {{corr_id_name}},
                   NEW_VALUE
                ) %>%
                mutate(
@@ -154,7 +154,7 @@ check_dir <- function(dir) {
             by = eb_id
          ) %>%
          mutate(
-            { { var } } := if_else(
+            {{var}} := if_else(
                condition = update == 1,
                true      = NEW_VALUE,
                false     = !!as.symbol(var),
@@ -387,9 +387,63 @@ categorical_values <- function(data, variables) {
    for (variable in variables) {
       column  <- as.name(variable)
       summary <- bind_rows(summary, data %>%
-         distinct(values = { { column } }) %>%
+         distinct(values = {{column}}) %>%
          mutate(.before = 1, variable = variable))
    }
 
    return(summary)
+}
+
+split_names <- function(data, fullname, first, middle, last) {
+   log_info("Cleaning fullname.")
+   clean <- data %>%
+      mutate(
+         ref_name   = toupper({{fullname}}),
+         ref_name   = str_replace_all(ref_name, "N/A", ""),
+         ref_name   = str_replace_all(ref_name, "[^[:alnum:],]", " "),
+         ref_name   = str_replace_all(ref_name, "\\bJR\\b", "_JR"),
+         ref_name   = str_replace_all(ref_name, "\\bII\\b", "_II"),
+         ref_name   = str_replace_all(ref_name, "\\bIII\\b", "_III"),
+         ref_name   = str_replace_all(ref_name, "\\bIV\\b", "_IV"),
+         ref_name   = str_replace_all(ref_name, "\\bSAN\\b", "SAN_"),
+         ref_name   = str_replace_all(ref_name, "\\bDE\\b", "DE_"),
+         ref_name   = str_replace_all(ref_name, "\\bDEL\\b", "DEL_"),
+         ref_name   = str_replace_all(ref_name, "\\bDELA\\b", "DELA_"),
+         ref_name   = str_replace_all(ref_name, "\\bDELOS\\b", "DELOS_"),
+         ref_name   = str_replace_all(ref_name, "\\s_", "_"),
+         ref_name   = str_replace_all(ref_name, "_\\s", "_"),
+         ref_name   = str_replace_all(ref_name, ",", ", "),
+         ref_name   = str_squish(ref_name),
+
+         with_comma = str_detect(ref_name, ","),
+         name_count = str_count(ref_name, "\\S+"),
+      )
+
+   log_info("Extracting names.")
+   clean <- clean %>%
+      mutate(
+         {{first}}  := case_when(
+            with_comma & name_count > 2 ~ str_extract(ref_name, "^(.+),\\s(.+)\\s(.+)$", 2),
+            with_comma & name_count <= 2 ~ str_extract(ref_name, "^(.+),\\s(.+)$", 2),
+            !with_comma & name_count > 2 ~ str_extract(ref_name, "^(.+)\\s([^\\s]+)\\s(\\w+)", 1),
+            !with_comma & name_count <= 2 ~ str_extract(ref_name, "^(.+)\\s(\\w+)", 1),
+         ),
+         {{middle}} := case_when(
+            with_comma & name_count > 2 ~ str_extract(ref_name, "^(.+),\\s(.+)\\s(.+)$", 3),
+            !with_comma & name_count > 2 ~ str_extract(ref_name, "^(.+)\\s([^\\s]+)\\s(\\w+)", 2),
+         ),
+         {{last}}   := case_when(
+            with_comma ~ str_extract(ref_name, "^(.+),.+", 1),
+            !with_comma & name_count > 2 ~ str_extract(ref_name, "^(.+)\\s([^\\s]+)\\s(\\w+)", 3),
+            !with_comma & name_count <= 2 ~ str_extract(ref_name, "^(.+)\\s(\\w+)", 2),
+         ),
+      ) %>%
+      relocate({{first}}, {{middle}}, {{last}}, .after = {{fullname}}) %>%
+      mutate_at(
+         .vars = vars({{first}}, {{middle}}, {{last}}),
+         ~str_squish(str_replace_all(., "_", " "))
+      ) %>%
+      select(-name_count, -with_comma, -ref_name)
+
+   return(clean)
 }
