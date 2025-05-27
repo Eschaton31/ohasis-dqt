@@ -7,7 +7,7 @@
 # Curr.ohasis[['db']][['addr_munc']] <- readTable('addr_munc')
 
 
-psgc_main <- 'D:/Downloads/Documents/PSGC-4Q-2024-Publication-Datafile.xlsx' %>%
+psgc_main <- 'G:/Bene-MSI/D/Downloads/Documents/PSGC-4Q-2024-Publication-Datafile.xlsx' %>%
    read_xlsx(sheet = 'PSGC', col_types = 'text') %>%
    select(
       PSGC             = `10-digit PSGC`,
@@ -28,11 +28,11 @@ psgc_main <- 'D:/Downloads/Documents/PSGC-4Q-2024-Publication-Datafile.xlsx' %>%
 conn <- dbConnect(
    RMariaDB::MariaDB(),
    user     = "root",
-   password = "d0hh1v_Jbrp1234",
+   password = "Jbrp1234",
    host     = "127.0.0.1",
    port     = 3306,
    timeout  = -1,
-   "cervixis",
+   "iscerv",
 )
 
 dbxUpsert(
@@ -86,6 +86,7 @@ dbxUpsert(
    conn,
    "addr_munc",
    psgc_munc %>%
+      mutate(POPCEN_2020 = parse_number(POPCEN_2020)) %>%
       select(
          muncity          = MUNC,
          muncity_old      = PSGC_OLD,
@@ -105,6 +106,33 @@ dbxUpsert(
          created_at = '2024-03-07 00:00:00'
       ),
    "muncity"
+)
+
+dbxUpsert(
+   conn,
+   "addr_brgy",
+   psgc_brgy %>%
+      mutate(POPCEN_2020 = parse_number(POPCEN_2020)) %>%
+      select(
+         barangay         = BRGY,
+         barangay_old     = PSGC_OLD,
+         region           = REG,
+         province         = PROV,
+         muncity          = MUNC,
+         name             = NAME,
+         geographic_level = PSGL,
+         old_names        = NAME_OLD,
+         city_class       = CLASS_CITY,
+         income_class     = CLASS_INCOME,
+         urban_rural      = URBAN_RURAL_2020,
+         popcen_2020      = POPCEN_2020,
+         publication_date = PSGC_PUB,
+      ) %>%
+      mutate(
+         created_by = 1,
+         created_at = '2024-03-07 00:00:00'
+      ),
+   "barangay"
 )
 
 psgc_reg <- psgc_main %>%
@@ -159,7 +187,10 @@ mutate(NEW_PROV = 1) %>%
 
 psgc_munc <- psgc_main %>%
    rename(MUNC = PSGC) %>%
-   filter(PSGL == 'City' | PSGL == 'Mun' | PSGL == 'SubMun') %>%
+   filter(PSGL == 'City' |
+             PSGL == 'Mun' |
+             PSGL == 'SubMun' |
+             MUNC == "0990100000") %>%
    add_row(
       MUNC     = '9999999000',
       NAME     = 'Overseas',
@@ -183,6 +214,38 @@ mutate(NEW_MUNC = 1) %>%
    )
 
 
+psgc_brgy <- psgc_main %>%
+   rename(BRGY = PSGC) %>%
+   filter(PSGL == 'Bgy') %>%
+   add_row(
+      BRGY     = '9999999000',
+      NAME     = 'Overseas',
+      PSGC_OLD = '999900000',
+      PSGC_PUB = '2024-12-31'
+   ) %>%
+   mutate(
+      MUNC = stri_pad_right(str_left(BRGY, 7), 10, '0'),
+      PROV = stri_pad_right(str_left(MUNC, 5), 10, '0'),
+      REG  = stri_pad_right(str_left(PROV, 2), 10, '0'),
+   )
+
+##  check if all are matching
+# ! region
+psgc_prov %>% left_join(psgc_reg %>% select(REG) %>% mutate(exists = 1), join_by(REG)) %>% tab(exists)
+psgc_munc %>% left_join(psgc_reg %>% select(REG) %>% mutate(exists = 1), join_by(REG)) %>% tab(exists)
+psgc_brgy %>% left_join(psgc_reg %>% select(REG) %>% mutate(exists = 1), join_by(REG)) %>% tab(exists)
+
+# ! province
+psgc_munc %>% left_join(psgc_prov %>% select(PROV) %>% mutate(exists = 1), join_by(PROV)) %>% tab(exists)
+psgc_brgy %>% left_join(psgc_prov %>% select(PROV) %>% mutate(exists = 1), join_by(PROV)) %>% tab(exists)
+
+# ! muncity
+psgc_brgy %>% left_join(psgc_munc %>% select(MUNC) %>% mutate(exists = 1), join_by(MUNC)) %>% tab(exists)
+
+psgc_brgy %>%
+   inner_join(psgc_munc %>% select(MUNC)) %>%
+   inner_join(psgc_prov %>% select(PROV)) %>%
+   nrow()
 
 psgc_brgy <- psgc_main %>%
    rename(BRGY = PSGC) %>%
