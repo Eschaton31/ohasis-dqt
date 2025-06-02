@@ -1,3 +1,6 @@
+rm(list = ls())
+source("autoload.R")
+
 NcrPridelympics <- R6Class(
    'NcrPridelympics',
    public = list(
@@ -294,9 +297,6 @@ NcrPridelympics <- R6Class(
       }
    )
 )
-
-rm(list = ls())
-source("autoload.R")
 
 ##  Load primary classes -------------------------------------------------------
 
