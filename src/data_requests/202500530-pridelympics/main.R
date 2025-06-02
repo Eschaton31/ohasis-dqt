@@ -1,3 +1,5 @@
+readRenviron(".Renviron")
+
 rm(list = ls())
 source("autoload.R")
 
