@@ -7,7 +7,7 @@
 # Curr.ohasis[['db']][['addr_munc']] <- readTable('addr_munc')
 
 
-psgc_main <- 'G:/Bene-MSI/D/Downloads/Documents/PSGC-4Q-2024-Publication-Datafile.xlsx' %>%
+psgc_main <- 'E:/Bene-MSI/D/Downloads/Documents/PSGC-4Q-2024-Publication-Datafile.xlsx' %>%
    read_xlsx(sheet = 'PSGC', col_types = 'text') %>%
    select(
       PSGC             = `10-digit PSGC`,
@@ -23,7 +23,106 @@ psgc_main <- 'G:/Bene-MSI/D/Downloads/Documents/PSGC-4Q-2024-Publication-Datafil
    mutate(
       PSGL     = if_else(is.na(PSGL), 'Special', PSGL),
       PSGC_PUB = '2024-12-31',
+      ALIAS    = str_extract(NAME, "\\((.+)\\)", 1),
+      ALIAS    = if_else(PSGL == "Reg", ALIAS, NA_character_)
    )
+
+
+psgc_reg <- psgc_main %>%
+   rename(REG = PSGC) %>%
+   filter(PSGL == 'Reg') %>%
+   add_row(
+      REG      = '9900000000',
+      NAME     = 'Overseas',
+      PSGC_OLD = '990000000',
+      PSGC_PUB = '2024-12-31'
+   )
+
+psgc_prov <- psgc_main %>%
+   rename(PROV = PSGC) %>%
+   filter(PSGL == 'Prov' |
+             PSGL == 'Dist' |
+             PSGL == 'Special' |
+             CLASS_CITY == 'HUC' |
+             PROV == '1381701000') %>%
+   add_row(
+      PROV     = '9999900000',
+      NAME     = 'Overseas',
+      PSGC_OLD = '999900000',
+      PSGC_PUB = '2024-12-31'
+   ) %>%
+   mutate(
+      REG = stri_pad_right(str_left(PROV, 2), 10, '0'),
+      PROV = stri_pad_right(str_left(PROV, 5), 10, '0'),
+   )
+
+psgc_munc <- psgc_main %>%
+   rename(MUNC = PSGC) %>%
+   filter(PSGL == 'City' |
+             PSGL == 'Mun' |
+             PSGL == 'SubMun' |
+             MUNC == "0990100000") %>%
+   add_row(
+      MUNC     = '9999999000',
+      NAME     = 'Overseas',
+      PSGC_OLD = '999900000',
+      PSGC_PUB = '2024-12-31'
+   ) %>%
+   mutate(
+      PROV = stri_pad_right(str_left(MUNC, 5), 10, '0'),
+      REG  = stri_pad_right(str_left(PROV, 2), 10, '0'),
+   )
+
+psgc_brgy <- psgc_main %>%
+   rename(BRGY = PSGC) %>%
+   filter(PSGL == 'Bgy') %>%
+   add_row(
+      BRGY     = '9999999000',
+      NAME     = 'Overseas',
+      PSGC_OLD = '999900000',
+      PSGC_PUB = '2024-12-31'
+   ) %>%
+   mutate(
+      MUNC = stri_pad_right(str_left(BRGY, 7), 10, '0'),
+      PROV = stri_pad_right(str_left(MUNC, 5), 10, '0'),
+      REG  = stri_pad_right(str_left(PROV, 2), 10, '0'),
+   )
+
+
+psgc <- psgc_main %>%
+   add_row(
+      PSGC     = '9999999000',
+      NAME     = 'Overseas',
+      PSGC_OLD = '999900000',
+      PSGC_PUB = '2024-12-31'
+   ) %>%
+   mutate(
+      BRGY = PSGC,
+      MUNC = stri_pad_right(str_left(BRGY, 7), 10, '0'),
+      PROV = stri_pad_right(str_left(MUNC, 5), 10, '0'),
+      REG  = stri_pad_right(str_left(PROV, 2), 10, '0'),
+   ) %>%
+   left_join(
+      y = psgc_brgy %>%
+         select(PSGC_BRGY = BRGY, NAME_BRGY = NAME),
+      by = join_by(BRGY == PSGC_BRGY)
+   ) %>%
+   left_join(
+      y = psgc_munc %>%
+         select(PSGC_MUNC = MUNC, NAME_MUNC = NAME),
+      by = join_by(MUNC == PSGC_MUNC)
+   ) %>%
+   left_join(
+      y = psgc_prov %>%
+         select(PSGC_PROV = PROV, NAME_PROV = NAME),
+      by = join_by(PROV == PSGC_PROV)
+   ) %>%
+   left_join(
+      y = psgc_reg %>%
+         select(PSGC_REG = REG, NAME_REG = NAME, ALIAS_REG = ALIAS),
+      by = join_by(REG == PSGC_REG)
+   ) %>%
+   distinct(PSGC, .keep_all = TRUE)
 
 conn <- dbConnect(
    RMariaDB::MariaDB(),
@@ -231,16 +330,28 @@ psgc_brgy <- psgc_main %>%
 
 ##  check if all are matching
 # ! region
-psgc_prov %>% left_join(psgc_reg %>% select(REG) %>% mutate(exists = 1), join_by(REG)) %>% tab(exists)
-psgc_munc %>% left_join(psgc_reg %>% select(REG) %>% mutate(exists = 1), join_by(REG)) %>% tab(exists)
-psgc_brgy %>% left_join(psgc_reg %>% select(REG) %>% mutate(exists = 1), join_by(REG)) %>% tab(exists)
+psgc_prov %>%
+   left_join(psgc_reg %>% select(REG) %>% mutate(exists = 1), join_by(REG)) %>%
+   tab(exists)
+psgc_munc %>%
+   left_join(psgc_reg %>% select(REG) %>% mutate(exists = 1), join_by(REG)) %>%
+   tab(exists)
+psgc_brgy %>%
+   left_join(psgc_reg %>% select(REG) %>% mutate(exists = 1), join_by(REG)) %>%
+   tab(exists)
 
 # ! province
-psgc_munc %>% left_join(psgc_prov %>% select(PROV) %>% mutate(exists = 1), join_by(PROV)) %>% tab(exists)
-psgc_brgy %>% left_join(psgc_prov %>% select(PROV) %>% mutate(exists = 1), join_by(PROV)) %>% tab(exists)
+psgc_munc %>%
+   left_join(psgc_prov %>% select(PROV) %>% mutate(exists = 1), join_by(PROV)) %>%
+   tab(exists)
+psgc_brgy %>%
+   left_join(psgc_prov %>% select(PROV) %>% mutate(exists = 1), join_by(PROV)) %>%
+   tab(exists)
 
 # ! muncity
-psgc_brgy %>% left_join(psgc_munc %>% select(MUNC) %>% mutate(exists = 1), join_by(MUNC)) %>% tab(exists)
+psgc_brgy %>%
+   left_join(psgc_munc %>% select(MUNC) %>% mutate(exists = 1), join_by(MUNC)) %>%
+   tab(exists)
 
 psgc_brgy %>%
    inner_join(psgc_munc %>% select(MUNC)) %>%
