@@ -1261,7 +1261,9 @@ oh_batch_newpx <- function(data, id_col) {
                SEX == "1_MALE" ~ "1",
                SEX == "2_FEMALE" ~ "2",
                SEX == "MALE" ~ "1",
+               SEX == "M" ~ "1",
                SEX == "FEMALE" ~ "2",
+               SEX == "F" ~ "2",
             )
          ) %>%
          select(
