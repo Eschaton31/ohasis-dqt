@@ -221,7 +221,7 @@ HtsLogsheet <- R6Class(
          invisible(self)
       },
       convert        = function() {
-         if ("CLIENT_MOBILE" %in% names(self$data$raw)) {
+         if (!("CLIENT_MOBILE" %in% names(self$data$raw))) {
             self$data$raw %<>%
                mutate(
                   CLIENT_MOBILE = NA_character_,
