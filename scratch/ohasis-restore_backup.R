@@ -1,14 +1,23 @@
 affected <- QB$new(`oh-live`)$
    select("rec.REC_ID")$
    from("ohasis_interim.px_record AS rec")$
-   join("ohasis_interim.px_faci AS service", "rec.REC_ID", "=", "service.REC_ID")$
+   join("ohasis_interim.px_test AS service", "rec.REC_ID", "=", "service.REC_ID")$
    where("rec.FACI_ID", "<>", "service.FACI_ID")$
    where("service.FACI_ID", "=", "100003")$
    distinct()$
    get()
 
+affected <- QB$new(`oh-live`)$
+   select("rec.REC_ID")$
+   from("ohasis_interim.px_record AS rec")$
+   join("ohasis_interim.px_test AS service", "rec.REC_ID", "=", "service.REC_ID")$
+   where("service.DATE_PERFORM", "=", "2025-06-13 00:00:00")$
+   where("service.RESULT", "=", "2")$
+   distinct()$
+   get()
 
-batches <- chunk_df(affected, 100000)
+affected <- read_rds("H:/20250617-cdo_shc-bug-live_records.rds")
+batches  <- chunk_df(affected, 100000)
 
 get_tables <- function() {
    data <- QB$new(`oh-live`)$
@@ -34,7 +43,7 @@ get_pk <- function(table) {
 }
 
 tables    <- get_tables()
-tables    <- tables[tables != "px_pii"]
+# tables    <- tables[tables != "px_pii"]
 tables    <- list("px_record", "px_faci", "px_test")
 pk        <- lapply(tables, get_pk)
 names(pk) <- tables
@@ -81,7 +90,8 @@ upload$px_faci   <- list(
 upload$px_test   <- list(
    name = "px_test",
    pk   = pk$px_test,
-   data = data$px_test %>% select(-`3L`)
+   data = data$px_test %>% select(-`3L`) %>%
+      filter(TEST_TYPE == 10)
 )
 
 db_conn <- connect("ohasis-live")
@@ -97,7 +107,9 @@ px_test <- QB$new(`oh-live`)$from('ohasis_interim.px_test')$whereIn("REC_ID", af
 
 delete <- px_test %>%
    filter(FACI_ID == "100003") %>%
-   inner_join(y = px_test %>% filter(FACI_ID != "100003") %>% select(REC_ID), join_by(REC_ID))
+   inner_join(y = px_test %>%
+      filter(FACI_ID != "100003") %>%
+      select(REC_ID), join_by(REC_ID))
 
 remain <- px_test %>%
    filter(FACI_ID != "100003") %>%
@@ -106,13 +118,9 @@ remain <- px_test %>%
 delete$REC_ID %>% write_clip()
 
 #### check those who did not have t0 before
-px_test <- QB$new(`oh-lw`)$from('ohasis_lake.px_hiv_testing')$whereIn("REC_ID", affected$REC_ID)$whereNull("T0_DATE")$get()
-
-
-
-
-
-
+conn     <- connect('local')
+affected <- QB$new(`oh-lw`)$from('ohasis_lake.px_hiv_testing')$whereIn("REC_ID", affected$REC_ID)$whereNull("T0_DATE")$get()
+px_test  <- QB$new(`oh-live`)$from('ohasis_interim.px_test')$whereIn("REC_ID", affected$REC_ID)$where("TEST_TYPE", "10")$get()
+px_test  <- QB$new(conn)$from('ohasis_interim.px_test')$whereIn("REC_ID", affected$REC_ID)$where("TEST_TYPE", "10")$get()
 
 db_conn <- connect("ohasis-live")
-restore <-
