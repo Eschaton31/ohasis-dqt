@@ -44,3 +44,14 @@ OhasisMigration <- R6Class(
       )
    )
 )
+
+migrate_from_rds <- function(conn, rds, table, id_col) {
+   data <- read_rds(rds)
+
+   conn_to <- connect(conn)
+   dbAppendTable(conn_to, table, data, id_col, batch_size = 500)
+   dbDisconnect(conn_to)
+}
+
+migrate_from_rds('local', 'H:/ohasis_dev-users.rds', 'users', 'user_id')
+migrate_from_rds('local', 'H:/ohasis_dev-facilities.rds', 'facilities', 'faci_id')
