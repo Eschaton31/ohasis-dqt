@@ -316,7 +316,7 @@ QB <- R6Class(
          join  <- str_flatten(collapse = "\n ", self$joins)
 
          query$results <- c(select, private$main, join, where, self$limits)
-         query$nrow    <- c("SELECT COUNT(*) AS nrow FROM", private$main, join, where, self$limits)
+         query$nrow    <- c("SELECT COUNT(*) AS nrow FROM (", query$results, ") as table")
          query         <- lapply(query, str_flatten, collapse = " ", na.rm = TRUE)
          query         <- lapply(query, stri_c, ";")
 
