@@ -1,8 +1,11 @@
-users <- OhasisMigration$new('users', 'ohasis-lw', 'local')
+users <- OhasisMigration$new('users', 'local', 'oh2')
 users$download()
 
 match <- users$data$from %>%
    rename_all(tolower) %>%
+   rename(
+      last_active_at = last_login
+   ) %>%
    add_missing_columns(users$data$to) %>%
    select(any_of(names(users$data$to)))
 pb    <- progress_bar$new(

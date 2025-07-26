@@ -1,7 +1,7 @@
-facilities <- OhasisMigration$new('facilities', 'ohasis-lw', 'local')
+facilities <- OhasisMigration$new('facilities', 'local', 'oh2')
 facilities$download()
 
-psgc_main <- 'E:/Bene-MSI/D/Downloads/Documents/PSGC-4Q-2024-Publication-Datafile.xlsx' %>%
+psgc_main <- 'C:/Users/Bene-G16/Downloads/Documents/PSGC-4Q-2024-Publication-Datafile.xlsx' %>%
    read_xlsx(sheet = 'PSGC', col_types = 'text') %>%
    select(
       PSGC             = `10-digit PSGC`,

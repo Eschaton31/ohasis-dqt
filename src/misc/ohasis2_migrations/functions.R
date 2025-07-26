@@ -17,8 +17,22 @@ OhasisMigration <- R6Class(
          conn_from <- connect(private$conn$from)
          conn_to   <- connect(private$conn$to)
 
-         self$data$from <- QB$new(conn_from)$from(self$table)$get()
-         self$data$to   <- QB$new(conn_to)$from(self$table)$get()
+         tryCatch(
+         {
+            self$data$from <- QB$new(conn_from)$from(self$table)$get()
+         },
+            error = function(e) {
+               self$data$from <- tibble()
+            }
+         )
+         tryCatch(
+         {
+            self$data$to <- QB$new(conn_to)$from(self$table)$get()
+         },
+            error = function(e) {
+               self$data$to <- tibble()
+            }
+         )
 
          dbDisconnect(conn_from)
          dbDisconnect(conn_to)
@@ -33,7 +47,30 @@ OhasisMigration <- R6Class(
       },
       upload     = function(data, id_col) {
          conn_to <- connect(private$conn$to)
-         dbAppendTable(conn_to, self$table, data, id_col, batch_size = 500)
+         # dbAppendTable(conn_to, self$table, data, id_col, batch_size = 500)
+
+         # upsert data
+         chunk_size <- 1000
+         if (nrow(data) >= chunk_size) {
+            # upload in chunks to monitor progress
+            n_rows     <- nrow(data)
+            n_chunks   <- rep(1:ceiling(n_rows / chunk_size), each = chunk_size)[1:n_rows]
+            data       <- split(data, n_chunks)
+            data_bytes <- as.numeric(object.size(data))
+
+            # get progress
+            pb <- progress_bar$new(format = ":bytes uploaded | :rate [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = data_bytes, width = 100, clear = FALSE)
+            pb$tick(0)
+            for (i in seq_len(length(data))) {
+               chunk_bytes <- as.numeric(object.size(data[[i]]))
+               dbxUpsert(conn_to, self$table, data[[i]], id_col)
+               pb$tick(chunk_bytes)
+            }
+            cat("\n")
+         } else {
+            dbxUpsert(db_conn, self$table, data, id_col)
+         }
+
          dbDisconnect(conn_to)
       }
    ),
