@@ -148,7 +148,7 @@ QB <- R6Class(
       },
 
       limit           = function(value, offset = NULL) {
-         offset      <- ifelse(!is.null(offset), stri_c("OFFSET", offset), "")
+         offset      <- ifelse(!is.null(offset), stri_c("OFFSET ", offset), "")
          self$limits <- stri_c(sep = " ", "LIMIT", value, offset)
 
          invisible(self)
