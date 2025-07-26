@@ -274,7 +274,6 @@ QB <- R6Class(
          join_on   <- ""
          col_left  <- private$quoteIdentifier(col_left)
          col_right <- private$quoteIdentifier(col_right)
-         col_right <- private$quoteIdentifier(col_right)
 
          if (private$getAlias(col_left) == private$getAlias(col_right) & operator == "=") {
             join_on <- stri_c("USING (", private$getAlias(col_left), ")")
@@ -317,7 +316,7 @@ QB <- R6Class(
          join  <- str_flatten(collapse = "\n ", self$joins)
 
          query$results <- c(select, private$main, join, where, self$limits)
-         query$nrow    <- c("SELECT COUNT(*) AS nrow FROM (", query$results, ") as table")
+         query$nrow    <- c("SELECT COUNT(*) AS nrow FROM (", query$results, ") as `dataset`")
          query         <- lapply(query, str_flatten, collapse = " ", na.rm = TRUE)
          query         <- lapply(query, stri_c, ";")
 
