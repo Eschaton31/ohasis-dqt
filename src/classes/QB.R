@@ -274,6 +274,7 @@ QB <- R6Class(
          join_on   <- ""
          col_left  <- private$quoteIdentifier(col_left)
          col_right <- private$quoteIdentifier(col_right)
+         col_right <- private$quoteIdentifier(col_right)
 
          if (private$getAlias(col_left) == private$getAlias(col_right) & operator == "=") {
             join_on <- stri_c("USING (", private$getAlias(col_left), ")")
