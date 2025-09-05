@@ -608,16 +608,16 @@ batch_px_ids <- function(data, px_id, faci_id, row_ids) {
    data %<>%
       select(-matches(pid_col)) %>%
       mutate(
-         SEED_FACI = {{faci_id}}
+         seed_faci = {{faci_id}}
       )
 
 
    gen_pid <- function(data) {
-      data %<>% mutate(OHASIS_ID = NA_character_)
-      letters <- stri_c(collapse = "", strrep(LETTERS[1:26], 5))
+      data %<>% mutate(ohasis_id = NA_character_)
+      letters <- stri_c(collapse = "", strrep(letters[1:26], 5))
       numbers <- strrep("0123456789", 5)
 
-      pb <- progress_bar$new(format = ":current of :total rows | [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = nrow(data), width = 100, clear = FALSE)
+      pb <- progress_bar$new(format = ":current of :total rows | [:bar] (:percent) | eta: :eta | Elapsed: :elapsed", total = nrow(data), width = 100, clear = FALSE)
       pb$tick(0)
       for (i in seq_len(nrow(data))) {
          letters <- stri_rand_shuffle(letters)
@@ -626,30 +626,30 @@ batch_px_ids <- function(data, px_id, faci_id, row_ids) {
          number  <- str_left(numbers, 3)
 
          date <- Sys.time()
-         if ("RECORD_DATE" %in% names(data)) {
-            date <- as.POSIXct(data[i,]$RECORD_DATE)
+         if ("record_date" %in% names(data)) {
+            date <- as.POSIXct(data[i,]$record_date)
          }
 
          ohasis_id <- stri_c(letter, number)
          ohasis_id <- stri_rand_shuffle(ohasis_id)
-         ohasis_id <- stri_c(format(date, "%Y%m%d"), data[i,]$SEED_FACI, ohasis_id)
+         ohasis_id <- stri_c(format(date, "%Y%m%d"), data[i,]$seed_faci, ohasis_id)
 
-         data[i,]$OHASIS_ID <- ohasis_id
+         data[i,]$ohasis_id <- ohasis_id
          pb$tick(1)
       }
 
       # data %<>%
       #    mutate(
-      #       letter    = stri_c(collapse = "", strrep(LETTERS[1:26], 5)),
+      #       letter    = stri_c(collapse = "", strrep(letters[1:26], 5)),
       #       letter    = stri_rand_shuffle(letter),
       #       letter    = str_left(letter, 1),
       #       number    = strrep("0123456789", 5),
       #       number    = stri_rand_shuffle(number),
       #       number    = str_left(number, 3),
       #
-      #       OHASIS_ID = stri_c(letter, number),
-      #       OHASIS_ID = stri_rand_shuffle(OHASIS_ID),
-      #       OHASIS_ID = stri_c(format(Sys.time(), "%Y%m%d"), SEED_FACI, OHASIS_ID)
+      #       ohasis_id = stri_c(letter, number),
+      #       ohasis_id = stri_rand_shuffle(ohasis_id),
+      #       ohasis_id = stri_c(format(Sys.time(), "%Y%m%d"), seed_faci, ohasis_id)
       #    ) %>%
       #    select(-number, -letter)
 
@@ -657,16 +657,16 @@ batch_px_ids <- function(data, px_id, faci_id, row_ids) {
    }
 
    get_issues <- function(data, conn) {
-      dupes   <- get_dupes(data, OHASIS_ID)
+      dupes   <- get_dupes(data, ohasis_id)
       already <- data %>%
-         inner_join(dbxSelect(conn, "SELECT DISTINCT PATIENT_ID AS OHASIS_ID FROM ohasis_interim.px_record WHERE PATIENT_ID IN (?)", list(data$OHASIS_ID)), join_by(OHASIS_ID))
+         inner_join(dbxSelect(conn, "select patient_id as ohasis_id from ohasis.patients where patient_id in (?)", list(data$ohasis_id)), join_by(ohasis_id))
 
       issues <- dupes %>%
          select(-dupe_count) %>%
          bind_rows(already) %>%
          distinct_all()
 
-      log_info("Duplicate PATIENT_IDs = {green(nrow(issues))}.")
+      log_info("Duplicate Patient IDs = {green(nrow(issues))}.")
 
       return(issues)
    }
@@ -676,22 +676,22 @@ batch_px_ids <- function(data, px_id, faci_id, row_ids) {
    issues  <- get_issues(data, db_conn)
    while (nrow(issues) > 0) {
       new <- gen_pid(issues) %>%
-         select(all_of(row_ids), NEW_OH = OHASIS_ID)
+         select(all_of(row_ids), new_oh = ohasis_id)
       data %<>%
          left_join(new, by = row_ids, na_matches = "never") %>%
          mutate(
-            OHASIS_ID = coalesce(NEW_OH, OHASIS_ID)
+            ohasis_id = coalesce(new_oh, ohasis_id)
          ) %>%
-         select(-NEW_OH)
+         select(-new_oh)
 
       issues <- get_issues(data, db_conn)
    }
    dbDisconnect(db_conn)
 
    data %<>%
-      select(-SEED_FACI) %>%
+      select(-seed_faci) %>%
       rename(
-         {{px_id}} := OHASIS_ID
+         {{px_id}} := ohasis_id
       )
 
    return(data)
@@ -703,15 +703,15 @@ batch_rec_ids <- function(data, rec_id, user_id, row_ids) {
    data %<>%
       select(-matches(rid_col)) %>%
       mutate(
-         CREDS_ID = {{user_id}}
+         creds_id = {{user_id}}
       )
 
    gen_rid <- function(data) {
-      data %<>% mutate(RECORD_ID = NA_character_)
-      letters <- stri_c(collapse = "", strrep(LETTERS[1:26], 5))
+      data %<>% mutate(record_id = NA_character_)
+      letters <- stri_c(collapse = "", strrep(letters[1:26], 5))
       numbers <- strrep("0123456789", 5)
 
-      pb <- progress_bar$new(format = ":current of :total rows | [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = nrow(data), width = 100, clear = FALSE)
+      pb <- progress_bar$new(format = ":current of :total rows | [:bar] (:percent) | eta: :eta | Elapsed: :elapsed", total = nrow(data), width = 100, clear = FALSE)
       for (i in seq_len(nrow(data))) {
          letters <- stri_rand_shuffle(letters)
          letter  <- str_left(letters, 2)
@@ -720,9 +720,9 @@ batch_rec_ids <- function(data, rec_id, user_id, row_ids) {
 
          rec_id <- stri_c(letter, number)
          rec_id <- stri_rand_shuffle(rec_id)
-         rec_id <- stri_c(format(Sys.time(), "%Y%m%d%H"), rec_id, data[i,]$CREDS_ID)
+         rec_id <- stri_c(format(Sys.time(), "%Y%m%d%H"), rec_id, data[i,]$creds_id)
 
-         data[i,]$RECORD_ID <- rec_id
+         data[i,]$record_id <- rec_id
 
          pb$tick(1)
       }
@@ -730,9 +730,9 @@ batch_rec_ids <- function(data, rec_id, user_id, row_ids) {
    }
 
    get_issues <- function(data, conn) {
-      dupes   <- get_dupes(data, RECORD_ID)
+      dupes   <- get_dupes(data, record_id)
       already <- data %>%
-         inner_join(dbxSelect(conn, "SELECT REC_ID AS RECORD_ID FROM ohasis_interim.px_record WHERE REC_ID IN (?)", list(data$RECORD_ID)), join_by(RECORD_ID))
+         inner_join(dbxSelect(conn, "select rec_id as record_id from ohasis.px_record where rec_id in (?)", list(data$record_id)), join_by(record_id))
 
       issues <- dupes %>%
          select(-dupe_count) %>%
@@ -749,22 +749,22 @@ batch_rec_ids <- function(data, rec_id, user_id, row_ids) {
    issues  <- get_issues(data, db_conn)
    while (nrow(issues) > 0) {
       new <- gen_rid(issues) %>%
-         select(all_of(row_ids), NEW_REC = RECORD_ID)
+         select(all_of(row_ids), new_rec = record_id)
       data %<>%
          left_join(new, by = row_ids, na_matches = "never") %>%
          mutate(
-            RECORD_ID = coalesce(NEW_REC, RECORD_ID)
+            record_id = coalesce(new_rec, record_id)
          ) %>%
-         select(-NEW_REC)
+         select(-new_rec)
 
       issues <- get_issues(data, db_conn)
    }
    dbDisconnect(db_conn)
 
    data %<>%
-      select(-CREDS_ID) %>%
+      select(-creds_id) %>%
       rename(
-         {{rec_id}} := RECORD_ID
+         {{rec_id}} := record_id
       )
 
    return(data)
