@@ -382,7 +382,7 @@ connect <- function(group) {
       return(DBI::dbConnect(RMariaDB::MariaDB(), group = group, default.file = "my.cnf"))
    }
 
-   return(DBI::dbConnect(RClickhouse::clickhouse(), config_paths = str_c(group, ".yaml")))
+   return(suppress_warnings(suppress_warnings(DBI::dbConnect(RClickhouse::clickhouse(), config_paths = str_c(group, ".yaml")), 'We have found'), 'incomplete'))
 }
 
 categorical_values <- function(data, variables) {
