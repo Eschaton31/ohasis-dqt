@@ -1,4 +1,4 @@
-##  DBMS Class -----------------------------------------------------------------
+##  dbms Class -----------------------------------------------------------------
 
 DB <- R6Class(
    "DB",
@@ -36,7 +36,7 @@ DB <- R6Class(
 
          # check database consistency
          log_info("Checking database for inconsistencies.")
-         self$check_consistency()
+         # self$check_consistency()
 
          # update data lake
          self$update_lake(update)
@@ -46,55 +46,53 @@ DB <- R6Class(
 
          # subset of ref_faci
          self$ref_faci_code <- self$ref_faci %>%
-            filter(!is.na(FACI_CODE)) %>%
+            filter(!is.na(faci_code)) %>%
             mutate(
                branch_priority = case_when(
-                  FACI_ID == "130001" ~ 1,
-                  FACI_ID == "130605" ~ 2,
-                  FACI_ID == "130748" ~ 3,
+                  faci_id == "130001" ~ 1,
+                  faci_id == "130605" ~ 2,
+                  faci_id == "130748" ~ 3,
                   TRUE ~ 9999
                )
             ) %>%
             arrange(branch_priority) %>%
-            distinct(FACI_CODE, .keep_all = TRUE) %>%
+            distinct(faci_code, .keep_all = TRUE) %>%
             rename(
-               SUB_FACI_CODE = FACI_CODE
+               sub_faci_code = faci_code
             ) %>%
             mutate(
-               FACI_CODE     = case_when(
-                  stri_detect_regex(SUB_FACI_CODE, "^HASH") ~ "HASH",
-                  stri_detect_regex(SUB_FACI_CODE, "^SAIL") ~ "SAIL",
-                  stri_detect_regex(SUB_FACI_CODE, "^TLY") ~ "TLY",
-                  TRUE ~ SUB_FACI_CODE
+               faci_code     = case_when(
+                  stri_detect_regex(sub_faci_code, "^hash") ~ "hash",
+                  stri_detect_regex(sub_faci_code, "^sail") ~ "sail",
+                  stri_detect_regex(sub_faci_code, "^tly") ~ "tly",
+                  TRUE ~ sub_faci_code
                ),
-               SUB_FACI_CODE = if_else(
-                  condition = nchar(SUB_FACI_CODE) == 3,
+               sub_faci_code = if_else(
+                  condition = nchar(sub_faci_code) == 3,
                   true      = NA_character_,
-                  false     = SUB_FACI_CODE
+                  false     = sub_faci_code
                ),
-               SUB_FACI_CODE = case_when(
-                  FACI_CODE == "HASH" & is.na(SUB_FACI_CODE) ~ "HASH-QC",
-                  FACI_CODE == "TLY" & is.na(SUB_FACI_CODE) ~ "TLY-ANGLO",
-                  FACI_CODE == "SHP" & is.na(SUB_FACI_CODE) ~ "SHIP-MAKATI",
-                  TRUE ~ SUB_FACI_CODE
+               sub_faci_code = case_when(
+                  faci_code == "hash" & is.na(sub_faci_code) ~ "hash-qc",
+                  faci_code == "tly" & is.na(sub_faci_code) ~ "tly-anglo",
+                  faci_code == "shp" & is.na(sub_faci_code) ~ "ship-makati",
+                  TRUE ~ sub_faci_code
                ),
             ) %>%
-            relocate(FACI_CODE, SUB_FACI_CODE, .before = 1)
+            relocate(faci_code, sub_faci_code, .before = 1)
 
          self$slack_id <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
 
-         log_success("OHASIS initialized!")
+         log_success("ohasis initialized!")
       },
 
       download_refs     = function() {
          log_info("Downloading references.")
-         db_conn          <- connect("ohasis-live")
          lw_conn          <- connect("ohasis-lw")
-         self$ref_country <- QB$new(db_conn)$from("ohasis_interim.addr_country")$get()
+         self$ref_country <- QB$new(lw_conn)$from("ohasis_lake.ref_country")$get()
          self$ref_addr    <- QB$new(lw_conn)$from("ohasis_lake.ref_addr")$get()
          self$ref_faci    <- QB$new(lw_conn)$from("ohasis_lake.ref_faci")$get()
          self$ref_staff   <- QB$new(lw_conn)$from("ohasis_lake.ref_staff")$get()
-         dbDisconnect(db_conn)
          dbDisconnect(lw_conn)
       },
 
@@ -126,16 +124,16 @@ DB <- R6Class(
                   RMariaDB::MariaDB(),
                   user     = Sys.getenv("DB_USER"),
                   password = Sys.getenv("DB_PASS"),
-                  host     = Sys.getenv("DB_HOST"),
+                  host     = Sys.getenv("db_host"),
                   port     = Sys.getenv("DB_PORT"),
                   timeout  = -1
                ),
                lw = dbConnect(
-                  RMariaDB::MariaDB(),
+                  RClickhouse::clickhouse(),
                   user     = Sys.getenv("LW_USER"),
                   password = Sys.getenv("LW_PASS"),
                   host     = Sys.getenv("LW_HOST"),
-                  port     = Sys.getenv("LW_PORT"),
+                  port     = as.numeric(Sys.getenv("LW_PORT")),
                   timeout  = -1
                )
             )
@@ -183,7 +181,7 @@ DB <- R6Class(
          table_sql   <- DBI::SQL(paste0('`', db_name, '`.`', table_name, '`'))
 
          # check if table exists, if not create
-         if (!dbExistsTable(db_conn, table_space)) {
+         if (!dbExistsTable(db_conn, table_name)) {
             sql <- self$create(db_name, table_name, data, id_col)
             dbExecute(db_conn, sql)
          }
@@ -213,25 +211,27 @@ DB <- R6Class(
             data_bytes <- as.numeric(object.size(data))
 
             # get progress
-            pb <- progress_bar$new(format = ":bytes uploaded | :rate [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = data_bytes, width = 100, clear = FALSE)
+            pb <- progress_bar$new(format = ":bytes uploaded | :rate [:bar] (:percent) | eta: :eta | Elapsed: :elapsed", total = data_bytes, width = 100, clear = FALSE)
             pb$tick(0)
             for (i in seq_len(length(data))) {
                chunk_bytes <- as.numeric(object.size(data[[i]]))
-               dbxUpsert(db_conn, table_space, data[[i]], id_col)
+               dbxDelete(db_conn, table_space, data[[i]] %>% select(any_of(id_col)), batch_size = 1000)
+               dbxInsert(db_conn, table_space, data[[i]])
                pb$tick(chunk_bytes)
             }
             cat("\n")
          } else {
-            dbxUpsert(db_conn, table_space, data, id_col)
+            dbxDelete(db_conn, table_space, data %>% select(any_of(id_col)), batch_size = 1000)
+            dbxInsert(db_conn, table_space, data)
          }
       },
 
       # create table
       create            = function(db_name = NULL, table_name = NULL, data = NULL, id_col = NULL) {
          # attached columns
-         user_cols <- c("CREATED_BY", "UPDATED_BY", "DELETED_BY", "PROVIDER_ID", "SIGNATORY_1", "SIGNATORY_2", "SIGNATORY_2", "USER_ID", "STAFF_ID")
-         text_faci <- c("PREV_TEST_FACI", "DELIVER_FACI", "FACI_LABEL", "FACI_NAME", "FACI_NAME_CLEAN", "FACI_NAME_REG", "FACI_NAME_PROV", "FACI_NAME_MUNC",
-                        "FACI_ADDR", "FACI_NHSSS_REG", "FACI_NHSSS_PROV", "FACI_NHSSS_MUNC", "FACI_TYPE")
+         user_cols <- c("created_by", "updated_by", "deleted_by", "provider_id", "signatory_1", "signatory_2", "signatory_2", "user_id", "staff_id")
+         text_faci <- c("prev_test_faci", "deliver_faci", "faci_label", "faci_name", "faci_name_clean", "faci_name_reg", "faci_name_prov", "faci_name_munc",
+                        "faci_addr", "faci_nhsss_reg", "faci_nhsss_prov", "faci_nhsss_munc", "faci_type")
 
          # construct create based on data types
          df_str <- data %>%
@@ -242,69 +242,69 @@ DB <- R6Class(
             ungroup %>%
             mutate(
                Type = case_when(
-                  Var1 %in% text_faci ~ "TEXT NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
-                  Var1 %in% user_cols & !(Var1 %in% id_col) ~ "CHAR(10) NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
-                  Var1 %in% user_cols & Var1 %in% id_col ~ "CHAR(10) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "FACI_CODE" ~ "VARCHAR(100) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "LONG" ~ "DECIMAL(10,7) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "LAT" ~ "DECIMAL(9,7) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "REC_ID" ~ "CHAR(25) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "SOURCE_REC" ~ "CHAR(25) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "DESTINATION_REC" ~ "CHAR(25) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "REC_ID_GRP" ~ "VARCHAR(100) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "CENTRAL_ID" ~ "CHAR(18) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "PATIENT_ID" ~ "CHAR(18) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "posterior" ~ "DECIMAL(16,15) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "score" ~ "DECIMAL(16,15) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "LV" ~ "DECIMAL(16,15) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "JW" ~ "DECIMAL(16,15) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "QGRAM" ~ "DECIMAL(16,15) NULL COLLATE 'utf8_general_ci'",
-                  Var1 == "AVG_DIST" ~ "DECIMAL(16,15) NULL COLLATE 'utf8_general_ci'",
-                  stri_detect_fixed(Var1, "PSGC") ~ "CHAR(9) NULL COLLATE 'utf8_general_ci'",
-                  stri_detect_fixed(Var1, "ADDR") ~ "TEXT NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
-                  stri_detect_fixed(Var1, "SUB_FACI") ~ "CHAR(10) NULL COLLATE 'utf8_general_ci'",
-                  stri_detect_fixed(Var1, "SUB_SOURCE") ~ "CHAR(10) NULL COLLATE 'utf8_general_ci'",
-                  stri_detect_fixed(Var1, "x_age_c") ~ "VARCHAR(9) NULL COLLATE 'utf8_general_ci'",
-                  stri_detect_fixed(Var1, "FACI") ~ "CHAR(6) NULL COLLATE 'utf8_general_ci'",
-                  stri_detect_fixed(Var1, "SOURCE") ~ "CHAR(6) NULL COLLATE 'utf8_general_ci'",
-                  stri_detect_fixed(Var1, "remarks") ~ "TEXT NULL COLLATE 'utf8_general_ci'",
-                  stri_detect_fixed(Var1, "REMARKS") ~ "TEXT NULL COLLATE 'utf8_general_ci'",
-                  Mode == "numeric" & Class == "Date" ~ "DATE NULL DEFAULT NULL",
-                  Mode == "numeric" & Class == "POSIXct" ~ "DATETIME NULL DEFAULT NULL",
-                  Mode == "numeric" ~ "INT(11) NULL DEFAULT NULL",
-                  Mode == "character" ~ "VARCHAR(150) NULL DEFAULT NULL COLLATE 'utf8_general_ci'",
-                  Mode == "logical" ~ "BOOLEAN NULL DEFAULT NULL",
+                  Var1 %in% text_faci ~ "text NULL default NULL collate 'utf8_general_ci'",
+                  Var1 %in% user_cols & !(Var1 %in% id_col) ~ "char(10) NULL default NULL collate 'utf8_general_ci'",
+                  Var1 %in% user_cols & Var1 %in% id_col ~ "char(10) NULL collate 'utf8_general_ci'",
+                  Var1 == "faci_code" ~ "varchar(100) NULL collate 'utf8_general_ci'",
+                  Var1 == "long" ~ "decimal(10,7) NULL collate 'utf8_general_ci'",
+                  Var1 == "lat" ~ "decimal(9,7) NULL collate 'utf8_general_ci'",
+                  Var1 == "rec_id" ~ "char(25) NULL collate 'utf8_general_ci'",
+                  Var1 == "source_rec" ~ "char(25) NULL collate 'utf8_general_ci'",
+                  Var1 == "destination_rec" ~ "char(25) NULL collate 'utf8_general_ci'",
+                  Var1 == "rec_id_grp" ~ "varchar(100) NULL collate 'utf8_general_ci'",
+                  Var1 == "central_id" ~ "char(18) NULL collate 'utf8_general_ci'",
+                  Var1 == "patient_id" ~ "char(18) NULL collate 'utf8_general_ci'",
+                  Var1 == "posterior" ~ "decimal(16,15) NULL collate 'utf8_general_ci'",
+                  Var1 == "score" ~ "decimal(16,15) NULL collate 'utf8_general_ci'",
+                  Var1 == "lv" ~ "decimal(16,15) NULL collate 'utf8_general_ci'",
+                  Var1 == "jw" ~ "decimal(16,15) NULL collate 'utf8_general_ci'",
+                  Var1 == "qgram" ~ "decimal(16,15) NULL collate 'utf8_general_ci'",
+                  Var1 == "avg_dist" ~ "decimal(16,15) NULL collate 'utf8_general_ci'",
+                  stri_detect_fixed(Var1, "psgc") ~ "char(9) NULL collate 'utf8_general_ci'",
+                  stri_detect_fixed(Var1, "addr") ~ "text NULL default NULL collate 'utf8_general_ci'",
+                  stri_detect_fixed(Var1, "sub_faci") ~ "char(10) NULL collate 'utf8_general_ci'",
+                  stri_detect_fixed(Var1, "sub_source") ~ "char(10) NULL collate 'utf8_general_ci'",
+                  stri_detect_fixed(Var1, "x_age_c") ~ "varchar(9) NULL collate 'utf8_general_ci'",
+                  stri_detect_fixed(Var1, "faci") ~ "char(6) NULL collate 'utf8_general_ci'",
+                  stri_detect_fixed(Var1, "source") ~ "char(6) NULL collate 'utf8_general_ci'",
+                  stri_detect_fixed(Var1, "remarks") ~ "text NULL collate 'utf8_general_ci'",
+                  stri_detect_fixed(Var1, "remarks") ~ "text NULL collate 'utf8_general_ci'",
+                  Mode == "numeric" & Class == "Date" ~ "date NULL default NULL",
+                  Mode == "numeric" & Class == "POSIXct" ~ "datetime NULL default NULL",
+                  Mode == "numeric" ~ "int(11) NULL default NULL",
+                  Mode == "character" ~ "varchar(150) NULL default NULL collate 'utf8_general_ci'",
+                  Mode == "logical" ~ "boolean NULL default NULL",
                   TRUE ~ NA_character_
                ),
-               SQL  = paste0("`", Var1, "` ", Type),
+               sql  = paste0("`", Var1, "` ", Type),
             )
 
          # add indices if not in pk
          index <- ""
-         if (!("CENTRAL_ID" %in% id_col) & "CENTRAL_ID" %in% names(data))
-            index <- stri_c(index, ", INDEX `CENTRAL_ID` (`CENTRAL_ID`)")
-         if (!("PATIENT_ID" %in% id_col) & "PATIENT_ID" %in% names(data))
-            index <- stri_c(index, ", INDEX `PATIENT_ID` (`PATIENT_ID`)")
-         if ("SOURCE_REC" %in% names(data))
-            index <- stri_c(index, ", INDEX `SOURCE_REC` (`SOURCE_REC`)")
-         if ("DESTINATION_REC" %in% names(data))
-            index <- stri_c(index, ", INDEX `DESTINATION_REC` (`DESTINATION_REC`)")
+         if (!("central_id" %in% id_col) & "central_id" %in% names(data))
+            index <- stri_c(index, ", index `central_id` (`central_id`)")
+         if (!("patient_id" %in% id_col) & "patient_id" %in% names(data))
+            index <- stri_c(index, ", index `patient_id` (`patient_id`)")
+         if ("source_rec" %in% names(data))
+            index <- stri_c(index, ", index `source_rec` (`source_rec`)")
+         if ("destination_rec" %in% names(data))
+            index <- stri_c(index, ", index `destination_rec` (`destination_rec`)")
          if ("idnum" %in% names(data))
-            index <- stri_c(index, ", INDEX `idnum` (`idnum`)")
+            index <- stri_c(index, ", index `idnum` (`idnum`)")
          if ("art_id" %in% names(data))
-            index <- stri_c(index, ", INDEX `art_id` (`art_id`)")
+            index <- stri_c(index, ", index `art_id` (`art_id`)")
          if ("mort_id" %in% names(data))
-            index <- stri_c(index, ", INDEX `mort_id` (`mort_id`)")
+            index <- stri_c(index, ", index `mort_id` (`mort_id`)")
          if ("prep_id" %in% names(data))
-            index <- stri_c(index, ", INDEX `prep_id` (`prep_id`)")
+            index <- stri_c(index, ", index `prep_id` (`prep_id`)")
 
          # implode into query
          pk_sql     <- paste(collapse = "`,`", id_col)
-         create_sql <- paste(collapse = ",", df_str$SQL)
-         create_sql <- glue("CREATE TABLE `{db_name}`.`{table_name}` (\n",
+         create_sql <- paste(collapse = ",", df_str$sql)
+         create_sql <- glue("create table `{db_name}`.`{table_name}` (\n",
                             "{create_sql},\n",
-                            "\nPRIMARY KEY(`{pk_sql}`) {index}\n)\n",
-                            "COLLATE='utf8_general_ci'\nENGINE=InnoDB;")
+                            "\nPRIMARY key(`{pk_sql}`) {index}\n)\n",
+                            "collate='utf8_general_ci'\nENGINE=InnoDB;")
          return(create_sql)
       },
 
@@ -339,42 +339,42 @@ DB <- R6Class(
             log_info("Opening connections.")
             db_conn      <- connect("ohasis-live")
             lw_conn      <- connect("ohasis-lw")
-            table_exists <- dbExistsTable(lw_conn, table_space)
+            table_exists <- dbExistsTable(lw_conn, table_name)
 
             # data for deletion (warehouse)
             for_delete <- data.frame()
 
             # read sql first, then parse for necessary snapshots
-            query_snapshot <- paste0("SELECT MAX(SNAPSHOT) AS snapshot FROM ", db_name, ".", table_name)
+            query_snapshot <- paste0("select max(snapshot) as snapshot from ", db_name, ".", table_name)
             if (length(factory_sql) != 0) {
                sql_query  <- read_file(factory_sql)
-               sql_tables <- str_extract(sql_query, "FROM[^:]*(?=;)")
-               sql_delete <- str_extract(sql_query, "(?<=-- DELETE: ).*?(?=;)")
+               sql_tables <- str_extract(sql_query, "from[^:]*(?=;)")
+               sql_delete <- str_extract(sql_query, "(?<=-- delete: ).*?(?=;)")
                if (is.na(sql_delete)) {
-                  sql_delete <- str_extract(sql_query, "(?<=-- DELETED: ).*?(?=;)")
+                  sql_delete <- str_extract(sql_query, "(?<=-- deleted: ).*?(?=;)")
                }
 
-               sql_id <- str_extract(sql_query, "(?<=-- ID_COLS: ).*?(?=;)")
+               sql_id <- str_extract(sql_query, "(?<=-- id_cols: ).*?(?=;)")
 
                id_col <- str_split(sql_id, ", ")[[1]]
 
                # query_table    <- str_extract(sql_query, "^[^:]*(?=;)")
                query_table    <- str_extract(sql_query, "^[\\s\\S][^;]+[^;]")
-               query_nrow     <- stri_c("SELECT COUNT(*) AS nrow ", sql_tables)
-               query_delete   <- stri_c("DELETE FROM ", db_name, ".", table_name, " WHERE ", sql_delete)
+               query_nrow     <- stri_c("select count(*) as nrow ", sql_tables)
+               query_delete   <- stri_c("delete from ", db_name, ".", table_name, " where ", sql_delete)
                # query_affected <- ifelse(
-               #    str_detect(sql_id, "REC_ID") &
+               #    str_detect(sql_id, "rec_id") &
                #       table_name != "px_pii" &
                #       table_exists,
-               #    stri_c("SELECT ", stri_c(collapse = ", ", stri_c(table_name, ".", id_col)), " FROM ohasis_lake.px_pii JOIN ", db_name, ".", table_name, " ON px_pii.REC_ID = ", table_name, ".REC_ID WHERE px_pii.SNAPSHOT BETWEEN ? AND ?"),
-               #    stri_c("SELECT ", sql_id, " FROM ", db_name, ".", table_name, " WHERE SNAPSHOT BETWEEN ? AND ?")
+               #    stri_c("select ", stri_c(collapse = ", ", stri_c(table_name, ".", id_col)), " from ohasis_lake.px_pii join ", db_name, ".", table_name, " on px_pii.rec_id = ", table_name, ".rec_id where px_pii.snapshot between ? and ?"),
+               #    stri_c("select ", sql_id, " from ", db_name, ".", table_name, " where snapshot between ? and ?")
                # )
                query_affected <- ifelse(
-                  str_detect(sql_id, "REC_ID") &
+                  str_detect(sql_id, "rec_id") &
                      table_name != "px_pii" &
                      table_exists,
-                  stri_c("SELECT ", stri_c(collapse = ", ", stri_c(table_name, ".", id_col)), " FROM ohasis_lake.px_pii JOIN ", db_name, ".", table_name, " ON px_pii.REC_ID = ", table_name, ".REC_ID WHERE ((px_pii.CREATED_AT BETWEEN ? AND ?) OR (px_pii.UPDATED_AT BETWEEN ? AND ?) OR (px_pii.DELETED_AT BETWEEN ? AND ?))"),
-                  stri_c("SELECT ", sql_id, " FROM ", db_name, ".", table_name, " WHERE ((CREATED_AT BETWEEN ? AND ?) OR (UPDATED_AT BETWEEN ? AND ?) OR (DELETED_AT BETWEEN ? AND ?))")
+                  stri_c("select ", stri_c(collapse = ", ", stri_c(table_name, ".", id_col)), " from ohasis_lake.px_pii join ", db_name, ".", table_name, " on px_pii.rec_id = ", table_name, ".rec_id where ((px_pii.created_at between ? and ?) or (px_pii.updated_at between ? and ?) or (px_pii.deleted_at between ? and ?))"),
+                  stri_c("select ", sql_id, " from ", db_name, ".", table_name, " where ((created_at between ? and ?) or (updated_at between ? and ?) or (deleted_at between ? and ?))")
                )
             }
 
@@ -441,7 +441,7 @@ DB <- R6Class(
                      n_chunks <- ceiling(n_rows / chunk_size)
 
                      # get progress
-                     pb_name <- paste0(table_name, ": :current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed")
+                     pb_name <- paste0(table_name, ": :current of :total chunks [:bar] (:percent) | eta: :eta | Elapsed: :elapsed")
 
                      pb <- progress_bar$new(format = pb_name, total = n_chunks, width = 100, clear = FALSE)
                      pb$tick(0)
@@ -540,21 +540,21 @@ DB <- R6Class(
             snapshot$old <- (snapshot$old %>% collect())$snapshot
             log_info("Latest snapshot = {red(format(snapshot$old, \"%a %b %d, %Y %X\"))}.")
          } else {
-            snapshot$old <- as.POSIXct("1970-01-01 00:00:00", tz = "UTC")
+            snapshot$old <- as.POSIXct("1970-01-01 00:00:00", tz = "utc")
             log_info("No version found in data lake.")
          }
 
          # check if already exists
-         if (dbExistsTable(db_conn, table_space) &&
-            "SNAPSHOT" %in% dbListFields(db_conn, table_space)) {
-            sql           <- dbSendQuery(db_conn, paste0("SELECT MAX(SNAPSHOT) AS SNAPSHOT FROM `", db_name, "`.`", table_name, "`;"))
-            snapshot$data <- dbFetch(sql)$SNAPSHOT %>% as.POSIXct(tz = "UTC")
+         if (dbExistsTable(db_conn, table_name) &&
+            "snapshot" %in% dbListFields(db_conn, table_name)) {
+            sql           <- dbSendQuery(db_conn, paste0("select max(snapshot) as snapshot from `", db_name, "`.`", table_name, "`;"))
+            snapshot$data <- dbFetch(sql)$snapshot %>% as.POSIXct(tz = "utc")
             dbClearResult(sql)
          } else {
-            snapshot$data <- as.POSIXct("1970-01-01 00:00:00", tz = "UTC")
+            snapshot$data <- as.POSIXct("1970-01-01 00:00:00", tz = "utc")
          }
 
-         snapshot$new <- as.POSIXct(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), tz = "UTC")
+         snapshot$new <- as.POSIXct(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), tz = "utc")
 
          dbDisconnect(db_conn)
          return(snapshot)
@@ -592,7 +592,7 @@ DB <- R6Class(
                log_error("Duplicated Record IDs found.")
             }
             if ("flipped_cid" %in% names(checklist))
-               log_error("Flipped Central IDs found in OHASIS registry.")
+               log_error("Flipped Central IDs found in ohasis registry.")
          } else {
             log_success("DB is clean.")
          }
@@ -609,17 +609,17 @@ DB <- R6Class(
 
          type <- tolower(type)
          if (type %in% c("nhsss", "code")) {
-            get_reg  <- as.symbol("NHSSS_REG")
-            get_prov <- as.symbol("NHSSS_PROV")
-            get_munc <- as.symbol("NHSSS_MUNC")
+            get_reg  <- as.symbol("nhsss_reg")
+            get_prov <- as.symbol("nhsss_prov")
+            get_munc <- as.symbol("nhsss_munc")
          } else if (type == "label") {
-            get_reg  <- as.symbol("LABEL_REG")
-            get_prov <- as.symbol("LABEL_PROV")
-            get_munc <- as.symbol("LABEL_MUNC")
+            get_reg  <- as.symbol("label_reg")
+            get_prov <- as.symbol("label_prov")
+            get_munc <- as.symbol("label_munc")
          } else if (type == "name") {
-            get_reg  <- as.symbol("NAME_REG")
-            get_prov <- as.symbol("NAME_PROV")
-            get_munc <- as.symbol("NAME_MUNC")
+            get_reg  <- as.symbol("name_reg")
+            get_prov <- as.symbol("name_prov")
+            get_munc <- as.symbol("name_munc")
          }
 
          coded_reg  <- addr_set[1] %>% as.symbol()
@@ -635,9 +635,9 @@ DB <- R6Class(
             select(
                -any_of(
                   c(
-                     "PSGC_REG",
-                     "PSGC_PROV",
-                     "PSGC_MUNC"
+                     "psgc_reg",
+                     "psgc_prov",
+                     "psgc_munc"
                   )
                )
             ) %>%
@@ -647,29 +647,29 @@ DB <- R6Class(
             ) %>%
             rename_all(
                ~case_when(
-                  . == coded_reg ~ "PSGC_REG",
-                  . == coded_prov ~ "PSGC_PROV",
-                  . == coded_munc ~ "PSGC_MUNC",
+                  . == coded_reg ~ "psgc_reg",
+                  . == coded_prov ~ "psgc_prov",
+                  . == coded_munc ~ "psgc_munc",
                   TRUE ~ .
                )
             ) %>%
             left_join(
                y  = self$ref_addr %>%
                   select(
-                     PSGC_REG,
-                     PSGC_PROV,
-                     PSGC_MUNC,
+                     psgc_reg,
+                     psgc_prov,
+                     psgc_munc,
                      !!named_reg  := !!get_reg,
                      !!named_prov := !!get_prov,
                      !!named_munc := !!get_munc,
                   ),
-               by = c("PSGC_REG", "PSGC_PROV", "PSGC_MUNC")
+               by = c("psgc_reg", "psgc_prov", "psgc_munc")
             ) %>%
-            relocate(!!named_reg, !!named_prov, !!named_munc, .before = PSGC_REG) %>%
+            relocate(!!named_reg, !!named_prov, !!named_munc, .before = psgc_reg) %>%
             select(
-               -PSGC_REG,
-               -PSGC_PROV,
-               -PSGC_MUNC
+               -psgc_reg,
+               -psgc_prov,
+               -psgc_munc
             )
       },
 
@@ -683,9 +683,9 @@ DB <- R6Class(
 
          get <- switch(
             return_type,
-            nhsss = "FACI_NAME_CLEAN",
-            code  = "FACI_CODE",
-            name  = "FACI_NAME"
+            nhsss = "faci_name_nhsss",
+            code  = "faci_code",
+            name  = "faci_name"
          )
 
          # check if sub_faci_id col exists
@@ -695,7 +695,7 @@ DB <- R6Class(
          # check if addresses to  be extracted
          addr_cols <- NULL
          if (!is.null(addr_names)) {
-            addr_cols <- c("FACI_PSGC_REG", "FACI_PSGC_PROV", "FACI_PSGC_MUNC")
+            addr_cols <- c("addr_psgc_reg", "addr_psgc_prov", "addr_psgc_munc")
          }
 
          # convert to names
@@ -708,8 +708,8 @@ DB <- R6Class(
                {{faci_id}}     := coalesce({{faci_id}}, ""),
                {{sub_faci_id}} := case_when(
                   str_left({{sub_faci_id}}, 6) != {{faci_id}} ~ "",
-                  {{sub_faci_id}} == "130023_001" ~ "130023_001",
-                  str_left({{sub_faci_id}}, 6) %in% c("130001", "130605", "040200", "130797") ~ {{sub_faci_id}},
+                  # {{sub_faci_id}} == "130023_001" ~ "130023_001",
+                  # str_left({{sub_faci_id}}, 6) %in% c("130001", "130605", "040200", "130797") ~ {{sub_faci_id}},
                   TRUE ~ ""
                )
             ) %>%
@@ -717,8 +717,8 @@ DB <- R6Class(
             left_join(
                y  = self$ref_faci %>%
                   select(
-                     {{faci_id}}     := FACI_ID,
-                     {{sub_faci_id}} := SUB_FACI_ID,
+                     {{faci_id}}     := faci_id,
+                     {{sub_faci_id}} := sub_faci_id,
                      {{final_faci}}  := {{get}},
                      if (!is.null(addr_names)) {
                         any_of(addr_cols)
@@ -735,7 +735,7 @@ DB <- R6Class(
          if (!is.null(addr_names)) {
             names(addr_cols) <- addr_names
             linelist %<>%
-               self$get_addr(
+               get_addr(
                   addr_cols,
                   return_type
                ) %>%
@@ -755,8 +755,8 @@ DB <- R6Class(
             left_join(
                y  = self$ref_staff %>%
                   select(
-                     !!coded_user := STAFF_ID,
-                     !!named_user := STAFF_NAME
+                     !!coded_user := staff_id,
+                     !!named_user := staff_name
                   ),
                by = as.character(coded_user)
             ) %>%
@@ -785,10 +785,10 @@ DB <- R6Class(
          # references for old dataset
          old_tblspace  <- Id(schema = db_name, table = warehouse_table)
          old_tblschema <- dbplyr::in_schema(db_name, warehouse_table)
-         oh_id_schema  <- dbplyr::in_schema(db_name, "id_registry")
+         oh_id_schema  <- dbplyr::in_schema("ohasis_lake", "id_registry")
 
          # check if dataset is to be re-loaded
-         # TODO: add checking of latest version
+         # todo: add checking of latest version
          reload <- ifelse(
             !is.null(reload) && reload %in% c("1", "2"),
             reload,
@@ -802,9 +802,7 @@ DB <- R6Class(
          if (!is.null(id_registry))
             tbl_ids <- id_registry
          else
-            tbl_ids <- tbl(db_conn, oh_id_schema) %>%
-               select(CENTRAL_ID, PATIENT_ID) %>%
-               collect()
+            tbl_ids <- update_idreg()
 
          # if Yes, re-process registry
          if (reload == "1") {
@@ -821,32 +819,24 @@ DB <- R6Class(
                select(-any_of(remove_cols)) %>%
                rename_all(
                   ~case_when(
-                     . == dta_pid ~ "PATIENT_ID",
-                     TRUE ~ .
+                     . == dta_pid ~ "patient_id",
+                     TRUE ~ tolower(.)
                   )
                ) %>%
-               left_join(
-                  y  = tbl_ids,
-                  by = "PATIENT_ID"
-               ) %>%
-               mutate(
-                  CENTRAL_ID = if_else(
-                     condition = is.na(CENTRAL_ID),
-                     true      = PATIENT_ID,
-                     false     = CENTRAL_ID
-                  )
-               ) %>%
-               relocate(CENTRAL_ID, .before = 1)
+               get_cid(tbl_ids, patient_id) %>%
+               relocate(central_id, .before = 1)
 
             if (!is.null(corr) && nrow(corr) > 0) {
                log_info("Performing cleaning on the dataset.")
                # old_dataset <- .cleaning_list(old_dataset, as.data.frame(corr), toupper(names(id_col)), id_col)
-               old_dataset <- apply_corrections(old_dataset, corr %>% rename_all(tolower), names(id_col))
+               old_dataset <- apply_corrections(old_dataset, corr %>%
+                  rename_all(tolower) %>%
+                  mutate(variable = tolower(variable)), names(id_col))
             }
 
             # drop clients
             if (!is.null(remove_rows) && nrow(remove_rows) > 0) {
-               col         <- as.name(names(id_col))
+               col         <- as.name(tolower(names(id_col)))
                old_dataset <- old_dataset %>%
                   mutate({{col}} := eval(parse(text = glue("as.{id_col}({names(id_col)})")))) %>%
                   anti_join(
@@ -858,11 +848,12 @@ DB <- R6Class(
 
             log_info("Updating warehouse table.")
             # delete existing data, full refresh always
-            if (dbExistsTable(db_conn, old_tblspace))
-               dbExecute(db_conn, glue(r"(DROP TABLE `ohasis_warehouse`.`{warehouse_table}`;)"))
+            if (dbExistsTable(db_conn, warehouse_table))
+               dbExecute(db_conn, glue(r"(TRUNCATE `ohasis_warehouse`.`{warehouse_table}`;)"))
+            # dbExecute(db_conn, glue(r"(drop table `ohasis_warehouse`.`{warehouse_table}`;)"))
 
             # upload info
-            # .self$upsert(db_conn, "warehouse", warehouse_table, old_dataset, "PATIENT_ID")
+            # .self$upsert(db_conn, "warehouse", warehouse_table, old_dataset, "patient_id")
             self$upsert(db_conn, "warehouse", warehouse_table, old_dataset, names(id_col))
          }
 
@@ -873,17 +864,17 @@ DB <- R6Class(
                db_name,
                warehouse_table,
                join = list(
-                  "ohasis_warehouse.id_registry" = list(by = c("PATIENT_ID" = "PATIENT_ID"), cols = "CENTRAL_ID")
+                  "ohasis_warehouse.id_registry" = list(by = c("patient_id" = "patient_id"), cols = "central_id")
                )
             ) %>%
                mutate(
-                  CENTRAL_ID = if_else(
-                     condition = is.na(CENTRAL_ID),
-                     true      = PATIENT_ID,
-                     false     = CENTRAL_ID
+                  central_id = if_else(
+                     condition = is.na(central_id),
+                     true      = patient_id,
+                     false     = central_id
                   )
                ) %>%
-               relocate(CENTRAL_ID, .before = 1)
+               relocate(central_id, .before = 1)
          }
 
          log_info("Closing connections.")

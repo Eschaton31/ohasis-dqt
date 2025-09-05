@@ -1,7 +1,7 @@
-SELECT IF(id_registry.CENTRAL_ID IS NULL, hts_data.PATIENT_ID, id_registry.CENTRAL_ID) AS CENTRAL_ID,
+select if(id_registry.central_id is null, hts_data.patient_id, id_registry.central_id) as central_id,
        hts_data.*
-FROM ohasis_warehouse.form_hts AS hts_data
-         LEFT JOIN ohasis_warehouse.id_registry ON hts_data.PATIENT_ID = id_registry.PATIENT_ID
-WHERE (hts_data.T0_RESULT LIKE '1%' OR hts_data.T0_RESULT IS NULL OR hts_data.REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.dx_new))
-  AND COALESCE(id_registry.CENTRAL_ID, hts_data.PATIENT_ID) IN (SELECT CENTRAL_ID FROM ohasis_warehouse.dx_new)
-  AND hts_data.FORM_VERSION IS NOT NULL;
+from ohasis_warehouse.form_hts as hts_data
+         left join ohasis_lake.px_hiv_testing on hts_data.rec_id = px_hiv_testing.rec_id
+         left join ohasis_lake.id_registry on hts_data.patient_id = id_registry.patient_id
+where (px_hiv_testing.t0_result like '1%' or px_hiv_testing.t0_result is null or hts_data.rec_id in (select rec_id from ohasis_warehouse.dx_new))
+  and coalesce(id_registry.central_id, hts_data.patient_id) in (select central_id from ohasis_warehouse.dx_new);

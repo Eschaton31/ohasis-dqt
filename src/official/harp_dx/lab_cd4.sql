@@ -1,6 +1,7 @@
-SELECT IF(id_registry.CENTRAL_ID IS NULL, cd4_data.PATIENT_ID, id_registry.CENTRAL_ID) AS CENTRAL_ID,
-       cd4_data.CD4_DATE,
-       cd4_data.CD4_RESULT
-FROM ohasis_lake.lab_cd4 AS cd4_data
-         LEFT JOIN ohasis_warehouse.id_registry ON cd4_data.PATIENT_ID = id_registry.PATIENT_ID
-WHERE cd4_data.DELETED_AT IS NULL AND DATE(CD4_DATE) <= ?;
+select if(id.central_id is null, pii.patient_id, id_registry.central_id) as central_id,
+       cd4_data.lab_cd4_date as cd4_date,
+       cd4_data.lab_cd4_result as cd4_result
+from ohasis_lake.lab_wide as cd4_data
+         join ohasis_lake.px_demographics as pii on cd4_data.rec_id = pii.rec_id
+         left join ohasis_lake.id_registry as id on pii.patient_id = id.patient_id
+where cd4_data.deleted_at is null and date(lab_cd4_date) <= '2025-07-31';

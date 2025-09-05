@@ -75,7 +75,7 @@ update_dx_new <- function(update, params, path_to_sql) {
    )
    # if Yes, re-process
    if (update == "1") {
-      lw_conn <- ohasis$conn("lw")
+      lw_conn <- connect('ohasis-lw')
       db_name <- "ohasis_warehouse"
 
       # download the data
@@ -87,12 +87,13 @@ update_dx_new <- function(update, params, path_to_sql) {
 
          # update lake
          table_space <- Id(schema = db_name, table = scope)
-         if (dbExistsTable(lw_conn, table_space))
-            dbRemoveTable(lw_conn, table_space)
+         if (dbExistsTable(lw_conn, scope))
+            dbExecute(lw_conn, glue(r"(TRUNCATE `{db_name}`.`{scope}`;)"))
+         # dbRemoveTable(lw_conn, table_space)
 
          dbExecute(
             lw_conn,
-            glue(r"(CREATE TABLE {db_name}.{scope} AS )",
+            glue(r"(INSERT INTO {db_name}.{scope} )",
                  read_file(file.path(path_to_sql, glue("{scope}.sql"))))
          )
       }
@@ -117,12 +118,13 @@ download_tables <- function(path_to_sql) {
 
    # read data
    data              <- list()
-   data$form_a       <- tracked_select(lw_conn, sql$form_a, "New Form A")
-   data$form_hts     <- tracked_select(lw_conn, sql$form_hts, "New HTS Form")
-   data$form_cfbs    <- tracked_select(lw_conn, sql$form_cfbs, "New CFBS Form")
-   data$px_confirmed <- tracked_select(lw_conn, sql$px_confirmed, "New Confirmed w/ no Form")
-   data$cd4          <- tracked_select(lw_conn, sql$cd4, "Baseline CD4", list(as.character(params$max)))
-   data$non_dupes    <- tracked_select(lw_conn, "SELECT PATIENT_ID, NON_PAIR_ID FROM ohasis_warehouse.non_dupes", "Non-dupes")
+   data$form_a       <- tracked_select(lw_conn, sql$form_a, "New Form A") %>% remove_table_alias()
+   data$form_hts     <- tracked_select(lw_conn, sql$form_hts, "New HTS Form") %>% remove_table_alias()
+   data$form_cfbs    <- tracked_select(lw_conn, sql$form_cfbs, "New CFBS Form") %>% remove_table_alias()
+   data$px_confirmed <- tracked_select(lw_conn, sql$px_confirmed, "New Confirmed w/ no Form") %>% remove_table_alias()
+   # data$cd4          <- tracked_select(lw_conn, sql$cd4, "Baseline CD4", list(as.character(params$max)))
+   data$cd4          <- tracked_select(lw_conn, sql$cd4, "Baseline CD4", list(as.character(params$max))) %>% remove_table_alias()
+   data$non_dupes    <- tracked_select(lw_conn, "SELECT patient_id, non_pair_id FROM ohasis_warehouse.non_dupes", "Non-dupes") %>% remove_table_alias()
 
    dbDisconnect(lw_conn)
 
@@ -137,10 +139,10 @@ get_rhivda_pdf <- function(params) {
    rhivda %<>%
       filter(type == "file") %>%
       mutate(
-         CONFIRM_CODE = str_extract(basename(path), "[A-Z][A-Z][A-Z][0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9][0-9]"),
+         confirm_code = str_extract(basename(path), "[A-Z][A-Z][A-Z][0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9][0-9]"),
          .before      = 1
       ) %>%
-      filter(!is.na(CONFIRM_CODE))
+      filter(!is.na(confirm_code))
 
    return(rhivda)
 }
@@ -155,12 +157,12 @@ update_dataset <- function(params, corr, reprocess) {
       corr            = corr$corr_reg %>% rename_all(toupper),
       warehouse_table = "harp_dx_old",
       id_col          = c("idnum" = "integer"),
-      dta_pid         = "PATIENT_ID",
-      remove_cols     = "CENTRAL_ID",
+      dta_pid         = "patient_id",
+      remove_cols     = "central_id",
       remove_rows     = corr$corr_drop,
       reload          = reprocess
    )
-   official$dupes <- official$old %>% get_dupes(CENTRAL_ID)
+   official$dupes <- official$old %>% get_dupes(central_id)
    if (nrow(official$dupes) > 0)
       log_warn("Duplicate {green('Central IDs')} found.")
 
@@ -171,7 +173,7 @@ update_dataset <- function(params, corr, reprocess) {
    p    <- envir
    vars <- as.list(list(...))
 
-   update_warehouse(vars$update_lw)
+   # update_warehouse(vars$update_lw)
    p$params <- set_coverage(vars$end_date)
 
    # ! corrections
@@ -217,5 +219,5 @@ update_dataset <- function(params, corr, reprocess) {
    if (dl == "1")
       p$forms <- download_tables(p$wd)
 
-   p$pdf_rhivda$data <- get_rhivda_pdf(p$params)
+   # p$pdf_rhivda$data <- get_rhivda_pdf(p$params)
 }

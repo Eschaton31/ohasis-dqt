@@ -43,7 +43,7 @@ update_warehouse <- function(update) {
 
 # check if art starts to be re-processed
 update_dead_new <- function(path_to_sql) {
-   lw_conn <- ohasis$conn("lw")
+   lw_conn <- connect('ohasis-lw')
    db_name <- "ohasis_warehouse"
 
    # download the data
@@ -55,15 +55,16 @@ update_dead_new <- function(path_to_sql) {
 
       # update lake
       table_space <- Id(schema = db_name, table = scope)
-      if (dbExistsTable(lw_conn, table_space))
-         dbRemoveTable(lw_conn, table_space)
+      if (dbExistsTable(lw_conn, scope))
+         dbExecute(lw_conn, glue(r"(TRUNCATE `{db_name}`.`{scope}`;)"))
+      # dbRemoveTable(lw_conn, table_space)
 
       dbExecute(
          lw_conn,
-         glue(r"(CREATE TABLE {db_name}.{scope} AS )",
+         glue(r"(insert into {db_name}.{scope} )",
               read_file(file.path(path_to_sql, glue("{scope}.sql"))))
       )
-      dbExecute(lw_conn, glue("ALTER TABLE {db_name}.{scope} ADD INDEX `CENTRAL_ID` (`CENTRAL_ID`);"))
+      # dbExecute(lw_conn, glue("alter table {db_name}.{scope} add index `central_id` (`central_id`);"))
 
    }
    log_success("Done!")
@@ -81,18 +82,18 @@ download_tables <- function(params) {
    db_name <- "ohasis_warehouse"
 
    log_info("Downloading {green('Central IDs')}.")
-   # forms$id_registry <- dbTable(lw_conn, db_name, "id_registry", cols = c("CENTRAL_ID", "PATIENT_ID"))
-   forms$id_registry <- update_idreg() %>% select(CENTRAL_ID, PATIENT_ID)
+   # forms$id_registry <- dbTable(lw_conn, db_name, "id_registry", cols = c("central_id", "patient_id"))
+   forms$id_registry <- update_idreg() %>% select(central_id, patient_id)
 
    log_info("Downloading {green('ART Visits w/in the scope')}.")
-   forms$form_d <- dbTable(lw_conn, db_name, "form_d")
+   forms$form_d <- QB$new(lw_conn)$from("ohasis_warehouse.form_d")$get() %>% remove_table_alias()
 
    log_success("Done.")
    dbDisconnect(lw_conn)
    return(forms)
 }
 
-##  Get the previous report's HARP Registry ------------------------------------
+##  Get the previous report's harp Registry ------------------------------------
 
 update_dataset <- function(params, corr, forms, reprocess) {
    log_info("Getting previous datasets.")
@@ -102,13 +103,13 @@ update_dataset <- function(params, corr, forms, reprocess) {
       corr            = corr$corr_reg,
       warehouse_table = "harp_dead_old",
       id_col          = c("mort_id" = "integer"),
-      dta_pid         = "PATIENT_ID",
-      remove_cols     = "CENTRAL_ID",
+      dta_pid         = "patient_id",
+      remove_cols     = "central_id",
       remove_rows     = corr$corr_drop,
       id_registry     = forms$id_registry,
       reload          = reprocess
    )
-   official$dupes <- official$old %>% get_dupes(CENTRAL_ID)
+   official$dupes <- official$old %>% get_dupes(central_id)
    if (nrow(official$dupes) > 0)
       log_warn("Duplicate {green('Central IDs')} found.")
 
@@ -134,7 +135,7 @@ define_params <- function() {
       !is.null(vars$dl_corr) && vars$dl_corr %in% c("1", "2"),
       vars$dl_corr,
       input(
-         prompt  = glue("GET: {green('corrections')}?"),
+         prompt  = glue("get: {green('corrections')}?"),
          options = c("1" = "yes", "2" = "no"),
          default = "2"
       )
@@ -147,7 +148,7 @@ define_params <- function() {
       !is.null(vars$dl_forms) && vars$dl_forms %in% c("1", "2"),
       vars$dl_forms,
       input(
-         prompt  = "GET: {green('forms')}?",
+         prompt  = "get: {green('forms')}?",
          options = c("1" = "Yes", "2" = "No"),
          default = "1"
       )

@@ -378,7 +378,11 @@ add_missing_columns <- function(data, ref) {
 }
 
 connect <- function(group) {
-   return(dbConnect(RMariaDB::MariaDB(), group = group, default.file = Sys.getenv("CONN")))
+   if (group == "live" | group == 'ohasis-live') {
+      return(DBI::dbConnect(RMariaDB::MariaDB(), group = group, default.file = "my.cnf"))
+   }
+
+   return(DBI::dbConnect(RClickhouse::clickhouse(), config_paths = str_c(group, ".yaml")))
 }
 
 categorical_values <- function(data, variables) {

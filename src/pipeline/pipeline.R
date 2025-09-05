@@ -385,7 +385,7 @@ flow_corr <- function(report_period = NULL, surv_name = NULL) {
 
    # list of correction files
    log_info("Downloading corrections.")
-   con                  <- ohasis$conn("lw")
+   con                  <- connect(surv_name)
    corr$label_values    <- QB$new(con)$
       from("nhsss_stata.label_values")$
       where("system", surv_name)$
@@ -396,8 +396,8 @@ flow_corr <- function(report_period = NULL, surv_name = NULL) {
       get()
 
    # non duplicates
-   table_space <- Id(schema = surv_name, table = "non_dupes")
-   if (dbExistsTable(con, table_space)) {
+   # table_space <- Id(schema = surv_name, table = "non_dupes")
+   if (dbExistsTable(con, "non_dupes")) {
       table_name     <- stri_c(surv_name, ".", "non_dupes")
       corr$non_dupes <- QB$new(con)$
          from(table_name)$
@@ -405,8 +405,8 @@ flow_corr <- function(report_period = NULL, surv_name = NULL) {
    }
 
    # classd
-   table_space <- Id(schema = surv_name, table = "corr_classd")
-   if (dbExistsTable(con, table_space)) {
+   # table_space <- Id(schema = surv_name, table = "corr_classd")
+   if (dbExistsTable(con, "corr_classd")) {
       table_name       <- stri_c(surv_name, ".", "corr_classd")
       corr$corr_classd <- QB$new(con)$
          from(table_name)$
@@ -414,8 +414,8 @@ flow_corr <- function(report_period = NULL, surv_name = NULL) {
    }
 
    for (tbl in c("corr_reg", "corr_outcome", "corr_defer", "corr_drop")) {
-      table_space <- Id(schema = surv_name, table = tbl)
-      if (dbExistsTable(con, table_space)) {
+      # table_space <- Id(schema = surv_name, table = tbl)
+      if (dbExistsTable(con, tbl)) {
          table_name  <- stri_c(surv_name, ".", tbl)
          corr[[tbl]] <- QB$new(con)$
             from(table_name)$

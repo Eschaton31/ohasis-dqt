@@ -561,6 +561,47 @@ oh_rec_id <- function(db_conn = NULL, user_id = NULL) {
    return(record_id)
 }
 
+oh_faci_id <- function(db_conn = NULL, region = NULL, exclude = NULL) {
+   query_ref <- r"(
+   SELECT RIGHT(FACI_ID, 4) AS CTRL_NUM
+   FROM ohasis_interim.facility
+   WHERE FACI_ID REGEXP ?
+   UNION
+   SELECT RIGHT(DUPE_FACI, 4) AS CTRL_NUM
+   FROM ohasis_interim.facility_duplicates
+   WHERE DUPE_FACI REGEXP ?
+   )"
+
+   log_info("Constructing new code.")
+   region_code   <- str_left(region, 2)
+   data_ref      <- dbGetQuery(db_conn, query_ref, params = list(stri_c("^", region_code), stri_c("^", region_code)))
+   ctrl_num_curr <- as.integer(data_ref[[1]])
+   if (!is.null(exclude)) {
+      ctrl_num_curr <- c(ctrl_num_curr, as.integer(str_right(exclude[!is.na(exclude)], 4)))
+   }
+
+   if (nrow(data_ref) == 0)
+      ctrl_num_curr <- 0
+
+   ctrl_num_seq       <- seq(min(ctrl_num_curr), max(ctrl_num_curr))
+   ctrl_num_available <- setdiff(ctrl_num_seq, ctrl_num_curr)
+
+   if (length(ctrl_num_available) == 0) {
+      log_warn("Unused control number/s available.")
+      ctrl_num_ref <- max(ctrl_num_curr) + 1
+   } else {
+      log_info("No unused control numbers found.")
+      ctrl_num_ref <- min(ctrl_num_available)
+   }
+   log_info("Using next in sequence.")
+   ctrl_num_new <- stri_pad_left(ctrl_num_ref, 4, "0")
+
+   faci_id <- stri_c(sep = "", region_code, ctrl_num_new)
+   log_success("New Confirmatory Code: {green(faci_id)}.")
+
+   return(faci_id)
+}
+
 batch_px_ids <- function(data, px_id, faci_id, row_ids) {
    pid_col <- deparse(substitute(px_id))
    set.seed(1)
@@ -816,6 +857,56 @@ dup_faci_id <- function(keep_faci, drop_faci, reason = NA_character_) {
              dupes,
              c("MAIN_FACI", "DUPE_FACI"))
    dbDisconnect(db_conn)
+}
+
+dup_faci_id <- function(keep_faci, drop_faci, reason = NA_character_) {
+   #  prepare update & select queries queries per table
+   sql_update <- list()
+   sql_select <- list()
+   table_cols <- list(
+      "px_cfbs.faci_id",
+      "px_cfbs.partner_faci",
+      "px_confirm.faci_id",
+      "px_confirm.source",
+      "px_service.faci_id",
+      "px_service.refer_by_id",
+      "px_medicine.faci_id",
+      "px_medicine_disc.faci_id",
+      "px_record.faci_id",
+      "px_test.faci_id",
+      "users.faci_id",
+      "inventories.faci_id",
+      "inventories.source_id"
+   )
+   for (table_col in table_cols) {
+      pair  <- strsplit(table_col, "\\.")[[1]]
+      table <- pair[1]
+      col   <- pair[2]
+
+      sql_update[[table_col]] <- paste0("UPDATE ohasis.", table, " SET ", col, " = ? WHERE ", col, " = ?;")
+
+      if (grepl("^px", table))
+         sql_select[[table_col]] <- paste0("SELECT DISTINCT rec_id FROM ohasis.", table, " WHERE ", col, " = ?;")
+   }
+
+   # get record ids for those affected
+   db_conn <- connect('oh2')
+   rec_ids <- data.frame()
+   for (query in sql_select) {
+      data    <- dbGetQuery(db_conn, query, params = list(drop_faci))
+      rec_ids <- rec_ids %>% bind_rows(data) %>% distinct(rec_id)
+   }
+
+   # update records
+   for (query in sql_update) {
+      dbExecute(db_conn, query, params = list(keep_faci, drop_faci))
+   }
+
+   # remove duplicate facility from referece data
+   dbExecute(db_conn, "DELETE FROM ohasis.facilities WHERE faci_id = ?;", params = list(drop_faci))
+   dbDisconnect(db_conn)
+
+   return(rec_ids)
 }
 
 ##  update medicine
@@ -1561,13 +1652,14 @@ trial_to_live <- function(form, faci_id, min, max) {
 update_idreg <- function() {
    if (!file.exists(Sys.getenv("LOC_IDREG"))) {
       df <- data.frame(
-         PATIENT_ID = NA_character_,
-         CENTRAL_ID = NA_character_,
-         CREATED_BY = NA_character_,
-         CREATED_AT = NA_POSIXct_,
-         DELETED_BY = NA_character_,
-         DELETED_AT = NA_POSIXct_,
-         SNAPSHOT   = NA_character_
+         patient_id = NA_character_,
+         central_id = NA_character_,
+         created_by = NA_character_,
+         created_at = NA_POSIXct_,
+         updated_by = NA_character_,
+         updated_at = NA_POSIXct_,
+         deleted_by = NA_character_,
+         deleted_at = NA_POSIXct_
       )
       write_rds(df, Sys.getenv("LOC_IDREG"))
       print("Hello")
@@ -1577,8 +1669,8 @@ update_idreg <- function() {
 
    idreg <- read_rds(Sys.getenv("LOC_IDREG"))
 
-   loc_snap <- max(idreg$SNAPSHOT)
-   loc_snap <- ifelse(is.na(loc_snap), "1970-01-01", loc_snap)
+   loc_snap <- max(max(idreg$created_at, na.rm = TRUE), max(idreg$updated_at, na.rm = TRUE), max(idreg$deleted_at, na.rm = TRUE))
+   loc_snap <- format(as.POSIXct(ifelse(is.na(loc_snap) | is.infinite(loc_snap), "1970-01-01", loc_snap)), "%Y-%m-%d %H:%M:%S")
 
    # conn_lw <- ohasis$conn("lw")
    # lw_snap <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$selectRaw("MAX(SNAPSHOT) AS snap")$get()
@@ -1588,21 +1680,21 @@ update_idreg <- function() {
 
    log_info("Fetching Data")
 
-   conn_lw   <- ohasis$conn("lw")
-   new_idreg <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$where("SNAPSHOT", ">=", loc_snap)$get()
+   conn_lw   <- connect('ohasis-lw')
+   new_idreg <- QB$new(conn_lw)$from("ohasis_lake.id_registry")$where("created_at", ">=", loc_snap, 'or')$where("updated_at", ">=", loc_snap, 'or')$where("deleted_at", ">=", loc_snap, 'or')$get()
    # new_idreg <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$whereBetween("SNAPSHOT", c(loc_snap, lw_snap))$get()
    dbDisconnect(conn_lw)
 
    updated_idreg <- idreg %>%
       anti_join(
          y  = new_idreg,
-         by = join_by(PATIENT_ID)
+         by = join_by(patient_id)
       ) %>%
       bind_rows(
          new_idreg
       ) %>%
       filter(
-         !is.na(PATIENT_ID)
+         !is.na(patient_id)
       )
 
    write_rds(updated_idreg, Sys.getenv("LOC_IDREG"))

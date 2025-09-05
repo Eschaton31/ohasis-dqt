@@ -68,23 +68,23 @@ get_cid <- function(linelist, cid_list, pid_col) {
    join_col <- deparse(substitute(pid_col))
    # finalize a central_id columns
    linelist %<>%
-      select(-matches("CENTRAL_ID", ignore.case = FALSE)) %>%
+      select(-matches("central_id", ignore.case = FALSE)) %>%
       left_join(
          y  = cid_list %>%
             select(
-               CENTRAL_ID,
-               {{pid_col}} := PATIENT_ID
+               central_id,
+               {{pid_col}} := patient_id
             ),
          by = join_col
       ) %>%
       mutate(
-         CENTRAL_ID = if_else(
-            condition = coalesce(CENTRAL_ID, "") == "",
+         central_id = if_else(
+            condition = coalesce(central_id, "") == "",
             true      = {{pid_col}},
-            false     = CENTRAL_ID
+            false     = central_id
          ),
       ) %>%
-      relocate(CENTRAL_ID, .before = {{pid_col}})
+      relocate(central_id, .before = {{pid_col}})
 
    return(linelist)
 }

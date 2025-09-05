@@ -1,18 +1,18 @@
 ##  Initial Cleaning -----------------------------------------------------------
 
 clean_data <- function(forms, old_reg) {
-   # Form D + BC Dead
+   # Form D + bc Dead
    log_info("Processing new mortalities.")
    data <- forms$form_d %>%
-      get_cid(forms$id_registry, PATIENT_ID) %>%
+      get_cid(forms$id_registry, patient_id) %>%
       # keep only patients not in registry
       anti_join(
          y  = old_reg %>%
-            select(CENTRAL_ID),
-         by = join_by(CENTRAL_ID)
+            select(central_id),
+         by = join_by(central_id)
       ) %>%
       mutate_at(
-         .vars = vars(FIRST, MIDDLE, LAST, SUFFIX, CONFIRMATORY_CODE, PATIENT_CODE, UIC, PHILHEALTH_NO, PHILSYS_ID, CLIENT_MOBILE, CLIENT_EMAIL),
+         .vars = vars(first, middle, last, suffix, confirmatory_code, patient_code, uic, philhealth_no, philsys_id, client_mobile, client_email),
          ~clean_pii(.)
       ) %>%
       mutate_if(
@@ -23,69 +23,70 @@ clean_data <- function(forms, old_reg) {
          .predicate = is.Date,
          ~if_else(. <= -25567, NA_Date_, ., .)
       ) %>%
-      get_latest_pii(
-         "CENTRAL_ID",
-         c(
-            "FIRST",
-            "MIDDLE",
-            "LAST",
-            "SUFFIX",
-            "BIRTHDATE",
-            "SEX",
-            "UIC",
-            "PHILHEALTH_NO",
-            "PHILSYS_ID",
-            "CIVIL_STATUS",
-            "NATIONALITY",
-            "CURR_PSGC_REG",
-            "CURR_PSGC_PROV",
-            "CURR_PSGC_MUNC",
-            "PERM_PSGC_REG",
-            "PERM_PSGC_PROV",
-            "PERM_PSGC_MUNC",
-            "CLIENT_MOBILE",
-            "CLIENT_EMAIL"
-         )
-      ) %>%
+      # get_latest_pii(
+      #    "central_id",
+      #    c(
+      #       "first",
+      #       "middle",
+      #       "last",
+      #       "suffix",
+      #       "birthdate",
+      #       "sex",
+      #       "uic",
+      #       "philhealth_no",
+      #       "philsys_id",
+      #       "civil_status",
+      #       "nationality",
+      #       "curr_reg",
+      #       "curr_prov",
+      #       "curr_munc",
+      #       "perm_reg",
+      #       "perm_prov",
+      #       "perm_munc",
+      #       "client_mobile",
+      #       "client_email"
+      #    )
+      # ) %>%
       mutate(
          # date variables
-         report_date    = RECORD_DATE,
+         report_date    = record_date,
+         reporting_form = 'Form D (v2017)',
 
          # name
-         STANDARD_FIRST = stri_trans_general(FIRST, "latin-ascii"),
-         fullname       = str_squish(stri_c(LAST, ", ", FIRST, " ", MIDDLE, " ", SUFFIX)),
+         standard_first = stri_trans_general(first, "latin-ascii"),
+         fullname       = str_squish(stri_c(last, ", ", first, " ", middle, " ", suffix)),
 
          # Permanent
-         PERM_PSGC_PROV = if_else(str_left(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
-         PERM_PSGC_MUNC = if_else(str_left(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
+         perm_prov      = if_else(str_left(perm_reg, 2) == "99", "999900000", perm_prov, perm_prov),
+         perm_munc      = if_else(str_left(perm_reg, 2) == "99", "999999000", perm_munc, perm_munc),
          use_curr       = if_else(
-            condition = !is.na(CURR_PSGC_MUNC) & (is.na(PERM_PSGC_MUNC) | str_left(PERM_PSGC_MUNC, 2) == "99"),
+            condition = !is.na(curr_munc) & (is.na(perm_munc) | str_left(perm_munc, 2) == "99"),
             true      = 1,
             false     = 0
          ),
-         PERM_PSGC_REG  = if_else(
+         perm_reg       = if_else(
             condition = use_curr == 1,
-            true      = CURR_PSGC_REG,
-            false     = PERM_PSGC_REG
+            true      = curr_reg,
+            false     = perm_reg
          ),
-         PERM_PSGC_PROV = if_else(
+         perm_prov      = if_else(
             condition = use_curr == 1,
-            true      = CURR_PSGC_PROV,
-            false     = PERM_PSGC_PROV
+            true      = curr_prov,
+            false     = perm_prov
          ),
-         PERM_PSGC_MUNC = if_else(
+         perm_munc      = if_else(
             condition = use_curr == 1,
-            true      = CURR_PSGC_MUNC,
-            false     = PERM_PSGC_MUNC
+            true      = curr_munc,
+            false     = perm_munc
          ),
 
          # Age
-         AGE            = coalesce(AGE, AGE_MO / 12),
-         AGE_DTA        = calc_age(BIRTHDATE, coalesce(DEATH_DATE, RECORD_DATE)),
+         age            = coalesce(age, age_mo / 12),
+         age_dta        = calc_age(birthdate, coalesce(death_date, record_date)),
 
          # tag wrong reports
          not_dead       = if_else(
-            condition = str_left(EB_VALIDATED, 1) == "0",
+            condition = str_left(eb_validated, 1) == "0",
             true      = 1,
             false     = 0,
             missing   = 0
@@ -103,16 +104,16 @@ prioritize_reports <- function(data) {
       # remove invalid reports
       filter(not_dead == 0) %>%
       # prioritize form d over form bc
-      arrange(desc(REPORTING_FORM), report_date, DEATH_DATE) %>%
-      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      arrange(desc(reporting_form), report_date, death_date) %>%
+      distinct(central_id, .keep_all = TRUE) %>%
       filter(
          report_date < ohasis$next_date |
-            DEATH_DATE < ohasis$next_date |
+            death_date < ohasis$next_date |
             is.na(report_date)
       ) %>%
       rename(
-         MORT_FACI     = SERVICE_FACI,
-         MORT_SUB_FACI = SERVICE_SUB_FACI,
+         mort_faci     = service_faci,
+         mort_sub_faci = service_sub_faci,
       )
 
    return(data)
@@ -121,38 +122,38 @@ prioritize_reports <- function(data) {
 ##  Generate subset variables --------------------------------------------------
 
 standardize_data <- function(initial, params) {
-   log_info("Converting to final HARP variables.")
+   log_info("Converting to final harp variables.")
    data <- initial %>%
       mutate(
          # generate idnum
-         mort_id            = params$latest_mort_id + row_number(),
+         mort_id       = params$latest_mort_id + row_number(),
 
          # report date
-         year               = params$yr,
-         month              = params$mo,
+         year          = params$yr,
+         month         = params$mo,
 
          # Perm Region (as encoded)
-         PERMONLY_PSGC_REG  = if_else(
+         permonly_reg  = if_else(
             condition = use_curr == 0,
-            true      = PERM_PSGC_REG,
+            true      = perm_reg,
             false     = NA_character_
          ),
-         PERMONLY_PSGC_PROV = if_else(
+         permonly_prov = if_else(
             condition = use_curr == 0,
-            true      = PERM_PSGC_PROV,
+            true      = perm_prov,
             false     = NA_character_
          ),
-         PERMONLY_PSGC_MUNC = if_else(
+         permonly_munc = if_else(
             condition = use_curr == 0,
-            true      = PERM_PSGC_MUNC,
+            true      = perm_munc,
             false     = NA_character_
          ),
 
          # demographics
-         pxcode             = str_squish(stri_c(str_left(FIRST, 1), str_left(MIDDLE, 1), str_left(LAST, 1))),
+         pxcode        = str_squish(stri_c(str_left(first, 1), str_left(middle, 1), str_left(last, 1))),
 
-         SEX                = remove_code(stri_trans_toupper(SEX)),
-         CIVIL_STATUS       = remove_code(stri_trans_toupper(CIVIL_STATUS)),
+         sex           = remove_code(stri_trans_toupper(sex)),
+         civil_status  = remove_code(stri_trans_toupper(civil_status)),
       )
 
    return(data)
@@ -164,63 +165,65 @@ convert_faci_addr <- function(data) {
    log_info("Converting address & facility data.")
    # rename columns
    data %<>%
-      ohasis$get_addr(
+      get_addr(
          c(
-            region   = "PERM_PSGC_REG",
-            province = "PERM_PSGC_PROV",
-            muncity  = "PERM_PSGC_MUNC"
+            region   = "perm_reg",
+            province = "perm_prov",
+            muncity  = "perm_munc"
          ),
          "nhsss"
       ) %>%
-      ohasis$get_addr(
+      get_addr(
          c(
-            last_residence_region   = "CURR_PSGC_REG",
-            last_residence_province = "CURR_PSGC_PROV",
-            last_residence_muncity  = "CURR_PSGC_MUNC"
+            last_residence_region   = "curr_reg",
+            last_residence_province = "curr_prov",
+            last_residence_muncity  = "curr_munc"
          ),
          "nhsss"
       ) %>%
-      ohasis$get_addr(
+      get_addr(
          c(
-            birthplace_region       = "BIRTH_PSGC_REG",
-            birthplace_province     = "BIRTH_PSGC_PROV",
-            birthplace_municipality = "BIRTH_PSGC_MUNC"
+            birthplace_region       = "birth_reg",
+            birthplace_province     = "birth_prov",
+            birthplace_municipality = "birth_munc"
          ),
          "nhsss"
       ) %>%
-      ohasis$get_addr(
+      get_addr(
          c(
-            place_of_death_region   = "DEATH_PSGC_REG",
-            place_of_death_province = "DEATH_PSGC_PROV",
-            place_of_death_muncity  = "DEATH_PSGC_MUNC"
+            place_of_death_region   = "death_reg",
+            place_of_death_province = "death_prov",
+            place_of_death_muncity  = "death_munc"
          ),
          "nhsss"
       ) %>%
       # dxlab_standard
       mutate(
-         MORT_FACI     = if_else(
-            condition = is.na(MORT_FACI),
+         mort_faci     = if_else(
+            condition = is.na(mort_faci),
             true      = "",
-            false     = MORT_FACI
+            false     = mort_faci
          ),
-         MORT_SUB_FACI = case_when(
-            is.na(MORT_SUB_FACI) ~ "",
-            str_left(MORT_SUB_FACI, 6) != MORT_FACI ~ "",
-            TRUE ~ MORT_SUB_FACI
+         mort_sub_faci = case_when(
+            is.na(mort_sub_faci) ~ "",
+            str_left(mort_sub_faci, 6) != mort_faci ~ "",
+            TRUE ~ mort_sub_faci
          )
       ) %>%
       left_join(
          na_matches = "never",
          y          = ohasis$ref_faci %>%
-            select(
-               MORT_FACI     = FACI_ID,
-               MORT_SUB_FACI = SUB_FACI_ID,
-               pubpriv       = PUBPRIV
+            select(mort_faci = faci_id, mort_sub_faci = sub_faci_id, pubpriv = ownership) %>%
+            mutate(
+               pubpriv = case_when(
+                  pubpriv == 1 ~ "PUBLIC",
+                  pubpriv == 2 ~ "PRIVATE",
+               )
             ),
-         by         = join_by(MORT_FACI, MORT_SUB_FACI)
+         by         = join_by(mort_faci, mort_sub_faci)
       ) %>%
       ohasis$get_faci(
-         list(facility = c("MORT_FACI", "MORT_SUB_FACI")),
+         list(facility = c("mort_faci", "mort_sub_faci")),
          "nhsss",
          c("facility_region", "facility_province", "facility_muncity")
       )
@@ -234,31 +237,31 @@ final_conversion <- function(data) {
    data %<>%
       # same vars as registry
       select(
-         CENTRAL_ID,
-         PATIENT_ID,
-         REC_ID,
+         central_id,
+         patient_id,
+         rec_id,
          mort_id,
-         form                    = REPORTING_FORM,
+         form                    = reporting_form,
          year,
          month,
-         saccl_lab_code          = CONFIRMATORY_CODE,
-         uic                     = UIC,
-         fname                   = FIRST,
-         mname                   = MIDDLE,
-         lname                   = LAST,
-         sname                   = SUFFIX,
+         saccl_lab_code          = confirmatory_code,
+         uic                     = uic,
+         fname                   = first,
+         mname                   = middle,
+         lname                   = last,
+         sname                   = suffix,
          fullname,
-         birthdate               = BIRTHDATE,
+         birthdate               = birthdate,
          pxcode,
-         patient_code            = PATIENT_CODE,
-         age                     = AGE,
-         age_months              = AGE_MO,
-         age_death               = AGE_DTA,
-         sex                     = SEX,
-         philhealth              = PHILHEALTH_NO,
-         philsys_id              = PHILSYS_ID,
-         mobile                  = CLIENT_MOBILE,
-         email                   = CLIENT_EMAIL,
+         patient_code            = patient_code,
+         age                     = age,
+         age_months              = age_mo,
+         age_death               = age_dta,
+         sex                     = sex,
+         philhealth              = philhealth_no,
+         philsys_id              = philsys_id,
+         mobile                  = client_mobile,
+         email                   = client_email,
          muncity,
          province,
          region,
@@ -268,37 +271,37 @@ final_conversion <- function(data) {
          birthplace_municipality,
          birthplace_province,
          birthplace_region,
-         civil_status            = CIVIL_STATUS,
-         was_living_with_partner = LIVING_WITH_PARTNER,
-         living_children         = CHILDREN,
-         immediate_cause         = IMMEDIATE_CAUSES,
-         antecedentcause         = ANTECEDENT_CAUSES,
-         underlying_cause        = UNDERLYING_CAUSES,
-         tb                      = DISEASE_TB,
-         hepb                    = DISEASE_HEPB,
-         hepc                    = DISEASE_HEPC,
-         cmeningitis             = DISEASE_MENINGITIS,
-         pcp                     = DISEASE_PCP,
-         cmv                     = DISEASE_CMV,
-         candidiasis             = DISEASE_OROCAND,
-         toxo                    = DISEASE_TOXOPLASMOSIS,
-         covid19                 = DISEASE_COVID19,
-         hiv                     = DISEASE_HIV,
+         civil_status            = civil_status,
+         was_living_with_partner = living_with_partner,
+         living_children         = children,
+         immediate_cause         = immediate_causes,
+         antecedentcause         = antecedent_causes,
+         underlying_cause        = underlying_causes,
+         tb                      = disease_tb,
+         hepb                    = disease_hepb,
+         hepc                    = disease_hepc,
+         cmeningitis             = disease_meningitis,
+         pcp                     = disease_pcp,
+         cmv                     = disease_cmv,
+         candidiasis             = disease_orocand,
+         toxo                    = disease_toxoplasmosis,
+         covid19                 = disease_covid19,
+         hiv                     = disease_hiv,
          facility,
          pubpriv,
          facility_region,
          facility_province,
          facility_muncity,
-         is_valid                = EB_VALIDATED,
-         date_of_death           = DEATH_DATE,
-         with_death_cert         = DEATH_CERTIFICATE,
+         is_valid                = eb_validated,
+         date_of_death           = death_date,
+         with_death_cert         = death_certificate,
          place_of_death_region,
          place_of_death_province,
          place_of_death_muncity,
-         place_of_death_addr     = DEATH_ADDR,
+         place_of_death_addr     = death_addr,
          report_date,
-         report_notes            = REPORT_NOTES,
-         report_by               = REPORTED_BY,
+         report_notes            = report_notes,
+         report_by               = reported_by,
       ) %>%
       # turn into codes
       mutate_at(
@@ -348,8 +351,8 @@ merge_dx <- function(data, forms, params) {
    dx <- hs_data("harp_dx", "reg", params$yr, params$mo) %>%
       read_dta(
          col_select = c(
-            REC_ID,
-            PATIENT_ID,
+            rec_id,
+            patient_id,
             labcode,
             labcode2,
             idnum,
@@ -373,7 +376,7 @@ merge_dx <- function(data, forms, params) {
          .predicate = is.character,
          ~if_else(. == '', NA_character_, .)
       ) %>%
-      get_cid(forms$id_registry, PATIENT_ID) %>%
+      get_cid(forms$id_registry, patient_id) %>%
       mutate(
          labcode2 = coalesce(labcode2, labcode)
       )
@@ -383,7 +386,7 @@ merge_dx <- function(data, forms, params) {
       left_join(
          y  = dx %>%
             select(
-               CENTRAL_ID,
+               central_id,
                dxreg_saccl_lab_code = labcode2,
                dxreg_idnum          = idnum,
                dxreg_uic            = uic,
@@ -400,7 +403,7 @@ merge_dx <- function(data, forms, params) {
                dxreg_province       = province,
                dxreg_muncity        = muncity
             ),
-         by = join_by(CENTRAL_ID)
+         by = join_by(central_id)
       )
 
    # check these variables if missing in art reg
@@ -421,41 +424,41 @@ merge_dx <- function(data, forms, params) {
    data %<>%
       mutate_at(
          .vars = vars(ends_with("muncity"), ends_with("province"), ends_with("region")),
-         ~coalesce(., "UNKNOWN")
+         ~coalesce(., "unknown")
       ) %>%
       mutate(
          final_region   = if_else(
-            condition = dxreg_muncity == "UNKNOWN" & (muncity != "UNKNOWN" & !is.na(muncity)),
+            condition = dxreg_muncity == "unknown" & (muncity != "unknown" & !is.na(muncity)),
             true      = region,
             false     = dxreg_region,
-            missing   = "UNKNOWN"
+            missing   = "unknown"
          ),
          final_province = if_else(
-            condition = dxreg_muncity == "UNKNOWN" & (muncity != "UNKNOWN" & !is.na(muncity)),
+            condition = dxreg_muncity == "unknown" & (muncity != "unknown" & !is.na(muncity)),
             true      = province,
             false     = dxreg_province,
-            missing   = "UNKNOWN"
+            missing   = "unknown"
          ),
          final_muncity  = if_else(
-            condition = dxreg_muncity == "UNKNOWN" & (muncity != "UNKNOWN" & !is.na(muncity)),
+            condition = dxreg_muncity == "unknown" & (muncity != "unknown" & !is.na(muncity)),
             true      = muncity,
             false     = dxreg_muncity,
-            missing   = "UNKNOWN"
+            missing   = "unknown"
          ),
          final_region   = if_else(
-            condition = final_muncity == "UNKNOWN" | is.na(final_muncity),
+            condition = final_muncity == "unknown" | is.na(final_muncity),
             true      = mort_region,
             false     = final_region,
             missing   = final_region
          ),
          final_province = if_else(
-            condition = final_muncity == "UNKNOWN" | is.na(final_muncity),
+            condition = final_muncity == "unknown" | is.na(final_muncity),
             true      = mort_province,
             false     = final_province,
             missing   = final_province
          ),
          final_muncity  = if_else(
-            condition = final_muncity == "UNKNOWN" | is.na(final_muncity),
+            condition = final_muncity == "unknown" | is.na(final_muncity),
             true      = mort_muncity,
             false     = final_muncity,
             missing   = final_muncity
@@ -467,55 +470,55 @@ merge_dx <- function(data, forms, params) {
       # additional process to ensure final_region
       mutate(
          final_region   = if_else(
-            condition = final_muncity == "UNKNOWN" & mort_muncity != "UNKNOWN",
+            condition = final_muncity == "unknown" & mort_muncity != "unknown",
             true      = mort_region,
             false     = final_region,
             missing   = final_region
          ),
          final_province = if_else(
-            condition = final_muncity == "UNKNOWN" & mort_muncity != "UNKNOWN",
+            condition = final_muncity == "unknown" & mort_muncity != "unknown",
             true      = mort_province,
             false     = final_province,
             missing   = final_province
          ),
          final_muncity  = if_else(
-            condition = final_muncity == "UNKNOWN" & mort_muncity != "UNKNOWN",
+            condition = final_muncity == "unknown" & mort_muncity != "unknown",
             true      = mort_muncity,
             false     = final_muncity,
             missing   = final_muncity
          ),
          final_region   = if_else(
-            condition = is.na(final_muncity) & mort_muncity != "UNKNOWN",
+            condition = is.na(final_muncity) & mort_muncity != "unknown",
             true      = mort_region,
             false     = final_region,
             missing   = final_region
          ),
          final_province = if_else(
-            condition = is.na(final_muncity) & mort_muncity != "UNKNOWN",
+            condition = is.na(final_muncity) & mort_muncity != "unknown",
             true      = mort_province,
             false     = final_province,
             missing   = final_province
          ),
          final_muncity  = if_else(
-            condition = is.na(final_muncity) & mort_muncity != "UNKNOWN",
+            condition = is.na(final_muncity) & mort_muncity != "unknown",
             true      = mort_muncity,
             false     = final_muncity,
             missing   = final_muncity
          ),
          final_region   = if_else(
-            condition = final_muncity == "UNKNOWN" & muncity != "UNKNOWN",
+            condition = final_muncity == "unknown" & muncity != "unknown",
             true      = region,
             false     = final_region,
             missing   = final_region
          ),
          final_province = if_else(
-            condition = final_muncity == "UNKNOWN" & muncity != "UNKNOWN",
+            condition = final_muncity == "unknown" & muncity != "unknown",
             true      = province,
             false     = final_province,
             missing   = final_province
          ),
          final_muncity  = if_else(
-            condition = final_muncity == "UNKNOWN" & muncity != "UNKNOWN",
+            condition = final_muncity == "unknown" & muncity != "unknown",
             true      = muncity,
             false     = final_muncity,
             missing   = final_muncity
@@ -533,8 +536,8 @@ merge_dx <- function(data, forms, params) {
             select(idnum, labcode2) %>%
             mutate(
                labcode2 = case_when(
-                  idnum == 6978 ~ "R11-06-3387",
-                  idnum == 56460 ~ "D18-09-15962",
+                  idnum == 6978 ~ "r11-06-3387",
+                  idnum == 56460 ~ "d18-09-15962",
                   TRUE ~ labcode2
                )
             ),
@@ -562,9 +565,9 @@ tag_fordrop <- function(data, corr) {
          data %<>%
             left_join(
                y  = corr[[drop_var]] %>%
-                  distinct(REC_ID) %>%
+                  distinct(rec_id) %>%
                   mutate(drop_this = 1),
-               by = join_by(REC_ID)
+               by = join_by(rec_id)
             ) %>%
             mutate_at(
                .vars = vars(matches(drop_var)),
@@ -621,7 +624,7 @@ output_dta <- function(official, params, save = "2") {
    if (save == "1") {
       log_info("Checking output directory.")
       version <- format(Sys.time(), "%Y%m%d")
-      dir     <- Sys.getenv("HARP_DEAD")
+      dir     <- Sys.getenv("harp_dead")
       check_dir(dir)
 
       log_info("Saving in Stata data format.")
@@ -637,7 +640,7 @@ output_dta <- function(official, params, save = "2") {
                format_stata() %>%
                write_dta(files[[output]])
 
-            compress_stata(files[[output]])
+            # compress_stata(files[[output]])
          }
       }
 
@@ -675,11 +678,11 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
             reg_order = case_when(
                reg_order == "1" ~ 1,
                reg_order == "2" ~ 2,
-               reg_order == "CAR" ~ 3,
+               reg_order == "car" ~ 3,
                reg_order == "3" ~ 4,
-               reg_order == "NCR" ~ 5,
-               reg_order == "4A" ~ 6,
-               reg_order == "4B" ~ 7,
+               reg_order == "ncr" ~ 5,
+               reg_order == "4a" ~ 6,
+               reg_order == "4b" ~ 7,
                reg_order == "5" ~ 8,
                reg_order == "6" ~ 9,
                reg_order == "7" ~ 10,
@@ -688,9 +691,9 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
                reg_order == "10" ~ 13,
                reg_order == "11" ~ 14,
                reg_order == "12" ~ 15,
-               reg_order == "CARAGA" ~ 16,
-               reg_order == "ARMM" ~ 17,
-               reg_order == "BARMM" ~ 17,
+               reg_order == "caraga" ~ 16,
+               reg_order == "armm" ~ 17,
+               reg_order == "barmm" ~ 17,
                TRUE ~ 9999
             ),
          ) %>%
@@ -698,8 +701,8 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
          select(-reg_order)
 
       view_vars <- c(
-         "REC_ID",
-         "CENTRAL_ID",
+         "rec_id",
+         "central_id",
          "facility_region",
          "facility",
          "form",
@@ -753,10 +756,10 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
             any_of(view_vars),
          )
 
-      log_info("Checking for death report from Form BC.")
+      log_info("Checking for death report from Form bc.")
       check[["formbc_dead"]] <- data %>%
          filter(
-            form == "Form BC"
+            form == "Form bc"
          ) %>%
          select(
             any_of(view_vars),
@@ -771,17 +774,17 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
             any_of(view_vars),
          )
 
-      all_issues <- combine_validations(data, check, "REC_ID") %>%
+      all_issues <- combine_validations(data, check, "rec_id") %>%
          mutate(
             reg_order = facility_region,
             reg_order = case_when(
                reg_order == "1" ~ 1,
                reg_order == "2" ~ 2,
-               reg_order == "CAR" ~ 3,
+               reg_order == "car" ~ 3,
                reg_order == "3" ~ 4,
-               reg_order == "NCR" ~ 5,
-               reg_order == "4A" ~ 6,
-               reg_order == "4B" ~ 7,
+               reg_order == "ncr" ~ 5,
+               reg_order == "4a" ~ 6,
+               reg_order == "4b" ~ 7,
                reg_order == "5" ~ 8,
                reg_order == "6" ~ 9,
                reg_order == "7" ~ 10,
@@ -790,13 +793,13 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
                reg_order == "10" ~ 13,
                reg_order == "11" ~ 14,
                reg_order == "12" ~ 15,
-               reg_order == "CARAGA" ~ 16,
-               reg_order == "ARMM" ~ 17,
-               reg_order == "BARMM" ~ 17,
+               reg_order == "caraga" ~ 16,
+               reg_order == "armm" ~ 17,
+               reg_order == "barmm" ~ 17,
                TRUE ~ 9999
             ),
          ) %>%
-         arrange(reg_order, facility, REC_ID) %>%
+         arrange(reg_order, facility, rec_id) %>%
          select(-reg_order)
 
       check <- list(all_issues = all_issues)

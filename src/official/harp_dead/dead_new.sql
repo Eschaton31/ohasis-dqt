@@ -1,5 +1,5 @@
-SELECT COALESCE(id.CENTRAL_ID, form.PATIENT_ID) AS CENTRAL_ID,
+select coalesce(id.central_id, form.patient_id) as central_id,
        form.*
-FROM ohasis_warehouse.form_d AS form
-         LEFT JOIN ohasis_warehouse.id_registry AS id USING (PATIENT_ID)
-WHERE COALESCE(id.CENTRAL_ID, form.PATIENT_ID) NOT IN (SELECT CENTRAL_ID FROM ohasis_warehouse.harp_dead_old);
+from ohasis_warehouse.form_d as form
+         left join ohasis_lake.id_registry as id using (patient_id)
+where coalesce(id.central_id, form.patient_id) not in (select harp_dead_old.central_id from ohasis_warehouse.harp_dead_old);
