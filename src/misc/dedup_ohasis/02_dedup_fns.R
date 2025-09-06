@@ -13,8 +13,8 @@ ohasis_dupes <- function(...) {
       filter(dupe_count > 1) %>%
       inner_join(dedup$standard %>% select(-c(...)), by = join_by(row_id)) %>%
       # merge w/ registry to see which Central ID to keep for those matched
-      left_join(dedup$dx %>% select(CENTRAL_ID, idnum), join_by(CENTRAL_ID)) %>%
-      left_join(dedup$num_linked, join_by(CENTRAL_ID)) %>%
+      left_join(dedup$dx %>% select(central_id, idnum), join_by(central_id)) %>%
+      left_join(dedup$num_linked, join_by(central_id)) %>%
       mutate(
          # tag those in registry
          harp_registry = if_else(!is.na(idnum), 1, 0)
@@ -30,7 +30,7 @@ ohasis_dupes <- function(...) {
          reg_tag = harpgrp_tag + notgrp_tag,
       ) %>%
       arrange(group_id, idnum) %>%
-      relocate(CENTRAL_ID, group_id, row_id, .before = 1)
+      relocate(central_id, group_id, row_id, .before = 1)
 
    Dup.Duplicates.Registry <- Dup.Duplicates %>% filter(reg_tag == 1)
    Dup.Duplicates.Within   <- Dup.Duplicates %>% filter(reg_tag == 2)
@@ -43,25 +43,25 @@ ohasis_dupes <- function(...) {
          arrange(group_id, desc(harp_registry)) %>%
          group_by(group_id) %>%
          mutate(
-            FINAL_CID = first(na.omit(CENTRAL_ID)),
-            CID_NUM   = row_number(),
+            final_cid = first(na.omit(central_id)),
+            cid_num   = row_number(),
          ) %>%
          ungroup() %>%
          pivot_wider(
-            id_cols     = FINAL_CID,
-            names_from  = CID_NUM,
-            names_glue  = 'CID_{CID_NUM}',
-            values_from = CENTRAL_ID
+            id_cols     = final_cid,
+            names_from  = cid_num,
+            names_glue  = 'cid_{cid_num}',
+            values_from = central_id
          ) %>%
-         select(-CID_1)
+         select(-cid_1)
 
-      for (name in get_names(Dup.Duplicates.Registry.Final, "CID_")) {
+      for (name in get_names(Dup.Duplicates.Registry.Final, "cid_")) {
          Dup.Duplicates.Registry.Final.Conso[[name]] <- Dup.Duplicates.Registry.Final %>%
             select(
-               FINAL_CID,
-               LINK_CID = !!as.symbol(name)
+               final_cid,
+               link_cid = !!as.symbol(name)
             ) %>%
-            filter(!is.na(LINK_CID))
+            filter(!is.na(link_cid))
       }
       Dup.Duplicates.Registry.Final.Conso <- bind_rows(Dup.Duplicates.Registry.Final.Conso)
    }
@@ -73,25 +73,25 @@ ohasis_dupes <- function(...) {
          arrange(group_id) %>%
          group_by(group_id) %>%
          mutate(
-            FINAL_CID = first(na.omit(CENTRAL_ID)),
-            CID_NUM   = row_number(),
+            final_cid = first(na.omit(central_id)),
+            cid_num   = row_number(),
          ) %>%
          ungroup() %>%
          pivot_wider(
-            id_cols     = FINAL_CID,
-            names_from  = CID_NUM,
-            names_glue  = 'CID_{CID_NUM}',
-            values_from = CENTRAL_ID
+            id_cols     = final_cid,
+            names_from  = cid_num,
+            names_glue  = 'cid_{cid_num}',
+            values_from = central_id
          ) %>%
-         select(-CID_1)
+         select(-cid_1)
 
-      for (name in get_names(Dup.Duplicates.Normal.Final, "CID_")) {
+      for (name in get_names(Dup.Duplicates.Normal.Final, "cid_")) {
          Dup.Duplicates.Normal.Final.Conso[[name]] <- Dup.Duplicates.Normal.Final %>%
             select(
-               FINAL_CID,
-               LINK_CID = !!as.symbol(name)
+               final_cid,
+               link_cid = !!as.symbol(name)
             ) %>%
-            filter(!is.na(LINK_CID))
+            filter(!is.na(link_cid))
       }
       Dup.Duplicates.Normal.Final.Conso <- bind_rows(Dup.Duplicates.Normal.Final.Conso)
    }
@@ -103,7 +103,7 @@ ohasis_dupes <- function(...) {
       crayon::underline(crayon::magenta(
          nrow(
             dedup$standard %>%
-               select(CENTRAL_ID) %>%
+               select(central_id) %>%
                anti_join(dedup$id_registry))
       )
       ),

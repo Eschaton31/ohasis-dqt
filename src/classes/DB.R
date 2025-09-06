@@ -201,6 +201,10 @@ DB <- R6Class(
             dbAppendTable(db_conn, table_sql, df)
          }
 
+         data %<>%
+            mutate_if(is.Date, as.character) %>%
+            mutate_if(is.POSIXct, as.character)
+
          # upsert data
          chunk_size <- 1000
          if (nrow(data) >= chunk_size) {
