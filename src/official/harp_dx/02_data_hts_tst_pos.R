@@ -218,9 +218,9 @@ standardize_data <- function(initial, params) {
 
          # confirmatory info
          test_done                 = case_when(
-            str_detect(toupper(t3_kit), "geenius") ~ "geenius",
-            str_detect(toupper(t3_kit), "stat-pak") ~ "stat-pak",
-            str_detect(toupper(t3_kit), "mp diagnostics") ~ "western blot",
+            str_detect(toupper(t3_kit), "GEENIUS") ~ "GEENIUS",
+            str_detect(toupper(t3_kit), "STAT-PAK") ~ "STAT-PAK",
+            str_detect(toupper(t3_kit), "MP DIAGNOSTICS") ~ "WESTERN BLOT",
             age <= 1 ~ "pcr"
          ),
          rhivda_done               = if_else(
@@ -235,11 +235,11 @@ standardize_data <- function(initial, params) {
          sex                       = remove_code(stri_trans_toupper(sex)),
          self_identity             = remove_code(stri_trans_toupper(self_ident)),
          self_identity             = case_when(
-            self_identity == "other" ~ "others",
-            self_identity == "man" ~ "male",
-            self_identity == "woman" ~ "female",
-            self_identity == "male" ~ "male",
-            self_identity == "female" ~ "female",
+            self_identity == "OTHER" ~ "OTHERS",
+            self_identity == "MAN" ~ "MALE",
+            self_identity == "WOMAN" ~ "FEMALE",
+            self_identity == "MALE" ~ "MALE",
+            self_identity == "FEMALE" ~ "FEMALE",
             TRUE ~ self_identity
          ),
          self_identity_other       = stri_trans_toupper(self_ident_other),
@@ -247,9 +247,9 @@ standardize_data <- function(initial, params) {
 
          civil_status              = stri_trans_toupper(civil_status),
          nationalit                = case_when(
-            toupper(nationality) == "philippines" ~ "filipino",
-            toupper(nationality) != "philippines" ~ "non-filipino",
-            TRUE ~ "unknown"
+            toupper(nationality) == "PHILIPPINES" ~ "FILIPINO",
+            toupper(nationality) != "PHILIPPINES" ~ "NON-FILIPINO",
+            TRUE ~ "UNKNOWN"
          ),
          current_school_level      = if_else(
             condition = str_left(is_student, 1) == "1",
@@ -610,18 +610,18 @@ tag_mot <- function(data, params) {
 
          # transmit
          transmit   = case_when(
-            mot %in% c(1, 2, 3, 4, 11, 12, 21, 22, 31, 32, 41, 42) ~ "sex",
-            mot %in% c(5, 51, 52) ~ "ivdu",
-            mot %in% c(6, 61) ~ "perinatal",
-            mot %in% c(8, 9, 10) ~ "unknown",
-            mot == 7 ~ "others",
+            mot %in% c(1, 2, 3, 4, 11, 12, 21, 22, 31, 32, 41, 42) ~ "SEX",
+            mot %in% c(5, 51, 52) ~ "IVDU",
+            mot %in% c(6, 61) ~ "PERINATAL",
+            mot %in% c(8, 9, 10) ~ "UNKNOWN",
+            mot == 7 ~ "OTHERS",
          ),
 
          # sexhow
          sexhow     = case_when(
-            mot %in% c(1, 11, 12) ~ "homosexual",
-            mot %in% c(2, 21, 22) ~ "bisexual",
-            mot %in% c(3, 4, 31, 32, 41, 42) ~ "heterosexual",
+            mot %in% c(1, 11, 12) ~ "HOMOSEXUAL",
+            mot %in% c(2, 21, 22) ~ "BISEXUAL",
+            mot %in% c(3, 4, 31, 32, 41, 42) ~ "HETEROSEXUAL",
          ),
       )
 
@@ -698,14 +698,14 @@ tag_class <- function(data, corr) {
 
          # final class
          class                = case_when(
-            classd %in% c(3, 4) ~ "aids",
+            classd %in% c(3, 4) ~ "AIDS",
             TRUE ~ "HIV"
          ),
 
          # new class for 2022
          class2022            = case_when(
-            class == "aids" ~ "aids",
-            ahd == 1 ~ "aids",
+            class == "AIDS" ~ "AIDS",
+            ahd == 1 ~ "AIDS",
             TRUE ~ "HIV"
          ),
 
@@ -1106,12 +1106,12 @@ final_conversion <- function(data) {
             false     = as.numeric(NA)
          ),
          age_vertical = if_else(
-            condition = transmit == "perinatal",
+            condition = transmit == "PERINATAL",
             true      = age,
             false     = as.numeric(NA)
          ),
          age_unknown  = if_else(
-            condition = transmit == "unknown",
+            condition = transmit == "UNKNOWN",
             true      = age,
             false     = as.numeric(NA)
          ),
@@ -1303,11 +1303,11 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
             reg_order = case_when(
                reg_order == "1" ~ 1,
                reg_order == "2" ~ 2,
-               reg_order == "car" ~ 3,
+               reg_order == "CAR" ~ 3,
                reg_order == "3" ~ 4,
-               reg_order == "ncr" ~ 5,
-               reg_order == "4a" ~ 6,
-               reg_order == "4b" ~ 7,
+               reg_order == "NCR" ~ 5,
+               reg_order == "4A" ~ 6,
+               reg_order == "4B" ~ 7,
                reg_order == "5" ~ 8,
                reg_order == "6" ~ 9,
                reg_order == "7" ~ 10,
@@ -1316,9 +1316,9 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
                reg_order == "10" ~ 13,
                reg_order == "11" ~ 14,
                reg_order == "12" ~ 15,
-               reg_order == "caraga" ~ 16,
-               reg_order == "armm" ~ 17,
-               reg_order == "barmm" ~ 17,
+               reg_order == "CARAGA" ~ 16,
+               reg_order == "ARMM" ~ 17,
+               reg_order == "BARMM" ~ 17,
                TRUE ~ 9999
             ),
          ) %>%

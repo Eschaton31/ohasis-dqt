@@ -378,7 +378,7 @@ add_missing_columns <- function(data, ref) {
 }
 
 connect <- function(group) {
-   if (group == "live" | group == 'ohasis-live') {
+   if (group == "live" | group == 'ohasis-live' | group == 'old-lw') {
       return(DBI::dbConnect(RMariaDB::MariaDB(), group = group, default.file = "my.cnf"))
    }
 

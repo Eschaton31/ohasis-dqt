@@ -14,12 +14,11 @@ dedup_reqs <- function() {
 
 dedup_download <- function() {
    # open connections
-   lw_conn <- ohasis$conn("lw")
-   db_conn <- ohasis$conn("db")
+   lw_conn <- connect("ohasis-lw")
 
    # instatiate list
    dedup     <- list()
-   dedup$pii <- tibble(REC_ID = NA_character_) %>%
+   dedup$pii <- tibble(patient_id = NA_character_) %>%
       slice(0)
    if (file.exists(Sys.getenv("DEDUP_PII")))
       dedup$pii <- read_rds(Sys.getenv("DEDUP_PII"))
@@ -28,261 +27,122 @@ dedup_download <- function() {
    min <- "1900-01-01 00:00:00"
    max <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
    if (nrow(dedup$pii) > 0)
-      min <- format(max(dedup$pii$SNAPSHOT, na.rm = TRUE), "%Y-%m-%d %H:%M:00")
+      min <- format(max(max(dedup$pii$created_at, na.rm = TRUE), max(dedup$pii$updated_at, na.rm = TRUE), max(dedup$pii$deleted_at, na.rm = TRUE)), "%Y-%m-%d %H:%M:00")
 
    # central id reference
    log_info("Downloading {green('id_registry')}.")
-   # dedup$id_registry <- QB$new(lw_conn)$
-   #    from("ohasis_warehouse.id_registry")$
-   #    get() %>%
-   #    select(-SNAPSHOT) %>%
-   #    mutate_if(
-   #       .predicate = is.POSIXct,
-   #       ~as.character(.)
-   #    )
    dedup$id_registry <- update_idreg()
 
-   # dedup$id_registry <- dbTable(
-   #    lw_conn,
-   #    "ohasis_warehouse",
-   #    "id_registry"
-   # ) %>%
-   #    select(-SNAPSHOT) %>%
-   #    mutate_if(
-   #       .predicate = is.POSIXct,
-   #       ~as.character(.)
-   #    )
-
-   # deleted records reference
-   log_info("Downloading {green('deleted')}.")
-   dedup$deleted <- QB$new(db_conn)$
-      select("REC_ID")$
-      from("ohasis_interim.px_record")$
-      whereNotNull("DELETED_AT")$
-      get()
-
    # download data based on limits (min, max)
-   # download <- input(
-   #    prompt  = "Do you want to download {green('new PIIs')}?",
-   #    options = c("1" = "yes", "2" = "no"),
-   #    default = "1"
-   # )
-   download <- "1"
-   if (download == "1") {
-      log_info("Downloading {green('pii')}.")
-      new_data <- tracked_select(
-         lw_conn,
-         r"(
-SELECT pii.REC_ID,
-       COALESCE(serv.SERVICE_FACI, pii.FACI_ID)         AS FACI_ID,
-       COALESCE(serv.SERVICE_SUB_FACI, pii.SUB_FACI_ID) AS SUB_FACI_ID,
-       pii.PATIENT_ID,
-       pii.FIRST,
-       pii.MIDDLE,
-       pii.LAST,
-       pii.SUFFIX,
-       pii.UIC,
-       pii.CONFIRMATORY_CODE,
-       pii.PATIENT_CODE,
-       pii.BIRTHDATE,
-       pii.PHILSYS_ID,
-       pii.PHILHEALTH_NO,
-       pii.CLIENT_EMAIL,
-       pii.CLIENT_MOBILE,
-       pii.SEX,
-       pii.PERM_PSGC_REG,
-       pii.PERM_PSGC_PROV,
-       pii.PERM_PSGC_MUNC,
-       pii.CURR_PSGC_REG,
-       pii.CURR_PSGC_PROV,
-       pii.CURR_PSGC_MUNC,
-       pii.DELETED_AT,
-       pii.SNAPSHOT
-FROM ohasis_lake.px_pii AS pii
-         LEFT JOIN ohasis_lake.px_faci_info AS serv ON pii.REC_ID = serv.REC_ID
-WHERE pii.DELETED_AT IS NULL
-  AND (pii.SNAPSHOT BETWEEN ? AND ?)
-      )",
-         "PII Data",
-         list(min, max)
+   log_info("Downloading {green('pii')}.")
+   new_data <- QB$new(lw_conn)$from('ohasis_lake.patients')
+   new_data$where(function(query = QB$new(lw_conn)) {
+      query$whereBetween('created_at', c(min, max), "or")
+      query$whereBetween('updated_at', c(min, max), "or")
+      query$whereBetween('deleted_at', c(min, max), "or")
+      query$whereNested
+   })
+   new_data <- new_data$get()
+
+   new_data %<>%
+      mutate_at(
+         .vars = vars(
+            first,
+            middle,
+            last,
+            suffix,
+            confirmatory_code,
+            patient_code,
+            uic,
+            philhealth_no,
+            philsys_id,
+            client_mobile,
+            client_email
+         ),
+         ~clean_pii(.)
+      ) %>%
+      mutate(
+         client_mobile = str_replace_all(client_mobile, "[^[:digit:]]", ""),
+         client_mobile = case_when(
+            str_left(client_mobile, 1) == "9" ~ stri_c("0", client_mobile),
+            str_left(client_mobile, 2) == "63" ~ str_replace(client_mobile, "^63", "0"),
+            TRUE ~ client_mobile
+         ),
+         birthdate     = as.character(birthdate)
       )
 
-      new_data %<>%
-         ohasis$get_addr(
-            c(
-               PERM_REG  = "PERM_PSGC_REG",
-               PERM_PROV = "PERM_PSGC_PROV",
-               PERM_MUNC = "PERM_PSGC_MUNC"
-            ),
-            "nhsss"
-         ) %>%
-         ohasis$get_addr(
-            c(
-               CURR_REG  = "CURR_PSGC_REG",
-               CURR_PROV = "CURR_PSGC_PROV",
-               CURR_MUNC = "CURR_PSGC_MUNC"
-            ),
-            "nhsss"
-         ) %>%
-         mutate_at(
-            .vars = vars(ends_with("_REG"), ends_with("_PROV"), ends_with("_MUNC")),
-            ~if_else(. == "UNKNOWN", NA_character_, ., .)
-         ) %>%
-         mutate_if(
-            .predicate = is.character,
-            ~clean_pii(.)
-         ) %>%
-         mutate(
-            CLIENT_MOBILE = str_replace_all(CLIENT_MOBILE, "[^[:digit:]]", ""),
-            CLIENT_MOBILE = case_when(
-               str_left(CLIENT_MOBILE, 1) == "9" ~ stri_c("0", CLIENT_MOBILE),
-               str_left(CLIENT_MOBILE, 2) == "63" ~ str_replace(CLIENT_MOBILE, "^63", "0"),
-               TRUE ~ CLIENT_MOBILE
-            ),
-            BIRTHDATE     = as.character(BIRTHDATE)
-         )
+   # finalize data
+   dedup$pii <- dedup$pii %>%
+      # remove old version of record
+      anti_join(select(new_data, patient_id)) %>%
+      # append new data
+      mutate(birthdate = as.character(birthdate)) %>%
+      bind_rows(new_data) %>%
+      filter(is.na(deleted_at))
 
-      # finalize data
-      dedup$pii <- dedup$pii %>%
-         # remove old version of record
-         anti_join(select(new_data, REC_ID)) %>%
-         # remove old data that were already deleted
-         anti_join(dedup$deleted) %>%
-         # append new data
-         mutate(BIRTHDATE = as.character(BIRTHDATE)) %>%
-         bind_rows(new_data)
-
-      # write to local file for later use
-      write_rds(dedup$pii, Sys.getenv("DEDUP_PII"))
-   }
+   # write to local file for later use
+   write_rds(dedup$pii, Sys.getenv("DEDUP_PII"))
 
    # close connections
    dbDisconnect(lw_conn)
-   dbDisconnect(db_conn)
 
    return(dedup)
 }
 
 dedup_linelist <- function(dedup) {
-
-   # columns to be included in the final linelist
-   # cols <- c(
-   #    "FIRST",
-   #    "MIDDLE",
-   #    "LAST",
-   #    "SUFFIX",
-   #    "UIC",
-   #    "CONFIRMATORY_CODE",
-   #    "PATIENT_CODE",
-   #    "BIRTHDATE",
-   #    "PHILSYS_ID",
-   #    "PHILHEALTH_NO",
-   #    "CLIENT_EMAIL",
-   #    "CLIENT_MOBILE",
-   #    "SEX",
-   #    get_names(dedup$pii, "PERM_"),
-   #    get_names(dedup$pii, "CURR_")
-   # )
-   #
-   # arrange descendingly based on latest record
-   dedup$pii %<>%
-      ungroup() %>%
-      get_cid(dedup$id_registry, PATIENT_ID)
-
-   # # get latest non-missing data from column
-   # for (col in cols) {
-   #    .log_info("Getting latest data for {green(col)}.")
-   #    col_name <- as.name(col)
-   #
-   #    # remove values denoting missing data
-   #    if (col %in% c("FIRST", "LAST", "CLIENT_EMAIL"))
-   #       dedup$vars[[col]] <- dedup$pii %>%
-   #          select(
-   #             CENTRAL_ID,
-   #             !!col_name
-   #          ) %>%
-   #          mutate(
-   #             !!col_name := str_squish(toupper(!!col_name)),
-   #             !!col_name := case_when(
-   #                !!col_name == "XXX" ~ NA_character_,
-   #                !!col_name == "N/A" ~ NA_character_,
-   #                !!col_name == "NA" ~ NA_character_,
-   #                !!col_name == "NULL" ~ NA_character_,
-   #                !!col_name == "NONE" ~ NA_character_,
-   #                nchar(!!col_name) == 1 ~ NA_character_,
-   #                TRUE ~ !!col_name
-   #             ),
-   #             !!col_name := clean_pii(!!col_name)
-   #          ) %>%
-   #          filter(!is.na(!!col_name))
-   #    else
-   #       dedup$vars[[col]] <- dedup$pii %>%
-   #          select(
-   #             CENTRAL_ID,
-   #             !!col_name
-   #          ) %>%
-   #          mutate(
-   #             !!col_name := str_squish(toupper(!!col_name)),
-   #             !!col_name := if_else(!!col_name == "", NA_character_, !!col_name, !!col_name),
-   #             !!col_name := clean_pii(!!col_name)
-   #          ) %>%
-   #          filter(!is.na(!!col_name))
-   #
-   #    # deduplicate based on central id
-   #    dedup$vars[[col]] %<>%
-   #       distinct(CENTRAL_ID, .keep_all = TRUE) %>%
-   #       # rename columns for reshaping
-   #       rename(
-   #          DATA = 2
-   #       ) %>%
-   #       mutate(
-   #          VAR = col
-   #       ) %>%
-   #       mutate_all(~as.character(.))
-   # }
-   #
-   # # append list of latest variablkes and reshape to created
-   # # final dataset/linelist
-   # .log_info("Consolidating variables.")
-   # dedup$linelist <- bind_rows(dedup$vars) %>%
-   #    pivot_wider(
-   #       id_cols     = CENTRAL_ID,
-   #       names_from  = VAR,
-   #       values_from = DATA
-   #    )
    log_info("Getting latest data per column.")
    dedup$linelist <- dedup$pii %>%
-      select(-REC_ID, -FACI_ID, -SUB_FACI_ID, -PATIENT_ID, -DELETED_AT) %>%
+      get_cid(dedup$id_registry, patient_id) %>%
+      mutate(
+         curr_psgc = coalesce(curr_brgy, curr_munc, curr_prov, curr_reg),
+         perm_psgc = coalesce(perm_brgy, perm_munc, perm_prov, perm_reg),
+         snapshot  = max(created_at, updated_at, deleted_at, na.rm = TRUE)
+      ) %>%
+      select(
+         central_id,
+         first,
+         middle,
+         last,
+         suffix,
+         uic,
+         confirmatory_code,
+         patient_code,
+         birthdate,
+         philsys_id,
+         philhealth_no,
+         client_email,
+         client_mobile,
+         sex,
+         curr_psgc,
+         perm_psgc,
+         snapshot
+      ) %>%
       pivot_longer(
          cols = c(
-            FIRST,
-            MIDDLE,
-            LAST,
-            SUFFIX,
-            UIC,
-            CONFIRMATORY_CODE,
-            PATIENT_CODE,
-            BIRTHDATE,
-            PHILSYS_ID,
-            PHILHEALTH_NO,
-            CLIENT_EMAIL,
-            CLIENT_MOBILE,
-            SEX,
-            PERM_REG,
-            PERM_PROV,
-            PERM_MUNC,
-            CURR_REG,
-            CURR_PROV,
-            CURR_MUNC,
+            first,
+            middle,
+            last,
+            suffix,
+            uic,
+            confirmatory_code,
+            patient_code,
+            birthdate,
+            philsys_id,
+            philhealth_no,
+            client_email,
+            client_mobile,
+            sex,
+            curr_psgc,
+            perm_psgc,
          )
       ) %>%
       mutate(
          sort = if_else(!is.na(value), 1, 9999, 9999)
       ) %>%
-      arrange(sort, desc(SNAPSHOT)) %>%
-      distinct(CENTRAL_ID, name, .keep_all = TRUE) %>%
+      arrange(sort, desc(snapshot)) %>%
+      distinct(central_id, name, .keep_all = TRUE) %>%
       pivot_wider(
-         id_cols     = CENTRAL_ID,
+         id_cols     = central_id,
          names_from  = name,
          values_from = value
       )
@@ -290,62 +150,66 @@ dedup_linelist <- function(dedup) {
    # load harp diagnosis
    log_info("Reloading HARP dataset.")
    dedup$dx <- hs_data("harp_dx", "reg", ohasis$yr, ohasis$mo) %>%
-      read_dta(col_select = c(idnum, PATIENT_ID, labcode2)) %>%
-      get_cid(dedup$id_registry, PATIENT_ID)
+      read_dta(col_select = c(idnum, patient_id, labcode2)) %>%
+      rename_all(tolower) %>%
+      get_cid(dedup$id_registry, patient_id)
 
    log_info("Loading confirmatory data.")
    dedup$linelist %<>%
       left_join(
          y  = dedup$dx %>%
             select(
-               CENTRAL_ID,
+               central_id,
                labcode2
             ),
-         by = "CENTRAL_ID"
+         by = "central_id"
       ) %>%
       mutate(
-         CONFIRMATORY_CODE = coalesce(labcode2, CONFIRMATORY_CODE),
-         SUFFIX            = NA_character_,
-         BIRTHDATE         = if_else(!is.na(BIRTHDATE), as.Date(BIRTHDATE), NA_Date_)
+         confirmatory_code = coalesce(labcode2, confirmatory_code),
+         birthdate         = if_else(!is.na(birthdate), as.Date(birthdate), NA_Date_)
       )
 
    # standardize for deduplication
    log_info("Dataset cleaning and preparation.")
-   # profvis({
-   # dedup$standard <- dedup_prep2(
-   #    data         = dedup$linelist,
-   #    name_f       = FIRST,
-   #    name_m       = MIDDLE,
-   #    name_l       = LAST,
-   #    name_s       = SUFFIX,
-   #    uic          = UIC,
-   #    birthdate    = BIRTHDATE,
-   #    code_confirm = CONFIRMATORY_CODE,
-   #    code_px      = PATIENT_CODE,
-   #    phic         = PHILHEALTH_NO,
-   #    philsys      = PHILSYS_ID
-   # )
-   # })
-   # profvis({
-   dedup$standard <- dedup_prep(
-      data         = dedup$linelist,
-      name_f       = FIRST,
-      name_m       = MIDDLE,
-      name_l       = LAST,
-      name_s       = SUFFIX,
-      uic          = UIC,
-      birthdate    = BIRTHDATE,
-      code_confirm = CONFIRMATORY_CODE,
-      code_px      = PATIENT_CODE,
-      phic         = PHILHEALTH_NO,
-      philsys      = PHILSYS_ID
-   ) %>%
-      mutate(row_id = row_number())
+   dedup$standard <- dedup$linelist %>%
+      dedup_prep(
+         name_f       = first,
+         name_m       = middle,
+         name_l       = last,
+         name_s       = suffix,
+         uic          = uic,
+         birthdate    = birthdate,
+         code_confirm = confirmatory_code,
+         code_px      = patient_code,
+         phic         = philhealth_no,
+         philsys      = philsys_id
+      ) %>%
+      mutate(row_id = row_number()) %>% 
+      left_join(
+         y = ohasis$ref_addr %>% 
+            select(
+               curr_psgc = psgc,
+               curr_reg = nhsss_reg,
+               curr_prov = nhsss_prov,
+               curr_munc = nhsss_munc
+            ),
+         by = join_by(curr_psgc)
+      ) %>% 
+      left_join(
+         y = ohasis$ref_addr %>% 
+            select(
+               perm_psgc = psgc,
+               perm_reg = nhsss_reg,
+               perm_prov = nhsss_prov,
+               perm_munc = nhsss_munc
+            ),
+         by = join_by(perm_psgc)
+      )
 
    dedup$num_linked <- dedup$id_registry %>%
-      group_by(CENTRAL_ID) %>%
+      group_by(central_id) %>%
       summarise(
-         NUM_LINKED = n()
+         num_linked = n()
       ) %>%
       ungroup()
 
@@ -355,22 +219,22 @@ dedup_linelist <- function(dedup) {
 dedup_linelist2 <- function(dedup) {
    log_info("Deduplication standard.")
    dedup$standard %<>%
-      select(-any_of("PATIENT_ID")) %>%
-      rename(PATIENT_ID = CENTRAL_ID) %>%
-      get_cid(dedup$id_registry, PATIENT_ID) %>%
-      arrange(CENTRAL_ID, labcode2) %>%
-      distinct(CENTRAL_ID, .keep_all = TRUE)
+      select(-any_of("patient_id")) %>%
+      rename(patient_id = central_id) %>%
+      get_cid(dedup$id_registry, patient_id) %>%
+      arrange(central_id, labcode2) %>%
+      distinct(central_id, .keep_all = TRUE)
 
    log_info("Attaching new CID to dx.")
    dedup$dx %<>%
-      select(idnum, PATIENT_ID, labcode2) %>%
-      get_cid(dedup$id_registry, PATIENT_ID)
+      select(idnum, patient_id, labcode2) %>%
+      get_cid(dedup$id_registry, patient_id)
 
    log_info("Getting new number of matches.")
    dedup$num_linked <- dedup$id_registry %>%
-      group_by(CENTRAL_ID) %>%
+      group_by(central_id) %>%
       summarise(
-         NUM_LINKED = n()
+         num_linked = n()
       ) %>%
       ungroup()
 

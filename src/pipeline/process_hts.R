@@ -1073,18 +1073,18 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
 
          # transmit
          transmit              = case_when(
-            mot %in% c(1, 2, 3, 4, 11, 12, 21, 22, 31, 32, 41, 42) ~ "sex",
-            mot %in% c(5, 51, 52) ~ "ivdu",
-            mot %in% c(6, 61) ~ "perinatal",
-            mot %in% c(8, 9, 10) ~ "unknown",
-            mot == 7 ~ "others",
+            mot %in% c(1, 2, 3, 4, 11, 12, 21, 22, 31, 32, 41, 42) ~ "SEX",
+            mot %in% c(5, 51, 52) ~ "IVDU",
+            mot %in% c(6, 61) ~ "PERINATAL",
+            mot %in% c(8, 9, 10) ~ "UNKNOWN",
+            mot == 7 ~ "OTHERS",
          ),
 
          # sexhow
          sexhow                = case_when(
-            mot %in% c(1, 11, 12) ~ "homosexual",
-            mot %in% c(2, 21, 22) ~ "bisexual",
-            mot %in% c(3, 4, 31, 32, 41, 42) ~ "heterosexual",
+            mot %in% c(1, 11, 12) ~ "HOMOSEXUAL",
+            mot %in% c(2, 21, 22) ~ "BISEXUAL",
+            mot %in% c(3, 4, 31, 32, 41, 42) ~ "HETEROSEXUAL",
          ),
 
 
@@ -1120,18 +1120,18 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
          # process reach types
          cbs_venue      = toupper(str_squish(hiv_service_addr)),
          online_app     = case_when(
-            grepl("grindr", cbs_venue) ~ "grindr",
-            grepl("grndr", cbs_venue) ~ "grindr",
-            grepl("grinder", cbs_venue) ~ "grindr",
-            grepl("twitter", cbs_venue) ~ "twitter",
-            grepl("facebook", cbs_venue) ~ "facebook",
-            grepl("messenger", cbs_venue) ~ "facebook",
-            grepl("\\bFB\\b", cbs_venue) ~ "facebook",
-            grepl("\\bGR\\b", cbs_venue) ~ "grindr",
+            grepl("GRINDR", cbs_venue) ~ "GRINDR",
+            grepl("GRNDR", cbs_venue) ~ "GRINDR",
+            grepl("GRINDER", cbs_venue) ~ "GRINDR",
+            grepl("TWITTER", cbs_venue) ~ "TWITTER",
+            grepl("FACEBOOK", cbs_venue) ~ "FACEBOOK",
+            grepl("MESSENGER", cbs_venue) ~ "FACEBOOK",
+            grepl("\\bFB\\b", cbs_venue) ~ "FACEBOOK",
+            grepl("\\bGR\\b", cbs_venue) ~ "GRINDR",
          ),
          reach_online   = if_else(!is.na(online_app), "1_Yes", reach_online, reach_online),
          reach_clinical = if_else(
-            condition = if_all(starts_with("reach_"), ~is.na(.)) & hts_modality == "fbt",
+            condition = if_all(starts_with("reach_"), ~is.na(.)) & hts_modality == "FBT",
             true      = "1_Yes",
             false     = reach_clinical,
             missing   = reach_clinical
@@ -1189,8 +1189,8 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
          kap_msm     = if_else(sex == "1_Male" & sexual_risk %in% c("M", "M+F"), "msm", NA_character_),
          kap_heterom = if_else(sex == "1_Male" & sexual_risk == "F", "Hetero Male", NA_character_),
          kap_heterof = if_else(sex == "2_Female" & !is.na(sexual_risk), "Hetero Female", NA_character_),
-         kap_pwid    = if_else(str_detect(risk_injectdrug, "yes"), "pwid", NA_character_),
-         kap_pip     = if_else(str_detect(risk_paymentforsex, "yes"), "pip", NA_character_),
+         kap_pwid    = if_else(str_detect(risk_injectdrug, "yes"), "PWID", NA_character_),
+         kap_pip     = if_else(str_detect(risk_paymentforsex, "yes"), "PIP", NA_character_),
          kap_pdl     = case_when(
             str_left(client_type, 1) == "7" ~ "PDL",
             str_left(client_type, 1) == "7" ~ "PDL",

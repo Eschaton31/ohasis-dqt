@@ -100,126 +100,126 @@ dedup_prep <- function(
    log_info("Starting.")
    dedup_new <- data %>%
       mutate(
-         LAST              = stri_trans_general(stri_trans_toupper({{name_l}}), "latin-ascii"),
-         MIDDLE            = stri_trans_general(stri_trans_toupper({{name_m}}), "latin-ascii"),
-         FIRST             = stri_trans_general(stri_trans_toupper({{name_f}}), "latin-ascii"),
-         SUFFIX            = stri_trans_general(stri_trans_toupper({{name_s}}), "latin-ascii"),
-         UIC               = stri_trans_general(stri_trans_toupper({{uic}}), "latin-ascii"),
-         CONFIRMATORY_CODE = stri_trans_general(stri_trans_toupper({{code_confirm}}), "latin-ascii"),
-         PATIENT_CODE      = stri_trans_general(stri_trans_toupper({{code_px}}), "latin-ascii"),
-         PHILHEALTH_NO     = stri_trans_general(stri_trans_toupper({{phic}}), "latin-ascii"),
-         PHILSYS_ID        = stri_trans_general(stri_trans_toupper({{philsys}}), "latin-ascii"),
+         last              = stri_trans_general(stri_trans_toupper({{name_l}}), "latin-ascii"),
+         middle            = stri_trans_general(stri_trans_toupper({{name_m}}), "latin-ascii"),
+         first             = stri_trans_general(stri_trans_toupper({{name_f}}), "latin-ascii"),
+         suffix            = stri_trans_general(stri_trans_toupper({{name_s}}), "latin-ascii"),
+         uic               = stri_trans_general(stri_trans_toupper({{uic}}), "latin-ascii"),
+         confirmatory_code = stri_trans_general(stri_trans_toupper({{code_confirm}}), "latin-ascii"),
+         patient_code      = stri_trans_general(stri_trans_toupper({{code_px}}), "latin-ascii"),
+         philhealth_no     = stri_trans_general(stri_trans_toupper({{phic}}), "latin-ascii"),
+         philsys_id        = stri_trans_general(stri_trans_toupper({{philsys}}), "latin-ascii"),
       ) %>%
       mutate_at(
-         .vars = vars(LAST, MIDDLE, FIRST, SUFFIX, UIC, CONFIRMATORY_CODE, PATIENT_CODE, PHILHEALTH_NO, PHILSYS_ID),
+         .vars = vars(last, middle, first, suffix, uic, confirmatory_code, patient_code, philhealth_no, philsys_id),
          ~clean_pii(.)
       ) %>%
       mutate(
          # get components of birthdate
-         BIRTH_YR      = year({{birthdate}}),
-         BIRTH_MO      = month({{birthdate}}),
-         BIRTH_DY      = day({{birthdate}}),
+         birth_yr      = year({{birthdate}}),
+         birth_mo      = month({{birthdate}}),
+         birth_dy      = day({{birthdate}}),
 
          # extract parent info from uic
-         UIC_MOM       = substr(UIC, 1, 2),
-         UIC_DAD       = substr(UIC, 3, 4),
-         UIC_ORDER     = substr(UIC, 5, 6),
+         uic_mom       = substr(uic, 1, 2),
+         uic_dad       = substr(uic, 3, 4),
+         uic_order     = substr(uic, 5, 6),
 
          # variables for first 3 letters of names
-         FIRST_A       = substr(FIRST, 1, 3),
-         MIDDLE_A      = substr(MIDDLE, 1, 3),
-         LAST_A        = substr(LAST, 1, 3),
+         first_a       = substr(first, 1, 3),
+         middle_a      = substr(middle, 1, 3),
+         last_a        = substr(last, 1, 3),
 
-         LAST          = coalesce(LAST, MIDDLE),
-         MIDDLE        = coalesce(MIDDLE, LAST),
+         last          = coalesce(last, middle),
+         middle        = coalesce(middle, last),
 
          # clean ids
-         CONFIRM_SIEVE = str_replace_all(CONFIRMATORY_CODE, "[^[:alnum:]]", ""),
-         PXCODE_SIEVE  = str_replace_all(PATIENT_CODE, "[^[:alnum:]]", ""),
-         FIRST_SIEVE   = str_replace_all(FIRST, "[^[:alnum:]]", ""),
-         MIDDLE_SIEVE  = str_replace_all(MIDDLE, "[^[:alnum:]]", ""),
-         LAST_SIEVE    = str_replace_all(LAST, "[^[:alnum:]]", ""),
-         PHIC          = str_replace_all(PHILHEALTH_NO, "[^[:alnum:]]", ""),
-         PHILSYS       = str_replace_all(PHILSYS_ID, "[^[:alnum:]]", ""),
+         confirm_sieve = str_replace_all(confirmatory_code, "[^[:alnum:]]", ""),
+         pxcode_sieve  = str_replace_all(patient_code, "[^[:alnum:]]", ""),
+         first_sieve   = str_replace_all(first, "[^[:alnum:]]", ""),
+         middle_sieve  = str_replace_all(middle, "[^[:alnum:]]", ""),
+         last_sieve    = str_replace_all(last, "[^[:alnum:]]", ""),
+         phic          = str_replace_all(philhealth_no, "[^[:alnum:]]", ""),
+         philsys       = str_replace_all(philsys_id, "[^[:alnum:]]", ""),
       ) %>%
       mutate_at(
-         .vars = vars(ends_with("_SIEVE", ignore.case = TRUE), PHIC, PHILSYS),
+         .vars = vars(ends_with("_SIEVE", ignore.case = TRUE), phic, philsys),
          ~str_replace_all(., "[^[:alnum:]]", "")
       ) %>%
       mutate_at(
-         .vars = vars(FIRST_SIEVE, MIDDLE_SIEVE, LAST_SIEVE),
+         .vars = vars(first_sieve, middle_sieve, last_sieve),
          ~str_replace_all(., "([[:alnum:]])\\1+", "\\1")
       ) %>%
       mutate(
          # code standard names
-         FIRST_NY  = suppress_warnings(nysiis(FIRST_SIEVE, stri_length(FIRST_SIEVE)), "unknown characters"),
-         MIDDLE_NY = suppress_warnings(nysiis(MIDDLE_SIEVE, stri_length(MIDDLE_SIEVE)), "unknown characters"),
-         LAST_NY   = suppress_warnings(nysiis(LAST_SIEVE, stri_length(LAST_SIEVE)), "unknown characters"),
+         first_ny  = suppress_warnings(nysiis(first_sieve, stri_length(first_sieve)), "unknown characters"),
+         middle_ny = suppress_warnings(nysiis(middle_sieve, stri_length(middle_sieve)), "unknown characters"),
+         last_ny   = suppress_warnings(nysiis(last_sieve, stri_length(last_sieve)), "unknown characters"),
       )
 
-   log_info("Splitting UIC.")
-   # genearte UIC w/o 1 parent, 2 combinations
+   log_info("Splitting uic.")
+   # genearte uic w/o 1 parent, 2 combinations
    dedup_new_uic <- dedup_new %>%
-      filter(!is.na(UIC)) %>%
+      filter(!is.na(uic)) %>%
       select(
-         CENTRAL_ID,
-         UIC_MOM,
-         UIC_DAD
+         central_id,
+         uic_mom,
+         uic_dad
       ) %>%
       pivot_longer(
-         cols      = starts_with('UIC'),
-         names_to  = 'UIC',
-         values_to = 'FIRST_TWO'
+         cols      = starts_with('uic'),
+         names_to  = 'uic',
+         values_to = 'first_two'
       ) %>%
-      arrange(CENTRAL_ID, FIRST_TWO) %>%
-      group_by(CENTRAL_ID) %>%
-      mutate(UIC = row_number()) %>%
+      arrange(central_id, first_two) %>%
+      group_by(central_id) %>%
+      mutate(uic = row_number()) %>%
       ungroup() %>%
       pivot_wider(
-         id_cols      = CENTRAL_ID,
-         names_from   = UIC,
-         names_prefix = 'UIC_',
-         values_from  = FIRST_TWO
+         id_cols      = central_id,
+         names_from   = uic,
+         names_prefix = 'uic_',
+         values_from  = first_two
       )
 
-   log_info("Sorting UIC.")
+   log_info("Sorting uic.")
    dedup_new %<>%
       left_join(
          y  = dedup_new_uic,
-         by = 'CENTRAL_ID'
+         by = 'central_id'
       ) %>%
       mutate(
-         UIC_SORT = stri_c(UIC_1, UIC_2, substr(UIC, 5, 14))
+         uic_sort = stri_c(uic_1, uic_2, substr(uic, 5, 14))
       )
 
    log_info("Sorting Names.")
    dedup_new_names <- dedup_new %>%
       select(
-         CENTRAL_ID,
-         NAME_1 = FIRST_SIEVE,
-         NAME_2 = MIDDLE_SIEVE,
-         NAME_3 = LAST_SIEVE
+         central_id,
+         name_1 = first_sieve,
+         name_2 = middle_sieve,
+         name_3 = last_sieve
       ) %>%
       pivot_longer(
-         cols = starts_with("NAME_")
+         cols = starts_with("name_")
       ) %>%
       mutate(
          value = clean_pii(value),
          value = if_else(nchar(value) == 1, NA_character_, value, value)
       ) %>%
       filter(!is.na(value)) %>%
-      arrange(CENTRAL_ID, value) %>%
-      group_by(CENTRAL_ID) %>%
+      arrange(central_id, value) %>%
+      group_by(central_id) %>%
       summarise(
-         NAMESORT_FIRST = first(value),
-         NAMESORT_LAST  = last(value),
+         namesort_first = first(value),
+         namesort_last  = last(value),
       ) %>%
       ungroup()
 
    dedup_new %<>%
       left_join(
          y  = dedup_new_names,
-         by = 'CENTRAL_ID'
+         by = 'central_id'
       )
 
    return(dedup_new)
@@ -308,56 +308,48 @@ upload_dupes2 <- function(dedup_upload, id_reg, upload = FALSE, from = NULL) {
    # new data
    bind_pid <- dedup_upload %>%
       select(
-         CENTRAL_ID = 1,
-         PATIENT_ID = 2,
+         central_id = 1,
+         patient_id = 2,
       ) %>%
       left_join(
          y  = id_reg %>%
-            select(PATIENT_ID, CREATED_BY, CREATED_AT) %>%
+            select(patient_id, created_by, created_at) %>%
             mutate_all(as.character),
-         by = join_by(PATIENT_ID)
+         by = join_by(patient_id)
       ) %>%
-      mutate(old = if_else(!is.na(CREATED_AT), 1, 0, 0)) %>%
+      mutate(old = if_else(!is.na(created_at), 1, 0, 0)) %>%
       mutate(
-         REPORT_DATE = NA_Date_,
-         IDNUM       = NA_character_,
-         REMARKS     = NA_character_,
-         PRIME       = NA_integer_,
-         CREATED_BY  = if_else(old == 0, Sys.getenv("OH_USER_ID"), CREATED_BY, CREATED_BY),
-         CREATED_AT  = if_else(old == 0, ts, CREATED_AT, CREATED_AT),
-         UPDATED_BY  = if_else(old == 1, Sys.getenv("OH_USER_ID"), NA_character_, NA_character_),
-         UPDATED_AT  = if_else(old == 1, ts, NA_character_, NA_character_),
-         DELETED_BY  = NA_character_,
-         DELETED_AT  = NA_character_
+         created_by  = if_else(old == 0, Sys.getenv("OH_USER_ID"), created_by, created_by),
+         created_at  = if_else(old == 0, ts, created_at, created_at),
+         updated_by  = if_else(old == 1, Sys.getenv("OH_USER_ID"), NA_character_, NA_character_),
+         updated_at  = if_else(old == 1, ts, NA_character_, NA_character_),
+         deleted_by  = NA_character_,
+         deleted_at  = NA_character_
       ) %>%
       select(any_of(names(id_reg)))
 
    bind_cid <- dedup_upload %>%
       select(
-         CENTRAL_ID = 1,
+         central_id = 1,
       ) %>%
       distinct_all() %>%
       mutate(
-         PATIENT_ID = CENTRAL_ID
+         patient_id = central_id
       ) %>%
       left_join(
          y  = id_reg %>%
-            select(PATIENT_ID, CREATED_BY, CREATED_AT) %>%
+            select(patient_id, created_by, created_at) %>%
             mutate_all(as.character),
-         by = join_by(PATIENT_ID)
+         by = join_by(patient_id)
       ) %>%
-      mutate(old = if_else(!is.na(CREATED_AT), 1, 0, 0)) %>%
+      mutate(old = if_else(!is.na(created_at), 1, 0, 0)) %>%
       mutate(
-         REPORT_DATE = NA_Date_,
-         IDNUM       = NA_character_,
-         REMARKS     = NA_character_,
-         PRIME       = NA_integer_,
-         CREATED_BY  = if_else(old == 0, Sys.getenv("OH_USER_ID"), CREATED_BY, CREATED_BY),
-         CREATED_AT  = if_else(old == 0, ts, CREATED_AT, CREATED_AT),
-         UPDATED_BY  = if_else(old == 1, Sys.getenv("OH_USER_ID"), NA_character_, NA_character_),
-         UPDATED_AT  = if_else(old == 1, ts, NA_character_, NA_character_),
-         DELETED_BY  = NA_character_,
-         DELETED_AT  = NA_character_
+         created_by  = if_else(old == 0, Sys.getenv("OH_USER_ID"), created_by, created_by),
+         created_at  = if_else(old == 0, ts, created_at, created_at),
+         updated_by  = if_else(old == 1, Sys.getenv("OH_USER_ID"), NA_character_, NA_character_),
+         updated_at  = if_else(old == 1, ts, NA_character_, NA_character_),
+         deleted_by  = NA_character_,
+         deleted_at  = NA_character_
       ) %>%
       filter(old == 0) %>%
       select(any_of(names(id_reg)))
@@ -367,35 +359,35 @@ upload_dupes2 <- function(dedup_upload, id_reg, upload = FALSE, from = NULL) {
       mutate_all(as.character) %>%
       left_join(
          y  = dedup_upload %>%
-            select(NEW_CID = 1, CENTRAL_ID = 2),
-         by = join_by(CENTRAL_ID)
+            select(new_cid = 1, central_id = 2),
+         by = join_by(central_id)
       ) %>%
       mutate(
-         CENTRAL_ID = coalesce(NEW_CID, CENTRAL_ID),
-         UPDATED_BY = if_else(!is.na(NEW_CID), Sys.getenv("OH_USER_ID"), UPDATED_BY, UPDATED_BY),
-         UPDATED_AT = if_else(!is.na(NEW_CID), ts, UPDATED_AT, UPDATED_AT),
+         central_id = coalesce(new_cid, central_id),
+         updated_by = if_else(!is.na(new_cid), Sys.getenv("OH_USER_ID"), updated_by, updated_by),
+         updated_at = if_else(!is.na(new_cid), ts, updated_at, updated_at),
       ) %>%
-      select(-NEW_CID)
+      select(-new_cid)
 
    # final new data
    new_reg <- bind_pid %>%
       bind_rows(bind_cid) %>%
       bind_rows(new_reg) %>%
-      distinct(PATIENT_ID, .keep_all = TRUE)
+      distinct(patient_id, .keep_all = TRUE)
 
    if (upload && !is.null(from)) {
       new_data <- new_reg %>%
          filter(
-            CREATED_AT >= from | UPDATED_AT >= from,
+            created_at >= from | updated_at >= from,
          )
 
       db_conn     <- ohasis$conn("db")
-      table_space <- Id(schema = "ohasis_interim", table = "registry")
+      table_space <- Id(schema = "ohasis", table = "registry")
       # remove relevant records first
       dbxDelete(
          db_conn,
          table_space,
-         select(new_data, PATIENT_ID),
+         select(new_data, patient_id),
          batch_size = 1000
       )
 
@@ -404,7 +396,7 @@ upload_dupes2 <- function(dedup_upload, id_reg, upload = FALSE, from = NULL) {
          db_conn,
          table_space,
          new_data,
-         c("CENTRAL_ID", "PATIENT_ID"),
+         c("central_id", "patient_id"),
          batch_size = 1000
       )
       dbDisconnect(db_conn)

@@ -614,7 +614,7 @@ batch_px_ids <- function(data, px_id, faci_id, row_ids) {
 
    gen_pid <- function(data) {
       data %<>% mutate(ohasis_id = NA_character_)
-      letters <- stri_c(collapse = "", strrep(letters[1:26], 5))
+      letters <- stri_c(collapse = "", strrep(LETTERS[1:26], 5))
       numbers <- strrep("0123456789", 5)
 
       pb <- progress_bar$new(format = ":current of :total rows | [:bar] (:percent) | eta: :eta | Elapsed: :elapsed", total = nrow(data), width = 100, clear = FALSE)
@@ -640,7 +640,7 @@ batch_px_ids <- function(data, px_id, faci_id, row_ids) {
 
       # data %<>%
       #    mutate(
-      #       letter    = stri_c(collapse = "", strrep(letters[1:26], 5)),
+      #       letter    = stri_c(collapse = "", strrep(LETTERS[1:26], 5)),
       #       letter    = stri_rand_shuffle(letter),
       #       letter    = str_left(letter, 1),
       #       number    = strrep("0123456789", 5),
@@ -708,7 +708,7 @@ batch_rec_ids <- function(data, rec_id, user_id, row_ids) {
 
    gen_rid <- function(data) {
       data %<>% mutate(record_id = NA_character_)
-      letters <- stri_c(collapse = "", strrep(letters[1:26], 5))
+      letters <- stri_c(collapse = "", strrep(LETTERS[1:26], 5))
       numbers <- strrep("0123456789", 5)
 
       pb <- progress_bar$new(format = ":current of :total rows | [:bar] (:percent) | eta: :eta | Elapsed: :elapsed", total = nrow(data), width = 100, clear = FALSE)
@@ -1280,17 +1280,51 @@ update_hts <- function(min, max, exclude) {
 
 oh_batch_newpx <- function(data, id_col) {
    pii_cols <- c(
-      "FIRST",
-      "MIDDLE",
-      "LAST",
-      "SUFFIX",
-      "BIRTHDATE",
-      "UIC",
-      "PHILHEALTH_NO",
-      "PHILSYS_ID",
-      "CLIENT_MOBILE",
-      "CLIENT_EMAIL",
-      "SUB_FACI_ID"
+      'sub_faci_id',
+      'confirmatory_code',
+      'patient_code',
+      'uic',
+      'philhealth_no',
+      'philsys_id',
+      'first',
+      'middle',
+      'last',
+      'suffix',
+      'birthdate',
+      'age',
+      'age_mo',
+      'sex',
+      'self_ident',
+      'self_ident_other',
+      'client_email',
+      'client_mobile',
+      'nationality',
+      'civil_status',
+      'educ_level',
+      'curr_reg',
+      'curr_prov',
+      'curr_munc',
+      'curr_brgy',
+      'curr_addr',
+      'perm_reg',
+      'perm_prov',
+      'perm_munc',
+      'perm_brgy',
+      'perm_addr',
+      'birth_reg',
+      'birth_prov',
+      'birth_munc',
+      'birth_brgy',
+      'birth_addr',
+      'signature',
+      'verbal_consent',
+      'esig',
+      'created_by',
+      'created_at',
+      'updated_by',
+      'updated_at',
+      'deleted_by',
+      'deleted_at'
    )
 
    for (col in pii_cols) {
@@ -1300,131 +1334,90 @@ oh_batch_newpx <- function(data, id_col) {
    }
 
    new <- data %>%
+      filter(!if_all(all_of(pii_cols), ~is.na(.))) %>%
       mutate(
-         REC_ID     = NA_character_,
-         PATIENT_ID = NA_character_,
-         CREATED_BY = "1300000048",
-         CREATED_AT = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+         patient_id = NA_character_,
+         created_by = "1300000048",
+         created_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
       )
 
    new %<>%
-      filter(!is.na(PATIENT_ID)) %>%
+      filter(!is.na(patient_id)) %>%
       bind_rows(
-         batch_px_ids(new %>% filter(is.na(PATIENT_ID)), PATIENT_ID, FACI_ID, id_col)
+         batch_px_ids(new %>% filter(is.na(patient_id)), patient_id, faci_id, id_col)
       )
 
-   new %<>%
-      filter(!is.na(REC_ID)) %>%
-      bind_rows(
-         batch_rec_ids(new %>% filter(is.na(REC_ID)), REC_ID, CREATED_BY, id_col)
+   patients <- new %>%
+      select(
+         patient_id,
+         faci_id,
+         sub_faci_id,
+         confirmatory_code,
+         patient_code,
+         uic,
+         philhealth_no,
+         philsys_id,
+         first,
+         middle,
+         last,
+         suffix,
+         birthdate,
+         age,
+         age_mo,
+         sex,
+         self_ident,
+         self_ident_other,
+         client_email,
+         client_mobile,
+         nationality,
+         civil_status,
+         educ_level,
+         curr_reg,
+         curr_prov,
+         curr_munc,
+         curr_brgy,
+         curr_addr,
+         perm_reg,
+         perm_prov,
+         perm_munc,
+         perm_brgy,
+         perm_addr,
+         birth_reg,
+         birth_prov,
+         birth_munc,
+         birth_brgy,
+         birth_addr,
+         signature,
+         verbal_consent,
+         esig,
+         created_by,
+         created_at,
+         updated_by,
+         updated_at,
+         deleted_by,
+         deleted_at,
+      ) %>%
+      mutate(
+         sex = case_when(
+            sex == 'MALE' ~ '1',
+            sex == 'FEMALE' ~ '1',
+         ),
+         self_ident = case_when(
+            self_ident == 'MAN' ~ '1',
+            self_ident == 'WOMAN' ~ '2',
+            self_ident == 'TRANSWOMAN' ~ '3',
+            self_ident == 'Q/NB/NC' ~ '3',
+         ),
+         self_ident_other = case_when(
+            self_ident == 'TRANSWOMAN' ~ self_ident,
+            self_ident == 'Q/NB/NC' ~ self_ident,
+         ),
       )
 
-   tables           <- list()
-   tables$px_record <- list(
-      name = "px_record",
-      pk   = c("REC_ID", "PATIENT_ID"),
-      data = new %>%
-         mutate(
-            RECORD_DATE = format(Sys.time(), "%Y-%m-%d"),
-            DISEASE     = "101000",
-            MODULE      = "0",
-         ) %>%
-         select(
-            REC_ID,
-            PATIENT_ID,
-            FACI_ID,
-            SUB_FACI_ID,
-            RECORD_DATE,
-            DISEASE,
-            MODULE,
-            CREATED_BY,
-            CREATED_AT,
-         )
-   )
-
-   tables$px_info <- list(
-      name = "px_info",
-      pk   = c("REC_ID", "PATIENT_ID"),
-      data = new %>%
-         mutate(
-            SEX = toupper(SEX),
-            SEX = case_when(
-               SEX == "1_MALE" ~ "1",
-               SEX == "2_FEMALE" ~ "2",
-               SEX == "MALE" ~ "1",
-               SEX == "M" ~ "1",
-               SEX == "FEMALE" ~ "2",
-               SEX == "F" ~ "2",
-            )
-         ) %>%
-         select(
-            REC_ID,
-            PATIENT_ID,
-            CONFIRMATORY_CODE,
-            UIC,
-            PATIENT_CODE,
-            SEX,
-            BIRTHDATE,
-            PHILHEALTH_NO,
-            PHILSYS_ID,
-            CREATED_BY,
-            CREATED_AT,
-         )
-   )
-
-   tables$px_name <- list(
-      name = "px_name",
-      pk   = c("REC_ID", "PATIENT_ID"),
-      data = new %>%
-         select(
-            REC_ID,
-            PATIENT_ID,
-            FIRST,
-            MIDDLE,
-            LAST,
-            SUFFIX,
-            CREATED_BY,
-            CREATED_AT,
-         )
-   )
-
-   tables$px_contact <- list(
-      name = "px_contact",
-      pk   = c("REC_ID", "CONTACT_TYPE"),
-      data = new %>%
-         select(
-            REC_ID,
-            CREATED_BY,
-            CREATED_AT,
-            CLIENT_MOBILE,
-            CLIENT_EMAIL
-         ) %>%
-         pivot_longer(
-            cols      = c(CLIENT_MOBILE, CLIENT_EMAIL),
-            names_to  = "CONTACT_TYPE",
-            values_to = "CONTACT"
-         ) %>%
-         mutate(
-            CONTACT_TYPE = case_when(
-               CONTACT_TYPE == "CLIENT_MOBILE" ~ "1",
-               CONTACT_TYPE == "CLIENT_EMAIL" ~ "2",
-               TRUE ~ CONTACT_TYPE
-            )
-         )
-   )
-
-   db_conn <- ohasis$conn("db")
-   lapply(tables, function(ref, db_conn) {
-      log_info("Uploading {green(ref$name)}.")
-      table_space <- Id(schema = "ohasis_interim", table = ref$name)
-      dbxUpsert(db_conn, table_space, ref$data, ref$pk)
-      # dbExecute(db_conn, glue("DELETE FROM ohasis_interim.{ref$name} WHERE REC_ID IN (?)"), params = list(unique(ref$data$REC_ID)))
-   }, db_conn)
+   db_conn     <- connect('ohasis-live')
+   table_space <- Id(schema = "ohasis", table = "patients")
+   dbxUpsert(db_conn, table_space, patients, 'patient_id')
    dbDisconnect(db_conn)
-
-   con <- ohasis$conn("lw")
-   dbxUpsert(con, Id(schema = "ohasis_lake", table = "ly_clients"), new %>% select(row_id, CENTRAL_ID = PATIENT_ID), "row_id")
-   dbDisconnect(con)
 
    return(new)
 }
