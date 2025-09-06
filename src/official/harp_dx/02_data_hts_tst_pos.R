@@ -1253,15 +1253,15 @@ remove_drops <- function(data, params) {
 
    nrow_new  <- nrow(final_new)
    nrow_ahd  <- final_new %>%
-      filter(class2022 == "aids") %>%
+      filter(class2022 == "AIDS") %>%
       nrow()
    perc_ahd  <- stri_c(format((nrow_ahd / nrow_new) * 100, digits = 2), "%")
    nrow_none <- final_new %>%
-      filter(transmit == "unknown") %>%
+      filter(transmit == "UNKNOWN") %>%
       nrow()
    perc_none <- stri_c(format((nrow_none / nrow_new) * 100, digits = 2), "%")
    nrow_mtct <- final_new %>%
-      filter(transmit == "perinatal") %>%
+      filter(transmit == "PERINATAL") %>%
       nrow()
    perc_mtct <- stri_c(format((nrow_mtct / nrow_new) * 100, digits = 2), "%")
 
