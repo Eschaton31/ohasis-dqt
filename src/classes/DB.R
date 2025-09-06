@@ -216,13 +216,13 @@ DB <- R6Class(
             for (i in seq_len(length(data))) {
                chunk_bytes <- as.numeric(object.size(data[[i]]))
                dbxDelete(db_conn, table_space, data[[i]] %>% select(any_of(id_col)), batch_size = 1000)
-               suppress_warnings(DBI::dbAppendTable(db_conn, table_name, data[[i]], row.names = NA), 'column')
+               suppress_warnings(dbxInsert(db_conn, table_name, data[[i]], row.names = NA), 'column')
                pb$tick(chunk_bytes)
             }
             cat("\n")
          } else {
             dbxDelete(db_conn, table_space, data %>% select(any_of(id_col)), batch_size = 1000)
-            suppress_warnings(DBI::dbAppendTable(db_conn, table_name, data, row.names = NA), 'column')
+            suppress_warnings(dbxInsert(db_conn, table_name, data, row.names = NA), 'column')
          }
       },
 
