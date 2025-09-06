@@ -63,5 +63,6 @@ from ohasis_lake.px_hiv_confirmatory as confirmatory
          left join ohasis_lake.px_hiv_testing as test on confirmatory.rec_id = test.rec_id
          left join ohasis_lake.id_registry as id on pii.patient_id = id.patient_id
 where left(confirmatory.confirm_result, 1) in ('1', '5')
+  and confirmatory.deleted_at is null
   and coalesce(id.central_id, pii.patient_id) not in
       (select central_id from ohasis_warehouse.harp_dx_old where central_id is not null);
