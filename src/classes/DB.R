@@ -853,7 +853,7 @@ DB <- R6Class(
             log_info("Updating warehouse table.")
             # delete existing data, full refresh always
             if (dbExistsTable(db_conn, warehouse_table))
-               dbExecute(db_conn, glue(r"(TRUNCATE `ohasis_warehouse`.`{warehouse_table}`;)"))
+               suppress_warnings(dbExecute(db_conn, glue(r"(TRUNCATE `ohasis_warehouse`.`{warehouse_table}`;)")), 'column')
             # dbExecute(db_conn, glue(r"(drop table `ohasis_warehouse`.`{warehouse_table}`;)"))
 
             # upload info
