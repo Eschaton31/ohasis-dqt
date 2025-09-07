@@ -1,2 +1,2 @@
 SELECT *
-FROM ohasis_warehouse.dx_new;
+FROM ohasis_warehouse.dx_new

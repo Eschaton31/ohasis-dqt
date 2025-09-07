@@ -65,4 +65,4 @@ from ohasis_lake.px_hiv_confirmatory as confirmatory
 where left(confirmatory.confirm_result, 1) in ('1', '5')
   and confirmatory.deleted_at is null
   and coalesce(id.central_id, pii.patient_id) not in
-      (select central_id from ohasis_warehouse.harp_dx_old where central_id is not null);
+      (select central_id from ohasis_warehouse.harp_dx_old where central_id is not null)
