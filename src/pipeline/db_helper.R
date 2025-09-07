@@ -1,7 +1,7 @@
 tracked_select <- function(conn, query, name, params = NULL) {
    # get number of affected rows
    data   <- tibble()
-   n_rows <- dbGetQuery(conn, glue(r"(SELECT COUNT(*) FROM ({gsub(';', '', query)}) AS tbl;)"), params = params)
+   n_rows <- dbGetQuery(conn, glue(r"(SELECT COUNT(*) FROM ({gsub(';', '', query)}) AS tbl)"), params = params)
    n_rows <- as.numeric(n_rows[1,])
 
    # get actual result set
@@ -9,27 +9,32 @@ tracked_select <- function(conn, query, name, params = NULL) {
 
    .log_info("Reading {green(name)}.")
    chunk_size <- 1000
-   if (n_rows >= chunk_size) {
-      # upload in chunks to monitor progress
-      n_chunks <- ceiling(n_rows / chunk_size)
+   if (class(conn)[1] != 'ClickHouseHTTPConnection') {
 
-      # get progress
-      if (!is.null(name))
-         pb_name <- paste0(name, ": :current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed")
-      else
-         pb_name <- ":current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed"
+      if (n_rows >= chunk_size) {
+         # upload in chunks to monitor progress
+         n_chunks <- ceiling(n_rows / chunk_size)
 
-      pb <- progress_bar$new(format = pb_name, total = n_chunks, width = 100, clear = FALSE)
-      pb$tick(0)
+         # get progress
+         if (!is.null(name))
+            pb_name <- paste0(name, ": :current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed")
+         else
+            pb_name <- ":current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed"
 
-      # fetch in chunks
-      for (i in seq_len(n_chunks)) {
-         chunk <- dbFetch(rs, chunk_size)
-         data  <- bind_rows(data, chunk)
-         pb$tick(1)
+         pb <- progress_bar$new(format = pb_name, total = n_chunks, width = 100, clear = FALSE)
+         pb$tick(0)
+
+         # fetch in chunks
+         for (i in seq_len(n_chunks)) {
+            chunk <- dbFetch(rs, chunk_size)
+            data  <- bind_rows(data, chunk)
+            pb$tick(1)
+         }
+      } else {
+         data <- dbFetch(rs)
       }
    } else {
-      data <- dbFetch(rs)
+      data <- dbGetQuery(conn, query, params = params)
    }
    dbClearResult(rs)
    return(data)
@@ -1398,11 +1403,11 @@ oh_batch_newpx <- function(data, id_col) {
          deleted_at,
       ) %>%
       mutate(
-         sex = case_when(
+         sex              = case_when(
             sex == 'MALE' ~ '1',
             sex == 'FEMALE' ~ '1',
          ),
-         self_ident = case_when(
+         self_ident       = case_when(
             self_ident == 'MAN' ~ '1',
             self_ident == 'WOMAN' ~ '2',
             self_ident == 'TRANSWOMAN' ~ '3',
