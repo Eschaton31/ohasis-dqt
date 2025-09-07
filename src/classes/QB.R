@@ -176,26 +176,39 @@ QB <- R6Class(
             conn <- localCheckout(conn)
          }
 
-         rs         <- dbSendQuery(conn, self$query$results)
-         chunk_size <- 1000
-         if (n_rows >= chunk_size) {
-            # upload in chunks to monitor progress
-            n_chunks <- ceiling(n_rows / chunk_size)
+         if (class(conn)[1] != 'ClickHouseHTTPConnection') {
+            rs         <- dbSendQuery(conn, self$query$results)
+            chunk_size <- 1000
+            if (n_rows >= chunk_size) {
+               # upload in chunks to monitor progress
+               n_chunks <- ceiling(n_rows / chunk_size)
 
-            pb_name <- stri_c(self$title, ": :current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed")
-            pb      <- progress_bar$new(format = pb_name, total = n_chunks, width = 100, clear = FALSE)
-            pb$tick(0)
+               pb_name <- stri_c(self$title, ": :current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed")
+               pb      <- progress_bar$new(format = pb_name, total = n_chunks, width = 100, clear = FALSE)
+               pb$tick(0)
 
-            # fetch in chunks
-            for (i in seq_len(n_chunks)) {
-               chunk   <- dbFetch(rs, chunk_size)
-               results <- bind_rows(results, chunk)
-               pb$tick(1)
+               # fetch in chunks
+               for (i in seq_len(n_chunks)) {
+                  chunk   <- dbFetch(rs, chunk_size)
+                  results <- bind_rows(results, chunk)
+                  pb$tick(1)
+               }
+            } else {
+               results <- dbFetch(rs)
             }
+
+            dbClearResult(rs)
          } else {
-            results <- dbFetch(rs)
+            results <- dbGetQuery(conn, self$query$results, format = 'TabSeparatedWithNamesAndTypes') %>%
+               mutate_if(
+                  ~("IDate" %in% class(.)),
+                  ~as.Date(.)
+               ) %>%
+               mutate_if(
+                  is.character,
+                  ~na_if(str_replace_all(., "\\\\0", ""), "")
+               )
          }
-         dbClearResult(rs)
 
          return(results)
       },
@@ -318,7 +331,6 @@ QB <- R6Class(
          query$results <- c(select, private$main, join, where, self$limits)
          query$nrow    <- c("SELECT COUNT(*) AS nrow FROM (", query$results, ") as `dataset`")
          query         <- lapply(query, str_flatten, collapse = " ", na.rm = TRUE)
-         query         <- lapply(query, stri_c, ";")
 
          return(query)
       },

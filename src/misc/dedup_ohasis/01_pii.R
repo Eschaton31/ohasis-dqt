@@ -14,7 +14,7 @@ dedup_reqs <- function() {
 
 dedup_download <- function() {
    # open connections
-   lw_conn <- connect("ohasis-lw")
+   lw_conn <- connect("mariadb-lw")
 
    # instatiate list
    dedup     <- list()

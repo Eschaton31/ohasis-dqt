@@ -5,11 +5,11 @@ tracked_select <- function(conn, query, name, params = NULL) {
    n_rows <- as.numeric(n_rows[1,])
 
    # get actual result set
-   rs <- dbSendQuery(conn, query, params = params)
 
    .log_info("Reading {green(name)}.")
-   chunk_size <- 1000
    if (class(conn)[1] != 'ClickHouseHTTPConnection') {
+      chunk_size <- 1000
+      rs         <- dbSendQuery(conn, query, params = params)
 
       if (n_rows >= chunk_size) {
          # upload in chunks to monitor progress
@@ -33,10 +33,19 @@ tracked_select <- function(conn, query, name, params = NULL) {
       } else {
          data <- dbFetch(rs)
       }
+
+      dbClearResult(rs)
    } else {
-      data <- dbGetQuery(conn, query, params = params, format = 'TabSeparatedWithNamesAndTypes')
+      data <- dbGetQuery(conn, query, params = params, format = 'TabSeparatedWithNamesAndTypes') %>%
+         mutate_if(
+            ~("IDate" %in% class(.)),
+            ~as.Date(.)
+         ) %>%
+         mutate_if(
+            is.character,
+            ~na_if(str_replace_all(., "\\\\0", ""), "")
+         )
    }
-   dbClearResult(rs)
    return(data)
 }
 

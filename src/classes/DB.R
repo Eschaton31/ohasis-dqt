@@ -190,15 +190,15 @@ DB <- R6Class(
          # names_data  <- sort(names(data))
          # names_table <- sort(dbListFields(db_conn, table_space))
          # if (!identical(names_data, names_table) & length(setdiff(names_data, names_table)) > 0) {
-            # # get current records (assuming change is only added columns)
-            # df <- dbReadTable(db_conn, table_space)
-
-            # # recreate table using new columns
-            # sql <- self$create(db_name, table_name, data, id_col)
-            # dbExecute(db_conn, sql)
-
-            # # re-insert data
-            # dbAppendTable(db_conn, table_sql, df)
+         #    # get current records (assuming change is only added columns)
+         #    df <- dbReadTable(db_conn, table_space)
+         #
+         #    # recreate table using new columns
+         #    sql <- self$create(db_name, table_name, data, id_col)
+         #    dbExecute(db_conn, sql)
+         #
+         #    # re-insert data
+         #    dbAppendTable(db_conn, table_sql, df)
          # }
 
          data %<>%
