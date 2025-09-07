@@ -1687,7 +1687,7 @@ update_idreg <- function() {
 
    log_info("Fetching Data")
 
-   conn_lw   <- connect('ohasis-lw')
+   conn_lw   <- connect('mariadb-lw')
    new_idreg <- QB$new(conn_lw)$from("ohasis_lake.id_registry")$where("created_at", ">=", loc_snap, 'or')$where("updated_at", ">=", loc_snap, 'or')$where("deleted_at", ">=", loc_snap, 'or')$get()
    # new_idreg <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$whereBetween("SNAPSHOT", c(loc_snap, lw_snap))$get()
    dbDisconnect(conn_lw)
