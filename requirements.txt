@@ -42,4 +42,4 @@ gender
 tibble
 readODS
 RClickhouse
-ClickhouseHTTP
+ClickHouseHTTP

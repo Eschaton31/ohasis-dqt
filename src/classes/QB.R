@@ -199,7 +199,7 @@ QB <- R6Class(
 
             dbClearResult(rs)
          } else {
-            results <- dbGetQuery(conn, self$query$results, format = 'TabSeparatedWithNamesAndTypes') %>%
+            results <- suppress_warnings(dbGetQuery(conn, self$query$results, format = 'TabSeparatedWithNamesAndTypes'), 'Unsupported') %>%
                mutate_if(
                   ~("IDate" %in% class(.)),
                   ~as.Date(.)

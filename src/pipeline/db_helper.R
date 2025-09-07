@@ -36,7 +36,7 @@ tracked_select <- function(conn, query, name, params = NULL) {
 
       dbClearResult(rs)
    } else {
-      data <- dbGetQuery(conn, query, params = params, format = 'TabSeparatedWithNamesAndTypes') %>%
+      data <- suppress_warnings(dbGetQuery(conn, query, params = params, format = 'TabSeparatedWithNamesAndTypes'), 'Unsupported') %>%
          mutate_if(
             ~("IDate" %in% class(.)),
             ~as.Date(.)
