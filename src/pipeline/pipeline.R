@@ -385,7 +385,7 @@ flow_corr <- function(report_period = NULL, surv_name = NULL) {
 
    # list of correction files
    log_info("Downloading corrections.")
-   con                  <- connect('mariadb-lw')
+   con                  <- connect(surv_name)
    corr$label_values    <- QB$new(con)$
       from("nhsss_stata.label_values")$
       where("system", surv_name)$
