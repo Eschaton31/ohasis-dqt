@@ -6,15 +6,39 @@ clean_data <- function(forms) {
    confirm_cols <- names(forms$px_confirm)
    confirm_cols <- confirm_cols[!(confirm_cols %in% c("rec_id", "central_id"))]
 
-   data <- forms$px_confirmed %>%
+   same    <- forms$px_confirmed %>%
+      inner_join(
+         y  = hts %>%
+            mutate(
+               hts_rec = rec_id,
+            ) %>%
+            select(rec_id, hts_rec),
+         by = join_by(rec_id)
+      )
+   no_form <- forms$px_confirmed %>%
+      anti_join(same, join_by(rec_id)) %>%
       left_join(
-         y            = hts %>%
+         y  = hts %>%
+            mutate(
+               hts_rec = rec_id,
+            ) %>%
+            select(
+               rec_id,
+               hts_rec,
+               hts_visit
+            ),
+         by = join_by(record_date <= hts_visit)
+      ) %>%
+      select(-hts_visit)
+
+   data <- bind_rows(same, no_form) %>%
+      left_join(
+         y  = hts %>%
             rename(
                hts_rec = rec_id,
             ) %>%
             select(-any_of(confirm_cols)),
-         by           = join_by(central_id),
-         relationship = "many-to-many"
+         by = join_by(rec_id),
       ) %>%
       mutate_at(
          .vars = vars(first, middle, last, suffix, patient_code, uic, philhealth_no, philsys_id, client_mobile, client_email),
@@ -80,7 +104,8 @@ clean_data <- function(forms) {
          visit_date     = record_date,
 
          # date var for keeping
-         report_date    = as.Date(stri_c(sep = "-", lab_year, lab_month, "01")),
+         report_date    = as.Date(coalesce(specimen_receipt_date, visit_date)),
+         # report_date    = as.Date(stri_c(sep = "-", lab_year, lab_month, "01")),
 
          # name
          standard_first = stri_trans_general(first, "latin-ascii"),
@@ -1172,17 +1197,17 @@ tag_fordrop <- function(data, corr) {
       if (drop_var %in% names(corr)) {
          if (nrow(corr[[drop_var]]) > 0) {
             data %<>%
-            left_join(
-               y  = corr[[drop_var]] %>%
-                  distinct(rec_id) %>%
-                  mutate(drop_this = 1),
-               by = join_by(rec_id)
-            ) %>%
-            mutate_at(
-               .vars = vars(matches(drop_var)),
-               ~coalesce(drop_this, .)
-            ) %>%
-            select(-drop_this)
+               left_join(
+                  y  = corr[[drop_var]] %>%
+                     distinct(rec_id) %>%
+                     mutate(drop_this = 1),
+                  by = join_by(rec_id)
+               ) %>%
+               mutate_at(
+                  .vars = vars(matches(drop_var)),
+                  ~coalesce(drop_this, .)
+               ) %>%
+               select(-drop_this)
          }
       }
 
