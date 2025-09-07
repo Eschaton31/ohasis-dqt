@@ -34,7 +34,7 @@ tracked_select <- function(conn, query, name, params = NULL) {
          data <- dbFetch(rs)
       }
    } else {
-      data <- dbGetQuery(conn, query, params = params)
+      data <- dbGetQuery(conn, query, params = params, format = 'TabSeparatedWithNamesAndTypes')
    }
    dbClearResult(rs)
    return(data)
