@@ -1203,35 +1203,35 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
 convert_hts <- function(hts_data, convert_type = c("nhsss", "name", "code")) {
    data <- hts_data %>%
       mutate(
-         use_record_faci    = if_else(is.na(service_faci), 1, 0, 0),
-         service_faci       = if_else(use_record_faci == 1, faci_id, service_faci),
+         use_record_faci = if_else(is.na(service_faci), 1, 0, 0),
+         service_faci    = if_else(use_record_faci == 1, faci_id, service_faci),
 
-         perm_prov     = if_else(str_left(perm_reg, 2) == "99", "999900000", perm_prov, perm_prov),
-         perm_munc     = if_else(str_left(perm_reg, 2) == "99", "999999000", perm_munc, perm_munc),
-         use_curr           = if_else(
+         perm_prov       = if_else(str_left(perm_reg, 2) == "99", "999900000", perm_prov, perm_prov),
+         perm_munc       = if_else(str_left(perm_reg, 2) == "99", "999999000", perm_munc, perm_munc),
+         use_curr        = if_else(
             condition = !is.na(curr_munc) & (is.na(perm_munc) | str_left(perm_munc, 2) == "99"),
             true      = 1,
             false     = 0
          ),
-         permcurr_reg  = if_else(
+         permcurr_reg    = if_else(
             condition = use_curr == 1,
             true      = curr_reg,
             false     = perm_reg
          ),
-         permcurr_prov = if_else(
+         permcurr_prov   = if_else(
             condition = use_curr == 1,
             true      = curr_prov,
             false     = perm_prov
          ),
-         permcurr_munc = if_else(
+         permcurr_munc   = if_else(
             condition = use_curr == 1,
             true      = curr_munc,
             false     = perm_munc
          ),
 
 
-         service_condoms    = as.numeric(service_condoms),
-         service_lubes      = as.numeric(service_lubes),
+         service_condoms = as.numeric(service_condoms),
+         service_lubes   = as.numeric(service_lubes),
       ) %>%
       rename(
          created                 = created_by,
@@ -1322,19 +1322,15 @@ convert_hts <- function(hts_data, convert_type = c("nhsss", "name", "code")) {
 
 deconstruct_hts <- function(hts) {
    tables <- c(
+      "patients",
       "px_record",
-      "px_name",
-      "px_info",
+      "px_pii",
       "px_profile",
-      "px_addr",
-      "px_contact",
-      "px_faci",
-      "px_form",
+      "px_service",
       "px_test",
       "px_ob",
       "px_occupation",
       "px_cfbs",
-      "px_consent",
       "px_ofw",
       "px_expose_hist",
       "px_expose_profile",
@@ -1350,6 +1346,7 @@ deconstruct_hts <- function(hts) {
    )
 
    hts %<>%
+      rename_all(tolower) %>%
       mutate_at(
          .vars = vars(
             module,
@@ -1378,20 +1375,38 @@ deconstruct_hts <- function(hts) {
             ofw_station
          ),
          ~keep_code(.)
+      ) %>%
+      mutate(
+         form_id = 'hts2021'
+      ) %>%
+      rename(
+         location_reg  = hiv_service_reg,
+         location_reg  = hiv_service_reg,
+         location_prov = hiv_service_prov,
+         location_munc = hiv_service_munc,
+      ) %>%
+      mutate(
+         client_mobile = str_replace_all(client_mobile, "[^[:digit:]]", ""),
+         client_mobile = case_when(
+            str_left(client_mobile, 1) == "9" ~ stri_c("0", client_mobile),
+            str_left(client_mobile, 2) == "63" ~ str_replace(client_mobile, "^63", "0"),
+            TRUE ~ client_mobile
+         ),
+         birthdate     = as.character(birthdate)
       )
 
    conn <- ohasis$conn("db")
 
    # primary keys
    log_info("Obtaining {green('Primary Keys')}.")
-   pks        <- lapply(tables, function(table) dbGetQuery(conn, glue("show keys from ohasis_interim.{table} where Key_name = 'primary'")))
+   pks        <- lapply(tables, function(table) dbGetQuery(conn, glue("show keys from ohasis.{table} where Key_name = 'primary'")))
    pks        <- lapply(pks, function(data) return(data$Column_name))
    names(pks) <- tables
 
 
    # columns
    log_info("Obtaining {green('Column Names')}.")
-   cols        <- lapply(tables, function(table) dbGetQuery(conn, glue("show columns from ohasis_interim.{table}")))
+   cols        <- lapply(tables, function(table) dbGetQuery(conn, glue("show columns from ohasis.{table}")))
    cols        <- lapply(cols, function(data) return(data$Field))
    names(cols) <- tables
 
@@ -1406,7 +1421,8 @@ deconstruct_hts <- function(hts) {
          mutate(
             !!!setNames(rep(NA_character_, length(col_not_found)), col_not_found)
          ) %>%
-         select(any_of(col_need))
+         select(any_of(col_need)) %>%
+         distinct()
 
       return(schema)
    }, data = hts, cols = cols)
@@ -1414,72 +1430,6 @@ deconstruct_hts <- function(hts) {
 
    log_info("Manually creating long tables.")
    # long tables
-   data$px_addr <- hts %>%
-      select(
-         any_of(cols$px_addr),
-         ends_with("_REG"),
-         ends_with("_PROV"),
-         ends_with("_MUNC"),
-         ends_with("_ADDR")
-      ) %>%
-      rename_all(~str_replace(., "hiv_service", "service")) %>%
-      pivot_longer(
-         cols      = c(
-            ends_with("_REG"),
-            ends_with("_PROV"),
-            ends_with("_MUNC"),
-            ends_with("_ADDR")
-         ),
-         names_to  = "addr_data",
-         values_to = "addr_value"
-      ) %>%
-      mutate(
-         addr_type = str_extract(addr_data, "^[^_]*"),
-         piece     = str_extract(addr_data, "_(?!.*_)(.*)", 1)
-      ) %>%
-      mutate(
-         addr_type = case_when(
-            addr_type == "curr" ~ "1",
-            addr_type == "perm" ~ "2",
-            addr_type == "birth" ~ "3",
-            addr_type == "death" ~ "4",
-            addr_type == "service" ~ "5",
-            addr_type == "hiv_service" ~ "5",
-            TRUE ~ addr_type
-         ),
-         piece     = case_when(
-            piece == "addr" ~ "text",
-            TRUE ~ piece
-         ),
-      ) %>%
-      select(-addr_data) %>%
-      pivot_wider(
-         names_from   = piece,
-         values_from  = addr_value,
-         names_prefix = "addr_"
-      ) %>%
-      select(any_of(cols$px_addr))
-
-   data$px_contact <- hts %>%
-      select(
-         any_of(cols$px_contact),
-         client_mobile,
-         client_email
-      ) %>%
-      pivot_longer(
-         cols      = c(client_mobile, client_email),
-         names_to  = "contact_type",
-         values_to = "contact"
-      ) %>%
-      mutate(
-         contact_type = case_when(
-            contact_type == "client_mobile" ~ "1",
-            contact_type == "client_email" ~ "2",
-            TRUE ~ contact_type
-         )
-      ) %>%
-      select(any_of(cols$px_contact))
-
    data$px_expose_hist <- hts %>%
       select(
          any_of(cols$px_expose_hist),
@@ -1491,9 +1441,9 @@ deconstruct_hts <- function(hts) {
          values_to = "expose_value"
       ) %>%
       mutate(
-         expose_data = if_else(str_detect(exposure, "_DATE"), "date_last_expose", "is_exposed"),
+         expose_data = if_else(str_detect(exposure, "_date"), "date_last_expose", "is_exposed"),
          exposure    = str_replace(exposure, "^expose_", ""),
-         exposure    = str_replace(exposure, "_DATE$", ""),
+         exposure    = str_replace(exposure, "_date$", ""),
          exposure    = case_when(
             exposure == "hiv_mother" ~ "120000",
             exposure == "sex_m" ~ "217000",
@@ -1529,6 +1479,8 @@ deconstruct_hts <- function(hts) {
          sub_faci_id,
          created_by,
          created_at,
+         updated_by,
+         updated_at,
          starts_with("t0_")
       ) %>%
       filter(!is.na(t0_result) | !is.na(t0_date)) %>%
@@ -1561,7 +1513,7 @@ deconstruct_hts <- function(hts) {
          reason_other = if_else(str_detect(reason, "other_text$"), is_reason, NA_character_),
          is_reason    = if_else(!is.na(reason_other), "1_Yes", is_reason, is_reason),
          reason       = str_replace(reason, "^test_reason_", ""),
-         reason       = str_replace(reason, "_TEXT$", ""),
+         reason       = str_replace(reason, "_text$", ""),
          reason       = case_when(
             reason == "hiv_expose" ~ "1",
             reason == "physician" ~ "2",
@@ -1684,7 +1636,7 @@ deconstruct_hts <- function(hts) {
          reason_other = if_else(str_detect(reason, "other_text$"), is_reason, NA_character_),
          is_reason    = if_else(!is.na(reason_other), "1_Yes", is_reason, is_reason),
          reason       = str_replace(reason, "^test_refuse_", ""),
-         reason       = str_replace(reason, "_TEXT$", ""),
+         reason       = str_replace(reason, "_text$", ""),
          reason       = case_when(
             reason == "other" ~ "8888",
             TRUE ~ reason
@@ -1794,24 +1746,24 @@ convert_dx <- function(hts_data, yr, mo) {
          name            = str_squish(stri_c(last, ", ", first, " ", middle, " ", suffix)),
 
          # Permanent
-         perm_prov  = if_else(str_left(perm_reg, 2) == "99", "999900000", perm_prov, perm_prov),
-         perm_munc  = if_else(str_left(perm_reg, 2) == "99", "999999000", perm_munc, perm_munc),
+         perm_prov       = if_else(str_left(perm_reg, 2) == "99", "999900000", perm_prov, perm_prov),
+         perm_munc       = if_else(str_left(perm_reg, 2) == "99", "999999000", perm_munc, perm_munc),
          use_curr        = if_else(
             condition = !is.na(curr_munc) & (is.na(perm_munc) | str_left(perm_munc, 2) == "99"),
             true      = 1,
             false     = 0
          ),
-         perm_reg   = if_else(
+         perm_reg        = if_else(
             condition = use_curr == 1,
             true      = curr_reg,
             false     = perm_reg
          ),
-         perm_prov  = if_else(
+         perm_prov       = if_else(
             condition = use_curr == 1,
             true      = curr_prov,
             false     = perm_prov
          ),
-         perm_munc  = if_else(
+         perm_munc       = if_else(
             condition = use_curr == 1,
             true      = curr_munc,
             false     = perm_munc
@@ -1845,17 +1797,17 @@ convert_dx <- function(hts_data, yr, mo) {
          month                     = params$mo,
 
          # Perm Region (as encoded)
-         permonly_reg         = if_else(
+         permonly_reg              = if_else(
             condition = use_curr == 0,
             true      = perm_reg,
             false     = NA_character_
          ),
-         permonly_prov        = if_else(
+         permonly_prov             = if_else(
             condition = use_curr == 0,
             true      = perm_prov,
             false     = NA_character_
          ),
-         permonly_munc        = if_else(
+         permonly_munc             = if_else(
             condition = use_curr == 0,
             true      = perm_munc,
             false     = NA_character_
