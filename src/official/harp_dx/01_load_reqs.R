@@ -105,7 +105,7 @@ update_dx_new <- function(update, params, path_to_sql) {
 ##  Filter Initial Data & Remove Already Reported ------------------------------
 
 download_tables <- function(path_to_sql) {
-   lw_conn <- ohasis$conn("lw")
+   lw_conn <- connect("mariadb-lw")
 
    # read queries
    sql              <- list()
@@ -206,7 +206,7 @@ update_dataset <- function(params, corr, reprocess) {
 
    p$params$latest_idnum <- max(as.integer(p$official$old$idnum), na.rm = TRUE)
 
-   update_dx_new(vars$update_visits, p$params, p$wd)
+   # update_dx_new(vars$update_visits, p$params, p$wd)
    dl <- ifelse(
       !is.null(vars$dl_forms) && vars$dl_forms %in% c("1", "2"),
       vars$dl_forms,
