@@ -23,13 +23,13 @@ clean_data <- function(forms) {
                hts_rec = rec_id,
             ) %>%
             select(
-               rec_id,
+               central_id,
                hts_rec,
-               hts_visit
+               hts_visit = record_date
             ),
-         by = join_by(record_date <= hts_visit)
-      ) %>%
-      select(-hts_visit)
+         by = join_by(central_id, closest(record_date <= hts_visit))
+      )
+
 
    data <- bind_rows(same, no_form) %>%
       left_join(
@@ -37,8 +37,8 @@ clean_data <- function(forms) {
             rename(
                hts_rec = rec_id,
             ) %>%
-            select(-any_of(confirm_cols)),
-         by = join_by(rec_id),
+            select(-any_of(confirm_cols), -central_id),
+         by = join_by(hts_rec),
       ) %>%
       mutate_at(
          .vars = vars(first, middle, last, suffix, patient_code, uic, philhealth_no, philsys_id, client_mobile, client_email),
@@ -52,36 +52,36 @@ clean_data <- function(forms) {
          .predicate = is.Date,
          ~if_else(. <= -25567, NA_Date_, ., .)
       ) %>%
-      # get_latest_pii(
-      #    "central_id",
-      #    c(
-      #       "first",
-      #       "middle",
-      #       "last",
-      #       "suffix",
-      #       "birthdate",
-      #       "sex",
-      #       "uic",
-      #       "philhealth_no",
-      #       "self_ident",
-      #       "self_ident_other",
-      #       "philsys_id",
-      #       "civil_status",
-      #       "nationality",
-      #       "educ_level",
-      #       "curr_reg",
-      #       "curr_prov",
-      #       "curr_munc",
-      #       "perm_reg",
-      #       "perm_prov",
-      #       "perm_munc",
-      #       "birth_reg",
-      #       "birth_prov",
-      #       "birth_munc",
-      #       "client_mobile",
-      #       "client_email"
-      #    )
-      # ) %>%
+      get_latest_pii(
+         "central_id",
+         c(
+            "first",
+            "middle",
+            "last",
+            "suffix",
+            "birthdate",
+            "sex",
+            "uic",
+            "philhealth_no",
+            "self_ident",
+            "self_ident_other",
+            "philsys_id",
+            "civil_status",
+            "nationality",
+            "educ_level",
+            "curr_reg",
+            "curr_prov",
+            "curr_munc",
+            "perm_reg",
+            "perm_prov",
+            "perm_munc",
+            "birth_reg",
+            "birth_prov",
+            "birth_munc",
+            "client_mobile",
+            "client_email"
+         )
+      ) %>%
       rename(
          blood_extract_date    = date_collect,
          specimen_receipt_date = date_receive,
