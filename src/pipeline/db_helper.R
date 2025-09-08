@@ -1682,7 +1682,7 @@ update_idreg <- function() {
 
    idreg <- read_rds(Sys.getenv("LOC_IDREG"))
 
-   loc_snap <- max(max(idreg$created_at, na.rm = TRUE), max(idreg$updated_at, na.rm = TRUE), max(idreg$deleted_at, na.rm = TRUE))
+   loc_snap <- suppress_warnings(max(max(idreg$created_at, na.rm = TRUE), max(idreg$updated_at, na.rm = TRUE), max(idreg$deleted_at, na.rm = TRUE)), 'no non-missing')
    loc_snap <- format(as.POSIXct(ifelse(is.na(loc_snap) | is.infinite(loc_snap), "1970-01-01", loc_snap)), "%Y-%m-%d %H:%M:%S")
 
    # conn_lw <- ohasis$conn("lw")
@@ -1693,7 +1693,7 @@ update_idreg <- function() {
 
    log_info("Fetching Data")
 
-   conn_lw   <- connect('mariadb-lw')
+   conn_lw   <- connect('ohasis-lw')
    new_idreg <- QB$new(conn_lw)$from("ohasis_lake.id_registry")$where("created_at", ">=", loc_snap, 'or')$where("updated_at", ">=", loc_snap, 'or')$where("deleted_at", ">=", loc_snap, 'or')$get()
    # new_idreg <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$whereBetween("SNAPSHOT", c(loc_snap, lw_snap))$get()
    dbDisconnect(conn_lw)
