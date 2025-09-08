@@ -74,15 +74,10 @@ update_dead_new <- function(path_to_sql) {
 ##  Download records -----------------------------------------------------------
 
 download_tables <- function(params) {
-   lw_conn <- ohasis$conn("lw")
+   lw_conn <- connect("mariadb-lw")
    forms   <- list()
 
-   min     <- params$min
-   max     <- params$max
-   db_name <- "ohasis_warehouse"
-
    log_info("Downloading {green('Central IDs')}.")
-   # forms$id_registry <- dbTable(lw_conn, db_name, "id_registry", cols = c("central_id", "patient_id"))
    forms$id_registry <- update_idreg() %>% select(central_id, patient_id)
 
    log_info("Downloading {green('ART Visits w/in the scope')}.")
@@ -154,7 +149,7 @@ define_params <- function() {
       )
    )
 
-   update_dead_new(p$wd)
+   # update_dead_new(p$wd)
    if (dl == "1")
       p$forms <- download_tables(p$params)
 
