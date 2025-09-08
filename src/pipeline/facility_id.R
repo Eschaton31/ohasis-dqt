@@ -30,10 +30,10 @@ faci_code_to_id <- function(data, ref_faci_code, faci_branch) {
       ) %>%
       left_join(
          y  = ref_faci_code %>%
-            distinct(FACI_CODE, SUB_FACI_CODE, .keep_all = TRUE) %>%
+            distinct(faci_code, sub_faci_code, .keep_all = TRUE) %>%
             mutate(
-               main_faci   = if_else(FACI_CODE == "", NA_character_, FACI_CODE, FACI_CODE),
-               branch_faci = if_else(SUB_FACI_CODE == "", NA_character_, SUB_FACI_CODE, SUB_FACI_CODE),
+               main_faci   = if_else(faci_code == "", NA_character_, faci_code, faci_code),
+               branch_faci = if_else(sub_faci_code == "", NA_character_, sub_faci_code, sub_faci_code),
                branch_faci = case_when(
                   nchar(branch_faci) == 3 ~ NA_character_,
                   main_faci == "BGN" ~ "TLY-BAGANI",
@@ -52,10 +52,10 @@ faci_code_to_id <- function(data, ref_faci_code, faci_branch) {
                   TRUE ~ branch_faci
                ),
             ) %>%
-            distinct(FACI_ID, main_faci, branch_faci, .keep_all = TRUE) %>%
+            distinct(faci_id, main_faci, branch_faci, .keep_all = TRUE) %>%
             select(
-               {{faci_id}}     := FACI_ID,
-               {{sub_faci_id}} := SUB_FACI_ID,
+               {{faci_id}}     := faci_id,
+               {{sub_faci_id}} := sub_faci_id,
                main_faci,
                branch_faci
             ),
@@ -75,7 +75,7 @@ dxlab_to_id <- function(data, facility_ids, dx_lab_cols = NULL, ref_faci = NULL)
    dx_munc <- dx_lab_cols[3]
    dx_lab  <- dx_lab_cols[4]
 
-   con        <- ohasis$conn("lw")
+   con        <- connect('old-lw')
    corr_dxlab <- QB$new(con)$from("harp_dx.corr_dxlab")$get()
    dbDisconnect(con)
 
@@ -106,14 +106,16 @@ dxlab_to_id <- function(data, facility_ids, dx_lab_cols = NULL, ref_faci = NULL)
          select(-OH_FACI, -OH_SUB_FACI) %>%
          left_join(
             y  = ref_faci %>%
-               filter(!is.na(FACI_NAME_CLEAN)) %>%
+               mutate(
+                  faci_name_nhsss = coalesce(faci_name_nhsss, toupper(faci_name))
+               ) %>%
                select(
-                  {{dx_lab}}  := FACI_NAME_CLEAN,
-                  {{dx_reg}}  := FACI_NHSSS_REG,
-                  {{dx_prov}} := FACI_NHSSS_PROV,
-                  {{dx_munc}} := FACI_NHSSS_MUNC,
-                  OH_FACI     = FACI_ID,
-                  OH_SUB_FACI = SUB_FACI_ID
+                  {{dx_lab}}  := faci_name_nhsss,
+                  {{dx_reg}}  := addr_nhsss_reg,
+                  {{dx_prov}} := addr_nhsss_prov,
+                  {{dx_munc}} := addr_nhsss_munc,
+                  OH_FACI     = faci_id,
+                  OH_SUB_FACI = sub_faci_id
                ) %>%
                arrange(desc(OH_SUB_FACI), dx_region, dx_province, dx_muncity, dxlab_standard) %>%
                distinct(dx_region, dx_province, dx_muncity, dxlab_standard, .keep_all = TRUE),
