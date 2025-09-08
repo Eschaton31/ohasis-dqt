@@ -91,7 +91,7 @@ DB <- R6Class(
          lw_conn          <- connect("ohasis-lw")
          self$ref_country <- QB$new(lw_conn)$from("ohasis_lake.ref_country")$get()
          self$ref_addr    <- QB$new(lw_conn)$from("ohasis_lake.ref_addr")$get()
-         self$ref_faci    <- QB$new(lw_conn)$from("ohasis_lake.ref_faci")$get()
+         self$ref_faci    <- QB$new(lw_conn)$from("ohasis_lake.ref_faci")$whereNull("deleted_at")$get()
          self$ref_staff   <- QB$new(lw_conn)$from("ohasis_lake.ref_staff")$get()
          dbDisconnect(lw_conn)
       },
@@ -760,7 +760,7 @@ DB <- R6Class(
                y  = self$ref_staff %>%
                   select(
                      !!coded_user := staff_id,
-                     !!named_user := staff_name
+                     !!named_user := name
                   ),
                by = as.character(coded_user)
             ) %>%
