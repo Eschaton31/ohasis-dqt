@@ -1,30 +1,109 @@
 get_hts <- function(min, max) {
 
    read_forms <- function(min, max) {
-      con   <- ohasis$conn("lw")
+      con   <- connect('mariadb-lw')
       forms <- QB$new(con)
-      forms$select("*")
+      forms$select(
+         "form_hts.*",
+         'confirm.confirm_faci',
+         'confirm.confirm_sub_faci',
+         'confirm.confirm_type',
+         'confirm.confirm_code',
+         'confirm.specimen_refer_type',
+         'confirm.specimen_source',
+         'confirm.specimen_sub_source',
+         'confirm.date_collect',
+         'confirm.date_receive',
+         'confirm.confirm_result',
+         'confirm.confirm_remarks',
+         'confirm.signatory_1',
+         'confirm.signatory_2',
+         'confirm.signatory_3',
+         'confirm.date_release',
+         'confirm.date_confirm',
+         'confirm.idnum',
+         'confirm.rt_agreed',
+         'confirm.rt_date',
+         'confirm.rt_result',
+         'confirm.rt_kit',
+         'confirm.rt_vl_requested',
+         'confirm.rt_vl_done',
+         'confirm.rt_vl_date',
+         'confirm.rt_vl_result',
+         'confirm.rita_result',
+         'test.t1_date',
+         'test.t1_result',
+         'test.t1_kit',
+         'test.t2_date',
+         'test.t2_result',
+         'test.t2_kit',
+         'test.t3_date',
+         'test.t3_result',
+         'test.t3_kit'
+      )
       forms$from("ohasis_warehouse.form_hts")
+      forms$leftJoin("ohasis_lake.px_hiv_confirmatory as confirm", "form_hts.rec_id", "=", "confirm.rec_id")
+      forms$leftJoin("ohasis_lake.px_hiv_testing as test", "form_hts.rec_id", "=", "test.rec_id")
       forms$where(function(query = QB$new(con)) {
          query$whereBetween('record_date', c(min, max), "or")
          query$whereBetween('date_confirm', c(min, max), "or")
-         query$whereBetween('t0_date', c(min, max), "or")
-         query$whereBetween('t1_date', c(min, max), "or")
-         query$whereBetween('t2_date', c(min, max), "or")
-         query$whereBetween('t3_date', c(min, max), "or")
+         query$whereBetween('test.t0_date', c(min, max), "or")
+         query$whereBetween('test.t1_date', c(min, max), "or")
+         query$whereBetween('test.t2_date', c(min, max), "or")
+         query$whereBetween('test.t3_date', c(min, max), "or")
          query$whereNested
       })
       form_hts <- forms$get()
 
       forms <- QB$new(con)
+      forms$select(
+         "form_a.*",
+         'confirm.confirm_faci',
+         'confirm.confirm_sub_faci',
+         'confirm.confirm_type',
+         'confirm.confirm_code',
+         'confirm.specimen_refer_type',
+         'confirm.specimen_source',
+         'confirm.specimen_sub_source',
+         'confirm.date_collect',
+         'confirm.date_receive',
+         'confirm.confirm_result',
+         'confirm.confirm_remarks',
+         'confirm.signatory_1',
+         'confirm.signatory_2',
+         'confirm.signatory_3',
+         'confirm.date_release',
+         'confirm.date_confirm',
+         'confirm.idnum',
+         'confirm.rt_agreed',
+         'confirm.rt_date',
+         'confirm.rt_result',
+         'confirm.rt_kit',
+         'confirm.rt_vl_requested',
+         'confirm.rt_vl_done',
+         'confirm.rt_vl_date',
+         'confirm.rt_vl_result',
+         'confirm.rita_result',
+         'test.t1_date',
+         'test.t1_result',
+         'test.t1_kit',
+         'test.t2_date',
+         'test.t2_result',
+         'test.t2_kit',
+         'test.t3_date',
+         'test.t3_result',
+         'test.t3_kit'
+      )
       forms$from("ohasis_warehouse.form_a")
+      forms$leftJoin("ohasis_lake.px_hiv_confirmatory as confirm", "form_a.rec_id", "=", "confirm.rec_id")
+      forms$leftJoin("ohasis_lake.px_hiv_testing as test", "form_a.rec_id", "=", "test.rec_id")
       forms$where(function(query = QB$new(con)) {
          query$whereBetween('record_date', c(min, max), "or")
          query$whereBetween('date_confirm', c(min, max), "or")
-         query$whereBetween('t0_date', c(min, max), "or")
-         query$whereBetween('t1_date', c(min, max), "or")
-         query$whereBetween('t2_date', c(min, max), "or")
-         query$whereBetween('t3_date', c(min, max), "or")
+         query$whereBetween('test.t0_date', c(min, max), "or")
+         query$whereBetween('test.t1_date', c(min, max), "or")
+         query$whereBetween('test.t2_date', c(min, max), "or")
+         query$whereBetween('test.t3_date', c(min, max), "or")
          query$whereNested
       })
       form_a <- forms$get()
@@ -102,19 +181,23 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
                ~stri_replace_first_fixed(., "risk_", "expose_")
             )
       ) %>%
-      distinct(rec_id, .keep_all = TRUE) %>%
-      select(-starts_with("t0"))
+      distinct(rec_id, .keep_all = TRUE)
 
-   test_same <- intersect(names(testing), names(hts))
-   test_diff <- c('rec_id', setdiff(names(testing), names(hts)))
+   if (nrow(testing) > 0) {
+      test_same <- intersect(names(testing), names(hts))
+      test_diff <- c('rec_id', setdiff(names(testing), names(hts)))
+      hts %<>%
+         select(-starts_with("t0")) %>%
+         bind_rows(testing %>% select(any_of(test_same))) %>%
+         left_join(
+            y  = testing %>%
+               select(any_of(test_diff)),
+            by = join_by(rec_id)
+         )
+   }
+
    hts %<>%
-      bind_rows(testing %>% select(any_of(test_same))) %>%
       distinct(rec_id, .keep_all = TRUE) %>%
-      left_join(
-         y  = testing %>%
-            select(any_of(test_diff)),
-         by = join_by(rec_id)
-      ) %>%
       # make simplified tagging for source form
       mutate(
          src = form_version,
