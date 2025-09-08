@@ -207,6 +207,12 @@ QB <- R6Class(
                mutate_if(
                   is.character,
                   ~na_if(str_replace_all(., "\\\\0", ""), "")
+               ) %>%
+               rename_all(
+                  ~case_when(
+                     str_detect(., "\\.") ~ str_extract(., ".+\\.(.+)", 1),
+                     TRUE ~ .
+                  )
                )
          }
 
