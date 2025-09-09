@@ -2,15 +2,25 @@
 
 get_latest_record <- function(form_data, new_reg, params) {
    log_info("Processing latest visit.")
+   remove_cols <- names(new_reg)
+   remove_cols <- remove_cols[remove_cols != 'central_id']
+   remove_cols <- remove_cols[remove_cols != 'age']
+   remove_cols <- remove_cols[remove_cols != 'rec_id']
+
    data <- new_reg %>%
-      select(-PATIENT_ID) %>%
-      rename(artstart_rec = REC_ID) %>%
+      select(
+         -patient_id,
+         -age,
+         -any_of(c('artstart_hub', 'artstart_branch', 'artstart_realhub', 'artstart_realhub_branch')),
+      ) %>%
+      rename(artstart_rec = rec_id) %>%
       left_join(
          y  = form_data %>%
-            arrange(desc(LATEST_NEXT_DATE)) %>%
-            mutate(LATEST_VISIT = VISIT_DATE) %>%
-            distinct(CENTRAL_ID, .keep_all = TRUE),
-         by = join_by(CENTRAL_ID)
+            arrange(desc(latest_next_date)) %>%
+            mutate(latest_visit = visit_date) %>%
+            select(-any_of(remove_cols)) %>%
+            distinct(central_id, .keep_all = TRUE),
+         by = join_by(central_id)
       ) %>%
       mutate_if(
          .predicate = is.POSIXct,
@@ -22,50 +32,50 @@ get_latest_record <- function(form_data, new_reg, params) {
       ) %>%
       mutate(
          # Age
-         AGE                = coalesce(AGE, AGE_MO / 12),
-         AGE_DTA            = calc_age(birthdate, VISIT_DATE),
+         age                = coalesce(age, age_mo / 12),
+         age_dta            = calc_age(birthdate, visit_date),
 
-         # tag those without ART_FACI
-         use_record_faci    = if_else(is.na(SERVICE_FACI), 1, 0, 0),
-         SERVICE_FACI       = if_else(use_record_faci == 1, FACI_ID, SERVICE_FACI),
+         # tag those without art_faci
+         use_record_faci    = if_else(is.na(service_faci), 1, 0, 0),
+         service_faci       = if_else(use_record_faci == 1, faci_id, service_faci),
 
-         # convert to HARP facility
-         ACTUAL_FACI        = SERVICE_FACI,
-         ACTUAL_SUB_FACI    = SERVICE_SUB_FACI,
+         # convert to harp facility
+         actual_faci        = service_faci,
+         actual_sub_faci    = service_sub_faci,
 
          # tag special clinics
          special_clinic     = case_when(
-            SERVICE_FACI %in% params$clinics$tly ~ "tly",
-            SERVICE_FACI %in% params$clinics$sail ~ "sail",
+            service_faci %in% params$clinics$TLY ~ "TLY",
+            service_faci %in% params$clinics$SAIL ~ "SAIL",
             TRUE ~ NA_character_
          ),
-         SERVICE_FACI       = case_when(
-            special_clinic == "tly" ~ "130001",
-            special_clinic == "sail" ~ "130025",
-            TRUE ~ SERVICE_FACI
+         service_faci       = case_when(
+            special_clinic == "TLY" ~ "130001",
+            special_clinic == "SAIL" ~ "130025",
+            TRUE ~ service_faci
          ),
 
          # satellite
-         SATELLITE_FACI     = if_else(
-            condition = str_left(CLIENT_TYPE, 1) == "5",
-            true      = FACI_DISP,
+         satellite_faci     = if_else(
+            condition = str_left(client_type, 1) == "5",
+            true      = faci_disp,
             false     = NA_character_
          ),
-         SATELLITE_SUB_FACI = if_else(
-            condition = str_left(CLIENT_TYPE, 1) == "5",
-            true      = SUB_FACI_DISP,
+         satellite_sub_faci = if_else(
+            condition = str_left(client_type, 1) == "5",
+            true      = sub_faci_disp,
             false     = NA_character_
          ),
 
          # transient
-         TRANSIENT_FACI     = if_else(
-            condition = str_left(CLIENT_TYPE, 1) == "6",
-            true      = FACI_DISP,
+         transient_faci     = if_else(
+            condition = str_left(client_type, 1) == "6",
+            true      = faci_disp,
             false     = NA_character_
          ),
-         TRANSIENT_SUB_FACI = if_else(
-            condition = str_left(CLIENT_TYPE, 1) == "6",
-            true      = SUB_FACI_DISP,
+         transient_sub_faci = if_else(
+            condition = str_left(client_type, 1) == "6",
+            true      = sub_faci_disp,
             false     = NA_character_
          ),
       )
@@ -78,11 +88,11 @@ get_latest_record <- function(form_data, new_reg, params) {
 get_final_visit <- function(data) {
    log_info("Using last visited facility.")
    data %<>%
-      arrange(desc(VISIT_DATE), desc(LATEST_NEXT_DATE), CENTRAL_ID) %>%
-      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      arrange(desc(visit_date), desc(latest_next_date), central_id) %>%
+      distinct(central_id, .keep_all = TRUE) %>%
       rename(
-         ART_FACI     = SERVICE_FACI,
-         ART_SUB_FACI = SERVICE_SUB_FACI,
+         art_faci     = service_faci,
+         art_sub_faci = service_sub_faci,
       )
 
    return(data)
@@ -94,45 +104,45 @@ convert_faci_addr <- function(data) {
    # record faci
    data %<>%
       ohasis$get_faci(
-         list(FACI_CODE = c("FACI_ID", "SUB_FACI_ID")),
+         list(faci_code = c("faci_id", "sub_faci_id")),
          "code"
       ) %>%
       # art faci
       ohasis$get_faci(
-         list(ART_FACI_CODE = c("ART_FACI", "ART_SUB_FACI")),
+         list(art_faci_code = c("art_faci", "art_sub_faci")),
          "code",
          c("tx_reg", "tx_prov", "tx_munc")
       ) %>%
       # epic / gf faci
       ohasis$get_faci(
-         list(ACTUAL_FACI_CODE = c("ACTUAL_FACI", "ACTUAL_SUB_FACI")),
+         list(actual_faci_code = c("actual_faci", "actual_sub_faci")),
          "code",
          c("real_reg", "real_prov", "real_munc")
       ) %>%
       # satellite
       ohasis$get_faci(
-         list(SATELLITE_FACI_CODE = c("SATELLITE_FACI", "SATELLITE_SUB_FACI")),
+         list(satellite_faci_code = c("satellite_faci", "satellite_sub_faci")),
          "code"
       ) %>%
       # satellite
       ohasis$get_faci(
-         list(TRANSIENT_FACI_CODE = c("TRANSIENT_FACI", "TRANSIENT_SUB_FACI")),
+         list(transient_faci_code = c("transient_faci", "transient_sub_faci")),
          "code"
       ) %>%
       mutate(
-         ART_BRANCH    = ART_FACI_CODE,
-         ACTUAL_BRANCH = ACTUAL_FACI_CODE,
+         art_branch    = art_faci_code,
+         actual_branch = actual_faci_code,
       ) %>%
       mutate(
          across(
-            names(select(., ends_with("_BRANCH", ignore.case = FALSE))),
+            names(select(., ends_with("_branch", ignore.case = FALSE))),
             ~if_else(nchar(.) > 3, ., NA_character_)
          )
       )
 
    data %<>%
       mutate_at(
-         .vars = vars(ends_with("_FACI_CODE", ignore.case = FALSE)),
+         .vars = vars(ends_with("_faci_code", ignore.case = FALSE)),
          ~case_when(
             str_detect(., "^TLY") ~ "TLY",
             str_detect(., "^SHIP") ~ "SHP",
@@ -142,24 +152,24 @@ convert_faci_addr <- function(data) {
       ) %>%
       mutate(
          across(
-            names(select(., ends_with("_BRANCH", ignore.case = FALSE))),
+            names(select(., ends_with("_branch", ignore.case = FALSE))),
             ~case_when(
-               pull(data, str_replace(cur_column(), "_BRANCH", "_FACI_CODE")) == "TLY" & is.na(.) ~ "TLY-ANGLO",
-               pull(data, str_replace(cur_column(), "_BRANCH", "_FACI_CODE")) == "SHP" & is.na(.) ~ "SHIP-MAKATI",
+               pull(data, str_replace(cur_column(), "_branch", "_faci_code")) == "TLY" & is.na(.) ~ "TLY-ANGLO",
+               pull(data, str_replace(cur_column(), "_branch", "_faci_code")) == "SHP" & is.na(.) ~ "SHIP-MAKATI",
                TRUE ~ .
             )
          )
       ) %>%
       mutate(
-         ART_BRANCH = case_when(
-            special_clinic == "sail" ~ ACTUAL_BRANCH,
-            special_clinic == "tly" & is.na(ACTUAL_BRANCH) ~ "TLY-ANGLO",
-            special_clinic == "tly" & ACTUAL_BRANCH == "TLY" ~ "TLY-ANGLO",
-            special_clinic == "tly" & ACTUAL_BRANCH != "TLY" ~ ACTUAL_BRANCH,
-            TRUE ~ ART_BRANCH
+         art_branch = case_when(
+            special_clinic == "SAIL" ~ actual_branch,
+            special_clinic == "TLY" & is.na(actual_branch) ~ "TLY-ANGLO",
+            special_clinic == "TLY" & actual_branch == "TLY" ~ "TLY-ANGLO",
+            special_clinic == "TLY" & actual_branch != "TLY" ~ actual_branch,
+            TRUE ~ art_branch
          ),
       ) %>%
-      arrange(ART_FACI_CODE, VISIT_DATE, LATEST_NEXT_DATE)
+      arrange(art_faci_code, visit_date, latest_next_date)
 
    return(data)
 }
@@ -168,7 +178,7 @@ convert_faci_addr <- function(data) {
 
 # updated outcomes
 tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, params) {
-   log_info("Converting to final HARP variables.")
+   log_info("Converting to final harp variables.")
    data %<>%
       # get latest outcome data
       left_join(
@@ -176,7 +186,7 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
             mutate(hub = toupper(hub)) %>%
             select(
                art_id,
-               prev_rec            = REC_ID,
+               prev_rec            = rec_id,
                prev_class          = class,
                prev_outcome        = outcome,
                prev_ffupdate       = latest_ffupdate,
@@ -197,39 +207,38 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
       # get ohasis earliest visits
       left_join(
          y  = art_first %>%
-            select(CENTRAL_ID, EARLIEST_REC = REC_ID, EARLIEST_VISIT = VISIT_DATE) %>%
-            arrange(EARLIEST_VISIT) %>%
-            distinct(CENTRAL_ID, .keep_all = TRUE),
-         by = join_by(CENTRAL_ID)
+            select(central_id, earliest_rec = rec_id, earliest_visit = visit_date) %>%
+            arrange(earliest_visit) %>%
+            distinct(central_id, .keep_all = TRUE),
+         by = join_by(central_id)
       ) %>%
       # get ohasis latest vl
       left_join(
          y  = last_vl %>%
             select(
-               CENTRAL_ID,
-               LAST_VL_DATE   = LAB_VIRAL_DATE,
-               LAST_VL_RESULT = LAB_VIRAL_RESULT
+               central_id,
+               last_vl_date   = lab_viral_date,
+               last_vl_result = lab_viral_result
             ) %>%
-            arrange(desc(LAST_VL_DATE)) %>%
-            distinct(CENTRAL_ID, .keep_all = TRUE),
-         by = join_by(CENTRAL_ID)
+            arrange(desc(last_vl_date)) %>%
+            distinct(central_id, .keep_all = TRUE),
+         by = join_by(central_id)
       ) %>%
       # get ohasis latest dispense
       left_join(
          y  = last_disp %>%
             select(
                art_id,
-               LASTDISP_REC           = REC_ID,
-               LASTDISP_HUB           = ART_FACI_CODE,
-               LASTDISP_BRANCH        = ART_BRANCH,
-               LASTDISP_ACTUAL_HUB    = ACTUAL_FACI_CODE,
-               LASTDISP_ACTUAL_BRANCH = ACTUAL_BRANCH,
-               LASTDISP_SATHUB        = SATELLITE_FACI_CODE,
-               LASTDISP_TRANSHUB      = TRANSIENT_FACI_CODE,
-               LASTDISP_REC           = REC_ID,
-               LASTDISP_VISIT         = VISIT_DATE,
-               LASTDISP_NEXT_DATE     = LATEST_NEXT_DATE,
-               LASTDISP_ARV           = MEDICINE_SUMMARY
+               lastdisp_rec           = rec_id,
+               lastdisp_hub           = art_faci_code,
+               lastdisp_branch        = art_branch,
+               lastdisp_actual_hub    = actual_faci_code,
+               lastdisp_actual_branch = actual_branch,
+               lastdisp_sathub        = satellite_faci_code,
+               lastdisp_transhub      = transient_faci_code,
+               lastdisp_visit         = visit_date,
+               lastdisp_next_date     = latest_next_date,
+               lastdisp_arv           = medicine_summary
             ) %>%
             distinct(art_id, .keep_all = TRUE),
          by = join_by(art_id)
@@ -244,38 +253,38 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
       ) %>%
       mutate(
          # clinical pic
-         who_staging      = as.integer(keep_code(WHO_CLASS)),
+         who_staging      = as.integer(keep_code(who_class)),
 
          # pregnant
-         pregnant         = as.integer(keep_code(IS_PREGNANT)),
+         pregnant         = as.integer(keep_code(is_pregnant)),
 
          # tag if new data is to be used
          new_report       = if_else(is.na(prev_outcome), 1, 0, 0),
          use_type         = case_when(
-            !is.na(MEDICINE_SUMMARY) & LATEST_NEXT_DATE >= -25567 ~ "latest",
-            !is.na(LASTDISP_ARV) & LASTDISP_NEXT_DATE >= -25567 ~ "lastdisp",
+            !is.na(medicine_summary) & latest_next_date >= -25567 ~ "latest",
+            !is.na(lastdisp_arv) & lastdisp_next_date >= -25567 ~ "lastdisp",
             TRUE ~ NA_character_
          ),
          use_db           = case_when(
             new_report == 1 & use_type == "latest" ~ 1,
             new_report == 1 & use_type == "lastdisp" ~ 2,
-            LATEST_VISIT > prev_ffupdate & use_type == "latest" ~ 1,
-            LATEST_NEXT_DATE > prev_nextpickup & use_type == "latest" ~ 1,
-            LASTDISP_VISIT > prev_ffupdate & use_type == "lastdisp" ~ 2,
-            LASTDISP_NEXT_DATE > prev_nextpickup & use_type == "lastdisp" ~ 2,
-            LATEST_VISIT == prev_ffupdate & MEDICINE_SUMMARY != prev_regimen ~ 1,
+            latest_visit > prev_ffupdate & use_type == "latest" ~ 1,
+            latest_next_date > prev_nextpickup & use_type == "latest" ~ 1,
+            lastdisp_visit > prev_ffupdate & use_type == "lastdisp" ~ 2,
+            lastdisp_next_date > prev_nextpickup & use_type == "lastdisp" ~ 2,
+            latest_visit == prev_ffupdate & medicine_summary != prev_regimen ~ 1,
             TRUE ~ 0
          ),
 
          # current age for class
          curr_age         = case_when(
-            !is.na(birthdate) & use_db == 1 ~ calc_age(birthdate, LATEST_VISIT),
-            is.na(birthdate) & use_db == 1 & !is.na(age) ~ age + (year(LATEST_VISIT) - year(artstart_date)),
-            is.na(birthdate) & use_db == 1 & is.na(age) ~ prev_age + (year(LATEST_VISIT) - year(prev_ffupdate)),
-            !is.na(birthdate) & use_db == 2 ~ calc_age(birthdate, LASTDISP_VISIT),
-            is.na(birthdate) & use_db == 2 & !is.na(age) ~ age + (year(LASTDISP_VISIT) - year(artstart_date)),
-            is.na(birthdate) & use_db == 2 & is.na(age) ~ prev_age + (year(LASTDISP_VISIT) - year(prev_ffupdate)),
-            !is.na(birthdate) & use_db == 0 ~ calc_age(prev_ffupdate, LASTDISP_VISIT),
+            !is.na(birthdate) & use_db == 1 ~ calc_age(birthdate, latest_visit),
+            is.na(birthdate) & use_db == 1 & !is.na(age) ~ age + (year(latest_visit) - year(artstart_date)),
+            is.na(birthdate) & use_db == 1 & is.na(age) ~ prev_age + (year(latest_visit) - year(prev_ffupdate)),
+            !is.na(birthdate) & use_db == 2 ~ calc_age(birthdate, lastdisp_visit),
+            is.na(birthdate) & use_db == 2 & !is.na(age) ~ age + (year(lastdisp_visit) - year(artstart_date)),
+            is.na(birthdate) & use_db == 2 & is.na(age) ~ prev_age + (year(lastdisp_visit) - year(prev_ffupdate)),
+            !is.na(birthdate) & use_db == 0 ~ calc_age(prev_ffupdate, lastdisp_visit),
             is.na(birthdate) & use_db == 0 & !is.na(age) ~ age + (year(prev_ffupdate) - year(artstart_date)),
             is.na(birthdate) & use_db == 0 & is.na(age) ~ prev_age + (year(prev_ffupdate) - year(artstart_date)),
          ),
@@ -287,12 +296,12 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
 
          # current outcome
          curr_outcome     = case_when(
-            use_db == 1 & (LATEST_VISIT <= ref_death_date) ~ "dead",
-            use_db == 1 & LATEST_NEXT_DATE >= params$max ~ "alive on arv",
-            use_db == 1 & LATEST_NEXT_DATE < params$max ~ "lost to follow up",
-            use_db == 2 & (LASTDISP_VISIT <= ref_death_date) ~ "dead",
-            use_db == 2 & LASTDISP_NEXT_DATE >= params$max ~ "alive on arv",
-            use_db == 2 & LASTDISP_NEXT_DATE < params$max ~ "lost to follow up",
+            use_db == 1 & (latest_visit <= ref_death_date) ~ "dead",
+            use_db == 1 & latest_next_date >= params$max ~ "alive on arv",
+            use_db == 1 & latest_next_date < params$max ~ "lost to follow up",
+            use_db == 2 & (lastdisp_visit <= ref_death_date) ~ "dead",
+            use_db == 2 & lastdisp_next_date >= params$max ~ "alive on arv",
+            use_db == 2 & lastdisp_next_date < params$max ~ "lost to follow up",
             use_db == 0 & prev_ffupdate <= ref_death_date ~ "dead",
             use_db == 0 &
                stri_detect_fixed(prev_outcome, "dead") &
@@ -311,20 +320,20 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
             false     = 0
          ),
          curr_num_drugs   = if_else(
-            condition = !is.na(MEDICINE_SUMMARY),
-            true      = stri_count_fixed(MEDICINE_SUMMARY, "+") + 1,
+            condition = !is.na(medicine_summary),
+            true      = stri_count_fixed(medicine_summary, "+") + 1,
             false     = 0
          ),
 
          # check for multi-month clients
          days_to_pickup   = case_when(
-            use_db == 1 ~ floor(interval(LATEST_VISIT, LATEST_NEXT_DATE) / days(1)),
-            use_db == 2 ~ floor(interval(LASTDISP_VISIT, LASTDISP_NEXT_DATE) / days(1)),
+            use_db == 1 ~ floor(interval(latest_visit, latest_next_date) / days(1)),
+            use_db == 2 ~ floor(interval(lastdisp_visit, lastdisp_next_date) / days(1)),
             use_db == 0 ~ floor(interval(prev_ffupdate, prev_nextpickup) / days(1)),
          ),
          months_to_pickup = case_when(
-            use_db == 1 ~ floor(interval(LATEST_VISIT, LATEST_NEXT_DATE) / months(1)),
-            use_db == 2 ~ floor(interval(LASTDISP_VISIT, LASTDISP_NEXT_DATE) / months(1)),
+            use_db == 1 ~ floor(interval(latest_visit, latest_next_date) / months(1)),
+            use_db == 2 ~ floor(interval(lastdisp_visit, lastdisp_next_date) / months(1)),
             use_db == 0 ~ floor(interval(prev_ffupdate, prev_nextpickup) / months(1)),
          ),
          arv_worth        = case_when(
@@ -338,7 +347,7 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
          ),
 
          # regimen disagg
-         arv_reg          = stri_trans_tolower(MEDICINE_SUMMARY),
+         arv_reg          = stri_trans_tolower(medicine_summary),
          azt1             = if_else(stri_detect_fixed(arv_reg, "azt"), "azt", NA_character_),
          tdf1             = if_else(stri_detect_fixed(arv_reg, "tdf"), "tdf", NA_character_),
          d4t1             = if_else(stri_detect_fixed(arv_reg, "d4t"), "d4t", NA_character_),
@@ -405,8 +414,8 @@ final_conversion <- function(data) {
       ) %>%
       # same vars as registry
       select(
-         REC_ID,
-         CENTRAL_ID,
+         rec_id,
+         central_id,
          art_id,
          idnum,
          prep_id,
@@ -429,8 +438,8 @@ final_conversion <- function(data) {
          use_db,
          artstart_date,
          artstart_rec,
-         oh_artstart_rec         = EARLIEST_REC,
-         oh_artstart             = EARLIEST_VISIT,
+         oh_artstart_rec         = earliest_rec,
+         oh_artstart             = earliest_visit,
          prev_rec,
          prev_hub,
          prev_branch,
@@ -446,38 +455,37 @@ final_conversion <- function(data) {
          prev_regimen,
          prev_artreg,
          prev_num_drugs,
-         curr_hub                = ART_FACI_CODE,
-         curr_branch             = ART_BRANCH,
-         curr_sathub             = SATELLITE_FACI_CODE,
-         curr_transhub           = TRANSIENT_FACI_CODE,
+         curr_hub                = art_faci_code,
+         curr_branch             = art_branch,
+         curr_sathub             = satellite_faci_code,
+         curr_transhub           = transient_faci_code,
          curr_age,
          curr_class,
          curr_outcome,
          curr_line,
-         curr_ffupdate           = LATEST_VISIT,
-         curr_nextpickup         = LATEST_NEXT_DATE,
-         curr_regimen            = MEDICINE_SUMMARY,
-         curr_vl_date            = LAST_VL_DATE,
-         curr_vl_result          = LAST_VL_RESULT,
-         lastdisp_rec            = LASTDISP_REC,
-         lastdisp_hub            = LASTDISP_HUB,
-         lastdisp_branch         = LASTDISP_BRANCH,
-         lastdisp_realhub        = LASTDISP_ACTUAL_HUB,
-         lastdisp_realhub_branch = LASTDISP_ACTUAL_BRANCH,
-         lastdisp_sathub         = LASTDISP_SATHUB,
-         lastdisp_transhub       = LASTDISP_TRANSHUB,
-         lastdisp_ffupdate       = LASTDISP_VISIT,
-         lastdisp_nextpickup     = LASTDISP_NEXT_DATE,
-         lastdisp_regimen        = LASTDISP_ARV,
-         lastdisp_rec            = LASTDISP_REC,
+         curr_ffupdate           = latest_visit,
+         curr_nextpickup         = latest_next_date,
+         curr_regimen            = medicine_summary,
+         curr_vl_date            = last_vl_date,
+         curr_vl_result          = last_vl_result,
+         lastdisp_rec            = lastdisp_rec,
+         lastdisp_hub            = lastdisp_hub,
+         lastdisp_branch         = lastdisp_branch,
+         lastdisp_realhub        = lastdisp_actual_hub,
+         lastdisp_realhub_branch = lastdisp_actual_branch,
+         lastdisp_sathub         = lastdisp_sathub,
+         lastdisp_transhub       = lastdisp_transhub,
+         lastdisp_ffupdate       = lastdisp_visit,
+         lastdisp_nextpickup     = lastdisp_next_date,
+         lastdisp_regimen        = lastdisp_arv,
          curr_artreg             = art_reg1,
          curr_num_drugs,
          prev_num_drugs,
          tx_reg,
          tx_prov,
          tx_munc,
-         curr_realhub            = ACTUAL_FACI_CODE,
-         curr_realhub_branch     = ACTUAL_BRANCH,
+         curr_realhub            = actual_faci_code,
+         curr_realhub_branch     = actual_branch,
          real_reg,
          real_prov,
          real_munc,
@@ -499,10 +507,10 @@ finalize_outcomes <- function(data, params) {
    data %<>%
       arrange(art_id) %>%
       mutate(
-         REC_ID = case_when(
-            use_db == 1 ~ REC_ID,
+         rec_id = case_when(
+            use_db == 1 ~ rec_id,
             use_db == 2 ~ lastdisp_rec,
-            use_db == 0 ~ REC_ID,
+            use_db == 0 ~ rec_id,
             TRUE ~ prev_rec
          )
       ) %>%
@@ -627,12 +635,12 @@ finalize_faci <- function(data) {
       ) %>%
       mutate(
          branch         = case_when(
-            hub == "BGN" ~ "TLY-BAGANI",
+            hub == "BGN" ~ "TLY-bagani",
             hub == "TLY" & is.na(branch) ~ "TLY-ANGLO",
             TRUE ~ branch
          ),
          realhub_branch = case_when(
-            realhub == "BGN" ~ "TLY-BAGANI",
+            realhub == "BGN" ~ "TLY-bagani",
             realhub == "TLY" & is.na(realhub_branch) ~ "TLY-ANGLO",
             TRUE ~ realhub_branch
          ),
@@ -671,39 +679,39 @@ finalize_faci <- function(data) {
          ),
       ) %>%
       faci_code_to_id(
-         ohasis$ref_faci_code %>% distinct(FACI_CODE, SUB_FACI_CODE, .keep_all = TRUE),
-         c(FACI_ID = "hub", SUB_FACI_ID = "branch")
+         ohasis$ref_faci_code %>% distinct(faci_code, sub_faci_code, .keep_all = TRUE),
+         c(faci_id = "hub", sub_faci_id = "branch")
       ) %>%
       left_join(
          y  = ohasis$ref_faci %>%
             select(
-               FACI_ID,
-               SUB_FACI_ID,
-               tx_reg  = FACI_NHSSS_REG,
-               tx_prov = FACI_NHSSS_PROV,
-               tx_munc = FACI_NHSSS_MUNC,
+               faci_id,
+               sub_faci_id,
+               tx_reg  = addr_nhsss_reg,
+               tx_prov = addr_nhsss_prov,
+               tx_munc = addr_nhsss_munc,
             ),
-         by = join_by(FACI_ID, SUB_FACI_ID)
+         by = join_by(faci_id, sub_faci_id)
       ) %>%
-      select(-FACI_ID, -SUB_FACI_ID) %>%
+      select(-faci_id, -sub_faci_id) %>%
       faci_code_to_id(
-         ohasis$ref_faci_code %>% distinct(FACI_CODE, SUB_FACI_CODE, .keep_all = TRUE),
-         c(FACI_ID = "realhub", SUB_FACI_ID = "realhub_branch")
+         ohasis$ref_faci_code %>% distinct(faci_code, sub_faci_code, .keep_all = TRUE),
+         c(faci_id = "realhub", sub_faci_id = "realhub_branch")
       ) %>%
       left_join(
          y  = ohasis$ref_faci %>%
             select(
-               FACI_ID,
-               SUB_FACI_ID,
-               real_reg  = FACI_NHSSS_REG,
-               real_prov = FACI_NHSSS_PROV,
-               real_munc = FACI_NHSSS_MUNC,
+               faci_id,
+               sub_faci_id,
+               real_reg  = addr_nhsss_reg,
+               real_prov = addr_nhsss_prov,
+               real_munc = addr_nhsss_munc,
             ),
-         by = join_by(FACI_ID, SUB_FACI_ID)
+         by = join_by(faci_id, sub_faci_id)
       ) %>%
       select(
-         REC_ID,
-         CENTRAL_ID,
+         rec_id,
+         central_id,
          art_id,
          idnum,
          prep_id,
@@ -738,7 +746,7 @@ finalize_faci <- function(data) {
       distinct_all() %>%
       arrange(art_id, desc(latest_nextpickup)) %>%
       distinct(art_id, .keep_all = TRUE) %>%
-      mutate(central_id = CENTRAL_ID) %>%
+      mutate(central_id = central_id) %>%
       mutate_at(
          .vars = vars(ends_with("_ffupdate"), ends_with("_nextpickup")),
          ~as.Date(.)
@@ -1053,20 +1061,20 @@ get_form_data <- function(data, forms) {
       left_join(
          y  = forms %>%
             select(
-               REC_ID,
-               who_staging = WHO_CLASS,
-               tb_status   = TB_STATUS,
-               oi_syph     = OI_SYPH_PRESENT,
-               oi_hepb     = OI_HEPB_PRESENT,
-               oi_hepc     = OI_HEPC_PRESENT,
-               oi_pcp      = OI_PCP_PRESENT,
-               oi_cmv      = OI_CMV_PRESENT,
-               oi_orocand  = OI_OROCAND_PRESENT,
-               oi_herpes   = OI_HERPES_PRESENT,
-               oi_other    = OI_OTHER_TEXT
+               rec_id,
+               who_staging = who_class,
+               tb_status   = tb_status,
+               oi_syph     = oi_syph_present,
+               oi_hepb     = oi_hepb_present,
+               oi_hepc     = oi_hepc_present,
+               oi_pcp      = oi_pcp_present,
+               oi_cmv      = oi_cmv_present,
+               oi_orocand  = oi_orocand_present,
+               oi_herpes   = oi_herpes_present,
+               oi_other    = oi_other_text
             ) %>%
             distinct_all(),
-         by = join_by(REC_ID)
+         by = join_by(rec_id)
       ) %>%
       mutate_at(
          .vars = vars(
@@ -1114,11 +1122,11 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
             reg_order = case_when(
                reg_order == "1" ~ 1,
                reg_order == "2" ~ 2,
-               reg_order == "CAR" ~ 3,
+               reg_order == "car" ~ 3,
                reg_order == "3" ~ 4,
                reg_order == "NCR" ~ 5,
-               reg_order == "4A" ~ 6,
-               reg_order == "4B" ~ 7,
+               reg_order == "4a" ~ 6,
+               reg_order == "4b" ~ 7,
                reg_order == "5" ~ 8,
                reg_order == "6" ~ 9,
                reg_order == "7" ~ 10,
@@ -1127,9 +1135,9 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
                reg_order == "10" ~ 13,
                reg_order == "11" ~ 14,
                reg_order == "12" ~ 15,
-               reg_order == "CARAGA" ~ 16,
-               reg_order == "ARMM" ~ 17,
-               reg_order == "BARMM" ~ 17,
+               reg_order == "caraga" ~ 16,
+               reg_order == "armm" ~ 17,
+               reg_order == "barmm" ~ 17,
                TRUE ~ 9999
             ),
          ) %>%
@@ -1137,8 +1145,8 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
          select(-reg_order)
 
       view_vars <- c(
-         "REC_ID",
-         "CENTRAL_ID",
+         "rec_id",
+         "central_id",
          "real_reg",
          "curr_realhub",
          "curr_realhub_branch",
@@ -1199,7 +1207,7 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
 
       log_info("Checking for missing dispensing data.")
       check[["art_recs_gone"]] <- step_data %>%
-         filter(is.na(REC_ID)) %>%
+         filter(is.na(rec_id)) %>%
          select(
             any_of(view_vars),
          )
@@ -1226,16 +1234,16 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
       log_info("Checking for possible PrEP clients.")
       check[["possible_prep"]] <- step_data %>%
          filter(
-            stri_detect_fixed(curr_regimen, "FTC")
+            stri_detect_fixed(curr_regimen, "ftc")
          ) %>%
          select(
             any_of(view_vars),
          )
 
-      log_info("Checking ART reports tagged as DOH-EB.")
+      log_info("Checking ART reports tagged as doh-eb.")
       check[["art_eb"]] <- step_data %>%
          filter(
-            curr_realhub == "DOH"
+            curr_realhub == "doh"
          ) %>%
          select(
             any_of(view_vars),
@@ -1367,11 +1375,11 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
             reg_order = case_when(
                reg_order == "1" ~ 1,
                reg_order == "2" ~ 2,
-               reg_order == "CAR" ~ 3,
+               reg_order == "car" ~ 3,
                reg_order == "3" ~ 4,
                reg_order == "NCR" ~ 5,
-               reg_order == "4A" ~ 6,
-               reg_order == "4B" ~ 7,
+               reg_order == "4a" ~ 6,
+               reg_order == "4b" ~ 7,
                reg_order == "5" ~ 8,
                reg_order == "6" ~ 9,
                reg_order == "7" ~ 10,
@@ -1380,9 +1388,9 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
                reg_order == "10" ~ 13,
                reg_order == "11" ~ 14,
                reg_order == "12" ~ 15,
-               reg_order == "CARAGA" ~ 16,
-               reg_order == "ARMM" ~ 17,
-               reg_order == "BARMM" ~ 17,
+               reg_order == "caraga" ~ 16,
+               reg_order == "armm" ~ 17,
+               reg_order == "barmm" ~ 17,
                TRUE ~ 9999
             ),
          ) %>%
@@ -1429,11 +1437,11 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
             reg_order = case_when(
                reg_order == "1" ~ 1,
                reg_order == "2" ~ 2,
-               reg_order == "CAR" ~ 3,
+               reg_order == "car" ~ 3,
                reg_order == "3" ~ 4,
                reg_order == "NCR" ~ 5,
-               reg_order == "4A" ~ 6,
-               reg_order == "4B" ~ 7,
+               reg_order == "4a" ~ 6,
+               reg_order == "4b" ~ 7,
                reg_order == "5" ~ 8,
                reg_order == "6" ~ 9,
                reg_order == "7" ~ 10,
@@ -1442,9 +1450,9 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
                reg_order == "10" ~ 13,
                reg_order == "11" ~ 14,
                reg_order == "12" ~ 15,
-               reg_order == "CARAGA" ~ 16,
-               reg_order == "ARMM" ~ 17,
-               reg_order == "BARMM" ~ 17,
+               reg_order == "caraga" ~ 16,
+               reg_order == "armm" ~ 17,
+               reg_order == "barmm" ~ 17,
                TRUE ~ 9999
             ),
          ) %>%
@@ -1455,7 +1463,7 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
       log_info("Checking for shift out of TLD.")
       check[["tld to lte"]] <- data %>%
          filter(
-            previous_regimen == "TDF/3TC/DTG" & latest_regimen == "TDF/3TC/EFV"
+            previous_regimen == "tdf/3tc/dtg" & latest_regimen == "tdf/3tc/efv"
          )
 
       log_info("Checking for no reg_line.")
@@ -1491,11 +1499,11 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
             reg_order = case_when(
                reg_order == "1" ~ 1,
                reg_order == "2" ~ 2,
-               reg_order == "CAR" ~ 3,
+               reg_order == "car" ~ 3,
                reg_order == "3" ~ 4,
                reg_order == "NCR" ~ 5,
-               reg_order == "4A" ~ 6,
-               reg_order == "4B" ~ 7,
+               reg_order == "4a" ~ 6,
+               reg_order == "4b" ~ 7,
                reg_order == "5" ~ 8,
                reg_order == "6" ~ 9,
                reg_order == "7" ~ 10,
@@ -1504,9 +1512,9 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
                reg_order == "10" ~ 13,
                reg_order == "11" ~ 14,
                reg_order == "12" ~ 15,
-               reg_order == "CARAGA" ~ 16,
-               reg_order == "ARMM" ~ 17,
-               reg_order == "BARMM" ~ 17,
+               reg_order == "caraga" ~ 16,
+               reg_order == "armm" ~ 17,
+               reg_order == "barmm" ~ 17,
                TRUE ~ 9999
             ),
          ) %>%
@@ -1566,7 +1574,7 @@ output_dta <- function(official, params, save = "2") {
    if (save == "1") {
       log_info("Checking output directory.")
       version <- format(Sys.time(), "%Y%m%d")
-      dir     <- Sys.getenv("HARP_TX")
+      dir     <- Sys.getenv("harp_tx")
       check_dir(dir)
 
       log_info("Saving in Stata data format.")
@@ -1583,7 +1591,7 @@ output_dta <- function(official, params, save = "2") {
                format_stata() %>%
                write_dta(files[[output]])
 
-            compress_stata(files[[output]])
+            # compress_stata(files[[output]])
          }
       }
 
@@ -1614,36 +1622,36 @@ output_dta <- function(official, params, save = "2") {
    new_outcome <- finalize_outcomes(data, p$params)
    # add adjusted regimens
    adjust_reg  <- new_outcome %>%
-      select(CENTRAL_ID, art_id, latest_ffupdate, latest_nextpickup) %>%
+      select(central_id, art_id, latest_ffupdate, latest_nextpickup) %>%
       mutate(
          before = latest_ffupdate %m-% days(15),
          after  = latest_ffupdate %m+% days(15),
       ) %>%
       left_join(
          y  = p$forms$form_art_bc %>%
-            get_cid(p$forms$id_registry, PATIENT_ID) %>%
+            get_cid(p$forms$id_registry, patient_id) %>%
             select(
-               CENTRAL_ID,
-               VISIT_DATE,
-               MEDICINE_SUMMARY,
-               LATEST_NEXT_DATE
+               central_id,
+               visit_date,
+               medicine_summary,
+               latest_next_date
             ),
-         by = join_by(CENTRAL_ID)
+         by = join_by(central_id)
       ) %>%
       mutate(
-         between_any = if_else(VISIT_DATE %within% interval(before, after), 1, 0, 0),
-         pickup      = coalesce(LATEST_NEXT_DATE, latest_nextpickup)
+         between_any = if_else(visit_date %within% interval(before, after), 1, 0, 0),
+         pickup      = coalesce(latest_next_date, latest_nextpickup)
       ) %>%
-      filter(between_any == 1, !is.na(MEDICINE_SUMMARY)) %>%
-      group_by(CENTRAL_ID) %>%
+      filter(between_any == 1, !is.na(medicine_summary)) %>%
+      group_by(central_id) %>%
       summarise(
-         regimen_grp = stri_c(collapse = "+", MEDICINE_SUMMARY),
+         regimen_grp = stri_c(collapse = "+", medicine_summary),
          pickup_grp  = max(pickup, na.rm = TRUE)
       ) %>%
       ungroup()
 
    new_outcome %<>%
-      left_join(adjust_reg, join_by(CENTRAL_ID)) %>%
+      left_join(adjust_reg, join_by(central_id)) %>%
       mutate(
          latest_regimen    = coalesce(regimen_grp, latest_regimen),
          latest_nextpickup = coalesce(pickup_grp, latest_nextpickup),

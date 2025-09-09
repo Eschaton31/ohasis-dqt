@@ -1,15 +1,15 @@
-SELECT *
-FROM (SELECT data.CENTRAL_ID,
-             data.LAB_VIRAL_DATE,
-             data.LAB_VIRAL_RESULT,
-             ROW_NUMBER() OVER (PARTITION BY CENTRAL_ID ORDER BY LAB_VIRAL_DATE DESC) AS VISIT_NUM
-      FROM (SELECT COALESCE(reg.CENTRAL_ID, rec.PATIENT_ID)      AS CENTRAL_ID,
-                   COALESCE(rec.LAB_VIRAL_DATE, pii.RECORD_DATE) AS LAB_VIRAL_DATE,
-                   rec.LAB_VIRAL_RESULT
-            FROM ohasis_lake.lab_wide AS rec
-                     LEFT JOIN ohasis_warehouse.id_registry AS reg ON rec.PATIENT_ID = reg.PATIENT_ID
-                     LEFT JOIN ohasis_lake.px_pii AS pii ON rec.REC_ID = pii.REC_ID
-            WHERE rec.DELETED_AT IS NULL
-              AND rec.LAB_VIRAL_RESULT IS NOT NULL
-              AND DATE(COALESCE(rec.LAB_VIRAL_DATE, pii.RECORD_DATE)) <= ?) AS data) AS artstart
-WHERE VISIT_NUM = 1;
+select *
+from (select data.central_id,
+             data.lab_viral_date,
+             data.lab_viral_result,
+             row_number() over (partition by central_id order by lab_viral_date desc) as visit_num
+      from (select coalesce(reg.central_id, rec.patient_id)      as central_id,
+                   coalesce(rec.lab_viral_date, pii.record_date) as lab_viral_date,
+                   rec.lab_viral_result
+            from ohasis_lake.lab_wide as rec
+                     left join ohasis_lake.id_registry as reg on rec.patient_id = reg.patient_id
+                     left join ohasis_lake.px_demographics as pii on rec.rec_id = pii.rec_id
+            where rec.deleted_at is NULL
+              and rec.lab_viral_result is not NULL
+              and date(coalesce(rec.lab_viral_date, pii.record_date)) <= ?) as data) as artstart
+where visit_num = 1;

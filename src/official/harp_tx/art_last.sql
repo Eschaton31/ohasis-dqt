@@ -1,16 +1,16 @@
-SELECT *
-FROM (SELECT data.CENTRAL_ID,
-             data.REC_ID,
-             data.VISIT_DATE,
-             ROW_NUMBER() OVER (PARTITION BY CENTRAL_ID ORDER BY VISIT_DATE DESC) AS VISIT_NUM
-      FROM (
-               SELECT CASE
-                          WHEN reg.CENTRAL_ID IS NULL THEN rec.PATIENT_ID
-                          WHEN reg.CENTRAL_ID IS NOT NULL THEN reg.CENTRAL_ID
-                          END AS CENTRAL_ID,
+select *
+from (select data.central_id,
+             data.rec_id,
+             data.visit_date,
+             row_number() over (partition by central_id order by visit_date desc) as visit_num
+      from (
+               select case
+                          when reg.central_id is NULL then rec.patient_id
+                          when reg.central_id is not NULL then reg.central_id
+                          end as central_id,
                       rec.*
-               FROM ohasis_warehouse.form_art_bc rec
-                        LEFT JOIN ohasis_warehouse.id_registry reg ON rec.PATIENT_ID = reg.PATIENT_ID
-               WHERE ART_RECORD = 'ART' AND DATE(VISIT_DATE) <= ?
-           ) AS data) AS artstart
-WHERE VISIT_NUM = 1;
+               from ohasis_warehouse.form_art_bc rec
+                        left join ohasis_lake.id_registry reg on rec.patient_id = reg.patient_id
+               where art_record = 'ART' and date(visit_date) <= ?
+           ) as data) as artstart
+where visit_num = 1;

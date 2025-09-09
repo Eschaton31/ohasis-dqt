@@ -1,13 +1,13 @@
-SELECT *
-FROM (SELECT data.CENTRAL_ID,
-             data.REC_ID,
-             data.VISIT_DATE,
-             ROW_NUMBER() OVER (PARTITION BY CENTRAL_ID ORDER BY VISIT_DATE DESC) AS VISIT_NUM
-      FROM (
-               SELECT COALESCE(reg.CENTRAL_ID, rec.PATIENT_ID) AS CENTRAL_ID,
+select *
+from (select data.central_id,
+             data.rec_id,
+             data.visit_date,
+             row_number() over (partition by central_id order by visit_date desc) as visit_num
+      from (
+               select coalesce(reg.central_id, rec.patient_id) as central_id,
                       rec.*
-               FROM ohasis_warehouse.form_art_bc AS rec
-                        LEFT JOIN ohasis_warehouse.id_registry AS reg ON rec.PATIENT_ID = reg.PATIENT_ID
-               WHERE MEDICINE_SUMMARY IS NOT NULL AND DATE(VISIT_DATE) <= ?
-           ) AS data) AS artstart
-WHERE VISIT_NUM = 1;
+               from ohasis_warehouse.form_art_bc as rec
+                        left join ohasis_lake.id_registry as reg on rec.patient_id = reg.patient_id
+               where medicine_summary is not NULL and date(visit_date) <= ?
+           ) as data) as artstart
+where visit_num = 1;

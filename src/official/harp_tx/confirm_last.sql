@@ -1,19 +1,19 @@
-SELECT *
-FROM (SELECT data.CENTRAL_ID,
-             data.DATE_CONFIRM,
-             data.CONFIRM_CODE,
-             data.CONFIRM_RESULT,
-             data.CONFIRM_REMARKS,
-             ROW_NUMBER() OVER (PARTITION BY CENTRAL_ID ORDER BY DATE_CONFIRM DESC) AS VISIT_NUM
-      FROM (SELECT COALESCE(reg.CENTRAL_ID, rec.PATIENT_ID)                                    AS CENTRAL_ID,
-                   DATE(COALESCE(data.DATE_CONFIRM, data.T3_DATE, data.T2_DATE, data.T1_DATE)) AS DATE_CONFIRM,
-                   data.CONFIRM_CODE,
-                   data.CONFIRM_RESULT,
-                   data.CONFIRM_REMARKS
-            FROM ohasis_lake.px_pii AS rec
-                     LEFT JOIN ohasis_warehouse.id_registry AS reg ON rec.PATIENT_ID = reg.PATIENT_ID
-                     LEFT JOIN ohasis_lake.px_hiv_testing AS data ON rec.REC_ID = data.REC_ID
-            WHERE rec.DELETED_AT IS NULL
-              AND DATE(COALESCE(data.DATE_CONFIRM, data.T3_DATE, data.T2_DATE, data.T1_DATE)) <= ?
-              AND data.CONFIRM_RESULT <> '4_Pending') AS data) AS artstart
-WHERE VISIT_NUM = 1;
+select *
+from (select data.central_id,
+             data.date_confirm,
+             data.confirm_code,
+             data.confirm_result,
+             data.confirm_remarks,
+             row_number() over (partition by central_id order by date_confirm desc) as visit_num
+      from (select coalesce(reg.central_id, rec.patient_id)                                    as central_id,
+                   date(coalesce(data.date_confirm, data.t3_date, data.t2_date, data.t1_date)) as date_confirm,
+                   data.confirm_code,
+                   data.confirm_result,
+                   data.confirm_remarks
+            from ohasis_lake.px_demographics as rec
+                     left join ohasis_lake.id_registry as reg on rec.patient_id = reg.patient_id
+                     left join ohasis_lake.px_hiv_testing as data on rec.rec_id = data.rec_id
+            where rec.deleted_at is NULL
+              and date(coalesce(data.date_confirm, data.t3_date, data.t2_date, data.t1_date)) <= ?
+              and data.confirm_result <> '4_Pending') as data) as artstart
+where visit_num = 1;
