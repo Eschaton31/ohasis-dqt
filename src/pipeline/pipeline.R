@@ -385,45 +385,47 @@ flow_corr <- function(report_period = NULL, surv_name = NULL) {
 
    # list of correction files
    log_info("Downloading corrections.")
-   con                  <- connect(surv_name)
-   corr$label_values    <- QB$new(con)$
+   conn_get             <- connect('mariadb-lw')
+   conn_check           <- connect(surv_name)
+   corr$label_values    <- QB$new(conn_get)$
       from("nhsss_stata.label_values")$
       where("system", surv_name)$
       get()
-   corr$label_variables <- QB$new(con)$
+   corr$label_variables <- QB$new(conn_get)$
       from("nhsss_stata.label_variables")$
       where("system", surv_name)$
       get()
 
    # non duplicates
    # table_space <- Id(schema = surv_name, table = "non_dupes")
-   if (dbExistsTable(con, "non_dupes")) {
+   if (dbExistsTable(conn_check, "non_dupes")) {
       table_name     <- stri_c(surv_name, ".", "non_dupes")
-      corr$non_dupes <- QB$new(con)$
+      corr$non_dupes <- QB$new(conn_get)$
          from(table_name)$
          get()
    }
 
    # classd
    # table_space <- Id(schema = surv_name, table = "corr_classd")
-   if (dbExistsTable(con, "corr_classd")) {
+   if (dbExistsTable(conn_check, "corr_classd")) {
       table_name       <- stri_c(surv_name, ".", "corr_classd")
-      corr$corr_classd <- QB$new(con)$
+      corr$corr_classd <- QB$new(conn_get)$
          from(table_name)$
          get()
    }
 
    for (tbl in c("corr_reg", "corr_outcome", "corr_defer", "corr_drop")) {
       # table_space <- Id(schema = surv_name, table = tbl)
-      if (dbExistsTable(con, tbl)) {
+      if (dbExistsTable(conn_check, tbl)) {
          table_name  <- stri_c(surv_name, ".", tbl)
-         corr[[tbl]] <- QB$new(con)$
+         corr[[tbl]] <- QB$new(conn_get)$
             from(table_name)$
             where("period", report_period)$
             get()
       }
    }
-   dbDisconnect(con)
+   dbDisconnect(conn_get)
+   dbDisconnect(conn_check)
 
    log_success("Done.")
    return(corr)
@@ -515,7 +517,7 @@ hs_download <- function(sys, type, yr, mo) {
    table_data    <- stri_c(sys, ".", type, "_", yr, mo)
 
 
-   con     <- ohasis$conn("lw")
+   con     <- connect('old-lw')
    version <- QB$new(con)$
       from(table_version)$
       where("type", type)$
