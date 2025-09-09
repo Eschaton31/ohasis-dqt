@@ -207,42 +207,42 @@ get_pdf_data <- function(file = NULL, format = "old") {
       confirm_df <- read_excel(file, 1, col_types = "text", .name_repair = "unique_quiet") %>%
          slice(-1) %>%
          rename(
-            DATE_COLLECT      = 1,
-            DATE_RECEIVE      = 2,
-            CONFIRMATORY_CODE = 3,
-            FIRST             = 4,
-            MIDDLE            = 5,
-            LAST              = 6,
-            PATIENT_CODE      = 7,
-            BIRTHDATE         = 8,
-            AGE               = 9,
-            SEX               = 10,
-            SOURCE            = 11,
-            FINAL_RESULT      = 12,
-            REMARKS           = 13,
-            DATE_CONFIRM      = 14,
-            T0_COV_1          = 15,
-            T0_ABS_1          = 16,
-            T0_RESULT_1       = 17,
-            T0_DATE_1         = 18,
-            T0_COV_2          = 19,
-            T0_ABS_2          = 20,
-            T0_RESULT_2       = 21,
-            T0_DATE_2         = 22,
-            ) %>%
+            date_collect      = 1,
+            date_receive      = 2,
+            confirmatory_code = 3,
+            first             = 4,
+            middle            = 5,
+            last              = 6,
+            patient_code      = 7,
+            birthdate         = 8,
+            age               = 9,
+            sex               = 10,
+            source            = 11,
+            final_result      = 12,
+            remarks           = 13,
+            date_confirm      = 14,
+            t0_cov_1          = 15,
+            t0_abs_1          = 16,
+            t0_result_1       = 17,
+            t0_date_1         = 18,
+            t0_cov_2          = 19,
+            t0_abs_2          = 20,
+            t0_result_2       = 21,
+            t0_date_2         = 22,
+         ) %>%
          mutate_at(
-            .vars = vars(contains("DATE")),
+            .vars = vars(contains("date")),
             ~excel_numeric_to_date(as.numeric(.))
          ) %>%
          mutate(
-            T0_DATE   = case_when(
-               T0_DATE_1 == T0_DATE_2 ~ T0_DATE_1,
-               T0_DATE_1 < T0_DATE_2 ~ T0_DATE_1,
-               T0_DATE_1 > T0_DATE_2 ~ T0_DATE_2,
-               TRUE ~ coalesce(T0_DATE_1, T0_DATE_2)
+            t0_date   = case_when(
+               t0_date_1 == t0_date_2 ~ t0_date_1,
+               t0_date_1 < t0_date_2 ~ t0_date_1,
+               t0_date_1 > t0_date_2 ~ t0_date_2,
+               TRUE ~ coalesce(t0_date_1, t0_date_2)
             ),
-            T0_RESULT = coalesce(T0_RESULT_1, T0_RESULT_2),
-            T0_RESULT = if_else(is.na(T0_RESULT) & !is.na(T0_DATE), "REACTIVE", T0_RESULT, T0_RESULT)
+            t0_result = coalesce(t0_result_1, t0_result_2),
+            t0_result = if_else(is.na(t0_result) & !is.na(t0_date), "REACTIVE", t0_result, t0_result)
          ) %>%
          mutate_if(
             .predicate = is.character,
@@ -250,51 +250,54 @@ get_pdf_data <- function(file = NULL, format = "old") {
          ) %>%
          mutate_at(
             .vars = vars(
-               CONFIRMATORY_CODE,
-               FIRST,
-               MIDDLE,
-               LAST,
-               FINAL_RESULT,
-               SOURCE,
-               T0_RESULT
+               confirmatory_code,
+               first,
+               middle,
+               last,
+               final_result,
+               source,
+               t0_result
             ),
             ~toupper(.)
          ) %>%
          # standardize
          mutate(
-            SEX          = case_when(
-               SEX == "M" ~ "1",
-               SEX == "MALE" ~ "1",
-               SEX == "F" ~ "2",
-               SEX == "FEMALE" ~ "2",
-               TRUE ~ SEX
+            sex          = case_when(
+               sex == "M" ~ "1",
+               sex == "MALE" ~ "1",
+               sex == "F" ~ "2",
+               sex == "FEMALE" ~ "2",
+               TRUE ~ sex
             ),
-            SEX          = as.integer(SEX),
+            sex          = as.integer(sex),
 
-            FINAL_RESULT = case_when(
-               is.na(FINAL_RESULT) & str_detect(REMARKS, "^SAME AS") ~ "DUPLICATE",
-               is.na(FINAL_RESULT) & str_detect(REMARKS, "^Submit plasma") ~ "INDETERMINATE",
-               is.na(FINAL_RESULT) & str_detect(REMARKS, "Client is advised to proceed to the nearest") ~ "POSITIVE FOR HIV ANTIBODIES",
-               is.na(FINAL_RESULT) & str_detect(REMARKS, "Fill out HIV care report") ~ "POSITIVE FOR HIV ANTIBODIES",
-               is.na(FINAL_RESULT) & is.na(REMARKS) ~ "NEGATIVE",
-               TRUE ~ FINAL_RESULT
+            final_result = case_when(
+               is.na(final_result) & str_detect(remarks, "^SAME AS") ~ "DUPLICATE",
+               is.na(final_result) & str_detect(remarks, "^Submit plasma") ~ "INDETERMINATE",
+               is.na(final_result) & str_detect(remarks, "Client is advised to proceed to the nearest") ~ "POSITIVE FOR HIV ANTIBODIES",
+               is.na(final_result) & str_detect(remarks, "Fill out HIV care report") ~ "POSITIVE FOR HIV ANTIBODIES",
+               is.na(final_result) & is.na(remarks) ~ "NEGATIVE",
+               TRUE ~ final_result
             )
          ) %>%
          mutate(
-            T1_KIT       = "",
+            t1_kit       = "",
 
-            T2_KIT       = "",
+            t2_kit       = "",
 
-            T3_KIT       = "",
-            FINAL_RESULT = case_when(
-               str_detect(FINAL_RESULT, "POSITIVE") ~ "Positive",
-               str_detect(FINAL_RESULT, "NEGATIVE") ~ "Negative",
-               str_detect(FINAL_RESULT, "INDETERMINATE") ~ "Indeterminate",
-               str_detect(FINAL_RESULT, "DUPLICATE") ~ "Duplicate",
+            t3_kit       = "",
+            final_result = case_when(
+               str_detect(final_result, "POSITIVE") ~ "Positive",
+               str_detect(final_result, "NEGATIVE") ~ "Negative",
+               str_detect(final_result, "INDETERMINATE") ~ "Indeterminate",
+               str_detect(final_result, "DUPLICATE") ~ "Duplicate",
+               str_detect(toupper(remarks), "NONREACTIVE") ~ "Negative",
             ),
          ) %>%
-         filter(SOURCE != "JAY DUMMY LAB") %>%
-         left_join(corr_data$SOURCE %>% distinct(SOURCE, SOURCE_FACI, SOURCE_SUB_FACI))
+         filter(source != "JAY DUMMY LAB") %>%
+         left_join(corr_data$SOURCE %>%
+                      distinct(SOURCE, SOURCE_FACI, SOURCE_SUB_FACI) %>%
+                      rename_all(tolower))
    }
 
    return(confirm_df)
@@ -307,33 +310,32 @@ match_ohasis <- function(pdf_data) {
    db_conn <- ohasis$conn("db")
 
    # get list of labcodes
-   labcodes <- unique(pdf_data$CONFIRMATORY_CODE)
+   labcodes <- unique(pdf_data$confirmatory_code)
    query    <- r"(
-SELECT px_info.REC_ID,
-       px_info.PATIENT_ID,
-       COALESCE(px_confirm.CONFIRM_CODE, px_info.CONFIRMATORY_CODE)                                  AS CONFIRMATORY_CODE,
-       px_info.UIC,
-       px_info.PHILHEALTH_NO,
-       px_info.SEX,
-       px_info.BIRTHDATE,
-       px_info.PATIENT_CODE,
-       px_info.PHILSYS_ID,
-       px_info.PRIME,
-       px_info.CREATED_BY,
-       px_info.CREATED_AT,
-       px_info.UPDATED_BY,
-       px_info.UPDATED_AT,
-       px_info.DELETED_BY,
-       1                                                                                             AS EXIST_INFO,
-       IF(px_confirm.CONFIRM_CODE IS NOT NULL AND COALESCE(px_confirm.FINAL_RESULT, '') <> '', 1, 0) AS EXIST_CONFIRM,
-       IF(px_test_hiv.DATE_COLLECT IS NOT NULL, 1, 0)                                                AS EXIST_TEST
-FROM ohasis_interim.px_info
-         JOIN ohasis_interim.px_record ON px_info.REC_ID = px_record.REC_ID
-         LEFT JOIN ohasis_interim.px_confirm ON px_info.REC_ID = px_confirm.REC_ID
-         LEFT JOIN ohasis_interim.px_test_hiv ON px_info.REC_ID = px_test_hiv.REC_ID AND px_test_hiv.TEST_TYPE = 31
-WHERE px_record.MODULE = 2
-  AND px_record.DELETED_AT IS NULL
-  AND COALESCE(px_confirm.CONFIRM_CODE, px_info.CONFIRMATORY_CODE) IN (?)
+select px_pii.rec_id,
+       px_record.patient_id,
+       coalesce(px_confirm.confirm_code, px_pii.confirmatory_code)                                  as confirmatory_code,
+       px_pii.uic,
+       px_pii.philhealth_no,
+       px_pii.sex,
+       px_pii.birthdate,
+       px_pii.patient_code,
+       px_pii.philsys_id,
+       px_pii.created_by,
+       px_pii.created_at,
+       px_pii.updated_by,
+       px_pii.updated_at,
+       px_pii.deleted_by,
+       1                                                                                             as exist_info,
+       if(px_confirm.confirm_code is not null and coalesce(px_confirm.final_result, '') <> '', 1, 0) as exist_confirm,
+       if(px_test.date_collect is not null, 1, 0)                                                as exist_test
+from ohasis.px_pii
+         join ohasis.px_record on px_pii.rec_id = px_record.rec_id
+         left join ohasis.px_confirm on px_pii.rec_id = px_confirm.rec_id
+         left join ohasis.px_test on px_pii.rec_id = px_test.rec_id and px_test.test_type = 31
+where px_record.module = 2
+  and px_record.deleted_at is null
+  and coalesce(px_confirm.confirm_code, px_pii.confirmatory_code) in (?)
       )"
    oh_data  <- dbxSelect(db_conn, query, params = list(labcodes))
    dbDisconnect(db_conn)
@@ -341,23 +343,23 @@ WHERE px_record.MODULE = 2
    log_info("Matchinng against PDF data.")
    # match with pdf
    data <- pdf_data %>%
-      left_join(oh_data, join_by(CONFIRMATORY_CODE)) %>%
+      left_join(oh_data, join_by(confirmatory_code)) %>%
       mutate_at(
-         .vars = vars(EXIST_INFO, EXIST_CONFIRM),
+         .vars = vars(exist_info, exist_confirm),
          ~coalesce(., 0)
       ) %>%
       mutate(
          priority     = case_when(
-            str_left(CREATED_AT, 6) == "130000" ~ 1,
+            str_left(created_at, 6) == "130000" ~ 1,
             TRUE ~ 2
          ),
 
-         SEX          = coalesce(SEX.y, SEX.x),
-         BIRTHDATE    = coalesce(BIRTHDATE.y, BIRTHDATE.x),
-         PATIENT_CODE = coalesce(PATIENT_CODE.y, PATIENT_CODE.x),
+         sex          = coalesce(sex.y, sex.x),
+         birthdate    = coalesce(birthdate.y, birthdate.x),
+         patient_code = coalesce(patient_code.y, patient_code.x),
       ) %>%
       arrange(priority) %>%
-      distinct(CONFIRMATORY_CODE, .keep_all = TRUE)
+      distinct(confirmatory_code, .keep_all = TRUE)
 
    return(data)
 }
@@ -373,9 +375,9 @@ get_checks <- function(pdf_data) {
 
    check <- list()
    if (update == "1") {
-      check$SOURCE <- pdf_data %>%
-         filter(is.na(SOURCE_FACI)) %>%
-         distinct(SOURCE)
+      check$source <- pdf_data %>%
+         filter(is.na(source_faci)) %>%
+         distinct(source)
    }
 
    return(check)
@@ -384,7 +386,7 @@ get_checks <- function(pdf_data) {
 ##  Generating final data for import -------------------------------------------
 
 prepare_import <- function(data) {
-   TIMESTAMP <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+   timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 
    col_dates <- select_if(data, .predicate = is.Date) %>% names()
    col_posix <- select_if(data, .predicate = is.POSIXct) %>% names()
@@ -395,56 +397,71 @@ prepare_import <- function(data) {
          ~as.character(.)
       ) %>%
       mutate(
-         MODULE       = 2,
-         CLIENT_TYPE  = 4,
+         module       = 2,
+         client_type  = 4,
 
          # credentials
-         CREATED_BY   = Sys.getenv("OH_USER_ID"),
-         CREATED_AT   = coalesce(CREATED_AT, TIMESTAMP),
-         UPDATED_BY   = Sys.getenv("OH_USER_ID"),
-         UPDATED_AT   = coalesce(UPDATED_AT, TIMESTAMP),
+         created_by   = Sys.getenv("OH_USER_ID"),
+         created_at   = coalesce(created_at, timestamp),
+         updated_by   = Sys.getenv("OH_USER_ID"),
+         updated_at   = coalesce(updated_at, timestamp),
 
          # confirmatory data
-         FACI_ID      = "130023",
-         SUB_FACI_ID  = "130023_001",
-         CONFIRM_TYPE = 1,
-         DATE_RELEASE = DATE_CONFIRM
+         faci_id      = "130023",
+         sub_faci_id  = "130023_001",
+         confirm_type = 1,
+         date_release = date_confirm,
+
+         row_id       = row_number(),
       )
 
-   log_info("Generating OHASIS IDs.")
-   # generate ohasis data
-   db_conn <- ohasis$conn("db")
-   n_rows  <- nrow(import)
-   pb      <- progress_bar$new(format = ":current of :total rows | [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = n_rows, width = 100, clear = FALSE)
-   pb$tick(0)
-   for (i in seq_len(n_rows)) {
-      # patient id
-      pid_list <- unique(import$PATIENT_ID)
-      pid_list <- pid_list[!is.na(pid_list)]
-      pid_now  <- import[i,]$PATIENT_ID
-      pid_new  <- pid_now
-      if (is.na(pid_now)) {
-         pid_new <- oh_px_id(db_conn, "130023")
-         while (pid_new %in% pid_list)
-            pid_new <- oh_px_id(db_conn, "130023", import[i,]$DATE_RECEIVE)
-      }
 
-      # record id
-      rid_list <- unique(import$REC_ID)
-      rid_list <- rid_list[!is.na(rid_list)]
-      rid_now  <- import[i,]$REC_ID
-      rid_new  <- rid_now
-      if (is.na(rid_now)) {
-         rid_new <- oh_rec_id(db_conn, Sys.getenv("OH_USER_ID"))
-         while (rid_new %in% rid_list)
-            rid_new <- oh_rec_id(db_conn, Sys.getenv("OH_USER_ID"))
-      }
+   import %<>%
+      filter(!is.na(patient_id)) %>%
+      bind_rows(
+         batch_px_ids(import %>% filter(is.na(patient_id)), patient_id, faci_id, "row_id")
+      )
 
-      import[i, "PATIENT_ID"] <- pid_new
-      import[i, "REC_ID"]     <- rid_new
-      pb$tick(1)
-   }
-   dbDisconnect(db_conn)
+   import %<>%
+      filter(!is.na(rec_id)) %>%
+      bind_rows(
+         batch_rec_ids(import %>% filter(is.na(rec_id)), rec_id, created_by, "row_id")
+      )
+
+   # log_info("Generating OHASIS IDs.")
+   # # generate ohasis data
+   # db_conn <- ohasis$conn("db")
+   # n_rows  <- nrow(import)
+   # pb      <- progress_bar$new(format = ":current of :total rows | [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = n_rows, width = 100, clear = FALSE)
+   # pb$tick(0)
+   # for (i in seq_len(n_rows)) {
+   #    # patient id
+   #    pid_list <- unique(import$PATIENT_ID)
+   #    pid_list <- pid_list[!is.na(pid_list)]
+   #    pid_now  <- import[i,]$PATIENT_ID
+   #    pid_new  <- pid_now
+   #    if (is.na(pid_now)) {
+   #       pid_new <- oh_px_id(db_conn, "130023")
+   #       while (pid_new %in% pid_list)
+   #          pid_new <- oh_px_id(db_conn, "130023", import[i,]$DATE_RECEIVE)
+   #    }
+   #
+   #    # record id
+   #    rid_list <- unique(import$REC_ID)
+   #    rid_list <- rid_list[!is.na(rid_list)]
+   #    rid_now  <- import[i,]$REC_ID
+   #    rid_new  <- rid_now
+   #    if (is.na(rid_now)) {
+   #       rid_new <- oh_rec_id(db_conn, Sys.getenv("OH_USER_ID"))
+   #       while (rid_new %in% rid_list)
+   #          rid_new <- oh_rec_id(db_conn, Sys.getenv("OH_USER_ID"))
+   #    }
+   #
+   #    import[i, "PATIENT_ID"] <- pid_new
+   #    import[i, "REC_ID"]     <- rid_new
+   #    pb$tick(1)
+   # }
+   # dbDisconnect(db_conn)
 
    return(import)
 }
@@ -453,238 +470,242 @@ generate_tables <- function(import) {
    tables           <- list()
    tables$px_record <- list(
       name = "px_record",
-      pk   = c("REC_ID", "PATIENT_ID"),
+      pk   = "rec_id",
       data = import %>%
-         filter(EXIST_INFO == 0 |
-                   EXIST_CONFIRM == 0 |
-                   coalesce(EXIST_TEST, 0) == 0) %>%
+         filter(exist_info == 0 |
+                   exist_confirm == 0 |
+                   coalesce(exist_test, 0) == 0) %>%
          mutate(
-            FACI_ID     = "130000",
-            SUB_FACI_ID = NA_character_,
-            DISEASE     = "101000"
+            faci_id     = "130000",
+            sub_faci_id = NA_character_,
+            disease     = "101000"
          ) %>%
          select(
-            REC_ID,
-            PATIENT_ID,
-            FACI_ID,
-            SUB_FACI_ID,
-            RECORD_DATE = DATE_RECEIVE,
-            DISEASE,
-            MODULE,
-            CREATED_BY,
-            CREATED_AT,
-            UPDATED_BY,
-            UPDATED_AT,
+            rec_id,
+            patient_id,
+            faci_id,
+            sub_faci_id,
+            record_date = date_receive,
+            disease,
+            module,
+            created_by,
+            created_at,
+            updated_by,
+            updated_at,
          )
    )
 
-   tables$px_info <- list(
-      name = "px_info",
-      pk   = c("REC_ID", "PATIENT_ID"),
+   tables$patients <- list(
+      name = "patients",
+      pk   = "patient_id",
       data = import %>%
-         filter(EXIST_INFO == 0) %>%
+         filter(exist_info == 0) %>%
          select(
-            REC_ID,
-            PATIENT_ID,
-            CONFIRMATORY_CODE,
-            # PATIENT_CODE,
-            SEX,
-            BIRTHDATE,
-            CREATED_BY,
-            CREATED_AT,
-            UPDATED_BY,
-            UPDATED_AT,
-         )
+            patient_id,
+            faci_id,
+            sub_faci_id,
+            first,
+            middle,
+            last,
+            confirmatory_code,
+            sex,
+            birthdate,
+            created_by,
+            created_at,
+            updated_by,
+            updated_at,
+         ) %>%
+         distinct()
    )
 
-   tables$px_name <- list(
-      name = "px_name",
-      pk   = c("REC_ID", "PATIENT_ID"),
+   tables$px_pii <- list(
+      name = "px_pii",
+      pk   = "rec_id",
       data = import %>%
-         filter(EXIST_INFO == 0) %>%
+         filter(exist_info == 0) %>%
          select(
-            REC_ID,
-            PATIENT_ID,
-            FIRST,
-            MIDDLE,
-            LAST,
-            CREATED_BY,
-            CREATED_AT,
-            UPDATED_BY,
-            UPDATED_AT,
+            rec_id,
+            first,
+            middle,
+            last,
+            confirmatory_code,
+            sex,
+            birthdate,
+            created_by,
+            created_at,
+            updated_by,
+            updated_at,
          )
    )
 
    tables$px_confirm <- list(
       name = "px_confirm",
-      pk   = "REC_ID",
+      pk   = "rec_id",
       data = import %>%
-         filter(EXIST_CONFIRM == 0) %>%
+         filter(exist_confirm == 0) %>%
          select(
-            REC_ID,
-            FACI_ID,
-            SUB_FACI_ID,
-            CONFIRM_TYPE,
-            CONFIRM_CODE = CONFIRMATORY_CODE,
-            CLIENT_TYPE,
-            SOURCE       = SOURCE_FACI,
-            SUB_SOURCE   = SOURCE_SUB_FACI,
-            FINAL_RESULT,
-            REMARKS,
-            DATE_CONFIRM,
-            DATE_RELEASE,
-            CREATED_AT,
-            CREATED_BY
+            rec_id,
+            faci_id,
+            sub_faci_id,
+            confirm_type,
+            confirm_code = confirmatory_code,
+            client_type,
+            source       = source_faci,
+            sub_source   = source_sub_faci,
+            final_result,
+            remarks,
+            date_confirm,
+            date_release,
+            created_at,
+            created_by
          )
    )
 
    tables$px_test <- list(
       name = "px_test",
-      pk   = c("REC_ID", "TEST_TYPE", "TEST_NUM"),
+      pk   = c("rec_id", "test_type", "test_num"),
       data = import %>%
-         filter(coalesce(EXIST_TEST, 0) == 0) %>%
+         filter(coalesce(exist_test, 0) == 0) %>%
          select(-ends_with("_1"), ends_with("_2")) %>%
          select(
-            REC_ID,
-            FACI_ID,
-            SUB_FACI_ID,
-            DATE_PERFORM = DATE_CONFIRM,
-            CREATED_BY,
-            CREATED_AT,
-            ends_with("KIT"),
-            ends_with("RESULT"),
+            rec_id,
+            faci_id,
+            sub_faci_id,
+            date_perform = date_confirm,
+            date_receive,
+            date_collect,
+            created_by,
+            created_at,
+            ends_with("kit"),
+            ends_with("result"),
          ) %>%
          pivot_longer(
-            cols = c(ends_with("KIT"), ends_with("RESULT"))
+            cols = c(ends_with("kit"), ends_with("result"))
          ) %>%
-         separate_wider_delim(name, "_", names = c("TEST_TYPE", "VAR")) %>%
-         filter(TEST_TYPE != "FINAL") %>%
+         separate_wider_delim(name, "_", names = c("test_type", "var")) %>%
+         filter(test_type != "final") %>%
          mutate(
-            TEST_TYPE = case_when(
-               TEST_TYPE == "T0" ~ "10",
-               TEST_TYPE == "T1" ~ "31",
-               TEST_TYPE == "T2" ~ "32",
-               TEST_TYPE == "T3" ~ "33",
+            test_type = case_when(
+               test_type == "t0" ~ "10",
+               test_type == "t1" ~ "31",
+               test_type == "t2" ~ "32",
+               test_type == "t3" ~ "33",
             ),
             value     = case_when(
                value == "REACTIVE" ~ "10",
                value == "NONREACTIVE" ~ "20",
                TRUE ~ value
             ),
-            TEST_NUM  = 1
+            test_num  = 1
          ) %>%
          distinct(
-            REC_ID,
-            FACI_ID,
-            SUB_FACI_ID,
-            CREATED_BY,
-            CREATED_AT,
-            TEST_TYPE,
-            TEST_NUM,
+            rec_id,
+            faci_id,
+            sub_faci_id,
+            created_by,
+            created_at,
+            date_receive,
+            date_collect,
+            test_type,
+            test_num,
             .keep_all = TRUE
          ) %>%
          pivot_wider(
             id_cols     = c(
-               REC_ID,
-               FACI_ID,
-               SUB_FACI_ID,
-               CREATED_BY,
-               CREATED_AT,
-               TEST_TYPE,
-               TEST_NUM,
-               DATE_PERFORM
+               rec_id,
+               faci_id,
+               sub_faci_id,
+               created_by,
+               created_at,
+               test_type,
+               test_num,
+               date_perform,
+               date_receive,
+               date_collect,
             ),
-            names_from  = VAR,
+            names_from  = var,
             values_from = value
          ) %>%
          select(
-            REC_ID,
-            FACI_ID,
-            SUB_FACI_ID,
-            TEST_TYPE,
-            TEST_NUM,
-            DATE_PERFORM,
-            RESULT,
-            CREATED_AT,
-            CREATED_BY
+            rec_id,
+            faci_id,
+            sub_faci_id,
+            test_type,
+            test_num,
+            date_receive,
+            date_collect,
+            date_perform,
+            result,
+            created_at,
+            created_by
          )
    )
 
    tables$px_test_hiv <- list(
       name = "px_test_hiv",
-      pk   = c("REC_ID", "TEST_TYPE", "TEST_NUM"),
+      pk   = c("rec_id", "test_type", "test_num"),
       data = import %>%
-         filter(coalesce(EXIST_TEST, 0) == 0) %>%
+         filter(coalesce(exist_test, 0) == 0) %>%
          select(-ends_with("_1"), ends_with("_2")) %>%
          select(
-            REC_ID,
-            FACI_ID,
-            SUB_FACI_ID,
-            DATE_RECEIVE,
-            DATE_COLLECT,
-            CREATED_BY,
-            CREATED_AT,
-            ends_with("KIT"),
-            ends_with("RESULT"),
+            rec_id,
+            faci_id,
+            sub_faci_id,
+            created_by,
+            created_at,
+            ends_with("result"),
          ) %>%
          pivot_longer(
-            cols = c(ends_with("KIT"), ends_with("RESULT"))
+            cols = c(ends_with("result"))
          ) %>%
-         separate_wider_delim(name, "_", names = c("TEST_TYPE", "VAR")) %>%
-         filter(TEST_TYPE != "FINAL") %>%
+         separate_wider_delim(name, "_", names = c("test_type", "var")) %>%
+         filter(test_type != "final") %>%
          mutate(
-            TEST_TYPE = case_when(
-               TEST_TYPE == "T0" ~ "10",
-               TEST_TYPE == "T1" ~ "31",
-               TEST_TYPE == "T2" ~ "32",
-               TEST_TYPE == "T3" ~ "33",
+            test_type = case_when(
+               test_type == "t0" ~ "10",
+               test_type == "t1" ~ "31",
+               test_type == "t2" ~ "32",
+               test_type == "t3" ~ "33",
             ),
             value     = case_when(
                value == "REACTIVE" ~ "10",
                value == "NONREACTIVE" ~ "20",
                TRUE ~ value
             ),
-            TEST_NUM  = 1
+            test_num  = 1
          ) %>%
          distinct(
-            REC_ID,
-            FACI_ID,
-            SUB_FACI_ID,
-            CREATED_BY,
-            CREATED_AT,
-            TEST_TYPE,
-            TEST_NUM,
-            DATE_RECEIVE,
-            DATE_COLLECT,
+            rec_id,
+            faci_id,
+            sub_faci_id,
+            created_by,
+            created_at,
+            test_type,
+            test_num,
             .keep_all = TRUE
          ) %>%
          pivot_wider(
             id_cols     = c(
-               REC_ID,
-               FACI_ID,
-               SUB_FACI_ID,
-               CREATED_BY,
-               CREATED_AT,
-               TEST_TYPE,
-               TEST_NUM,
-               DATE_RECEIVE,
-               DATE_COLLECT,
+               rec_id,
+               faci_id,
+               sub_faci_id,
+               created_by,
+               created_at,
+               test_type,
+               test_num,
             ),
-            names_from  = VAR,
+            names_from  = var,
             values_from = value
          ) %>%
          select(
-            REC_ID,
-            FACI_ID,
-            SUB_FACI_ID,
-            TEST_TYPE,
-            TEST_NUM,
-            DATE_RECEIVE,
-            DATE_COLLECT,
-            KIT_NAME     = KIT,
-            FINAL_RESULT = RESULT,
-            CREATED_AT,
-            CREATED_BY
+            rec_id,
+            faci_id,
+            sub_faci_id,
+            test_type,
+            test_num,
+            final_result = result,
+            created_at,
+            created_by
          )
    )
 
@@ -695,7 +716,7 @@ import_data <- function(tables) {
 
    db_conn <- ohasis$conn("db")
    lapply(tables, function(ref, db_conn) {
-      table_space <- Id(schema = "ohasis_interim", table = ref$name)
+      table_space <- Id(schema = "ohasis", table = ref$name)
       dbxUpsert(db_conn, table_space, ref$data, ref$pk)
    }, db_conn)
    dbDisconnect(db_conn)
