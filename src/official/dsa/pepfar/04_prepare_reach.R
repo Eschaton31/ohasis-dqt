@@ -3,10 +3,10 @@
 prepare_hts <- function(forms, harp, coverage) {
    data <- process_hts(forms$form_hts, forms$form_a, forms$form_cfbs) %>%
       filter(
-         (DATE_CONFIRM %within% interval(coverage$min, coverage$max) & CONFIRM_RESULT %in% c(1, 2, 3)) |
+         (date_confirm %within% interval(coverage$min, coverage$max) & confirm_result %in% c(1, 2, 3)) |
             hts_date %within% interval(coverage$min, coverage$max)
       ) %>%
-      get_cid(forms$id_reg, PATIENT_ID) %>%
+      get_cid(forms$id_reg, patient_id) %>%
       mutate_if(
          .predicate = is.POSIXct,
          ~null_dates(., "POSIXct")
@@ -17,41 +17,41 @@ prepare_hts <- function(forms, harp, coverage) {
       ) %>%
       mutate(
          hts_priority = case_when(
-            CONFIRM_RESULT %in% c(1, 2, 3) ~ 1,
+            confirm_result %in% c(1, 2, 3) ~ 1,
             hts_result != "(no data)" & src %in% c("hts2021", "a2017") ~ 2,
-            hts_result != "(no data)" & hts_modality == "FBT" ~ 3,
-            hts_result != "(no data)" & hts_modality == "CBS" ~ 4,
-            hts_result != "(no data)" & hts_modality == "FBS" ~ 5,
-            hts_result != "(no data)" & hts_modality == "ST" ~ 6,
+            hts_result != "(no data)" & hts_modality == "fbt" ~ 3,
+            hts_result != "(no data)" & hts_modality == "cbs" ~ 4,
+            hts_result != "(no data)" & hts_modality == "fbs" ~ 5,
+            hts_result != "(no data)" & hts_modality == "st" ~ 6,
             TRUE ~ 9999
          )
       ) %>%
-      select(-any_of(c("transmit", "sexhow"))) %>%
+      select(-any_of(c("transmit", "sexhow", "idnum"))) %>%
       left_join(
          y  = harp$dx %>%
             select(
-               CENTRAL_ID,
+               central_id,
                idnum,
                transmit,
                sexhow,
                confirm_date,
                ref_report,
-               HARPDX_BIRTHDATE  = bdate,
-               HARPDX_SEX        = sex,
-               HARPDX_SELF_IDENT = self_identity,
-               HARPDX_FACI,
-               HARPDX_SUB_FACI
+               harpdx_birthdate  = bdate,
+               harpdx_sex        = sex,
+               harpdx_self_ident = self_identity,
+               harpdx_faci,
+               harpdx_sub_faci
             ),
-         by = join_by(CENTRAL_ID)
+         by = join_by(central_id)
       ) %>%
       left_join(
          y  = harp$tx$new %>%
             select(
-               CENTRAL_ID,
+               central_id,
                art_id,
                artstart_date
             ),
-         by = join_by(CENTRAL_ID)
+         by = join_by(central_id)
       )
 
    return(data)
@@ -60,13 +60,13 @@ prepare_hts <- function(forms, harp, coverage) {
 consolidate_risks <- function(data) {
    risk <- data %>%
       select(
-         REC_ID,
+         rec_id,
          contains("risk", ignore.case = FALSE)
       ) %>%
       pivot_longer(
          cols = contains("risk", ignore.case = FALSE)
       ) %>%
-      group_by(REC_ID) %>%
+      group_by(rec_id) %>%
       summarise(
          risks = stri_c(collapse = ", ", unique(sort(value)))
       )
@@ -77,7 +77,7 @@ consolidate_risks <- function(data) {
 clean_hts <- function(data, risk) {
    data %<>%
       select(-matches("risks")) %>%
-      left_join(y = risk, by = join_by(REC_ID)) %>%
+      left_join(y = risk, by = join_by(rec_id)) %>%
       mutate(
          # tag if central to be used
          use_harpdx        = if_else(
@@ -96,26 +96,26 @@ clean_hts <- function(data, risk) {
 
          # tag those without form faci
          use_record_faci   = if_else(
-            condition = is.na(SERVICE_FACI),
+            condition = is.na(service_faci),
             true      = 1,
             false     = 0
          ),
 
          # tag which test to be used
-         FINAL_FACI        = case_when(
-            old_dx == 0 & !is.na(HARPDX_FACI) ~ HARPDX_FACI,
-            use_record_faci == 1 ~ FACI_ID,
-            TRUE ~ SERVICE_FACI
+         final_faci        = case_when(
+            old_dx == 0 & !is.na(harpdx_faci) ~ harpdx_faci,
+            use_record_faci == 1 ~ faci_id,
+            TRUE ~ service_faci
          ),
-         FINAL_SUB_FACI    = case_when(
-            old_dx == 0 & !is.na(HARPDX_FACI) ~ HARPDX_SUB_FACI,
-            use_record_faci == 1 & FACI_ID == "130000" ~ SPECIMEN_SUB_SOURCE,
-            !(SERVICE_FACI %in% c("130001", "130605", "040200")) ~ NA_character_,
-            nchar(SERVICE_SUB_FACI) == 6 ~ NA_character_,
-            TRUE ~ SERVICE_SUB_FACI
+         final_sub_faci    = case_when(
+            old_dx == 0 & !is.na(harpdx_faci) ~ harpdx_sub_faci,
+            use_record_faci == 1 & faci_id == "130000" ~ specimen_sub_source,
+            !(service_faci %in% c("130001", "130605", "040200")) ~ NA_character_,
+            nchar(service_sub_faci) == 6 ~ NA_character_,
+            TRUE ~ service_sub_faci
          ),
 
-         HTS_TST_RESULT    = case_when(
+         hts_tst_result    = case_when(
             hts_result == "R" ~ "Reactive",
             hts_result == "NR" ~ "Non-reactive",
             hts_result == "IND" ~ "Indeterminate",
@@ -123,16 +123,16 @@ clean_hts <- function(data, risk) {
             TRUE ~ hts_result
          ),
 
-         FINAL_TEST_RESULT = case_when(
+         final_test_result = case_when(
             old_dx == 1 & !is.na(idnum) ~ "Confirmed: Known Pos",
             old_dx == 0 & !is.na(idnum) ~ "Confirmed: Positive",
-            CONFIRM_RESULT == 1 ~ "Confirmed: Positive",
-            CONFIRM_RESULT == 2 ~ "Confirmed: Negative",
-            CONFIRM_RESULT == 3 ~ "Confirmed: Indeterminate",
-            hts_modality == "FBT" ~ paste0("Tested: ", HTS_TST_RESULT),
-            hts_modality == "FBS" ~ paste0("Tested: ", HTS_TST_RESULT),
-            hts_modality == "CBS" ~ paste0("CBS: ", HTS_TST_RESULT),
-            hts_modality == "ST" ~ paste0("Self-Testing: ", HTS_TST_RESULT),
+            confirm_result == 1 ~ "Confirmed: Positive",
+            confirm_result == 2 ~ "Confirmed: Negative",
+            confirm_result == 3 ~ "Confirmed: Indeterminate",
+            hts_modality == "FBT" ~ paste0("Tested: ", hts_tst_result),
+            hts_modality == "FBS" ~ paste0("Tested: ", hts_tst_result),
+            hts_modality == "CBS" ~ paste0("CBS: ", hts_tst_result),
+            hts_modality == "ST" ~ paste0("Self-Testing: ", hts_tst_result),
          ),
       )
 
@@ -142,47 +142,47 @@ clean_hts <- function(data, risk) {
 tag_indicators <- function(data) {
    confirm_data <- data %>%
       mutate(
-         FINAL_CONFIRM_DATE = case_when(
-            old_dx == 0 & hts_priority == 1 ~ as.Date(coalesce(DATE_CONFIRM, T3_DATE, T2_DATE, T1_DATE)),
+         final_confirm_date = case_when(
+            old_dx == 0 & hts_priority == 1 ~ as.Date(coalesce(date_confirm, t3_date, t2_date, t1_date)),
             old_dx == 1 ~ confirm_date,
             TRUE ~ NA_Date_
          )
       ) %>%
-      filter(!is.na(FINAL_CONFIRM_DATE)) %>%
-      select(CENTRAL_ID, FINAL_CONFIRM_DATE) %>%
-      distinct(CENTRAL_ID, .keep_all = TRUE)
+      filter(!is.na(final_confirm_date)) %>%
+      select(central_id, final_confirm_date) %>%
+      distinct(central_id, .keep_all = TRUE)
 
    data %<>%
-      left_join(y = confirm_data, by = join_by(CENTRAL_ID)) %>%
+      left_join(y = confirm_data, by = join_by(central_id)) %>%
       mutate(
          # tag specific indicators
-         KP_PREV        = 1,
-         HTS_TST        = if_else(
-            condition = HTS_TST_RESULT != "(no data)",
+         kp_prev        = 1,
+         hts_tst        = if_else(
+            condition = hts_tst_result != "(no data)",
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         HTS_TST_POS    = if_else(
-            condition = FINAL_TEST_RESULT == "Confirmed: Positive",
+         hts_tst_pos    = if_else(
+            condition = final_test_result == "Confirmed: Positive",
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         HTS_TST_VERIFY = if_else(
-            condition = hts_modality %in% c("CBS", "ST") & FINAL_CONFIRM_DATE >= hts_date,
+         hts_tst_verify = if_else(
+            condition = hts_modality %in% c("CBS", "ST") & final_confirm_date >= hts_date,
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         TX_NEW_VERIFY  = if_else(
+         tx_new_verify  = if_else(
             condition = hts_modality %in% c("CBS", "ST") & artstart_date >= hts_date,
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         PREP_OFFER     = if_else(
-            condition = hts_result %in% c("IND", "NR") & keep_code(SERVICE_PREP_REFER) == "1",
+         prep_offer     = if_else(
+            condition = hts_result %in% c("IND", "NR") & keep_code(service_prep_refer) == "1",
             true      = 1,
             false     = 0,
             missing   = 0
@@ -196,9 +196,9 @@ generate_disagg <- function(data) {
    data %<>%
       mutate(
          # sex
-         Sex             = coalesce(str_left(coalesce(HARPDX_SEX, remove_code(SEX)), 1), "(no data)"),
+         Sex             = coalesce(str_left(coalesce(harpdx_sex, remove_code(sex)), 1), "(no data)"),
 
-         # KAP
+         # kap
          msm             = case_when(
             use_harpdx == 1 &
                Sex == "M" &
@@ -211,10 +211,10 @@ generate_disagg <- function(data) {
          tgw             = case_when(
             use_harpdx == 1 &
                msm == 1 &
-               HARPDX_SELF_IDENT %in% c("FEMALE", "OTHERS") ~ 1,
+               harpdx_self_ident %in% c("FEMALE", "OTHERS") ~ 1,
             use_harpdx == 0 &
                msm == 1 &
-               keep_code(SELF_IDENT) %in% c("2", "3") ~ 1,
+               keep_code(self_ident) %in% c("2", "3") ~ 1,
             TRUE ~ 0
          ),
          hetero          = case_when(
@@ -239,7 +239,7 @@ generate_disagg <- function(data) {
             TRUE ~ 0
          ),
          unknown         = case_when(
-            transmit == "UNKNOWN" ~ 1,
+            transmit == "unknown" ~ 1,
             risks == "(no data)" ~ 1,
             TRUE ~ 0
          ),
@@ -254,20 +254,20 @@ generate_disagg <- function(data) {
 
          # for aiha
          # `KP Population` = case_when(
-         #    pwid == 1 ~ "PWID",
-         #    msm == 1 & tgw == 0 ~ "MSM",
-         #    msm == 1 & tgw == 1 ~ "TGW",
-         #    Sex == "F" & sw == 1 ~ "FSW",
+         #    pwid == 1 ~ "pwid",
+         #    msm == 1 & tgw == 0 ~ "msm",
+         #    msm == 1 & tgw == 1 ~ "tgw",
+         #    Sex == "F" & sw == 1 ~ "fsw",
          #    unknown == 1 ~ "(no data)",
          #    Sex == "F" ~ "Non-KP Female",
          #    Sex == "M" ~ "Non-KP Male",
-         #    TRUE ~ "Non-MSM"
+         #    TRUE ~ "Non-msm"
          # ),
 
          # Age Band
-         curr_age        = calc_age(coalesce(HARPDX_BIRTHDATE, BIRTHDATE), hts_date),
-         curr_age        = if_else(curr_age <= 0 & !is.na(AGE), AGE, curr_age, curr_age),
-         curr_age        = floor(coalesce(curr_age, AGE)),
+         curr_age        = calc_age(coalesce(harpdx_birthdate, birthdate), hts_date),
+         curr_age        = if_else(curr_age <= 0 & !is.na(age), age, curr_age, curr_age),
+         curr_age        = floor(coalesce(curr_age, age)),
          Age_Band        = case_when(
             curr_age >= 0 & curr_age < 5 ~ "01_0-4",
             curr_age >= 5 & curr_age < 10 ~ "02_5-9",
@@ -295,153 +295,153 @@ generate_disagg <- function(data) {
       left_join(
          y  = coverage$sites %>%
             select(
-               FACI_ID,
+               faci_id,
                starts_with("site_")
             ) %>%
             distinct_all(),
-         by = join_by(FINAL_FACI == FACI_ID)
+         by = join_by(final_faci == faci_id)
       ) %>%
       ohasis$get_faci(
-         list(`Site/Organization` = c("FINAL_FACI", "FINAL_SUB_FACI")),
+         list(`Site/Organization` = c("final_faci", "final_sub_faci")),
          "name",
          c("Site Region", "Site Province", "Site City")
       ) %>%
       mutate(
-         CONFIRM_RESULT = case_when(
-            CONFIRM_RESULT == 1 ~ "1_Positive",
-            CONFIRM_RESULT == 2 ~ "2_Negative",
-            CONFIRM_RESULT == 3 ~ "3_Indeterminate",
-            CONFIRM_RESULT == 4 ~ "4_Pending",
-            CONFIRM_RESULT == 5 ~ "5_Duplicate",
+         confirm_result = case_when(
+            confirm_result == 1 ~ "1_Positive",
+            confirm_result == 2 ~ "2_Negative",
+            confirm_result == 3 ~ "3_Indeterminate",
+            confirm_result == 4 ~ "4_Pending",
+            confirm_result == 5 ~ "5_Duplicate",
          )
       ) %>%
       ohasis$get_faci(
-         list(SPECIMEN_SOURCE_FACI = c("SPECIMEN_SOURCE", "SPECIMEN_SUB_SOURCE")),
+         list(specimen_source_faci = c("specimen_source", "specimen_sub_source")),
          "name"
       ) %>%
       ohasis$get_faci(
-         list(CONFIRM_LAB = c("CONFIRM_FACI", "CONFIRM_SUB_FACI")),
+         list(confirm_lab = c("confirm_faci", "confirm_sub_faci")),
          "name"
       ) %>%
-      ohasis$get_addr(
+      get_addr(
          c(
-            PERM_REG  = "PERM_PSGC_REG",
-            PERM_PROV = "PERM_PSGC_PROV",
-            PERM_MUNC = "PERM_PSGC_MUNC"
+            perm_reg  = "perm_reg",
+            perm_prov = "perm_prov",
+            perm_munc = "perm_munc"
          ),
          "name"
       ) %>%
-      ohasis$get_addr(
+      get_addr(
          c(
-            CURR_REG  = "CURR_PSGC_REG",
-            CURR_PROV = "CURR_PSGC_PROV",
-            CURR_MUNC = "CURR_PSGC_MUNC"
+            curr_reg  = "curr_reg",
+            curr_prov = "curr_prov",
+            curr_munc = "curr_munc"
          ),
          "name"
       ) %>%
-      ohasis$get_addr(
+      get_addr(
          c(
-            BIRTH_REG  = "BIRTH_PSGC_REG",
-            BIRTH_PROV = "BIRTH_PSGC_PROV",
-            BIRTH_MUNC = "BIRTH_PSGC_MUNC"
+            birth_reg  = "birth_reg",
+            birth_prov = "birth_prov",
+            birth_munc = "birth_munc"
          ),
          "name"
       ) %>%
-      ohasis$get_addr(
+      get_addr(
          c(
-            CBS_REG  = "HIV_SERVICE_PSGC_REG",
-            CBS_PROV = "HIV_SERVICE_PSGC_PROV",
-            CBS_MUNC = "HIV_SERVICE_PSGC_MUNC"
+            cbs_reg  = "hiv_service_reg",
+            cbs_prov = "hiv_service_prov",
+            cbs_munc = "hiv_service_munc"
          ),
          "name"
       ) %>%
       rename(
-         CREATED = CREATED_BY,
-         UPDATED = UPDATED_BY,
-         DELETED = DELETED_BY,
+         created = created_by,
+         updated = updated_by,
+         deleted = deleted_by,
       ) %>%
-      ohasis$get_staff(c(CREATED_BY = "CREATED")) %>%
-      ohasis$get_staff(c(UPDATED_BY = "UPDATED")) %>%
-      ohasis$get_staff(c(DELETED_BY = "DELETED")) %>%
-      ohasis$get_staff(c(HTS_PROVIDER = "SERVICE_BY")) %>%
-      generate_gender_identity(SEX, SELF_IDENT, SELF_IDENT_OTHER, gender_identity) %>%
+      ohasis$get_staff(c(created_by = "created")) %>%
+      ohasis$get_staff(c(updated_by = "updated")) %>%
+      ohasis$get_staff(c(deleted_by = "deleted")) %>%
+      ohasis$get_staff(c(hts_provider = "provider_id")) %>%
+      generate_gender_identity(sex, self_ident, self_ident_other, gender_identity) %>%
       rename(
-         HTS_PROVIDER_TYPE       = PROVIDER_TYPE,
-         HTS_PROVIDER_TYPE_OTHER = PROVIDER_TYPE_OTHER,
+         hts_provider_type       = provider_type,
+         hts_provider_type_other = provider_type_other,
       ) %>%
       select(
-         -FACI_ID,
-         -SUB_FACI_ID,
-         -SERVICE_FACI,
+         -faci_id,
+         -sub_faci_id,
+         -service_faci,
          -any_of(c(
-            "MODALITY",
+            "modality",
             "use_record_faci",
-            "IDNUM",
-            "PERM_ADDR",
-            "CURR_ADDR",
-            "BIRTH_ADDR",
-            "FIRST",
-            "MIDDLE",
-            "LAST",
-            "SUFFIX",
-            "CLIENT_EMAIL",
-            "CLIENT_MOBILE",
-            "UIC",
-            "PHILHEALTH_NO",
-            "PATIENT_CODE",
-            "PHILSYS_ID",
-            "CONFIRMATORY_CODE",
-            "SNAPSHOT",
-            "PRIME",
-            "PATIENT_ID",
-            "RECORD_DATE",
-            "DISEASE",
-            "DELETED_AT",
-            "DELETED_BY",
-            "BIRTHDATE",
-            "HIV_SERVICE_TYPE",
-            "GENDER_AFFIRM_THERAPY",
-            "HIV_SERVICE_ADDR",
+            "idnum",
+            "perm_addr",
+            "curr_addr",
+            "birth_addr",
+            "first",
+            "middle",
+            "last",
+            "suffix",
+            "client_email",
+            "client_mobile",
+            "uic",
+            "philhealth_no",
+            "patient_code",
+            "philsys_id",
+            "confirmatory_code",
+            "snapshot",
+            "prime",
+            "patient_id",
+            "record_date",
+            "disease",
+            "deleted_at",
+            "deleted_by",
+            "birthdate",
+            "hiv_service_type",
+            "gender_affirm_therapy",
+            "hiv_service_addr",
             "src",
-            "MODULE"
+            "module"
          )),
          -c(
-            starts_with("SIGNATURE", ignore.case = FALSE),
-            ends_with("SUB_FACI", ignore.case = FALSE),
-            ends_with("MSM", ignore.case = FALSE),
-            ends_with("TGW", ignore.case = FALSE),
-            ends_with("FSW", ignore.case = FALSE),
-            ends_with("PWID", ignore.case = FALSE),
-            ends_with("GENPOP", ignore.case = FALSE),
+            starts_with("signature", ignore.case = FALSE),
+            ends_with("sub_faci", ignore.case = FALSE),
+            ends_with("msm", ignore.case = FALSE),
+            ends_with("tgw", ignore.case = FALSE),
+            ends_with("fsw", ignore.case = FALSE),
+            ends_with("pwid", ignore.case = FALSE),
+            ends_with("genpop", ignore.case = FALSE),
             ends_with("_NA", ignore.case = FALSE),
-            starts_with("SIGNATORY_", ignore.case = FALSE)
+            starts_with("signatory_", ignore.case = FALSE)
          )
       ) %>%
       mutate(
-         RT_AGREED       = NA_character_,
-         RT_SPECIMEN     = NA_character_,
-         RT_RESULT       = NA_character_,
-         RT_VL_REQUESTED = NA_character_,
-         RT_VL_DATE      = NA_Date_,
-         RT_VL_RESULT    = NA_character_,
-         RITA_RESULT     = NA_character_,
+         rt_agreed       = NA_character_,
+         rt_specimen     = NA_character_,
+         rt_result       = NA_character_,
+         rt_vl_requested = NA_character_,
+         rt_vl_date      = NA_Date_,
+         rt_vl_result    = NA_character_,
+         rita_result     = NA_character_,
       ) %>%
       mutate(
          `CBS Region`   = if_else(
             hts_modality %in% c("CBS", "FBS", "ST"),
-            CBS_REG,
+            cbs_reg,
             NA_character_,
             NA_character_
          ),
          `CBS Province` = if_else(
             hts_modality %in% c("CBS", "FBS", "ST"),
-            CBS_PROV,
+            cbs_prov,
             NA_character_,
             NA_character_
          ),
          `CBS City`     = if_else(
             hts_modality %in% c("CBS", "FBS", "ST"),
-            CBS_MUNC,
+            cbs_munc,
             NA_character_,
             NA_character_
          )
@@ -461,27 +461,30 @@ generate_disagg <- function(data) {
 
    p$linelist$reach %<>%
       left_join(
-         y  = hs_data("harp_dx", "reg", 2023, 9) %>%
-            read_dta(col_select = c(PATIENT_ID, confirm_date)) %>%
-            get_cid(p$forms$id_reg, PATIENT_ID) %>%
-            select(-PATIENT_ID) %>%
-            rename(HARP_CONFIRM_DATE = confirm_date),
-         by = join_by(CENTRAL_ID)
+         y  = hs_data("harp_dx", "reg", p$coverage$curr$yr, p$coverage$curr$mo) %>%
+            read_dta(col_select = c(any_of(c('PATIENT_ID', 'patient_id')), confirm_date)) %>%
+            rename_all(tolower) %>%
+            get_cid(p$forms$id_reg, patient_id) %>%
+            select(-patient_id) %>%
+            rename(harp_confirm_date = confirm_date),
+         by = join_by(central_id)
       ) %>%
       left_join(
-         y  = hs_data("harp_tx", "reg", 2023, 9) %>%
-            read_dta(col_select = c(PATIENT_ID, artstart_date)) %>%
-            get_cid(p$forms$id_reg, PATIENT_ID) %>%
-            select(-PATIENT_ID) %>%
-            rename(ART_START_DATE = artstart_date),
-         by = join_by(CENTRAL_ID)
+         y  = hs_data("harp_tx", "reg", p$coverage$curr$yr, p$coverage$curr$mo) %>%
+            read_dta(col_select = c(any_of(c('PATIENT_ID', 'patient_id')), artstart_date)) %>%
+            rename_all(tolower) %>%
+            get_cid(p$forms$id_reg, patient_id) %>%
+            select(-patient_id) %>%
+            rename(art_start_date = artstart_date),
+         by = join_by(central_id)
       ) %>%
       left_join(
-         y  = hs_data("prep", "outcome", 2023, 9) %>%
-            read_dta(col_select = c(PATIENT_ID, prepstart_date)) %>%
-            get_cid(p$forms$id_reg, PATIENT_ID) %>%
-            select(-PATIENT_ID) %>%
-            rename(PREP_START_DATE = prepstart_date),
-         by = join_by(CENTRAL_ID)
+         y  = hs_data("prep", "outcome", p$coverage$curr$yr, p$coverage$curr$mo) %>%
+            read_dta(col_select = c(any_of(c('PATIENT_ID', 'patient_id')), prepstart_date)) %>%
+            rename_all(tolower) %>%
+            get_cid(p$forms$id_reg, patient_id) %>%
+            select(-patient_id) %>%
+            rename(prep_start_date = prepstart_date),
+         by = join_by(central_id)
       )
 }

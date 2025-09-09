@@ -1,5 +1,5 @@
 flow_register()
-pepfar$steps$`01_load_reqs`$.init(yr = 2024, mo = 3, report = "QR", envir = pepfar)
+pepfar$steps$`01_load_reqs`$.init(yr = 2025, mo = 7, report = "HFR", envir = pepfar)
 pepfar$steps$`02_prepare_tx`$.init(pepfar)
 pepfar$steps$`03_prepare_prep`$.init(pepfar)
 pepfar$steps$`04_prepare_reach`$.init(pepfar)
@@ -20,9 +20,9 @@ oh_ts <- format(
          strsplit(ohasis$timestamp, "\\.")[[1]][1], "-",
          strsplit(ohasis$timestamp, "\\.")[[1]][2], "-",
          strsplit(ohasis$timestamp, "\\.")[[1]][3], " ",
-         StrLeft(strsplit(ohasis$timestamp, "\\.")[[1]][4], 2), ":",
+         str_left(strsplit(ohasis$timestamp, "\\.")[[1]][4], 2), ":",
          substr(strsplit(ohasis$timestamp, "\\.")[[1]][4], 3, 4), ":",
-         StrRight(strsplit(ohasis$timestamp, "\\.")[[1]][4], 2)
+         str_right(strsplit(ohasis$timestamp, "\\.")[[1]][4], 2)
       )
    ),
    "%Y-%m-%d %H:%M:%S"

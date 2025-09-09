@@ -43,26 +43,10 @@ set_coverage <- function(report = NULL, yr = NULL, mo = NULL) {
    coverage$prev$date <- as.character(stri_c(ref_prev, collapse = "-"))
 
    coverage$sites <- read_sheet("1qunK5aO5-TDj7mAz7rQzCpN1plLGS3kSJArptcFtfsw") %>%
-      distinct(FACI_ID, .keep_all = TRUE)
+      distinct(FACI_ID, .keep_all = TRUE) %>%
+      rename(faci_id = FACI_ID)
 
    return(coverage)
-}
-
-update_warehouse <- function() {
-   check <- input(
-      prompt  = glue("Update {green('data/forms')} to be used for consolidation?"),
-      options = c("1" = "yes", "2" = "no"),
-      default = "2"
-   )
-   if (check == "1") {
-      log_info("Updating data lake and data warehouse.")
-      tables           <- list()
-      tables$lake      <- c("lab_wide", "disp_meds")
-      tables$warehouse <- c("form_art_bc", "form_prep", "form_a", "form_hts", "form_cfbs", "id_registry", "rec_link")
-
-      lapply(tables$lake, function(table) ohasis$data_factory("lake", table, "upsert", TRUE))
-      lapply(tables$warehouse, function(table) ohasis$data_factory("warehouse", table, "upsert", TRUE))
-   }
 }
 
 ##  Download records -----------------------------------------------------------
@@ -71,51 +55,27 @@ download_forms <- function(coverage) {
    min <- coverage$min
    max <- coverage$max
 
-   lw_conn <- ohasis$conn("lw")
-   dbname  <- "ohasis_warehouse"
-   forms   <- list()
-
-   hts_where <- glue(r"(
-   (RECORD_DATE BETWEEN '{min}' AND '{max}') OR
-      (DATE(DATE_CONFIRM) BETWEEN '{min}' AND '{max}') OR
-      (DATE(T3_DATE) BETWEEN '{min}' AND '{max}') OR
-      (DATE(T2_DATE) BETWEEN '{min}' AND '{max}') OR
-      (DATE(T1_DATE) BETWEEN '{min}' AND '{max}') OR
-      (DATE(T0_DATE) BETWEEN '{min}' AND '{max}')
-   )")
-   cbs_where <- glue(r"(
-   (RECORD_DATE BETWEEN '{min}' AND '{max}') OR
-      (DATE(TEST_DATE) BETWEEN '{min}' AND '{max}')
-   )")
+   forms        <- get_hts(min, max)
+   names(forms) <- c("form_hts", "form_a", "form_cfbs")
 
    log_info("Downloading {green('Central IDs')}.")
-   forms$id_reg <- dbTable(lw_conn, dbname, "id_registry", c("CENTRAL_ID", "PATIENT_ID"))
+   forms$id_reg <- update_idreg()
 
-   log_info("Downloading {green('HTS Forms')}.")
-   forms$form_hts <- dbTable(lw_conn, dbname, "form_hts", where = hts_where, raw_where = TRUE)
-
-   log_info("Downloading {green('Form As')}.")
-   forms$form_a <- dbTable(lw_conn, dbname, "form_a", where = hts_where, raw_where = TRUE)
-
-   log_info("Downloading {green('CFBS Forms')}.")
-   forms$form_cfbs <- dbTable(lw_conn, dbname, "form_cfbs", where = cbs_where, raw_where = TRUE)
-
-   dbDisconnect(lw_conn)
    log_success("Done.")
 
    return(forms)
 }
 
-##  Get the previous report's HARP Registry ------------------------------------
+##  Get the previous report's harp Registry ------------------------------------
 
 load_harp <- function(coverage, id_reg) {
    harp <- list()
 
-   log_info("Getting HARP Dx Dataset.")
+   log_info("Getting harp Dx Dataset.")
    harp$dx <- hs_data("harp_dx", "reg", coverage$curr$yr, coverage$curr$mo) %>%
       read_dta(
          col_select = c(
-            PATIENT_ID,
+            any_of(c('PATIENT_ID', 'patient_id')),
             idnum,
             transmit,
             sexhow,
@@ -134,39 +94,41 @@ load_harp <- function(coverage, id_reg) {
             age
          )
       ) %>%
+      rename_all(tolower) %>%
       # convert Stata string missing data to NAs
       mutate_if(
          .predicate = is.character,
          ~if_else(. == "", NA_character_, .)
       ) %>%
-      get_cid(id_reg, PATIENT_ID) %>%
+      get_cid(id_reg, patient_id) %>%
       mutate(
          ref_report = as.Date(stri_c(sep = "-", year, stri_pad_left(month, 2, "0"), "01"))
       ) %>%
       dxlab_to_id(
-         c("HARPDX_FACI", "HARPDX_SUB_FACI"),
+         c("harpdx_faci", "harpdx_sub_faci"),
          c("dx_region", "dx_province", "dx_muncity", "dxlab_standard"),
          ohasis$ref_faci
       )
 
-   log_info("Getting the previous HARP Tx Datasets.")
+   log_info("Getting the previous harp Tx Datasets.")
    harp$tx$old <- hs_data("harp_tx", "reg", coverage$prev$yr, coverage$prev$mo) %>%
       read_dta(
          col_select = c(
-            PATIENT_ID,
+            any_of(c('PATIENT_ID', 'patient_id')),
             art_id,
             sex,
             birthdate
          )
       ) %>%
+      rename_all(tolower) %>%
       left_join(
          y  = hs_data("harp_tx", "outcome", coverage$prev$yr, coverage$prev$mo) %>%
             read_dta() %>%
             select(
                -any_of(c(
-                  "PATIENT_ID",
+                  "patient_id",
                   "central_id",
-                  "CENTRAL_ID",
+                  "central_id",
                   "sex",
                   "birthdate"
                ))
@@ -178,26 +140,27 @@ load_harp <- function(coverage, id_reg) {
          .predicate = is.character,
          ~if_else(. == "", NA_character_, .)
       ) %>%
-      get_cid(id_reg, PATIENT_ID)
+      get_cid(id_reg, patient_id)
 
-   log_info("Getting the current HARP Tx Datasets.")
+   log_info("Getting the current harp Tx Datasets.")
    harp$tx$new <- hs_data("harp_tx", "reg", coverage$curr$yr, coverage$curr$mo) %>%
       read_dta(
          col_select = c(
-            PATIENT_ID,
+            any_of(c('PATIENT_ID', 'patient_id')),
             art_id,
             sex,
             birthdate
          )
       ) %>%
+      rename_all(tolower) %>%
       left_join(
          y  = hs_data("harp_tx", "outcome", coverage$curr$yr, coverage$curr$mo) %>%
             read_dta() %>%
             select(
                -any_of(c(
-                  "PATIENT_ID",
+                  "patient_id",
                   "central_id",
-                  "CENTRAL_ID",
+                  "central_id",
                   "sex",
                   "birthdate"
                ))
@@ -209,26 +172,27 @@ load_harp <- function(coverage, id_reg) {
          .predicate = is.character,
          ~if_else(. == "", NA_character_, .)
       ) %>%
-      get_cid(id_reg, PATIENT_ID)
+      get_cid(id_reg, patient_id)
 
    log_info("Getting the previous PrEP Datasets.")
    harp$prep$old <- hs_data("prep", "reg", coverage$prev$yr, coverage$prev$mo) %>%
       read_dta(
          col_select = c(
-            PATIENT_ID,
+            any_of(c('PATIENT_ID', 'patient_id')),
             prep_id,
             sex,
             birthdate
          )
       ) %>%
+      rename_all(tolower) %>%
       left_join(
          y  = hs_data("prep", "outcome", coverage$prev$yr, coverage$prev$mo) %>%
             read_dta() %>%
             select(
                -any_of(c(
-                  "PATIENT_ID",
+                  "patient_id",
                   "central_id",
-                  "CENTRAL_ID",
+                  "central_id",
                   "sex",
                   "birthdate"
                ))
@@ -245,28 +209,29 @@ load_harp <- function(coverage, id_reg) {
          .predicate = is.character,
          ~if_else(. == "", NA_character_, .)
       ) %>%
-      get_cid(id_reg, PATIENT_ID)
+      get_cid(id_reg, patient_id)
 
 
    log_info("Getting the current PrEP Datasets.")
    harp$prep$new <- hs_data("prep", "reg", coverage$curr$yr, coverage$curr$mo) %>%
       read_dta(
          col_select = c(
-            PATIENT_ID,
+            any_of(c('PATIENT_ID', 'patient_id')),
             prep_id,
             sex,
             birthdate,
             prep_first_screen
          )
       ) %>%
+      rename_all(tolower) %>%
       left_join(
          y  = hs_data("prep", "outcome", coverage$curr$yr, coverage$curr$mo) %>%
             read_dta() %>%
             select(
                -any_of(c(
-                  "PATIENT_ID",
+                  "patient_id",
                   "central_id",
-                  "CENTRAL_ID",
+                  "central_id",
                   "sex",
                   "birthdate"
                ))
@@ -283,7 +248,7 @@ load_harp <- function(coverage, id_reg) {
          .predicate = is.character,
          ~if_else(. == "", NA_character_, .)
       ) %>%
-      get_cid(id_reg, PATIENT_ID)
+      get_cid(id_reg, patient_id)
 
    if (!("prep_risk_sexwithm" %in% names(harp$prep$new)))
       harp$prep$new %<>% mutate(prep_risk_sexwithm = "(no data)")

@@ -3,9 +3,9 @@
 merge_harp <- function(harp, coverage) {
    data <- harp$tx$new %>%
       rename(
-         HARPTX_SEX = sex
+         harptx_sex = sex
       ) %>%
-      # ML & RTT data
+      # ml & rtt data
       left_join(
          y  = harp$tx$old %>%
             mutate(
@@ -33,9 +33,9 @@ merge_harp <- function(harp, coverage) {
                sexhow,
                confirm_date,
                ref_report,
-               HARPDX_BIRTHDATE  = bdate,
-               HARPDX_SEX        = sex,
-               HARPDX_SELF_IDENT = self_identity,
+               harpdx_birthdate  = bdate,
+               harpdx_sex        = sex,
+               harpdx_self_ident = self_identity,
             ),
          by = join_by(idnum)
       )
@@ -62,37 +62,37 @@ tag_indicators <- function(data, coverage) {
          ),
 
          # tag specific indicators
-         TX_CURR          = if_else(
+         tx_curr          = if_else(
             condition = onart28 == 1,
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         TX_NEW           = if_else(
+         tx_new           = if_else(
             condition = artstart_date %within% interval(coverage$min, coverage$max),
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         TX_ML            = if_else(
+         tx_ml            = if_else(
             condition = prev_onart28 == 1 & onart28 == 0,
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         TX_RTT           = if_else(
+         tx_rtt           = if_else(
             condition = prev_onart28 == 0 & onart28 == 1,
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         TX_PVLS_ELIGIBLE = if_else(
+         tx_pvls_eligible = if_else(
             condition = onart28 == 1 & vl_elig == 1,
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         TX_PVLS          = if_else(
+         tx_pvls          = if_else(
             condition = onart28 == 1 &
                is.na(baseline_vl) &
                !is.na(vlp12m),
@@ -110,16 +110,16 @@ generate_disagg <- function(data, coverage) {
    data %<>%
       mutate(
          # sex variable (use registry if available)
-         Sex             = coalesce(str_left(coalesce(HARPDX_SEX, HARPTX_SEX), 1), "(no data)"),
+         Sex             = coalesce(str_left(coalesce(harpdx_sex, harptx_sex), 1), "(no data)"),
 
-         # KAP
+         # kap
          msm             = case_when(
             Sex == "M" & sexhow %in% c("BISEXUAL", "HOMOSEXUAL") ~ 1,
             Sex == "M" & sexhow == "HETEROSEXUAL" ~ 0,
             TRUE ~ 0
          ),
          tgw             = if_else(
-            condition = msm == 1 & HARPDX_SELF_IDENT %in% c("FEMALE", "OTHERS"),
+            condition = msm == 1 & harpdx_self_ident %in% c("FEMALE", "OTHERS"),
             true      = 1,
             false     = 0,
             missing   = 0
@@ -131,23 +131,23 @@ generate_disagg <- function(data, coverage) {
             missing   = 0
          ),
          pwid            = if_else(
-            condition = transmit == "IVDU",
+            condition = transmit == "ivdu",
             true      = 1,
             false     = 0,
             missing   = 0
          ),
          unknown         = case_when(
-            transmit == "UNKNOWN" ~ 1,
+            transmit == "unknown" ~ 1,
             is.na(transmit) ~ 1,
             TRUE ~ 0
          ),
          `KP Population` = case_when(
-            msm == 1 & tgw == 0 ~ "MSM",
-            msm == 1 & tgw == 1 ~ "TGW",
-            pwid == 1 ~ "PWID",
+            msm == 1 & tgw == 0 ~ "msm",
+            msm == 1 & tgw == 1 ~ "tgw",
+            pwid == 1 ~ "pwid",
             Sex == "F" ~ "(not included)",
             unknown == 1 ~ "(no data)",
-            TRUE ~ "Non-MSM"
+            TRUE ~ "Non-msm"
          ),
 
          # Age Band
@@ -182,20 +182,20 @@ generate_disagg <- function(data, coverage) {
          days_before_rtt = floor(interval(ltfu_date, latest_ffupdate) / days(1)),
       ) %>%
       faci_code_to_id(
-         ohasis$ref_faci_code %>% distinct(FACI_CODE, SUB_FACI_CODE, .keep_all = TRUE),
-         c(FACI_ID = "realhub", SUB_FACI_ID = "realhub_branch")
+         ohasis$ref_faci_code %>% distinct(faci_code, sub_faci_code, .keep_all = TRUE),
+         c(faci_id = "realhub", sub_faci_id = "realhub_branch")
       ) %>%
       left_join(
          y  = coverage$sites %>%
             select(
-               FACI_ID,
+               faci_id,
                starts_with("site_")
             ) %>%
             distinct_all(),
-         by = join_by(FACI_ID)
+         by = join_by(faci_id)
       ) %>%
       ohasis$get_faci(
-         list(`Site/Organization` = c("FACI_ID", "SUB_FACI_ID")),
+         list(`Site/Organization` = c("faci_id", "sub_faci_id")),
          "name",
          c("Site Region", "Site Province", "Site City")
       )

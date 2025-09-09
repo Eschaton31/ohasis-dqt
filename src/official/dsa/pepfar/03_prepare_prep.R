@@ -4,37 +4,37 @@ tag_indicators <- function(data, coverage) {
    data %<>%
       mutate(
          # tag specific indicators
-         PREP_SCREEN     = if_else(
+         prep_screen     = if_else(
             condition = prep_first_screen %within% interval(coverage$min, coverage$max),
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         PREP_ELIG       = if_else(
-            condition = PREP_SCREEN == 1 & eligible == 1,
+         prep_elig       = if_else(
+            condition = prep_screen == 1 & eligible == 1,
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         PREP_INELIGIBLE = if_else(
-            condition = PREP_SCREEN == 1 & coalesce(eligible, 0) == 0,
+         prep_ineligible = if_else(
+            condition = prep_screen == 1 & coalesce(eligible, 0) == 0,
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         PREP_CURR       = if_else(
+         prep_curr       = if_else(
             condition = !is.na(latest_regimen) & latest_ffupdate %within% interval(coverage$min, coverage$max),
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         PREP_CT         = if_else(
-            condition = PREP_CURR == 1 & prepstart_date < coverage$min,
+         prep_ct         = if_else(
+            condition = prep_curr == 1 & prepstart_date < coverage$min,
             true      = 1,
             false     = 0,
             missing   = 0
          ),
-         PREP_NEW        = if_else(
+         prep_new        = if_else(
             condition = prepstart_date %within% interval(coverage$min, coverage$max),
             true      = 1,
             false     = 0,
@@ -51,7 +51,7 @@ generate_disagg <- function(data, coverage) {
          # sex variable (use registry if available)
          Sex             = coalesce(str_left(sex, 1), "(no data)"),
 
-         # KAP
+         # kap
          msm             = case_when(
             Sex == "M" & stri_detect_fixed(prep_risk_sexwithm, "yes") ~ 1,
             Sex == "M" & stri_detect_fixed(hts_risk_sexwithm, "yes") ~ 1,
@@ -59,7 +59,7 @@ generate_disagg <- function(data, coverage) {
             TRUE ~ 0
          ),
          tgw             = if_else(
-            condition = sex == "MALE" & self_identity %in% c("FEMALE", "OTHERS"),
+            condition = sex == "male" & self_identity %in% c("FEMALE", "OTHERS"),
             true      = 1,
             false     = 0,
             missing   = 0
@@ -86,12 +86,12 @@ generate_disagg <- function(data, coverage) {
             missing   = 0
          ),
          `KP Population` = case_when(
-            msm == 1 & tgw == 0 ~ "MSM",
-            msm == 1 & tgw == 1 ~ "TGW",
-            pwid == 1 ~ "PWID",
+            msm == 1 & tgw == 0 ~ "msm",
+            msm == 1 & tgw == 1 ~ "tgw",
+            pwid == 1 ~ "pwid",
             Sex == "F" ~ "(not included)",
             unknown == 1 ~ "(no data)",
-            TRUE ~ "Non-MSM"
+            TRUE ~ "Non-msm"
          ),
 
          # Age Band
@@ -121,20 +121,20 @@ generate_disagg <- function(data, coverage) {
          ),
       ) %>%
       faci_code_to_id(
-         ohasis$ref_faci_code %>% distinct(FACI_CODE, SUB_FACI_CODE, .keep_all = TRUE),
-         c(FACI_ID = "faci", SUB_FACI_ID = "branch")
+         ohasis$ref_faci_code %>% distinct(faci_code, sub_faci_code, .keep_all = TRUE),
+         c(faci_id = "faci", sub_faci_id = "branch")
       ) %>%
       left_join(
          y  = coverage$sites %>%
             select(
-               FACI_ID,
+               faci_id,
                starts_with("site_")
             ) %>%
             distinct_all(),
-         by = join_by(FACI_ID)
+         by = join_by(faci_id)
       ) %>%
       ohasis$get_faci(
-         list(`Site/Organization` = c("FACI_ID", "SUB_FACI_ID")),
+         list(`Site/Organization` = c("faci_id", "sub_faci_id")),
          "name",
          c("Site Region", "Site Province", "Site City")
       )

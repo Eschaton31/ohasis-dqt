@@ -2,8 +2,8 @@
 
 pepfar_disagg <- function(linelist, coverage) {
    foragg         <- list()
-   foragg$TX_CURR <- linelist$tx %>%
-      filter(TX_CURR == 1) %>%
+   foragg$tx_curr <- linelist$tx %>%
+      filter(tx_curr == 1) %>%
       mutate(
          # disaggregations
          `DISAG 2` = case_when(
@@ -33,8 +33,8 @@ pepfar_disagg <- function(linelist, coverage) {
          `DATIM Age`,
       )
 
-   foragg$TX_NEW <- linelist$tx %>%
-      filter(TX_NEW == 1) %>%
+   foragg$tx_new <- linelist$tx %>%
+      filter(tx_new == 1) %>%
       mutate(
          # disaggregations
          `DISAG 2` = case_when(
@@ -61,16 +61,16 @@ pepfar_disagg <- function(linelist, coverage) {
          `DATIM Age`,
       )
 
-   foragg$TX_ML <- linelist$tx %>%
-      filter(TX_ML == 1) %>%
+   foragg$tx_ml <- linelist$tx %>%
+      filter(tx_ml == 1) %>%
       mutate(
          # disaggregations
          `DISAG 2` = case_when(
             outcome == "dead" ~ "Died",
             outcome == "stopped" ~ "Stopped",
-            days_before_ml < 90 ~ "On ART when LTFU (<3 months)",
-            days_before_ml %in% seq(90, 179) ~ "On ART when LTFU (3-5 months)",
-            days_before_ml >= 180 ~ "On ART when LTFU (>=6 months)",
+            days_before_ml < 90 ~ "On ART when ltfu (<3 months)",
+            days_before_ml %in% seq(90, 179) ~ "On ART when ltfu (3-5 months)",
+            days_before_ml >= 180 ~ "On ART when ltfu (>=6 months)",
          ),
       ) %>%
       select(
@@ -86,14 +86,14 @@ pepfar_disagg <- function(linelist, coverage) {
          `DATIM Age`,
       )
 
-   foragg$TX_RTT <- linelist$tx %>%
-      filter(TX_RTT == 1) %>%
+   foragg$tx_rtt <- linelist$tx %>%
+      filter(tx_rtt == 1) %>%
       mutate(
          # disaggregations
          `DISAG 2` = case_when(
-            days_before_rtt < 90 ~ "IIT (ART <3 months)",
-            days_before_rtt %in% seq(90, 179) ~ "IIT (ART 3-5 months)",
-            days_before_rtt >= 180 ~ "IIT (ART >=6 months)",
+            days_before_rtt < 90 ~ "iit (ART <3 months)",
+            days_before_rtt %in% seq(90, 179) ~ "iit (ART 3-5 months)",
+            days_before_rtt >= 180 ~ "iit (ART >=6 months)",
          ),
       ) %>%
       select(
@@ -109,8 +109,8 @@ pepfar_disagg <- function(linelist, coverage) {
          `DATIM Age`,
       )
 
-   foragg$TX_PVLS_ELIGIBLE <- linelist$tx %>%
-      filter(TX_PVLS_ELIGIBLE == 1) %>%
+   foragg$tx_pvls_eligible <- linelist$tx %>%
+      filter(tx_pvls_eligible == 1) %>%
       select(
          `Site/Organization`,
          `KP Population`,
@@ -124,8 +124,8 @@ pepfar_disagg <- function(linelist, coverage) {
          `DATIM Age`,
       )
 
-   foragg$TX_PVLS <- linelist$tx %>%
-      filter(TX_PVLS == 1) %>%
+   foragg$tx_pvls <- linelist$tx %>%
+      filter(tx_pvls == 1) %>%
       mutate(
          # disaggregations
          `DISAG 2` = "Routined",
@@ -151,10 +151,10 @@ pepfar_disagg <- function(linelist, coverage) {
          `DATIM Age`,
       )
 
-   foragg$PREP_OFFER <- linelist$reach %>%
-      filter(PREP_OFFER == 1) %>%
+   foragg$prep_offer <- linelist$reach %>%
+      filter(prep_offer == 1) %>%
       arrange(hts_date) %>%
-      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      distinct(central_id, .keep_all = TRUE) %>%
       select(
          `Site/Organization`,
          `KP Population`,
@@ -168,8 +168,8 @@ pepfar_disagg <- function(linelist, coverage) {
          `DATIM Age`,
       )
 
-   foragg$PREP_SCREEN <- linelist$prep %>%
-      filter(PREP_SCREEN == 1) %>%
+   foragg$prep_screen <- linelist$prep %>%
+      filter(prep_screen == 1) %>%
       select(
          `Site/Organization`,
          `KP Population`,
@@ -183,8 +183,8 @@ pepfar_disagg <- function(linelist, coverage) {
          `DATIM Age`,
       )
 
-   foragg$PREP_ELIG <- linelist$prep %>%
-      filter(PREP_ELIG == 1) %>%
+   foragg$prep_elig <- linelist$prep %>%
+      filter(prep_elig == 1) %>%
       select(
          `Site/Organization`,
          `KP Population`,
@@ -198,8 +198,8 @@ pepfar_disagg <- function(linelist, coverage) {
          `DATIM Age`,
       )
 
-   foragg$PREP_INELIGIBLE <- linelist$prep %>%
-      filter(PREP_INELIGIBLE == 1) %>%
+   foragg$prep_ineligible <- linelist$prep %>%
+      filter(prep_ineligible == 1) %>%
       select(
          `Site/Organization`,
          `KP Population`,
@@ -213,8 +213,8 @@ pepfar_disagg <- function(linelist, coverage) {
          `DATIM Age`,
       )
 
-   foragg$PREP_CURR <- linelist$prep %>%
-      filter(PREP_CURR == 1) %>%
+   foragg$prep_curr <- linelist$prep %>%
+      filter(prep_curr == 1) %>%
       select(
          `Site/Organization`,
          `KP Population`,
@@ -228,8 +228,8 @@ pepfar_disagg <- function(linelist, coverage) {
          `DATIM Age`,
       )
 
-   foragg$PREP_CT <- linelist$prep %>%
-      filter(PREP_CT == 1) %>%
+   foragg$prep_ct <- linelist$prep %>%
+      filter(prep_ct == 1) %>%
       select(
          `Site/Organization`,
          `KP Population`,
@@ -243,8 +243,8 @@ pepfar_disagg <- function(linelist, coverage) {
          `DATIM Age`,
       )
 
-   foragg$PREP_NEW <- linelist$prep %>%
-      filter(PREP_NEW == 1) %>%
+   foragg$prep_new <- linelist$prep %>%
+      filter(prep_new == 1) %>%
       mutate(
          # disaggregations
          `DISAG 2` = if_else(
@@ -266,16 +266,16 @@ pepfar_disagg <- function(linelist, coverage) {
          `DATIM Age`,
       )
 
-   foragg$KP_PREV <- linelist$reach %>%
-      filter(HTS_TST == 1) %>%
+   foragg$kp_prev <- linelist$reach %>%
+      filter(hts_tst == 1) %>%
       arrange(hts_date) %>%
-      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      distinct(central_id, .keep_all = TRUE) %>%
       mutate(
          # disaggregations
          `DISAG 3` = case_when(
             old_dx == 1 ~ "Known Pos",
             hts_modality == "REACH" ~ "Reach (Not offered tesing)",
-            SCREEN_AGREED == "0" ~ "Declined Testing",
+            screen_agreed == "0" ~ "Declined Testing",
             hts_modality != "REACH" ~ "Tested/Referred for Testing",
             TRUE ~ "Reach (Not offered tesing)"
          ),
@@ -293,39 +293,39 @@ pepfar_disagg <- function(linelist, coverage) {
          `DATIM Age`,
       )
 
-   foragg$HTS_TST <- linelist$reach %>%
-      filter(HTS_TST == 1) %>%
+   foragg$hts_tst <- linelist$reach %>%
+      filter(hts_tst == 1) %>%
       arrange(hts_priority, hts_date) %>%
-      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      distinct(central_id, .keep_all = TRUE) %>%
       mutate(
          # disaggregations
          `DISAG 2` = case_when(
-            hts_modality == "CBS" ~ "CBO (CBS)",
+            hts_modality == "CBS" ~ "cbo (cbs)",
             hts_modality == "ST" ~ "Self-Testing",
             TRUE ~ "Facility (walk-in)"
          ),
          `DISAG 3` = case_when(
-            old_dx == 1 & !is.na(CONFIRM_RESULT) ~ "Confirmed: Known Pos",
+            old_dx == 1 & !is.na(confirm_result) ~ "Confirmed: Known Pos",
             old_dx == 1 & hts_modality == "FBT" ~ "Tested: Known Pos",
             old_dx == 1 & hts_modality == "FBS" ~ "Tested: Known Pos",
             old_dx == 1 & hts_modality == "CBS" ~ "CBS: Known Pos",
             old_dx == 1 & hts_modality == "ST" ~ "Self-Testing: Known Pos",
-            TRUE ~ FINAL_TEST_RESULT
+            TRUE ~ final_test_result
          ),
          `DISAG 4` = if_else(
-            REACH_SSNT == "1_Yes",
+            reach_ssnt == "1_Yes",
             "Reached via SSNT",
             "",
             ""
          ),
          `DISAG 5` = if_else(
-            REACH_INDEX_TESTING == "1_Yes",
+            reach_index_testing == "1_Yes",
             "Index Testing",
             "",
             ""
          ),
          `DISAG 6` = if_else(
-            REACH_ONLINE == "1_Yes",
+            reach_online == "1_Yes",
             "Online Reach",
             "",
             ""
@@ -344,15 +344,15 @@ pepfar_disagg <- function(linelist, coverage) {
          `DATIM Age`,
       )
 
-   foragg$HTS_TST_VERIFY <- linelist$reach %>%
-      filter(HTS_TST_VERIFY == 1) %>%
+   foragg$hts_tst_verify <- linelist$reach %>%
+      filter(hts_tst_verify == 1) %>%
       arrange(hts_date) %>%
-      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      distinct(central_id, .keep_all = TRUE) %>%
       mutate(
          # disaggregations
          `DISAG 2` = case_when(
-            FINAL_CONFIRM_DATE >= hts_date ~ "Confirmed Positive",
-            FINAL_CONFIRM_DATE < hts_date ~ "Known Pos",
+            final_confirm_date >= hts_date ~ "Confirmed Positive",
+            final_confirm_date < hts_date ~ "Known Pos",
          ),
       ) %>%
       select(
@@ -368,10 +368,10 @@ pepfar_disagg <- function(linelist, coverage) {
          `DATIM Age`,
       )
 
-   foragg$TX_NEW_VERIFY <- linelist$reach %>%
-      filter(TX_NEW_VERIFY == 1) %>%
+   foragg$tx_new_verify <- linelist$reach %>%
+      filter(tx_new_verify == 1) %>%
       arrange(hts_date) %>%
-      distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+      distinct(central_id, .keep_all = TRUE) %>%
       select(
          `Site/Organization`,
          `KP Population`,
