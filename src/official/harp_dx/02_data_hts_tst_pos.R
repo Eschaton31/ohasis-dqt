@@ -6,7 +6,7 @@ clean_data <- function(forms) {
    confirm_cols <- names(forms$px_confirm)
    confirm_cols <- confirm_cols[!(confirm_cols %in% c("rec_id", "central_id"))]
 
-   same    <- forms$px_confirmed %>%
+   same           <- forms$px_confirmed %>%
       inner_join(
          y  = hts %>%
             filter(!is.na(form_version)) %>%
@@ -16,7 +16,7 @@ clean_data <- function(forms) {
             select(rec_id, hts_rec),
          by = join_by(rec_id)
       )
-   no_form <- forms$px_confirmed %>%
+   before_confirm <- forms$px_confirmed %>%
       anti_join(same, join_by(rec_id)) %>%
       left_join(
          y  = hts %>%
@@ -31,9 +31,25 @@ clean_data <- function(forms) {
             ),
          by = join_by(central_id, closest(record_date >= hts_visit))
       )
+   after_confirm  <- forms$px_confirmed %>%
+      anti_join(same, join_by(rec_id)) %>%
+      anti_join(before_confirm, join_by(rec_id)) %>%
+      left_join(
+         y  = hts %>%
+            filter(!is.na(form_version)) %>%
+            mutate(
+               hts_rec = rec_id,
+            ) %>%
+            select(
+               central_id,
+               hts_rec,
+               hts_visit = record_date
+            ),
+         by = join_by(central_id, closest(record_date <= hts_visit))
+      )
 
 
-   data <- bind_rows(same, no_form) %>%
+   data <- bind_rows(same, before_confirm, after_confirm) %>%
       left_join(
          y  = hts %>%
             rename(
