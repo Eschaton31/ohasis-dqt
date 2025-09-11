@@ -9,6 +9,7 @@ clean_data <- function(forms) {
    same    <- forms$px_confirmed %>%
       inner_join(
          y  = hts %>%
+            filter(!is.na(form_version)) %>%
             mutate(
                hts_rec = rec_id,
             ) %>%
@@ -19,6 +20,7 @@ clean_data <- function(forms) {
       anti_join(same, join_by(rec_id)) %>%
       left_join(
          y  = hts %>%
+            filter(!is.na(form_version)) %>%
             mutate(
                hts_rec = rec_id,
             ) %>%
