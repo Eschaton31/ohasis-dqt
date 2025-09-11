@@ -29,7 +29,7 @@ clean_data <- function(forms) {
                hts_rec,
                hts_visit = record_date
             ),
-         by = join_by(central_id, closest(record_date <= hts_visit))
+         by = join_by(central_id, closest(record_date >= hts_visit))
       )
 
 
