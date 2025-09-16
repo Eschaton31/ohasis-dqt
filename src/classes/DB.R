@@ -88,7 +88,7 @@ DB <- R6Class(
 
       download_refs     = function() {
          log_info("Downloading references.")
-         lw_conn          <- connect("ohasis-lw")
+         lw_conn          <- connect("mariadb-lw")
          self$ref_country <- QB$new(lw_conn)$from("ohasis_lake.ref_country")$get()
          self$ref_addr    <- QB$new(lw_conn)$from("ohasis_lake.ref_addr")$get()
          self$ref_faci    <- QB$new(lw_conn)$from("ohasis_lake.ref_faci")$whereNull("deleted_at")$get()
