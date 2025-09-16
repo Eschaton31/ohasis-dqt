@@ -26,7 +26,7 @@ Dedup <- R6Class(
          self$match$left <- self$left$data %>%
             rename_all(private$renameColumns) %>%
             select(
-               CENTRAL_ID,
+               central_id,
                all_of(self$left$id),
                all_of(private$requiredColumns)
             ) %>%
@@ -36,7 +36,7 @@ Dedup <- R6Class(
             self$match$right <- self$right$data %>%
                rename_all(private$renameColumns) %>%
                select(
-                  CENTRAL_ID,
+                  central_id,
                   all_of(self$right$id),
                   all_of(private$requiredColumns)
                ) %>%
@@ -129,8 +129,28 @@ Dedup <- R6Class(
                   ~coalesce(., "")
                ) %>%
                mutate(
-                  left_name  = stri_c(left_family_name, ", ", left_given_name, " ", left_middle_name, " ", left_suffix_name),
-                  right_name = stri_c(right_family_name, ", ", right_given_name, " ", right_middle_name, " ", right_suffix_name),
+                  left_name  = stri_c(
+                     left_family_name,
+                     ", ",
+                     left_given_name,
+                     " ",
+                     left_middle_name,
+                     " ",
+                     left_suffix_name
+                  ),
+                  right_name = stri_c(
+                     right_family_name,
+                     ", ",
+                     right_given_name,
+                     " ",
+                     right_middle_name,
+                     " ",
+                     right_suffix_name
+                  ),
+               ) %>%
+               mutate_at(
+                  .vars = vars(left_name, right_name),
+                  ~na_if(str_squish(.), ",")
                ) %>%
                select(
                   -ends_with("given_name"),
@@ -142,12 +162,28 @@ Dedup <- R6Class(
                # Additional sift through of matches
                mutate(
                   # levenshtein
-                  name_levenshtein = stringsim(left_name, right_name, method = 'levenshtein'),
+                  name_levenshtein = stringsim(
+                     left_name,
+                     right_name,
+                     method = 'levenshtein'
+                  ),
                   # jaro-winkler
-                  name_jarowinkler = stringsim(left_name, right_name, method = 'jw'),
+                  name_jarowinkler = stringsim(
+                     left_name,
+                     right_name,
+                     method = 'jw'
+                  ),
                   # qgram
-                  name_qgram       = stringsim(left_name, right_name, method = 'qgram', q = 3),
-                  avg_dist         = (name_levenshtein + name_jarowinkler + name_qgram) / 3,
+                  name_qgram       = stringsim(
+                     left_name,
+                     right_name,
+                     method = 'qgram',
+                     q      = 3
+                  ),
+                  avg_dist         = (name_levenshtein +
+                     name_jarowinkler +
+                     name_qgram) /
+                     3,
                ) %>%
                # choose 60% and above match
                filter(avg_dist >= 0.60, !is.na(posterior))
@@ -159,7 +195,6 @@ Dedup <- R6Class(
                   Gab   = NA_character_,
                   Lala  = NA_character_,
                   Angie = NA_character_,
-                  Jessa = NA_character_,
                   # ) %>%
                   # anti_join(
                   #    y  = non_dupes %>%
@@ -187,7 +222,11 @@ Dedup <- R6Class(
          log_info("Loading Splink.")
          sp  <- import("splink", as = "sp", convert = FALSE)
          cl  <- import("splink.comparison_library", as = "cl", convert = FALSE)
-         cll <- import("splink.comparison_level_library", as = "cll", convert = FALSE)
+         cll <- import(
+            "splink.comparison_level_library",
+            as      = "cll",
+            convert = FALSE
+         )
 
          log_info("Use DuckDB.")
          db_api <- sp$DuckDBAPI()
@@ -198,8 +237,12 @@ Dedup <- R6Class(
             comparison_levels      = c(
                cll$NullLevel("uic"),
                cll$ExactMatchLevel("uic"),
-               cll$CustomLevel("concat(uic_mom_l, uic_order_l, birthdate_l) = concat(uic_dad_r, uic_order_r, birthdate_r)"),
-               cll$CustomLevel("concat(uic_dad_l, uic_order_l, birthdate_l) = concat(uic_mom_r, uic_order_r, birthdate_r)"),
+               cll$CustomLevel(
+                  "concat(uic_mom_l, uic_order_l, birthdate_l) = concat(uic_dad_r, uic_order_r, birthdate_r)"
+               ),
+               cll$CustomLevel(
+                  "concat(uic_dad_l, uic_order_l, birthdate_l) = concat(uic_mom_r, uic_order_r, birthdate_r)"
+               ),
                cll$ElseLevel()
             )
          )
@@ -282,18 +325,25 @@ Dedup <- R6Class(
          log_info("Creating Fellegi-Sunter Model.")
          linker$
             training$
-            estimate_probability_two_random_records_match(sp$block_on("given_name_sieve", "family_name_sieve"), recall = 0.7)
+            estimate_probability_two_random_records_match(
+            sp$block_on("given_name_sieve", "family_name_sieve"),
+            recall = 0.7
+         )
          linker$training$estimate_u_using_random_sampling(max_pairs = 1e6)
 
          log_info("EM Algorithm = {green('First Name')}.")
          linker$
             training$
-            estimate_parameters_using_expectation_maximisation(sp$block_on("given_name_sieve"))
+            estimate_parameters_using_expectation_maximisation(sp$block_on(
+            "given_name_sieve"
+         ))
 
          log_info("EM Algorithm = {green('Last Name')}.")
          linker$
             training$
-            estimate_parameters_using_expectation_maximisation(sp$block_on("family_name_sieve"))
+            estimate_parameters_using_expectation_maximisation(sp$block_on(
+            "family_name_sieve"
+         ))
 
          # log_info("EM Algorithm = {green('First+Last Name')}.")
          # linker$
@@ -305,17 +355,44 @@ Dedup <- R6Class(
          #    training$
          #    estimate_parameters_using_expectation_maximisation(sp$block_on("birthdate"))
 
-         log_info("EM Algorithm = {green('First Name+Birth Date')}.")
+         # log_info("EM Algorithm = {green('First Name+Birth Date')}.")
+         # linker$
+         #    training$
+         #    estimate_parameters_using_expectation_maximisation(sp$block_on("given_name_sieve", "birthdate"))
+         # log_info("EM Algorithm = {green('Last Name+Birth Date')}.")
+         # linker$
+         #    training$
+         #    estimate_parameters_using_expectation_maximisation(sp$block_on("family_name_sieve", "birthdate"))
+
+         log_info("EM Algorithm = {green('First Name+Birth Yr+Birth Mo')}.")
          linker$
             training$
-            estimate_parameters_using_expectation_maximisation(sp$block_on("given_name_sieve", "birthdate"))
-         log_info("EM Algorithm = {green('Last Name+Birth Date')}.")
+            estimate_parameters_using_expectation_maximisation(sp$block_on(
+            "given_name_sieve",
+            "birth_yr",
+            "birth_mo"
+         ))
+         log_info("EM Algorithm = {green('First Name+Birth Yr+Birth Dy')}.")
          linker$
             training$
-            estimate_parameters_using_expectation_maximisation(sp$block_on("family_name_sieve", "birthdate"))
+            estimate_parameters_using_expectation_maximisation(sp$block_on(
+            "given_name_sieve",
+            "birth_yr",
+            "birth_dy"
+         ))
+         log_info("EM Algorithm = {green('First Name+Birth Mo+Birth Dy')}.")
+         linker$
+            training$
+            estimate_parameters_using_expectation_maximisation(sp$block_on(
+            "given_name_sieve",
+            "birth_mo",
+            "birth_dy"
+         ))
 
          log_info("Generating match pairs.")
-         pairwise_predictions <- linker$inference$predict(threshold_match_weight = -10)
+         pairwise_predictions <- linker$inference$predict(
+            threshold_match_weight = -10
+         )
 
          log_info("Finalizing estimation object.")
          estimates <- pairwise_predictions$as_pandas_dataframe()
@@ -359,7 +436,7 @@ Dedup <- R6Class(
                y  = self$match$left %>%
                   select(
                      !!id,
-                     left_cid          = CENTRAL_ID,
+                     left_cid          = central_id,
                      left_given_name   = given_name,
                      left_middle_name  = middle_name,
                      left_family_name  = family_name,
@@ -383,7 +460,7 @@ Dedup <- R6Class(
                y  = self$match$left %>%
                   select(
                      !!id,
-                     right_cid          = CENTRAL_ID,
+                     right_cid          = central_id,
                      right_given_name   = given_name,
                      right_middle_name  = middle_name,
                      right_family_name  = family_name,
@@ -408,8 +485,24 @@ Dedup <- R6Class(
                ~coalesce(., "")
             ) %>%
             mutate(
-               left_name  = stri_c(left_family_name, ", ", left_given_name, " ", left_middle_name, " ", left_suffix_name),
-               right_name = stri_c(right_family_name, ", ", right_given_name, " ", right_middle_name, " ", right_suffix_name),
+               left_name  = stri_c(
+                  left_family_name,
+                  ", ",
+                  left_given_name,
+                  " ",
+                  left_middle_name,
+                  " ",
+                  left_suffix_name
+               ),
+               right_name = stri_c(
+                  right_family_name,
+                  ", ",
+                  right_given_name,
+                  " ",
+                  right_middle_name,
+                  " ",
+                  right_suffix_name
+               ),
             ) %>%
             # select(
             #    -ends_with("given_name"),
@@ -423,14 +516,13 @@ Dedup <- R6Class(
                Gab     = NA_character_,
                Lala    = NA_character_,
                Angie   = NA_character_,
-               Jessa   = NA_character_,
             )
 
-         conn <- ohasis$conn("lw")
-         nonDupes <- QB$new(conn)$
-            from("ohasis_warehouse.non_dupes")$
-            select("PATIENT_ID AS left_cid", "NON_PAIR_ID AS right_cid")$
-            get()
+         conn     <- ohasis$conn("lw")
+         nonDupes <- QB$new(conn)$from("ohasis_warehouse.non_dupes")$select(
+            "patient_id AS left_cid",
+            "non_pair_id AS right_cid"
+         )$get()
          dbDisconnect(conn)
 
          self$review$splinkDedup %<>%
@@ -524,7 +616,11 @@ Dedup <- R6Class(
             for (col in missing_cols) {
                data %<>%
                   mutate(
-                     new_col = if (col == "birthdate") new_col = NA_Date_ else NA_character_,
+                     new_col = if (col == "birthdate") {
+                        new_col = NA_Date_
+                     } else {
+                        NA_character_
+                     },
                   ) %>%
                   rename_at(
                      .vars = vars(new_col),
@@ -563,8 +659,18 @@ Dedup <- R6Class(
 
                # family_name       = coalesce(family_name, middle_name),
                # middle_name       = coalesce(middle_name, family_name),
-               full_name               = stri_c(given_name, " ", family_name, ignore_null = TRUE),
-               last_name               = stri_c(middle_name, " ", family_name, ignore_null = TRUE),
+               full_name               = stri_c(
+                  given_name,
+                  " ",
+                  family_name,
+                  ignore_null = TRUE
+               ),
+               last_name               = stri_c(
+                  middle_name,
+                  " ",
+                  family_name,
+                  ignore_null = TRUE
+               ),
 
                # clean ids
                confirmatory_code_sieve = confirmatory_code,
@@ -580,7 +686,11 @@ Dedup <- R6Class(
                ~str_replace_all(., "[^[:alnum:]]", "")
             ) %>%
             mutate_at(
-               .vars = vars(given_name_sieve, middle_name_sieve, family_name_sieve),
+               .vars = vars(
+                  given_name_sieve,
+                  middle_name_sieve,
+                  family_name_sieve
+               ),
                ~str_replace_all(., "([[:alnum:]])\\1+", "\\1")
             ) %>%
             mutate(
@@ -678,52 +788,142 @@ Dedup <- R6Class(
 )
 
 upload_splink <- function(data, surv_name, dedup_type) {
-   db     <- "nhsss_validations"
    issue  <- "splink"
-   table  <- paste0(surv_name, "-", dedup_type, "-", issue)
-   schema <- Id(schema = db, table = table)
+   table  <- paste0(dedup_type, "-", issue)
    id_col <- "match_id"
 
-   lw_conn <- connect("ohasis-lw")
-   if (dbExistsTable(lw_conn, schema)) {
-      dbRemoveTable(lw_conn, schema)
-   }
-   ohasis$upsert(lw_conn, db, table, data, id_col)
+   lw_conn <- connect(surv_name)
+   dbExecute(lw_conn, glue(r"(TRUNCATE `{surv_name}`.`{table}`)"))
+   ohasis$upsert(lw_conn, surv_name, table, data, id_col)
    dbDisconnect(lw_conn)
 }
 
-generate_splink <- function(yr, mo, surv_name, download = FALSE) {
-   if (download) {
-      hs_download(surv_name, "reg", yr, mo)
-   }
+generate_splink <- function(yr, mo, surv_name) {
+   table <- str_c('reg_', yr, stri_pad_left(mo, 2, '0'))
 
+   idreg <- update_idreg()
+
+   conn <- connect('mariadb-lw')
    data <- switch(
       surv_name,
-      harp_dx   = select(read_dta(hs_data("harp_dx", "reg", yr, mo)), -first),
-      harp_tx   = read_dta(hs_data("harp_tx", "reg", yr, mo)),
-      harp_dead = read_dta(hs_data("harp_dead", "reg", yr, mo)),
-      prep      = read_dta(hs_data("prep", "reg", yr, mo)),
+      harp_dx   = QB$new(conn)$select(
+         patient_id,
+         idnum,
+         firstname,
+         middle,
+         last,
+         name_suffix,
+         bdate,
+         sex,
+         uic,
+         labcode2,
+         patient_code,
+         philhealth,
+         philsys_id,
+         mobile,
+         email,
+         region,
+         province,
+         muncity,
+         curr_work,
+         prev_work,
+         job
+      )$from(stri_c(surv_name, ".", table))$get(),
+      harp_tx   = QB$new(conn)$select(
+         patient_id,
+         art_id,
+         idnum,
+         first,
+         middle,
+         last,
+         suffix,
+         birthdate,
+         sex,
+         uic,
+         confirmatory_code,
+         px_code,
+         philhealth_no,
+         philsys_id,
+         mobile,
+         email
+      )$from(stri_c(surv_name, ".", table))$get(),
+      harp_dead = QB$new(conn)$select(
+         patient_id,
+         mort_id,
+         idnum,
+         fname,
+         mname,
+         lname,
+         sname,
+         birthdate,
+         sex,
+         uic,
+         saccl_lab_code,
+         patient_code,
+         philhealth,
+         philsys_id,
+         mobile,
+         email
+      )$from(stri_c(surv_name, ".", table))$get(),
+      prep      = QB$new(conn)$select(
+         patient_id,
+         prep_id,
+         first,
+         middle,
+         last,
+         suffix,
+         birthdate,
+         sex,
+         uic,
+         patient_code,
+         philhealth_no,
+         philsys_id,
+         client_mobile,
+         client_email,
+         curr_reg,
+         currr_prov,
+         currr_munc,
+         curr_work,
+         prev_work
+      )$from(stri_c(surv_name, ".", table))$get(),
    )
 
    if (surv_name %in% c("harp_tx", "harp_dead")) {
+      dx <- QB$new(conn)$select(
+         idnum,
+         region,
+         province,
+         muncity,
+         job,
+         curr_work,
+         prev_work
+      )$from(stri_c("harp_dx.", table))$get()
       data %<>%
          select(-any_of(c("curr_reg", "curr_prov", "curr_munc"))) %>%
          left_join(
-            y  = hs_data("harp_dx", "reg", yr, mo) %>%
-               read_dta(col_select = c(idnum, region, province, muncity, job, curr_work, prev_work)),
+            y  = dx,
             by = join_by(idnum)
          )
    }
+   dbDisconnect(conn)
 
-   if (surv_name == "prep")
+   if (surv_name == "prep") {
       data %<>%
-         mutate(job = NA_character_, curr_work = NA_character_, prev_work = NA_character_, confirmatory_code = NA_character_)
+         mutate(
+            job               = NA_character_,
+            curr_work         = NA_character_,
+            prev_work         = NA_character_,
+            confirmatory_code = NA_character_
+         )
+   }
 
    data %<>%
       mutate_at(vars(job, curr_work, prev_work, job), ~na_if(., "")) %>%
       mutate(
          occupation = coalesce(curr_work, prev_work, job)
-      )
+      ) %>%
+      rename_all(tolower) %>%
+      get_cid(idreg, patient_id)
 
    id <- switch(
       surv_name,
@@ -742,7 +942,6 @@ generate_splink <- function(yr, mo, surv_name, download = FALSE) {
 }
 
 ## sample run for surveillance
-# surv <- "prep"
-# data <- generate_splink(2025, 2, surv, FALSE)
-#
+# surv <- "harp_dx"
+# data <- generate_splink(2025, 7, surv)
 # upload_splink(data, surv, "dedup_old")
