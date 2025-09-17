@@ -720,6 +720,10 @@ DB <- R6Class(
             # get referenced data
             left_join(
                y  = self$ref_faci %>%
+                  mutate(
+                     faci_id     = coalesce(faci_id, ""),
+                     sub_faci_id = coalesce(sub_faci_id, ""),
+                  ) %>%
                   select(
                      {{faci_id}}     := faci_id,
                      {{sub_faci_id}} := sub_faci_id,
