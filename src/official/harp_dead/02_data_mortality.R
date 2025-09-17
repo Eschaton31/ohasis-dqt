@@ -23,30 +23,30 @@ clean_data <- function(forms, old_reg) {
          .predicate = is.Date,
          ~if_else(. <= -25567, NA_Date_, ., .)
       ) %>%
-      # get_latest_pii(
-      #    "central_id",
-      #    c(
-      #       "first",
-      #       "middle",
-      #       "last",
-      #       "suffix",
-      #       "birthdate",
-      #       "sex",
-      #       "uic",
-      #       "philhealth_no",
-      #       "philsys_id",
-      #       "civil_status",
-      #       "nationality",
-      #       "curr_reg",
-      #       "curr_prov",
-      #       "curr_munc",
-      #       "perm_reg",
-      #       "perm_prov",
-      #       "perm_munc",
-      #       "client_mobile",
-      #       "client_email"
-      #    )
-      # ) %>%
+      get_latest_pii(
+         "central_id",
+         c(
+            "first",
+            "middle",
+            "last",
+            "suffix",
+            "birthdate",
+            "sex",
+            "uic",
+            "philhealth_no",
+            "philsys_id",
+            "civil_status",
+            "nationality",
+            "curr_reg",
+            "curr_prov",
+            "curr_munc",
+            "perm_reg",
+            "perm_prov",
+            "perm_munc",
+            "client_mobile",
+            "client_email"
+         )
+      ) %>%
       mutate(
          # date variables
          report_date    = record_date,
