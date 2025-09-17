@@ -867,7 +867,8 @@ convert_faci_addr <- function(data) {
          y          = ohasis$ref_faci %>%
             select(test_faci = faci_id, test_sub_faci = sub_faci_id, pubpriv = ownership) %>%
             mutate(
-               pubpriv = case_when(
+               test_sub_faci = coalesce(test_sub_faci, ""),
+               pubpriv       = case_when(
                   pubpriv == 1 ~ "PUBLIC",
                   pubpriv == 2 ~ "PRIVATE",
                )
