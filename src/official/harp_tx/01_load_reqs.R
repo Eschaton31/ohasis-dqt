@@ -279,7 +279,7 @@ update_dataset <- function(params, corr, forms, reprocess) {
    # clean if any for cleaning found
    if (nrow(corr$corr_outcome) > 0) {
       log_info("Performing cleaning on the outcome dataset.")
-      official$old_outcome <- apply_corrections(official$old_outcome, corr$corr_outcome %>%
+      official$old_outcome <- apply_corrections(official$old_outcome %>% rename_all(tolower), corr$corr_outcome %>%
          rename_all(tolower) %>%
          mutate(variable = tolower(variable)), names(art_id))
       # .cleaning_list(official$old_outcome, corr$corr_outcome %>% rename_all(tolower), "ART_ID", "integer")
