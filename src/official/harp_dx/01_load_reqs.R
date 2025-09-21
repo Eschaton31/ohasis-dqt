@@ -151,17 +151,22 @@ get_rhivda_pdf <- function(params) {
 
 update_dataset <- function(params, corr, reprocess) {
    log_info("Getting previous datasets.")
-   official       <- list()
-   official$old   <- ohasis$load_old_dta(
-      path            = hs_data("harp_dx", "reg", params$prev_yr, params$prev_mo),
-      corr            = corr$corr_reg %>% rename_all(tolower),
-      warehouse_table = "harp_dx_old",
-      id_col          = c("idnum" = "integer"),
-      dta_pid         = "patient_id",
-      remove_cols     = "central_id",
-      remove_rows     = corr$corr_drop,
-      reload          = reprocess
-   )
+   official <- list()
+   # official$old   <- ohasis$load_old_dta(
+   #    path            = hs_data("harp_dx", "reg", params$prev_yr, params$prev_mo),
+   #    corr            = corr$corr_reg %>% rename_all(tolower),
+   #    warehouse_table = "harp_dx_old",
+   #    id_col          = c("idnum" = "integer"),
+   #    dta_pid         = "patient_id",
+   #    remove_cols     = "central_id",
+   #    remove_rows     = corr$corr_drop,
+   #    reload          = reprocess
+   # )
+
+   conn         <- connect('mariadb-lw')
+   official$old <- QB$new(conn)$from('ohasis_warehouse.harp_dx_old')$get()
+   dbDisconnect(conn)
+
    official$dupes <- official$old %>% get_dupes(central_id)
    if (nrow(official$dupes) > 0)
       log_warn("Duplicate {green('Central IDs')} found.")

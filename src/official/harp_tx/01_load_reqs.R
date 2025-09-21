@@ -255,17 +255,21 @@ download_tables <- function(params) {
 update_dataset <- function(params, corr, forms, reprocess) {
    log_info("Getting previous datasets.")
    official         <- list()
-   official$old_reg <- ohasis$load_old_dta(
-      path            = hs_data("harp_tx", "reg", params$prev_yr, params$prev_mo),
-      corr            = corr$corr_reg %>% rename_all(tolower),
-      warehouse_table = "harp_tx_old",
-      id_col          = c("art_id" = "integer"),
-      dta_pid         = "patient_id",
-      remove_cols     = "central_id",
-      remove_rows     = corr$corr_drop,
-      id_registry     = forms$id_registry,
-      reload          = reprocess
-   )
+   # official$old_reg <- ohasis$load_old_dta(
+   #    path            = hs_data("harp_tx", "reg", params$prev_yr, params$prev_mo),
+   #    corr            = corr$corr_reg %>% rename_all(tolower),
+   #    warehouse_table = "harp_tx_old",
+   #    id_col          = c("art_id" = "integer"),
+   #    dta_pid         = "patient_id",
+   #    remove_cols     = "central_id",
+   #    remove_rows     = corr$corr_drop,
+   #    id_registry     = forms$id_registry,
+   #    reload          = reprocess
+   # )
+
+   conn         <- connect('mariadb-lw')
+   official$old_reg <- QB$new(conn)$from('ohasis_warehouse.harp_tx_old')$get()
+   dbDisconnect(conn)
 
    official$old_outcome <- hs_data("harp_tx", "outcome", params$prev_yr, params$prev_mo) %>%
       read_dta() %>%

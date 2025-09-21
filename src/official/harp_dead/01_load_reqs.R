@@ -93,17 +93,22 @@ download_tables <- function(params) {
 update_dataset <- function(params, corr, forms, reprocess) {
    log_info("Getting previous datasets.")
    official       <- list()
-   official$old   <- ohasis$load_old_dta(
-      path            = hs_data("harp_dead", "reg", params$prev_yr, params$prev_mo),
-      corr            = corr$corr_reg,
-      warehouse_table = "harp_dead_old",
-      id_col          = c("mort_id" = "integer"),
-      dta_pid         = "patient_id",
-      remove_cols     = "central_id",
-      remove_rows     = corr$corr_drop,
-      id_registry     = forms$id_registry,
-      reload          = reprocess
-   )
+   # official$old   <- ohasis$load_old_dta(
+   #    path            = hs_data("harp_dead", "reg", params$prev_yr, params$prev_mo),
+   #    corr            = corr$corr_reg,
+   #    warehouse_table = "harp_dead_old",
+   #    id_col          = c("mort_id" = "integer"),
+   #    dta_pid         = "patient_id",
+   #    remove_cols     = "central_id",
+   #    remove_rows     = corr$corr_drop,
+   #    id_registry     = forms$id_registry,
+   #    reload          = reprocess
+   # )
+
+   conn         <- connect('mariadb-lw')
+   official$old <- QB$new(conn)$from('ohasis_warehouse.harp_dead_old')$get()
+   dbDisconnect(conn)
+
    official$dupes <- official$old %>% get_dupes(central_id)
    if (nrow(official$dupes) > 0)
       log_warn("Duplicate {green('Central IDs')} found.")
