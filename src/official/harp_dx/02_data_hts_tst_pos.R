@@ -1172,8 +1172,9 @@ append_data <- function(old, new) {
    log_info("Appending cases to final registry.")
    data <- new %>%
       mutate(
-         confirm_date = coalesce(confirm_date, as.Date(t3_date)),
-         who_staging  = as.integer(who_staging)
+         confirm_date        = coalesce(confirm_date, as.Date(t3_date)),
+         who_staging         = as.integer(who_staging),
+         baseline_cd4_result = as.integer(baseline_cd4_result),
       ) %>%
       mutate_if(
          .predicate = is.labelled,
