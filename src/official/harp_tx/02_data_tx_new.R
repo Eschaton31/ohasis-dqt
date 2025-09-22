@@ -369,10 +369,10 @@ append_enrollees <- function(old, new) {
    log_info("Appending enrollees to final registry.")
    data <- new %>%
       mutate(
-         corr_defer   = if_else(is.na(artstart_regimen), 1, 0, 0),
-         drop_notart  = 0,
-         age          = as.integer(age),
-         baseline_cd4 = as.numeric(keep_code(to_character(baseline_cd4)))
+         corr_defer  = if_else(is.na(artstart_regimen), 1, 0, 0),
+         drop_notart = 0,
+         age         = as.integer(age),
+         baseline_cd4 = to_character(baseline_cd4)
       ) %>%
       bind_rows(
          old %>%
