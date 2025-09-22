@@ -371,6 +371,7 @@ append_enrollees <- function(old, new) {
       mutate(
          corr_defer  = if_else(is.na(artstart_regimen), 1, 0, 0),
          drop_notart = 0,
+         age         = as.integer(age)
       ) %>%
       bind_rows(
          old %>%
