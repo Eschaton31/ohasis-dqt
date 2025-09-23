@@ -130,8 +130,8 @@ clean_data <- function(forms) {
          name           = str_squish(stri_c(last, ", ", first, " ", middle, " ", suffix)),
 
          # Permanent
-         perm_prov      = if_else(str_left(perm_reg, 2) == "99", "999900000", perm_prov, perm_prov),
-         perm_munc      = if_else(str_left(perm_reg, 2) == "99", "999999000", perm_munc, perm_munc),
+         perm_prov      = if_else(str_left(perm_reg, 2) == "99", "9999000000", perm_prov, perm_prov),
+         perm_munc      = if_else(str_left(perm_reg, 2) == "99", "9999990000", perm_munc, perm_munc),
          use_curr       = if_else(
             condition = !is.na(curr_munc) & (is.na(perm_munc) | str_left(perm_munc, 2) == "99"),
             true      = 1,
