@@ -240,9 +240,9 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
             unite(
                col    = "perm_psgc",
                sep    = "|",
-               perm_munc,
-               perm_prov,
                perm_reg,
+               perm_prov,
+               perm_munc,
                na.rm  = TRUE,
                remove = TRUE
             ) %>%
@@ -251,9 +251,9 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
             unite(
                col    = "perm_psgc",
                sep    = "|",
-               perm_munc,
-               perm_prov,
                perm_reg,
+               perm_prov,
+               perm_munc,
                na.rm  = TRUE,
                remove = TRUE
             ) %>%
@@ -267,9 +267,9 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
             unite(
                col    = "curr_psgc",
                sep    = "|",
-               curr_munc,
-               curr_prov,
                curr_reg,
+               curr_prov,
+               curr_munc,
                na.rm  = TRUE,
                remove = TRUE
             ) %>%
@@ -278,9 +278,9 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
             unite(
                col    = "curr_psgc",
                sep    = "|",
-               curr_munc,
-               curr_prov,
                curr_reg,
+               curr_prov,
+               curr_munc,
                na.rm  = TRUE,
                remove = TRUE
             ) %>%
@@ -294,9 +294,9 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
             unite(
                col    = "birth_psgc",
                sep    = "|",
-               birth_munc,
-               birth_prov,
                birth_reg,
+               birth_prov,
+               birth_munc,
                na.rm  = TRUE,
                remove = TRUE
             ) %>%
@@ -305,9 +305,9 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
             unite(
                col    = "birth_psgc",
                sep    = "|",
-               birth_munc,
-               birth_prov,
                birth_reg,
+               birth_prov,
+               birth_munc,
                na.rm  = TRUE,
                remove = TRUE
             ) %>%
@@ -341,7 +341,7 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
             separate_wider_delim(
                perm_psgc,
                "|",
-               names   = c("perm_munc", "perm_prov", "perm_reg"),
+               names   = c("perm_reg", "perm_prov", "perm_munc"),
                too_few = "align_start"
             )
       }
@@ -351,7 +351,7 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
             separate_wider_delim(
                curr_psgc,
                "|",
-               names   = c("curr_munc", "curr_prov", "curr_reg"),
+               names   = c("curr_reg", "curr_prov", "curr_munc"),
                too_few = "align_start"
             )
       }
@@ -361,7 +361,7 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
             separate_wider_delim(
                birth_psgc,
                "|",
-               names   = c("birth_munc", "birth_prov", "birth_reg"),
+               names   = c("birth_reg", "birth_prov", "birth_munc"),
                too_few = "align_start"
             )
       }
