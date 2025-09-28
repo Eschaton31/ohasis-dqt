@@ -378,11 +378,14 @@ add_missing_columns <- function(data, ref) {
 }
 
 connect <- function(group) {
-   if (group == "live" | group == 'ohasis-live' | group == 'old-lw') {
+   if (group == "live" |
+      group == 'ohasis-live' |
+      group == 'old-lw' |
+      group == 'local') {
       return(DBI::dbConnect(RMariaDB::MariaDB(), group = group, default.file = "my.cnf"))
    }
    if (group == 'mariadb-lw') {
-      return(DBI::dbConnect(ClickHouseHTTP::ClickHouseHTTP(), host = '192.168.193.236', port = 8123, password = 't1rh0uGCyN2sz6zk'))
+      return(DBI::dbConnect(ClickHouseHTTP::ClickHouseHTTP(), host = '192.168.193.236', port = 8123, password = 't1rh0uGCyN2sz6zk', encoding = 'UTF-8'))
    }
 
    return(suppress_warnings(suppress_warnings(DBI::dbConnect(RClickhouse::clickhouse(), config_paths = str_c(group, ".yaml")), 'We have found'), 'incomplete'))
@@ -394,7 +397,7 @@ categorical_values <- function(data, variables) {
    for (variable in variables) {
       column  <- as.name(variable)
       summary <- bind_rows(summary, data %>%
-         distinct(values = {{column}}) %>%
+         distinct(values = as.character({{column}})) %>%
          mutate(.before = 1, variable = variable))
    }
 
