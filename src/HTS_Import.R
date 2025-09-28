@@ -1,5 +1,5 @@
 HtsLogsheet <- R6Class(
-   'HtsLogsheet',
+   "HtsLogsheet",
    public = list(
       files          = NULL,
       data           = list(
@@ -15,7 +15,6 @@ HtsLogsheet <- R6Class(
          addr  = tibble()
       ),
       issues         = list(),
-
       read           = function(file) {
          if (substr(basename(file), 1, 1) != "~") {
             sheets   <- excel_sheets(file)
@@ -168,7 +167,7 @@ HtsLogsheet <- R6Class(
                      )
                }
             }
-            return(logsheet %>% bind_rows(.id = 'sheet'))
+            return(logsheet %>% bind_rows(.id = "sheet"))
          }
       },
       batchRead      = function(path) {
@@ -184,10 +183,10 @@ HtsLogsheet <- R6Class(
          invisible(self)
       },
       getExisting    = function() {
-         con <- connect("ohasis-lw")
+         con <- connect("old-lw")
 
          if ("REC_ID" %in% names(data)) {
-            self$data$ref <- QB$new(con)$from("ohasis_warehouse.form_hts")$whereIn("REC_ID", data$REC_ID)$get()
+            self$data$ref <- QB$new(con)$from("ohasis_warehouse.form_hts")$whereIn("rec_id", data$REC_ID)$get()
          } else {
             self$data$ref <- QB$new(con)$from("ohasis_warehouse.form_hts")$limit(0)$get()
          }
@@ -201,14 +200,30 @@ HtsLogsheet <- R6Class(
 
          ss <- "1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc"
 
-         self$corr$staff <- range_speedread(ss, "staff", show_col_types = FALSE, col_types = cols(.default = "c"),
-                                            name_repair                 = "unique_quiet")
-         self$corr$site  <- range_speedread(ss, "site", show_col_types = FALSE, col_types = cols(.default = "c"),
-                                            name_repair                = "unique_quiet")
-         self$corr$addr  <- range_speedread(ss, "addr", show_col_types = FALSE, col_types = cols(.default = "c"),
-                                            name_repair                = "unique_quiet")
-         self$corr$date  <- range_speedread(ss, "file-no_created_at", show_col_types = FALSE, col_types = cols(
-            .default = "c"), name_repair                                             = "unique_quiet") %>%
+         self$corr$staff    <- range_speedread(
+            ss, "staff",
+            show_col_types = FALSE, col_types = cols(.default = "c"),
+            name_repair    = "unique_quiet"
+         )
+         self$corr$site     <- range_speedread(
+            ss, "site",
+            show_col_types = FALSE, col_types = cols(.default = "c"),
+            name_repair    = "unique_quiet"
+         )
+         self$corr$addr     <- range_speedread(
+            ss, "addr",
+            show_col_types = FALSE, col_types = cols(.default = "c"),
+            name_repair    = "unique_quiet"
+         )
+         self$corr$ref_addr <- range_speedread(
+            ss, "ref_addr",
+            show_col_types = FALSE, col_types = cols(.default = "c"),
+            name_repair    = "unique_quiet"
+         )
+         self$corr$date     <- range_speedread(
+            ss, "file-no_created_at", show_col_types = FALSE, col_types = cols(
+               .default = "c"
+            ), name_repair                           = "unique_quiet") %>%
             select(
                id                    = FILE,
                HIV_SERVICE_NAME_REG  = VENUE_REG,
@@ -267,11 +282,11 @@ HtsLogsheet <- R6Class(
                self$data$convert %<>%
                   left_join(
                      y  = self$data$ref %>%
-                        select(REC_ID, CORR = { { col } }),
+                        select(REC_ID, CORR = {{col}}),
                      by = join_by(REC_ID)
                   ) %>%
                   mutate(
-                     { { col } } := coalesce({ { col } }, as.character(CORR))
+                     {{col}} := coalesce({{col}}, as.character(CORR))
                   ) %>%
                   select(-CORR)
             }
@@ -381,7 +396,7 @@ HtsLogsheet <- R6Class(
             ) %>%
             select(-starts_with("CORR_NAME_")) %>%
             left_join(
-               y  = ohasis$ref_addr %>%
+               y  = self$corr$ref_addr %>%
                   mutate_at(
                      .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
                      ~str_squish(toupper(.))
@@ -390,14 +405,14 @@ HtsLogsheet <- R6Class(
                      PERM_NAME_REG  = NAME_REG,
                      PERM_NAME_PROV = NAME_PROV,
                      PERM_NAME_MUNC = NAME_MUNC,
-                     PERM_REG       = PSGC_REG,
-                     PERM_PROV      = PSGC_PROV,
-                     PERM_MUNC      = PSGC_MUNC
+                     PERM_PSGC_REG  = PSGC_REG,
+                     PERM_PSGC_PROV = PSGC_PROV,
+                     PERM_PSGC_MUNC = PSGC_MUNC
                   ),
                by = join_by(PERM_NAME_REG, PERM_NAME_PROV, PERM_NAME_MUNC)
             ) %>%
             left_join(
-               y  = ohasis$ref_addr %>%
+               y  = self$corr$ref_addr %>%
                   mutate_at(
                      .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
                      ~str_squish(toupper(.))
@@ -406,14 +421,14 @@ HtsLogsheet <- R6Class(
                      CURR_NAME_REG  = NAME_REG,
                      CURR_NAME_PROV = NAME_PROV,
                      CURR_NAME_MUNC = NAME_MUNC,
-                     CURR_REG       = PSGC_REG,
-                     CURR_PROV      = PSGC_PROV,
-                     CURR_MUNC      = PSGC_MUNC
+                     CURR_PSGC_REG  = PSGC_REG,
+                     CURR_PSGC_PROV = PSGC_PROV,
+                     CURR_PSGC_MUNC = PSGC_MUNC
                   ),
                by = join_by(CURR_NAME_REG, CURR_NAME_PROV, CURR_NAME_MUNC)
             ) %>%
             left_join(
-               y  = ohasis$ref_addr %>%
+               y  = self$corr$ref_addr %>%
                   mutate_at(
                      .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
                      ~str_squish(toupper(.))
@@ -422,14 +437,14 @@ HtsLogsheet <- R6Class(
                      BIRTH_NAME_REG  = NAME_REG,
                      BIRTH_NAME_PROV = NAME_PROV,
                      BIRTH_NAME_MUNC = NAME_MUNC,
-                     BIRTH_REG       = PSGC_REG,
-                     BIRTH_PROV      = PSGC_PROV,
-                     BIRTH_MUNC      = PSGC_MUNC
+                     BIRTH_PSGC_REG  = PSGC_REG,
+                     BIRTH_PSGC_PROV = PSGC_PROV,
+                     BIRTH_PSGC_MUNC = PSGC_MUNC
                   ),
                by = join_by(BIRTH_NAME_REG, BIRTH_NAME_PROV, BIRTH_NAME_MUNC)
             ) %>%
             left_join(
-               y  = ohasis$ref_addr %>%
+               y  = self$corr$ref_addr %>%
                   mutate_at(
                      .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
                      ~str_squish(toupper(.))
@@ -438,28 +453,78 @@ HtsLogsheet <- R6Class(
                      HIV_SERVICE_NAME_REG  = NAME_REG,
                      HIV_SERVICE_NAME_PROV = NAME_PROV,
                      HIV_SERVICE_NAME_MUNC = NAME_MUNC,
-                     HIV_SERVICE_REG       = PSGC_REG,
-                     HIV_SERVICE_PROV      = PSGC_PROV,
-                     HIV_SERVICE_MUNC      = PSGC_MUNC
+                     HIV_SERVICE_PSGC_REG  = PSGC_REG,
+                     HIV_SERVICE_PSGC_PROV = PSGC_PROV,
+                     HIV_SERVICE_PSGC_MUNC = PSGC_MUNC
                   ),
                by = join_by(HIV_SERVICE_NAME_REG, HIV_SERVICE_NAME_PROV, HIV_SERVICE_NAME_MUNC)
             ) %>%
+            mutate(
+               CURR_PSGC        = coalesce(CURR_PSGC_MUNC, CURR_PSGC_PROV, CURR_PSGC_REG),
+               PERM_PSGC        = coalesce(PERM_PSGC_MUNC, PERM_PSGC_PROV, PERM_PSGC_REG),
+               BIRTH_PSGC       = coalesce(BIRTH_PSGC_MUNC, BIRTH_PSGC_PROV, BIRTH_PSGC_REG),
+               HIV_SERVICE_PSGC = coalesce(HIV_SERVICE_PSGC_MUNC, HIV_SERVICE_PSGC_PROV, HIV_SERVICE_PSGC_REG),
+            ) %>%
+            left_join(
+               y  = ohasis$ref_addr %>%
+                  select(
+                     PERM_PSGC = psgc_old,
+                     PERM_REG  = reg,
+                     PERM_PROV = prov,
+                     PERM_MUNC = munc
+                  ),
+               by = join_by(PERM_PSGC)
+            ) %>%
+            left_join(
+               y  = ohasis$ref_addr %>%
+                  select(
+                     CURR_PSGC = psgc_old,
+                     CURR_REG  = reg,
+                     CURR_PROV = prov,
+                     CURR_MUNC = munc
+                  ),
+               by = join_by(CURR_PSGC)
+            ) %>%
+            left_join(
+               y  = ohasis$ref_addr %>%
+                  select(
+                     BIRTH_PSGC = psgc_old,
+                     BIRTH_REG  = reg,
+                     BIRTH_PROV = prov,
+                     BIRTH_MUNC = munc
+                  ),
+               by = join_by(BIRTH_PSGC)
+            ) %>%
+            left_join(
+               y  = ohasis$ref_addr %>%
+                  select(
+                     HIV_SERVICE_PSGC = psgc_old,
+                     HIV_SERVICE_REG  = reg,
+                     HIV_SERVICE_PROV = prov,
+                     HIV_SERVICE_MUNC = munc
+                  ),
+               by = join_by(HIV_SERVICE_PSGC)
+            ) %>%
             rename(COUNTRY_NAME = NATIONALITY) %>%
-            left_join(select(ohasis$ref_country, COUNTRY_NAME = NATIONALITY, NATIONALITY = COUNTRY_CODE), join_by
+            left_join(select(ohasis$ref_country, COUNTRY_NAME = nationality, NATIONALITY = country_code), join_by
             (COUNTRY_NAME)) %>%
             rename(NATIONALITY_RAW = COUNTRY_NAME) %>%
             rename(COUNTRY_NAME = OFW_COUNTRY) %>%
-            left_join(select(ohasis$ref_country, COUNTRY_NAME, OFW_COUNTRY = COUNTRY_CODE), join_by(COUNTRY_NAME)) %>%
+            left_join(select(ohasis$ref_country, COUNTRY_NAME = country_name, OFW_COUNTRY = country_code), join_by(COUNTRY_NAME)) %>%
             rename(OFW_COUNTRY_RAW = COUNTRY_NAME) %>%
             rename(STAFF_NAME = CREATED_BY) %>%
             mutate(STAFF_NAME = str_trim(toupper(STAFF_NAME))) %>%
-            left_join(select(self$corr$staff, STAFF_NAME, CREATED_BY = USER_ID) %>% distinct(STAFF_NAME, .keep_all =
-               TRUE), join_by(STAFF_NAME)) %>%
+            left_join(select(self$corr$staff, STAFF_NAME, CREATED_BY = USER_ID) %>% distinct(STAFF_NAME,
+                                                                                             .keep_all =
+                                                                                                TRUE
+            ), join_by(STAFF_NAME)) %>%
             rename(STAFF_NAME_RAW = STAFF_NAME) %>%
             rename(STAFF_NAME = PROVIDER_ID) %>%
             mutate(STAFF_NAME = str_trim(toupper(STAFF_NAME))) %>%
-            left_join(select(self$corr$staff, STAFF_NAME, PROVIDER_ID = USER_ID) %>% distinct(STAFF_NAME, .keep_all =
-               TRUE), join_by(STAFF_NAME)) %>%
+            left_join(select(self$corr$staff, STAFF_NAME, PROVIDER_ID = USER_ID) %>% distinct(STAFF_NAME,
+                                                                                              .keep_all =
+                                                                                                 TRUE
+            ), join_by(STAFF_NAME)) %>%
             rename(PROVIDER_RAW = STAFF_NAME) %>%
             filter(!is.na(HTS_FACI)) %>%
             mutate(HTS_FACI = str_trim(HTS_FACI)) %>%
@@ -499,7 +564,6 @@ HtsLogsheet <- R6Class(
                   BIRTHDATE,
                   BIRTHDATE
                ),
-
                EDUC_LEVEL               = case_when(
                   EDUC_LEVEL == "None" ~ "1_None",
                   EDUC_LEVEL == "Elementary" ~ "2_Elementary",
@@ -527,7 +591,6 @@ HtsLogsheet <- R6Class(
                   CIVIL_STATUS == "Divorced" ~ "5_Divorced",
                   TRUE ~ CIVIL_STATUS
                ),
-
                SERVICE_TYPE             = case_when(
                   SERVICE_TYPE == "Mortality" ~ "*00001",
                   SERVICE_TYPE == "Facility-based Testing (FBT)" ~ "101101",
@@ -553,7 +616,7 @@ HtsLogsheet <- R6Class(
                   SERVICE_TYPE == "Pre-Exposure Prophylaxis (PrEP)" ~ "101301",
                   SERVICE_TYPE == "Prevention of Mother-to-Child Transmission (PMTCT)" ~ "101303",
                   SERVICE_TYPE == "Reach" ~ "101304",
-                  TRUE ~ coalesce(SERVICE_TYPE, '101304')
+                  TRUE ~ coalesce(SERVICE_TYPE, "101304")
                ),
                PROVIDER_TYPE            = case_when(
                   PROVIDER_TYPE == "Medical Technologist" ~ "1_Medical Technologist",
@@ -586,12 +649,9 @@ HtsLogsheet <- R6Class(
                   CLIENT_TYPE == "Courier" ~ "8_Courier",
                   TRUE ~ CLIENT_TYPE
                ),
-
-               FORM                     = 'HTS Form',
+               FORM                     = "HTS Form",
                VERSION                  = 2021,
-
                T0_DATE                  = RECORD_DATE,
-
                SCREEN_AGREED            = case_when(
                   SCREEN_AGREED == "Accepted HIV testing" ~ "1_Yes",
                   SCREEN_AGREED == "Accept" ~ "1_Yes",
@@ -613,7 +673,6 @@ HtsLogsheet <- R6Class(
                   toupper(NATIONALITY_RAW) == "FILIPINO" ~ "PH",
                   TRUE ~ NATIONALITY
                ),
-
                OFW_STATION              = case_when(
                   OFW_STATION == "On a ship" ~ "1_On a ship",
                   OFW_STATION == "Land" ~ "2_Land",
@@ -621,13 +680,10 @@ HtsLogsheet <- R6Class(
                   OFW_STATION == "Not applicable" ~ NA_character_,
                   TRUE ~ as.character(OFW_STATION)
                ),
-
                EXPOSE_SEX_M_AV          = if_else(!is.na(EXPOSE_SEX_M_AV_DATE), "1_Yes", NA_character_),
                EXPOSE_SEX_M_AV_NOCONDOM = if_else(!is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE), "1_Yes", NA_character_),
-
                EXPOSE_SEX_F_AV          = if_else(!is.na(EXPOSE_SEX_F_AV_DATE), "1_Yes", NA_character_),
                EXPOSE_SEX_F_AV_NOCONDOM = if_else(!is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE), "1_Yes", NA_character_),
-
                PREV_TEST_RESULT         = case_when(
                   PREV_TEST_RESULT == "Reactive" ~ "1_Reactive",
                   PREV_TEST_RESULT == "REACTIVE" ~ "1_Reactive",
@@ -643,7 +699,6 @@ HtsLogsheet <- R6Class(
                   PREV_TEST_RESULT == "Was not able to get result" ~ "4_Was not able to get result",
                   TRUE ~ PREV_TEST_RESULT
                ),
-
                CLINICAL_PIC             = case_when(
                   CLINICAL_PIC == "Asymptomatic" ~ "1_Symptomatic",
                   CLINICAL_PIC == "ASYMPTOMATIC" ~ "1_Symptomatic",
@@ -659,9 +714,7 @@ HtsLogsheet <- R6Class(
                   toupper(WHO_CLASS) == "NO PHYSICIAN TO DO STAGING" ~ NA_character_,
                   TRUE ~ WHO_CLASS
                ),
-
                TEST_REFUSE_REASON_OTHER = if_else(!is.na(TEST_REFUSE_REASON_OTHER_TEXT), "Yes", NA_character_),
-
                T0_RESULT                = case_when(
                   T0_RESULT == "NON-REACTIVE" ~ "2_Non-reactive",
                   T0_RESULT == "Non-reactive" ~ "2_Non-reactive",
@@ -724,66 +777,66 @@ HtsLogsheet <- R6Class(
          self$issues <- list(
             `categorical`        = categorical_values(
                self$data$convert, c(
-                  'SELF_IDENT',
-                  'EDUC_LEVEL',
-                  'CIVIL_STATUS',
-                  'SERVICE_TYPE',
-                  'PROVIDER_TYPE',
-                  'CLIENT_TYPE',
-                  'SCREEN_AGREED',
-                  'NATIONALITY',
-                  'OFW_STATION',
-                  'PREV_TEST_RESULT',
-                  'CLINICAL_PIC',
-                  'WHO_CLASS',
-                  'T0_RESULT',
-                  'LIVING_WITH_PARTNER',
-                  'IS_PREGNANT',
-                  'IS_EMPLOYED',
-                  'IS_STUDENT',
-                  'IS_OFW',
-                  'SIGNATURE',
-                  'VERBAL_CONSENT',
-                  'PREV_TESTED',
-                  'EXPOSE_HIV_MOTHER',
-                  'EXPOSE_SEX_M',
-                  'EXPOSE_SEX_M_AV',
-                  'EXPOSE_SEX_M_AV_NOCONDOM',
-                  'EXPOSE_SEX_F',
-                  'EXPOSE_SEX_F_AV',
-                  'EXPOSE_SEX_F_AV_NOCONDOM',
-                  'EXPOSE_SEX_PAYING',
-                  'EXPOSE_SEX_PAYMENT',
-                  'EXPOSE_SEX_DRUGS',
-                  'EXPOSE_DRUG_INJECT',
-                  'EXPOSE_BLOOD_TRANSFUSE',
-                  'EXPOSE_OCCUPATION',
-                  'TEST_REASON_HIV_EXPOSE',
-                  'TEST_REASON_PHYSICIAN',
-                  'TEST_REASON_PEER_ED',
-                  'TEST_REASON_EMPLOY_OFW',
-                  'TEST_REASON_EMPLOY_LOCAL',
-                  'TEST_REASON_TEXT_EMAIL',
-                  'TEST_REASON_INSURANCE',
-                  'MED_TB_PX',
-                  'MED_STI',
-                  'MED_HEP_B',
-                  'MED_HEP_C',
-                  'MED_PREP_PX',
-                  'MED_PEP_PX',
-                  'REACH_CLINICAL',
-                  'REACH_ONLINE',
-                  'REACH_SSNT',
-                  'REACH_VENUE',
-                  'REACH_INDEX',
-                  'REFER_ART',
-                  'REFER_CONFIRM',
-                  'SERVICE_HIV_101',
-                  'SERVICE_IEC_MATS',
-                  'SERVICE_RISK_COUNSEL',
-                  'SERVICE_PREP_REFER',
-                  'SERVICE_SSNT_OFFER',
-                  'SERVICE_SSNT_ACCEPT'
+                  "SELF_IDENT",
+                  "EDUC_LEVEL",
+                  "CIVIL_STATUS",
+                  "SERVICE_TYPE",
+                  "PROVIDER_TYPE",
+                  "CLIENT_TYPE",
+                  "SCREEN_AGREED",
+                  "NATIONALITY",
+                  "OFW_STATION",
+                  "PREV_TEST_RESULT",
+                  "CLINICAL_PIC",
+                  "WHO_CLASS",
+                  "T0_RESULT",
+                  "LIVING_WITH_PARTNER",
+                  "IS_PREGNANT",
+                  "IS_EMPLOYED",
+                  "IS_STUDENT",
+                  "IS_OFW",
+                  "SIGNATURE",
+                  "VERBAL_CONSENT",
+                  "PREV_TESTED",
+                  "EXPOSE_HIV_MOTHER",
+                  "EXPOSE_SEX_M",
+                  "EXPOSE_SEX_M_AV",
+                  "EXPOSE_SEX_M_AV_NOCONDOM",
+                  "EXPOSE_SEX_F",
+                  "EXPOSE_SEX_F_AV",
+                  "EXPOSE_SEX_F_AV_NOCONDOM",
+                  "EXPOSE_SEX_PAYING",
+                  "EXPOSE_SEX_PAYMENT",
+                  "EXPOSE_SEX_DRUGS",
+                  "EXPOSE_DRUG_INJECT",
+                  "EXPOSE_BLOOD_TRANSFUSE",
+                  "EXPOSE_OCCUPATION",
+                  "TEST_REASON_HIV_EXPOSE",
+                  "TEST_REASON_PHYSICIAN",
+                  "TEST_REASON_PEER_ED",
+                  "TEST_REASON_EMPLOY_OFW",
+                  "TEST_REASON_EMPLOY_LOCAL",
+                  "TEST_REASON_TEXT_EMAIL",
+                  "TEST_REASON_INSURANCE",
+                  "MED_TB_PX",
+                  "MED_STI",
+                  "MED_HEP_B",
+                  "MED_HEP_C",
+                  "MED_PREP_PX",
+                  "MED_PEP_PX",
+                  "REACH_CLINICAL",
+                  "REACH_ONLINE",
+                  "REACH_SSNT",
+                  "REACH_VENUE",
+                  "REACH_INDEX",
+                  "REFER_ART",
+                  "REFER_CONFIRM",
+                  "SERVICE_HIV_101",
+                  "SERVICE_IEC_MATS",
+                  "SERVICE_RISK_COUNSEL",
+                  "SERVICE_PREP_REFER",
+                  "SERVICE_SSNT_OFFER",
+                  "SERVICE_SSNT_ACCEPT"
                )
             ),
             `file-no_created_at` = self$data$raw %>%
@@ -800,7 +853,6 @@ HtsLogsheet <- R6Class(
                mutate(id = basename(id)) %>%
                distinct(HTS_FACI, FILE = id) %>%
                arrange(HTS_FACI, FILE),
-
             clean_addr           = self$data$convert %>%
                filter(is.na(PERM_REG)) %>%
                distinct(NAME_REG = PERM_NAME_REG, NAME_PROV = PERM_NAME_PROV, NAME_MUNC = PERM_NAME_MUNC) %>%
@@ -813,12 +865,13 @@ HtsLogsheet <- R6Class(
                      distinct(NAME_REG = BIRTH_NAME_REG, NAME_PROV = BIRTH_NAME_PROV, NAME_MUNC = BIRTH_NAME_MUNC),
                   self$data$convert %>%
                      filter(is.na(HIV_SERVICE_REG)) %>%
-                     distinct(NAME_REG = HIV_SERVICE_NAME_REG, NAME_PROV = HIV_SERVICE_NAME_PROV, NAME_MUNC =
-                        HIV_SERVICE_NAME_MUNC)
+                     distinct(
+                        NAME_REG = HIV_SERVICE_NAME_REG, NAME_PROV = HIV_SERVICE_NAME_PROV, NAME_MUNC =
+                           HIV_SERVICE_NAME_MUNC
+                     )
                ) %>%
                distinct() %>%
                arrange(NAME_REG, NAME_PROV, NAME_MUNC),
-
             clean_country        = self$data$convert %>%
                filter(is.na(NATIONALITY)) %>%
                distinct(COUNTRY = NATIONALITY_RAW) %>%
@@ -830,11 +883,9 @@ HtsLogsheet <- R6Class(
                distinct() %>%
                filter(!is.na(COUNTRY)) %>%
                arrange(COUNTRY),
-
             clean_faci           = self$data$convert %>%
                filter(!is.na(HTS_FACI), is.na(FACI_ID)) %>%
                distinct(HTS_FACI),
-
             clean_staff          = self$data$convert %>%
                filter(!is.na(STAFF_NAME_RAW), is.na(CREATED_BY)) %>%
                distinct(HTS_FACI, STAFF = STAFF_NAME_RAW) %>%
@@ -879,13 +930,17 @@ HtsLogsheet <- R6Class(
       },
       compareRecords = function(rec_id) {
          match_vars <- intersect(names(self$data$filtered), names(self$data$ref))
-         match_vars <- match_vars[!(match_vars %in% c("PRIME", "UPDATED_BY", "UPDATED_AT", "DELETED_BY",
-                                                      "DELETED_AT", "FORM_VERSION", "DISEASE", "HTS_MSM", "HTS_TGW",
-                                                      "SNAPSHOT", "CONFIRMATORY_CODE", "PHILHEALTH_NO", "PHILSYS_ID"))]
-         match_vars <- match_vars[!(match_vars %in% c("EXPOSE_HIV_MOTHER", "EXPOSE_SEX_M_AV_NOCONDOM",
-                                                      "EXPOSE_SEX_M_AV_NOCONDOM_DATE", "EXPOSE_SEX_F_AV_NOCONDOM",
-                                                      "EXPOSE_SEX_F_AV_NOCONDOM_DATE", "SERVICE_BY",
-                                                      "TEST_REASON_OTHER_TEXT"))]
+         match_vars <- match_vars[!(match_vars %in% c(
+            "PRIME", "UPDATED_BY", "UPDATED_AT", "DELETED_BY",
+            "DELETED_AT", "FORM_VERSION", "DISEASE", "HTS_MSM", "HTS_TGW",
+            "SNAPSHOT", "CONFIRMATORY_CODE", "PHILHEALTH_NO", "PHILSYS_ID"
+         ))]
+         match_vars <- match_vars[!(match_vars %in% c(
+            "EXPOSE_HIV_MOTHER", "EXPOSE_SEX_M_AV_NOCONDOM",
+            "EXPOSE_SEX_M_AV_NOCONDOM_DATE", "EXPOSE_SEX_F_AV_NOCONDOM",
+            "EXPOSE_SEX_F_AV_NOCONDOM_DATE", "SERVICE_BY",
+            "TEST_REASON_OTHER_TEXT"
+         ))]
          match_vars <- match_vars[!(match_vars %in% c("AGE_MO", "GENDER_AFFIRM_THERAPY", "IS_PREGNANT"))]
          self$data$filtered %>%
             filter(REC_ID == rec_id) %>%
@@ -896,7 +951,7 @@ HtsLogsheet <- R6Class(
                          mutate_all(as.character) %>%
                          mutate(type = "old", .before = 1)) %>%
             select(any_of(match_vars)) %>%
-            View('review')
+            View("review")
       }
    )
 )
@@ -926,7 +981,7 @@ file_copy(new_uploads$path, "H:/hts-imports/20241112")
 
 
 import <- HtsLogsheet$new()
-import$batchRead("H:/hts-imports/20250520")
+import$batchRead("H:/hts-imports/20250907")
 import$getExisting()
 import$getRefs()
 # import$data$raw %<>%
@@ -946,12 +1001,12 @@ import$removeBlanks()
 
 tables <- deconstruct_hts(import$data$filtered)
 long   <- c("px_test_refuse", "px_other_service", "px_reach", "px_med_profile", "px_test_reason")
-delete <- tables$px_record$data %>% select(REC_ID)
+delete <- tables$px_record$data %>% select(rec_id)
 
-db_conn <- ohasis$conn("db")
-pblapply(long, function(table) dbxDelete(db_conn, Id(schema = "ohasis_interim", table = table), delete))
+db_conn <- connect('ohasis-live')
+pblapply(long, function(table) dbxDelete(db_conn, Id(schema = "ohasis", table = table), delete))
 pblapply(tables, function(ref, db_conn) {
-   table_space <- Id(schema = "ohasis_interim", table = ref$name)
+   table_space <- Id(schema = "ohasis", table = ref$name)
    dbxUpsert(db_conn, table_space, ref$data, ref$pk)
    # dbExecute(db_conn, glue("DELETE FROM ohasis_interim.{ref$name} WHERE REC_ID IN (?)"), params = list(unique
    # (ref$data$REC_ID)))
