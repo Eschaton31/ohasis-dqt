@@ -228,12 +228,12 @@ dedup_prep <- function(
 upload_dupes <- function(data) {
    db_conn <- dbConnect(
       RMariaDB::MariaDB(),
-      user     = 'ohasis',
+      user     = 'root',
       password = 't1rh0uGCyN2sz6zk',
-      host     = '192.168.193.232',
-      port     = '3307',
+      host     = '192.168.193.22',
+      port     = '3306',
       timeout  = -1,
-      'ohasis_interim'
+      'ohasis'
    )
 
    pb <- progress_bar$new(format = ":current of :total PIDs | [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed", total = nrow(data), width = 100, clear = FALSE)
@@ -246,21 +246,21 @@ upload_dupes <- function(data) {
       num_pid  <- nrow(
          dbGetQuery(
             db_conn,
-            "SELECT * FROM ohasis_interim.registry WHERE PATIENT_ID = ?",
+            "SELECT * FROM ohasis.registry WHERE patient_id = ?",
             params = pid
          )
       )
       num_cid  <- nrow(
          dbGetQuery(
             db_conn,
-            "SELECT * FROM ohasis_interim.registry WHERE CENTRAL_ID = ?",
+            "SELECT * FROM ohasis.registry WHERE central_id = ?",
             params = pid
          )
       )
       num_pcid <- nrow(
          dbGetQuery(
             db_conn,
-            "SELECT * FROM ohasis_interim.registry WHERE PATIENT_ID = ?",
+            "SELECT * FROM ohasis.registry WHERE patient_id = ?",
             params = cid
          )
       )
@@ -268,7 +268,7 @@ upload_dupes <- function(data) {
       if (num_pcid == 0) {
          dbExecute(
             db_conn,
-            "INSERT IGNORE INTO ohasis_interim.registry (CENTRAL_ID, PATIENT_ID, CREATED_BY, CREATED_AT) VALUES (?, ?, ?, ?);",
+            "INSERT IGNORE INTO ohasis.registry (central_id, patient_id, created_by, created_at) VALUES (?, ?, ?, ?);",
             params = list(cid, cid, Sys.getenv("OH_USER_ID"), ts)
          )
       }
@@ -276,13 +276,13 @@ upload_dupes <- function(data) {
       if (num_pid == 0) {
          dbExecute(
             db_conn,
-            "INSERT IGNORE INTO ohasis_interim.registry (CENTRAL_ID, PATIENT_ID, CREATED_BY, CREATED_AT) VALUES (?, ?, ?, ?);",
+            "INSERT IGNORE INTO ohasis.registry (central_id, patient_id, created_by, created_at) VALUES (?, ?, ?, ?);",
             params = list(cid, pid, Sys.getenv("OH_USER_ID"), ts)
          )
       } else {
          dbExecute(
             db_conn,
-            "UPDATE ohasis_interim.registry SET CENTRAL_ID = ?, UPDATED_BY = ?, UPDATED_AT = ? WHERE PATIENT_ID = ?;",
+            "UPDATE ohasis.registry SET central_id = ?, updated_by = ?, updated_at = ? WHERE patient_id = ?;",
             params = list(cid, Sys.getenv("OH_USER_ID"), ts, pid)
          )
       }
@@ -290,7 +290,7 @@ upload_dupes <- function(data) {
       if (num_cid > 0) {
          dbExecute(
             db_conn,
-            "UPDATE ohasis_interim.registry SET CENTRAL_ID = ?, UPDATED_BY = ?, UPDATED_AT = ? WHERE CENTRAL_ID = ?;",
+            "UPDATE ohasis.registry SET central_id = ?, updated_by = ?, updated_at = ? WHERE central_id = ?;",
             params = list(cid, Sys.getenv("OH_USER_ID"), ts, pid)
          )
       }
