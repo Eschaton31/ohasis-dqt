@@ -975,3 +975,521 @@ deconstruct_art <- function(forms, dispense = NULL, discontinue = NULL) {
    log_success("Done!")
    return(schema)
 }
+
+deconstruct_vl <- function(forms, dispense = NULL, discontinue = NULL) {
+   tables <- c(
+      "px_record",
+      "px_pii",
+      "px_labs"
+   )
+
+   forms %<>%
+      select(-any_of(c('branch', 'Branch'))) %>%
+      rename_all(tolower) %>%
+      mutate_at(
+         .vars = vars(any_of(c(
+            'sex',
+            'self_ident',
+            'civil_status',
+            'educ_level',
+            'client_type',
+            'is_pregnant',
+            'who_class',
+            'visit_type',
+            'tb_screen',
+            'tb_ipt_status',
+            'tx_status',
+            'client_type'
+         ))),
+         ~keep_code(.)
+      ) %>%
+      mutate(
+         client_mobile = str_replace_all(client_mobile, "[^[:digit:]]", ""),
+         client_mobile = case_when(
+            str_left(client_mobile, 1) == "9" ~ stri_c("0", client_mobile),
+            str_left(client_mobile, 2) == "63" ~ str_replace(client_mobile, "^63", "0"),
+            TRUE ~ client_mobile
+         ),
+         birthdate     = as.character(birthdate)
+      )
+
+   conn <- ohasis$conn("db")
+
+   # primary keys
+   log_info("Obtaining {green('Primary Keys')}.")
+   pks        <- lapply(tables, function(table) dbGetQuery(conn, glue("show keys from ohasis.{table} where Key_name = 'primary'")))
+   pks        <- lapply(pks, function(data) return(data$Column_name))
+   names(pks) <- tables
+
+
+   # columns
+   log_info("Obtaining {green('Column Names')}.")
+   cols        <- lapply(tables, function(table) dbGetQuery(conn, glue("show columns from ohasis.{table}")))
+   cols        <- lapply(cols, function(data) return(data$Field))
+   names(cols) <- tables
+
+   dbDisconnect(conn)
+
+   log_info("Creating tables using obtained schema.")
+   data        <- lapply(tables, function(table, data, cols) {
+      col_need      <- cols[[table]]
+      col_not_found <- setdiff(col_need, names(data))
+
+      schema <- data %>%
+         mutate(
+            !!!setNames(rep(NA_character_, length(col_not_found)), col_not_found)
+         ) %>%
+         select(any_of(col_need)) %>%
+         distinct()
+
+      return(schema)
+   }, data = forms, cols = cols)
+   names(data) <- tables
+
+   log_info("Manually creating long tables.")
+   data$px_labs <- forms %>%
+      select(
+         rec_id,
+         created_at,
+         created_by,
+         updated_at,
+         updated_by,
+         starts_with("lab"),
+      ) %>%
+      mutate(
+         lab_viral_date = as.character(lab_viral_date)
+      ) %>%
+      pivot_longer(
+         cols      = starts_with("lab"),
+         names_to  = "lab_data",
+         values_to = "lab_value"
+      ) %>%
+      mutate(
+         lab_test = substr(lab_data, 5, stri_locate_last_fixed(lab_data, "_") - 1),
+         piece    = substr(lab_data, stri_locate_last_fixed(lab_data, "_") + 1, 1000),
+      ) %>%
+      mutate(
+         lab_test = case_when(
+            lab_test == "hbsag" ~ "1",
+            lab_test == "crea" ~ "2",
+            lab_test == "syph" ~ "3",
+            lab_test == "vl" ~ "4",
+            lab_test == "viral" ~ "4",
+            lab_test == "cd4" ~ "5",
+            lab_test == "xray" ~ "6",
+            lab_test == "xpert" ~ "7",
+            lab_test == "dssm" ~ "8",
+            lab_test == "hivdr" ~ "9",
+            lab_test == "hemo" ~ "10",
+            lab_test == "hemog" ~ "10",
+            TRUE ~ lab_test
+         )
+      ) %>%
+      distinct(rec_id, created_at, created_by, lab_test, piece, .keep_all = TRUE) %>%
+      pivot_wider(
+         id_cols      = c(rec_id, created_at, created_by, lab_test),
+         names_from   = piece,
+         values_from  = lab_value,
+         names_prefix = "lab_"
+      ) %>%
+      filter(!is.na(lab_date) | !is.na(lab_result)) %>%
+      arrange(rec_id, lab_test) %>%
+      mutate(
+         lab_date = as.Date(parse_date_time(lab_date, c("Ymd", "mdY"))),
+      )
+
+   log_info("Finalizing upload schema.")
+   schema <- list()
+   for (table in tables) {
+      schema[[table]] <- list(
+         name = table,
+         pk   = pks[[table]],
+         data = data[[table]]
+      )
+   }
+
+   log_success("Done!")
+   return(schema)
+}
+
+deconstruct_prep <- function(forms) {
+   tables <- c(
+      "px_record",
+      "px_pii",
+      "px_profile",
+      "px_service",
+      "px_expose_hist",
+      "px_expose_profile",
+      "px_occupation",
+      "px_key_pop",
+      "px_remarks",
+      "px_labs",
+      "px_vitals",
+      "px_ars_sx",
+      "px_sti_sx",
+      "px_prep",
+      "px_prep_status",
+      "px_prep_checklist",
+      "px_prep_finance",
+      "px_prep_refuse",
+      "px_medicine"
+   )
+
+   forms %<>%
+      select(-any_of(c('branch', 'Branch'))) %>%
+      rename_all(tolower) %>%
+      mutate_at(
+         .vars = vars(any_of(c(
+            'sex',
+            'self_ident'
+         ))),
+         ~keep_code(.)
+      ) %>%
+      mutate(
+         client_mobile = str_replace_all(client_mobile, "[^[:digit:]]", ""),
+         client_mobile = case_when(
+            str_left(client_mobile, 1) == "9" ~ stri_c("0", client_mobile),
+            str_left(client_mobile, 2) == "63" ~ str_replace(client_mobile, "^63", "0"),
+            TRUE ~ client_mobile
+         ),
+         birthdate     = as.character(birthdate)
+      )
+
+   conn <- ohasis$conn("db")
+
+   # primary keys
+   log_info("Obtaining {green('Primary Keys')}.")
+   pks        <- lapply(tables, function(table) dbGetQuery(conn, glue("show keys from ohasis.{table} where Key_name = 'primary'")))
+   pks        <- lapply(pks, function(data) return(data$Column_name))
+   names(pks) <- tables
+
+
+   # columns
+   log_info("Obtaining {green('Column Names')}.")
+   cols        <- lapply(tables, function(table) dbGetQuery(conn, glue("show columns from ohasis.{table}")))
+   cols        <- lapply(cols, function(data) return(data$Field))
+   names(cols) <- tables
+
+   dbDisconnect(conn)
+
+   log_info("Creating tables using obtained schema.")
+   data        <- lapply(tables, function(table, data, cols) {
+      col_need      <- cols[[table]]
+      col_not_found <- setdiff(col_need, names(data))
+
+      schema <- data %>%
+         mutate(
+            !!!setNames(rep(NA_character_, length(col_not_found)), col_not_found)
+         ) %>%
+         select(any_of(col_need)) %>%
+         distinct()
+
+      return(schema)
+   }, data = forms, cols = cols)
+   names(data) <- tables
+
+   log_info("Manually creating long tables.")
+   data$px_labs <- forms %>%
+      select(
+         rec_id,
+         created_at,
+         created_by,
+         updated_at,
+         updated_by,
+         starts_with("lab"),
+      ) %>%
+      mutate_all(as.character) %>%
+      pivot_longer(
+         cols      = starts_with("lab"),
+         names_to  = "lab_data",
+         values_to = "lab_value"
+      ) %>%
+      mutate(
+         lab_test = substr(lab_data, 5, stri_locate_last_fixed(lab_data, "_") - 1),
+         piece    = substr(lab_data, stri_locate_last_fixed(lab_data, "_") + 1, 1000),
+      ) %>%
+      mutate(
+         lab_test = case_when(
+            lab_test == "hbsag" ~ "1",
+            lab_test == "crea" ~ "2",
+            lab_test == "syph" ~ "3",
+            lab_test == "vl" ~ "4",
+            lab_test == "viral" ~ "4",
+            lab_test == "cd4" ~ "5",
+            lab_test == "xray" ~ "6",
+            lab_test == "xpert" ~ "7",
+            lab_test == "dssm" ~ "8",
+            lab_test == "hivdr" ~ "9",
+            lab_test == "hemo" ~ "10",
+            lab_test == "hemog" ~ "10",
+            TRUE ~ lab_test
+         )
+      ) %>%
+      distinct(rec_id, created_at, created_by, lab_test, piece, .keep_all = TRUE) %>%
+      pivot_wider(
+         id_cols      = c(rec_id, created_at, created_by, lab_test),
+         names_from   = piece,
+         values_from  = lab_value,
+         names_prefix = "lab_"
+      ) %>%
+      filter(!is.na(lab_date) | !is.na(lab_result)) %>%
+      arrange(rec_id, lab_test) %>%
+      mutate(
+         lab_date = as.Date(parse_date_time(lab_date, c("Ymd", "mdY"))),
+      )
+
+   data$px_key_pop <- forms %>%
+      select(
+         rec_id,
+         created_at,
+         created_by,
+         updated_at,
+         updated_by,
+         starts_with("kp_"),
+      ) %>%
+      rename_all(
+         ~case_when(
+            . == "kp_pdl" ~ "is_kp_1",
+            . == "kp_tg" ~ "is_kp_2",
+            . == "kp_pwid" ~ "is_kp_3",
+            . == "kp_msm" ~ "is_kp_5",
+            . == "kp_sw" ~ "is_kp_6",
+            . == "kp_ofw" ~ "is_kp_7",
+            . == "kp_partner" ~ "is_kp_8",
+            . == "kp_other" ~ "is_kp_8888",
+            TRUE ~ .
+         )
+      ) %>%
+      pivot_longer(
+         cols      = contains("kp"),
+         names_to  = "kp",
+         values_to = "is_kp"
+      ) %>%
+      mutate(
+         kp = stri_replace_all_fixed(kp, "is_kp_", ""),
+      )
+
+   data$px_expose_hist <- forms %>%
+      select(
+         rec_id,
+         created_at,
+         created_by,
+         updated_by,
+         updated_at,
+         contains("risk"),
+      ) %>%
+      pivot_longer(
+         cols      = starts_with("risk_"),
+         names_to  = "exposure",
+         values_to = "expose_value"
+      ) %>%
+      mutate(
+         exposure         = str_replace(exposure, "^risk_", ""),
+         exposure         = case_when(
+            exposure == "condomless_anal" ~ "261200",
+            exposure == "condomless_vaginal" ~ "262200",
+            exposure == "drug_inject" ~ "311010",
+            exposure == "drug_sex" ~ "330000",
+            exposure == "transact_sex" ~ "200030",
+            exposure == "hiv_vl_unknown" ~ "200001",
+            exposure == "hiv_unknown" ~ "230000",
+            exposure == "sti" ~ "400000",
+            exposure == "pep" ~ "320002",
+            TRUE ~ exposure
+         ),
+         is_exposed       = case_when(
+            expose_value == "4_Yes, within the past 30 days" ~ "1",
+            expose_value == "3_Yes, within the past 6 months" ~ "1",
+            expose_value == "2_Yes" ~ "1",
+            expose_value == "0_No" ~ "0",
+         ),
+         type_last_expose = case_when(
+            expose_value == "4_Yes, within the past 30 days" ~ "1",
+            expose_value == "3_Yes, within the past 6 months" ~ "3",
+            expose_value == "2_Yes" ~ "0",
+         )
+      ) %>%
+      select(-expose_value)
+
+   data$px_vitals <- forms %>%
+      mutate(
+         body_temp = NA_character_
+      ) %>%
+      select(
+         rec_id,
+         created_by,
+         created_at,
+         updated_by,
+         updated_at,
+         weight,
+         body_temp
+      ) %>%
+      pivot_longer(
+         names_to  = "vital_sign",
+         cols      = c(weight, body_temp),
+         values_to = "vital_result"
+      ) %>%
+      mutate(
+         vital_sign = case_when(
+            vital_sign == "weight" ~ "2",
+            vital_sign == "body_temp" ~ "3",
+            TRUE ~ vital_sign
+         )
+      )
+
+   data$px_ars_sx <- forms %>%
+      select(
+         rec_id,
+         created_by,
+         created_at,
+         updated_by,
+         updated_at,
+         starts_with("ars_sx_")
+      ) %>%
+      distinct() %>%
+      pivot_longer(
+         cols      = starts_with("ars_sx_"),
+         names_to  = "ars_symptom",
+         values_to = "symptom_value"
+      ) %>%
+      mutate(
+         symptom_data = if_else(str_detect(ars_symptom, "_text"), "symptom_other", "is_symptom"),
+         ars_symptom  = str_replace(ars_symptom, "^expose_", ""),
+         ars_symptom  = str_replace(ars_symptom, "_text$", ""),
+
+         ars_symptom  = case_when(
+            ars_symptom == "ars_sx_fever" ~ "1",
+            ars_symptom == "ars_sx_sore_throat" ~ "2",
+            ars_symptom == "ars_sx_diarrhea" ~ "3",
+            ars_symptom == "ars_sx_swollen_lymph" ~ "4",
+            ars_symptom == "ars_sx_swollen_tonsils" ~ "5",
+            ars_symptom == "ars_sx_rash" ~ "6",
+            ars_symptom == "ars_sx_muscle_pains" ~ "7",
+            ars_symptom == "ars_sx_other" ~ "8888",
+            ars_symptom == "ars_sx_other_text" ~ "8888",
+            ars_symptom == "ars_sx_none" ~ "9999",
+            TRUE ~ ars_symptom
+         ),
+      ) %>%
+      distinct(rec_id, symptom_data, ars_symptom, .keep_all = TRUE) %>%
+      pivot_wider(
+         names_from  = symptom_data,
+         values_from = symptom_value,
+      ) %>%
+      mutate(
+         is_symptom = keep_code(is_symptom),
+         is_symptom = coalesce(is_symptom, "0"),
+      )
+
+   data$px_sti_sx <- forms %>%
+      select(
+         rec_id,
+         created_by,
+         created_at,
+         updated_by,
+         updated_at,
+         starts_with("sti_sx_")
+      ) %>%
+      distinct() %>%
+      pivot_longer(
+         cols      = starts_with("sti_sx_"),
+         names_to  = "sti_symptom",
+         values_to = "symptom_value"
+      ) %>%
+      mutate(
+         symptom_data = if_else(str_detect(sti_symptom, "_text"), "symptom_other", "is_symptom"),
+         sti_symptom  = str_replace(sti_symptom, "^expose_", ""),
+         sti_symptom  = str_replace(sti_symptom, "_text$", ""),
+
+         sti_symptom  = case_when(
+            sti_symptom == "sti_sx_discharge_vaginal" ~ "1",
+            sti_symptom == "sti_sx_discharge_anal" ~ "2",
+            sti_symptom == "sti_sx_discharge_urethral" ~ "3",
+            sti_symptom == "sti_sx_swollen_scrotum" ~ "4",
+            sti_symptom == "sti_sx_pain_urine" ~ "5",
+            sti_symptom == "sti_sx_ulcer_genital" ~ "6",
+            sti_symptom == "sti_sx_ulcer_oral" ~ "7",
+            sti_symptom == "sti_sx_warts_genital" ~ "8",
+            sti_symptom == "sti_sx_pain_abdomen" ~ "9",
+            sti_symptom == "sti_sx_other" ~ "8888",
+            sti_symptom == "sti_sx_other_text" ~ "8888",
+            sti_symptom == "sti_sx_none" ~ "9999",
+            TRUE ~ sti_symptom
+         ),
+      ) %>%
+      pivot_wider(
+         names_from  = symptom_data,
+         values_from = symptom_value,
+      ) %>%
+      mutate(
+         is_symptom = keep_code(is_symptom),
+         is_symptom = coalesce(is_symptom, "0"),
+      )
+
+   data$px_prep_checklist <- forms %>%
+      select(
+         rec_id,
+         created_by,
+         created_at,
+         updated_by,
+         updated_at,
+         starts_with("pre_init_")
+      ) %>%
+      rename_all(
+         ~case_when(
+            . == "pre_init_hiv_nr" ~ "is_checked_1",
+            . == "pre_init_weight" ~ "is_checked_2",
+            . == "pre_init_no_ars" ~ "is_checked_3",
+            . == "pre_init_crea_clear" ~ "is_checked_4",
+            . == "pre_init_no_arv_allergy" ~ "is_checked_5",
+            TRUE ~ .
+         )
+      ) %>%
+      pivot_longer(
+         cols      = contains("checked"),
+         names_to  = "requirement",
+         values_to = "is_checked"
+      ) %>%
+      mutate(
+         requirement = stri_replace_all_fixed(requirement, "is_checked_", ""),
+         is_checked  = keep_code(is_checked),
+      )
+
+   data$px_medicine <- forms %>%
+      mutate(
+         per_day         = 1,
+         disp_num        = 1,
+         medicine        = if_else(!is.na(medicine_summary), "2028", NA_character_),
+         medicine_missed = NA_character_,
+         next_date       = disp_date %m+% days(disp_total * 30),
+         unit_basis      = 1,
+      ) %>%
+      filter(!is.na(medicine_summary)) %>%
+      select(
+         rec_id,
+         faci_id,
+         sub_faci_id,
+         medicine,
+         disp_num,
+         unit_basis,
+         per_day,
+         disp_total,
+         medicine_left,
+         medicine_missed,
+         disp_date,
+         next_date
+      )
+
+   log_info("Finalizing upload schema.")
+   schema <- list()
+   for (table in tables) {
+      schema[[table]] <- list(
+         name = table,
+         pk   = pks[[table]],
+         data = data[[table]]
+      )
+   }
+
+   log_success("Done!")
+   return(schema)
+}
