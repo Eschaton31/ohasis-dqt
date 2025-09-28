@@ -74,14 +74,14 @@ update_first_last_prep <- function(update, params, path_to_sql) {
       !is.null(update) && update %in% c("1", "2"),
       update,
       input(
-         prompt  = glue("Do you want to re-process the {green('ART Start & Latest Dates')}?"),
+         prompt  = glue("Do you want to re-process the {green('PrEP Start & Latest Dates')}?"),
          options = c("1" = "Yes", "2" = "No"),
          default = "1"
       )
    )
    # if Yes, re-process
    if (update == "1") {
-      lw_conn <- ohasis$conn("lw")
+      lw_conn <- connect('ohasis-lw')
       db_name <- "ohasis_warehouse"
 
       # download the data
@@ -99,13 +99,13 @@ update_first_last_prep <- function(update, params, path_to_sql) {
          # update lake
          table_space <- Id(schema = db_name, table = scope)
          if (dbExistsTable(lw_conn, table_space))
-            dbRemoveTable(lw_conn, table_space)
+            dbExecute(lw_conn, glue(r"(TRUNCATE `{db_name}`.`{scope}`;)"))
+         # dbRemoveTable(lw_conn, table_space)
 
          dbExecute(
             lw_conn,
-            glue(r"(CREATE TABLE {db_name}.{scope} AS )",
-                 read_file(file.path(path_to_sql, glue("{scope}.sql")))),
-            params = as.character(params$max)
+            glue(r"(INSERT INTO {db_name}.{scope} )",
+                 stri_replace_all_fixed(read_file(file.path(path_to_sql, glue("{scope}.sql"))), "?", glue("'{as.character(params$max)}'"))),
          )
       }
       log_success("Done!")
@@ -128,51 +128,76 @@ update_prep_rec_link <- function(update, path_to_sql) {
    if (update == "1") {
       db_conn    <- ohasis$conn("db")
       delete_sql <- r"(
-      DELETE ohasis_interim.rec_link
-      FROM ohasis_interim.rec_link
-               LEFT JOIN ohasis_interim.px_record
-                         ON rec_link.{replace} = px_record.REC_ID
-      WHERE px_record.DELETED_AT IS NOT NULL;
+      DELETE ohasis.rec_link
+      FROM ohasis.rec_link
+               LEFT JOIN ohasis.px_record
+                         ON rec_link.{replace} collate utf8mb4_unicode_ci = px_record.rec_id
+      WHERE px_record.deleted_at IS NOT NULL;
       )"
-      dbExecute(db_conn, stri_replace_all_fixed(delete_sql, "{replace}", "DESTINATION_REC"))
-      dbExecute(db_conn, stri_replace_all_fixed(delete_sql, "{replace}", "SOURCE_REC"))
+      dbExecute(db_conn, stri_replace_all_fixed(delete_sql, "{replace}", "destination_rec"))
+      dbExecute(db_conn, stri_replace_all_fixed(delete_sql, "{replace}", "source_rec"))
       dbDisconnect(db_conn)
       # refresh once to remove deleted records from live; figure out upsert in
       # future processing
-      ohasis$data_factory("warehouse", "rec_link", "refresh", TRUE)
+      # ohasis$data_factory("warehouse", "rec_link", "refresh", TRUE)
 
-      lw_conn     <- ohasis$conn("lw")
-      nolink_hts  <- tracked_select(lw_conn, read_file(file.path(path_to_sql, "nolink_hts.sql")), "Non-linked HTS")
-      nolink_prep <- tracked_select(lw_conn, read_file(file.path(path_to_sql, "nolink_prep.sql")), "Non-linked PrEP")
+      lw_conn     <- connect('mariadb-lw')
+      nolink_hts  <- QB$new(lw_conn)$
+         from('ohasis_lake.px_demographics as pii')$
+         leftJoin('ohasis_lake.px_hiv_testing as test', 'pii.rec_id', '=', 'test.rec_id')$
+         leftJoin('ohasis_lake.px_hiv_confirmatory as conf', 'pii.rec_id', '=', 'conf.rec_id')$
+         select(rec_id, patient_id, record_date, form_id)$
+         whereRaw("pii.rec_id not in (select source_rec from ohasis_lake.rec_link)")$
+         whereRaw("left(coalesce(nullif(nullif(conf.confirm_result, '4_Pending'), '5_Duplicate'), test.t3_result, test.t2_result, test.t1_result, test.t0_result, ''), 1) <> '1'")$
+         whereNull("pii.deleted_at")$
+         whereIn('pii.form_id', c('hts2021', 'a2017', 'cfbs2020'))$
+         get()
+      nolink_prep <- QB$new(lw_conn)$
+         from('ohasis_warehouse.form_prep')$
+         select(rec_id, patient_id, record_date, form_id)$
+         whereRaw("rec_id not in (select destination_rec from ohasis_lake.rec_link)")$
+         whereNull("deleted_at")$
+         get()
       dbDisconnect(lw_conn)
 
+      idreg <- update_idreg()
+
       df <- nolink_prep %>%
+         get_cid(idreg, patient_id) %>%
+         rename(
+            prep_rec  = rec_id,
+            prep_date = record_date
+         ) %>%
          mutate(
-            HTS_PREP_BEFORE = PREP_DATE %m-% days(7),
-            HTS_PREP_AFTER  = PREP_DATE %m+% days(7),
+            hts_prep_before = prep_date %m-% days(7),
+            hts_prep_after  = prep_date %m+% days(7),
          ) %>%
          left_join(
-            y  = nolink_hts,
-            by = join_by(CENTRAL_ID, between(y$HTS_DATE, x$HTS_PREP_BEFORE, x$HTS_PREP_AFTER))
+            y  = nolink_hts %>%
+               get_cid(idreg, patient_id) %>%
+               rename(
+                  hts_rec  = rec_id,
+                  hts_date = record_date
+               ),
+            by = join_by(central_id, between(y$hts_date, x$hts_prep_before, x$hts_prep_after))
          ) %>%
          mutate(
-            HTS_PREP_DIFF = abs(interval(HTS_DATE, PREP_DATE) / days(1))
+            hts_prep_diff = abs(interval(hts_date, prep_date) / days(1))
          ) %>%
-         filter(HTS_PREP_DIFF <= 7) %>%
-         arrange(PREP_REC, HTS_PREP_DIFF) %>%
-         distinct(PREP_REC, .keep_all = TRUE) %>%
+         filter(hts_prep_diff <= 7) %>%
+         arrange(prep_rec, hts_prep_diff) %>%
+         distinct(prep_rec, .keep_all = TRUE) %>%
          select(
-            SOURCE_REC      = HTS_REC,
-            DESTINATION_REC = PREP_REC,
+            source_rec      = hts_rec,
+            destination_rec = prep_rec,
          ) %>%
          mutate(
-            PRIME      = NA_character_,
-            CREATED_BY = '1300000001',
-            CREATED_AT = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
-            UPDATED_BY = NA_character_,
-            UPDATED_AT = NA_character_,
-            DELETED_BY = NA_character_,
-            DELETED_AT = NA_character_,
+            created_by = '1300000001',
+            created_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+            updated_by = NA_character_,
+            updated_at = NA_character_,
+            deleted_by = NA_character_,
+            deleted_at = NA_character_,
          )
 
       if (nrow(df) > 0) {
@@ -180,14 +205,14 @@ update_prep_rec_link <- function(update, path_to_sql) {
          db_conn <- ohasis$conn("db")
          dbxUpsert(
             db_conn,
-            Id(schema = "ohasis_interim", table = "rec_link"),
+            Id(schema = "ohasis", table = "rec_link"),
             df,
-            c("SOURCE_REC", "DESTINATION_REC")
+            'source_rec'
          )
          dbDisconnect(db_conn)
 
          # refresh again to get new data
-         ohasis$data_factory("warehouse", "rec_link", "refresh", TRUE)
+         # ohasis$data_factory("warehouse", "rec_link", "refresh", TRUE)
       }
       log_info(r"(Total New Linkage: {green(nrow(df))} rows.)")
    }
@@ -266,70 +291,131 @@ update_initiation <- function(update, params, path_to_sql) {
 ##  Download records -----------------------------------------------------------
 
 download_tables <- function(params) {
-   lw_conn <- ohasis$conn("lw")
+   lw_conn <- connect('mariadb-lw')
    forms   <- list()
 
    min       <- params$min
    max       <- params$max
    db_name   <- "ohasis_warehouse"
    hts_where <- r"(
-   REC_ID IN (SELECT SOURCE_REC FROM ohasis_warehouse.rec_link) OR
-      REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.prep_offer)
+   pii.rec_id in (select source_rec from ohasis_lake.rec_link) or
+      pii.rec_id in (select rec_id from ohasis_warehouse.prep_offer)
    )"
 
    log_info("Downloading {green('Central IDs')}.")
    # forms$id_registry <- dbTable(lw_conn, db_name, "id_registry", cols = c("CENTRAL_ID", "PATIENT_ID"))
-   forms$id_registry <- update_idreg() %>% select(CENTRAL_ID, PATIENT_ID)
+   forms$id_registry <- update_idreg() %>% select(central_id, patient_id)
 
    log_info("Downloading {green('Form A')}.")
-   forms$form_a <- dbTable(lw_conn, db_name, "form_a", where = hts_where, raw_where = TRUE)
+   forms$form_a <- QB$new(lw_conn)$
+      from('ohasis_warehouse.form_a as pii')$
+      whereRaw(hts_where)$
+      get()
 
    log_info("Downloading {green('HTS Form')}.")
-   forms$form_hts <- dbTable(lw_conn, db_name, "form_hts", where = hts_where, raw_where = TRUE)
+   forms$form_hts <- QB$new(lw_conn)$
+      from('ohasis_warehouse.form_hts as pii')$
+      whereRaw(hts_where)$
+      get()
 
    log_info("Downloading {green('CFBS Form')}.")
-   forms$form_cfbs <- dbTable(lw_conn, db_name, "form_cfbs", where = hts_where, raw_where = TRUE)
+   forms$form_cfbs <- QB$new(lw_conn)$
+      from('ohasis_warehouse.form_cfbs as pii')$
+      whereRaw(hts_where)$
+      get()
+
+   log_info("Downloading {green('Testing')}.")
+   forms$testing <- QB$new(lw_conn)$
+      from('ohasis_lake.px_demographics as pii')$
+      leftJoin('ohasis_lake.px_hiv_testing as test', 'pii.rec_id', '=', 'test.rec_id')$
+      leftJoin('ohasis_lake.px_hiv_confirmatory as confirmatory', 'pii.rec_id', '=', 'confirmatory.rec_id')$
+      leftJoin('ohasis_lake.id_registry as id', 'pii.patient_id', '=', 'id.patient_id')$
+      selectRaw("coalesce(id.central_id, pii.patient_id) as central_id")$
+      select('pii.rec_id',
+             'pii.patient_id',
+             'pii.faci_id',
+             'pii.sub_faci_id',
+             'pii.record_date',
+             'pii.confirmatory_code',
+             'pii.uic',
+             'pii.philhealth_no',
+             'pii.sex',
+             'pii.birthdate',
+             'pii.patient_code',
+             'pii.philsys_id',
+             'pii.first',
+             'pii.middle',
+             'pii.last',
+             'pii.suffix',
+             'test.t0_date',
+             'test.t0_result',
+             'test.t1_kit',
+             'test.t1_date',
+             'test.t1_result',
+             'test.t2_kit',
+             'test.t2_date',
+             'test.t2_result',
+             'test.t3_kit',
+             'test.t3_date',
+             'test.t3_result',
+             'confirmatory.confirm_faci',
+             'confirmatory.confirm_sub_faci',
+             'confirmatory.confirm_type',
+             'confirmatory.confirm_code',
+             'confirmatory.specimen_refer_type',
+             'confirmatory.specimen_source',
+             'confirmatory.specimen_sub_source',
+             'confirmatory.date_collect',
+             'confirmatory.date_receive',
+             'confirmatory.confirm_result',
+             'confirmatory.confirm_remarks',
+             'confirmatory.signatory_1',
+             'confirmatory.signatory_2',
+             'confirmatory.signatory_3',
+             'confirmatory.date_release',
+             'confirmatory.date_confirm',
+             'confirmatory.idnum',
+             'confirmatory.rt_agreed',
+             'confirmatory.rt_date',
+             'confirmatory.rt_result',
+             'confirmatory.rt_kit',
+             'confirmatory.rt_vl_requested',
+             'confirmatory.rt_vl_done',
+             'confirmatory.rt_vl_date',
+             'confirmatory.rt_vl_result',
+             'confirmatory.rita_result',
+             'pii.created_by',
+             'pii.created_at',
+             'pii.updated_by',
+             'pii.updated_at',
+             'pii.deleted_by',
+             'pii.deleted_at')$
+      whereRaw(hts_where)$
+      get()
 
    log_info("Processing {green('HTS Data')}.")
-   forms$hts_data <- process_hts(forms$form_hts, forms$form_a, forms$form_cfbs)
+   forms$hts_data <- process_hts(forms$form_hts, forms$form_a, forms$form_cfbs, forms$testing)
 
    log_info("Downloading {green('Record Links')}.")
-   forms$rec_link <- lw_conn %>%
-      dbTable(
-         db_name,
-         "rec_link",
-         raw_where = TRUE,
-         where     = r"(
-               (DESTINATION_REC IN (SELECT REC_ID FROM ohasis_warehouse.prep_first)) OR
-                  (DESTINATION_REC IN (SELECT REC_ID FROM ohasis_warehouse.prepdisp_first)) OR
-                  (DESTINATION_REC IN (SELECT REC_ID FROM ohasis_warehouse.prep_last)) OR
-                  (DESTINATION_REC IN (SELECT REC_ID FROM ohasis_warehouse.prepdisp_last)) OR
-                  (DESTINATION_REC IN (SELECT REC_ID FROM ohasis_warehouse.prep_init_p12m))
-               )"
-      )
+   forms$rec_link <- QB$new(lw_conn)$from('ohasis_lake.rec_link')$get()
 
    log_info("Downloading {green('PrEP Visits w/in the scope')}.")
-   forms$form_prep <- lw_conn %>%
-      dbTable(
-         db_name,
-         "form_prep",
-         where     = glue("
-            (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.prep_first)) OR
-               (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.prepdisp_first)) OR
-               (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.prepdisp_last)) OR
-               (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.prepdisc_last)) OR
-               (REC_ID IN (SELECT REC_ID FROM ohasis_warehouse.prep_last))"),
-         raw_where = TRUE
-      )
+   recs <- QB$new(lw_conn)$from("ohasis_warehouse.form_prep")
+   recs$where(function(query = QB$new(lw_conn)) {
+      query$whereRaw("rec_id in (select rec_id from ohasis_warehouse.prep_first)", "or")
+      query$whereRaw("rec_id in (select rec_id from ohasis_warehouse.prepdisp_first)", "or")
+      query$whereRaw("rec_id in (select rec_id from ohasis_warehouse.prepdisp_last)", "or")
+      query$whereRaw("rec_id in (select rec_id from ohasis_warehouse.prepdisc_last)", "or")
+      query$whereRaw("rec_id in (select rec_id from ohasis_warehouse.prep_last)", "or")
+      query$whereNested
+   })
+   recs$whereNull('deleted_at')
+
+   forms$form_prep <- recs$get()
 
    log_info("Downloading {green('PrEP First Offer')}.")
-   forms$prep_offer <- lw_conn %>%
-      dbTable(
-         db_name,
-         "prep_offer",
-         cols = c("CENTRAL_ID", "REC_ID", "VISIT_DATE")
-      ) %>%
-      left_join(forms$hts_data, join_by(REC_ID))
+   forms$prep_offer <- QB$new(lw_conn)$from("ohasis_warehouse.prep_offer")$select(central_id, rec_id, visit_date)$get() %>%
+      left_join(forms$hts_data, join_by(rec_id))
 
 
    log_info("Appending offer to prep.")
@@ -345,57 +431,32 @@ download_tables <- function(params) {
 
 
    log_info("Downloading {green('PrEP Earliest Screenings')}.")
-   forms$prep_first <- lw_conn %>%
-      dbTable(
-         db_name,
-         "prep_first",
-         cols = c("CENTRAL_ID", "REC_ID", "VISIT_DATE")
-      ) %>%
-      left_join(forms$form_prep, join_by(REC_ID, VISIT_DATE))
+   forms$prep_first <- QB$new(lw_conn)$from("ohasis_warehouse.prep_first")$select(central_id, rec_id, visit_date)$get() %>%
+      left_join(forms$form_prep, join_by(rec_id, visit_date))
 
    log_info("Downloading {green('PrEP Enrollment')}.")
-   forms$prepdisp_first <- lw_conn %>%
-      dbTable(
-         db_name,
-         "prepdisp_first",
-         cols = c("CENTRAL_ID", "REC_ID", "VISIT_DATE")
-      ) %>%
-      left_join(forms$form_prep, join_by(REC_ID, VISIT_DATE))
+   forms$prepdisp_first <- QB$new(lw_conn)$from("ohasis_warehouse.prepdisp_first")$select(central_id, rec_id, visit_date)$get() %>%
+      left_join(forms$form_prep, join_by(rec_id, visit_date))
 
    log_info("Downloading {green('Latest PrEP Visits')}.")
-   forms$prep_last <- lw_conn %>%
-      dbTable(
-         db_name,
-         "prep_last",
-         cols = c("CENTRAL_ID", "REC_ID", "VISIT_DATE")
-      ) %>%
-      left_join(forms$form_prep, join_by(REC_ID, VISIT_DATE))
+   forms$prep_last <- QB$new(lw_conn)$from("ohasis_warehouse.prep_last")$select(central_id, rec_id, visit_date)$get() %>%
+      left_join(forms$form_prep, join_by(rec_id, visit_date))
 
    log_info("Downloading {green('Latest PrEP Dispensing')}.")
-   forms$prepdisp_last <- lw_conn %>%
-      dbTable(
-         db_name,
-         "prepdisp_last",
-         cols = c("CENTRAL_ID", "REC_ID", "VISIT_DATE")
-      ) %>%
-      left_join(forms$form_prep, join_by(REC_ID, VISIT_DATE))
+   forms$prepdisp_last <- QB$new(lw_conn)$from("ohasis_warehouse.prepdisp_last")$select(central_id, rec_id, visit_date)$get() %>%
+      left_join(forms$form_prep, join_by(rec_id, visit_date))
 
-   log_info("Downloading {green('Latest PrEP Initiation')}.")
-   forms$prep_init_p12m <- lw_conn %>%
-      dbTable(
-         db_name,
-         "prep_init_p12m",
-         cols = c("CENTRAL_ID", "REC_ID", "INITIATION_DATE")
-      )
+   # log_info("Downloading {green('Latest PrEP Initiation')}.")
+   # forms$prep_init_p12m <- lw_conn %>%
+   #    dbTable(
+   #       db_name,
+   #       "prep_init_p12m",
+   #       cols = c("CENTRAL_ID", "REC_ID", "INITIATION_DATE")
+   #    )
 
    log_info("Downloading {green('Latest PrEP Discontinuation')}.")
-   forms$prepdisc_last <- lw_conn %>%
-      dbTable(
-         "ohasis_warehouse",
-         "prepdisc_last",
-         cols = c("CENTRAL_ID", "REC_ID", "VISIT_DATE")
-      ) %>%
-      left_join(forms$form_prep, join_by(REC_ID, VISIT_DATE))
+   forms$prepdisc_last <- QB$new(lw_conn)$from("ohasis_warehouse.prepdisc_last")$select(central_id, rec_id, visit_date)$get() %>%
+      left_join(forms$form_prep, join_by(rec_id, visit_date))
 
    dbDisconnect(lw_conn)
    log_success("Done.")
@@ -407,20 +468,25 @@ download_tables <- function(params) {
 update_dataset <- function(params, corr, forms, reprocess) {
    log_info("Getting previous datasets.")
    official         <- list()
-   official$old_reg <- ohasis$load_old_dta(
-      path            = hs_data("prep", "reg", params$prev_yr, params$prev_mo),
-      corr            = corr$corr_reg,
-      warehouse_table = "prep_old",
-      id_col          = c("prep_id" = "integer"),
-      dta_pid         = "PATIENT_ID",
-      remove_cols     = "CENTRAL_ID",
-      remove_rows     = corr$corr_drop,
-      id_registry     = forms$id_registry,
-      reload          = reprocess
-   )
+   # official$old_reg <- ohasis$load_old_dta(
+   #    path            = hs_data("prep", "reg", params$prev_yr, params$prev_mo),
+   #    corr            = corr$corr_reg,
+   #    warehouse_table = "prep_old",
+   #    id_col          = c("prep_id" = "integer"),
+   #    dta_pid         = "PATIENT_ID",
+   #    remove_cols     = "CENTRAL_ID",
+   #    remove_rows     = corr$corr_drop,
+   #    id_registry     = forms$id_registry,
+   #    reload          = reprocess
+   # )
+
+   conn         <- connect('mariadb-lw')
+   official$old_reg <- QB$new(conn)$from('ohasis_warehouse.prep_old')$get()
+   dbDisconnect(conn)
 
    official$old_outcome <- hs_data("prep", "outcome", params$prev_yr, params$prev_mo) %>%
       read_dta() %>%
+      rename_all(tolower) %>%
       # convert Stata string missing data to NAs
       mutate_if(
          .predicate = is.character,
@@ -428,11 +494,14 @@ update_dataset <- function(params, corr, forms, reprocess) {
       )
 
    # clean if any for cleaning found
-   if (!is.null(corr$corr_outcome)) {
+   if (nrow(corr$corr_outcome) > 0) {
       log_info("Performing cleaning on the outcome dataset.")
-      official$old_outcome <- .cleaning_list(official$old_outcome, corr$corr_outcome, "prep_id", "integer")
+      official$old_outcome <- apply_corrections(official$old_outcome, corr$corr_outcome %>%
+         rename_all(tolower) %>%
+         mutate(variable = tolower(variable)), 'prep_id')
+      # .cleaning_list(official$old_outcome, corr$corr_outcome %>% rename_all(tolower), "ART_ID", "integer")
    }
-   official$dupes <- official$old_reg %>% get_dupes(CENTRAL_ID)
+   official$dupes <- official$old_reg %>% get_dupes(central_id)
    if (nrow(official$dupes) > 0)
       log_warn("Duplicate {green('Central IDs')} found.")
 
@@ -444,7 +513,7 @@ update_dataset <- function(params, corr, forms, reprocess) {
    vars <- as.list(list(...))
 
    # handle logic here
-   update_warehouse(vars$update_lw)
+   # update_warehouse(vars$update_lw)
    p$params <- set_coverage(vars$end_date)
    update_first_last_prep(vars$update_visits, p$params, p$wd)
    update_initiation(vars$update_init, p$params, p$wd)
@@ -460,7 +529,7 @@ update_dataset <- function(params, corr, forms, reprocess) {
          default = "2"
       )
    )
-   if (dl == "1"){
+   if (dl == "1") {
       p$corr <- flow_corr(params$ym, "prep")
       # p$corr <- gdrive_correct3(params$ym, "prep")
    }
