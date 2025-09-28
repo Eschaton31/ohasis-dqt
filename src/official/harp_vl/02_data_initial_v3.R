@@ -13,59 +13,44 @@ vl_yr     <- input(prompt = "What is the reporting year?", max.char = 4)
 vl_mo     <- vl_mo %>% stri_pad_left(width = 2, pad = "0")
 vl_yr     <- vl_yr %>% stri_pad_left(width = 4, pad = "0")
 vl_report <- glue("{vl_yr}-{vl_mo}")
-vl_tly    <- input(prompt = "What is the UNIX path for the TLY VL dataset?")
+# vl_tly    <- input(prompt = "What is the UNIX path for the TLY VL dataset?")
 
 # reference dates
 end_vl   <- as.character(ceiling_date(as.Date(glue("{vl_yr}-{vl_mo}-01")), "months") - 1)
 start_vl <- ceiling_date(as.Date(end_vl), "months") %m-% months(12) %>% as.character()
 
 # ohasis ids
-log_info("Downloading OHASIS IDs.")
-log_info("Opening connections.")
-lw_conn     <- ohasis$conn("lw")
-id_registry <- dbTable(
-   lw_conn,
-   "ohasis_warehouse",
-   "id_registry",
-   cols = c("CENTRAL_ID", "PATIENT_ID")
-)
-dbDisconnect(lw_conn)
+id_registry <- update_idreg()
 
 ##  Process forms data ---------------------------------------------------------
 
 # Form BC + Lab Data
 log_info("Processing forms data.")
-lw_conn    <- ohasis$conn("lw")
-data_forms <- dbTable(
-   lw_conn,
-   "ohasis_lake",
-   "lab_wide",
-   raw_where = TRUE,
-   where     = glue(r"(
-(LAB_VIRAL_DATE IS NOT NULL OR LAB_VIRAL_RESULT IS NOT NULL)
-)"),
-   cols      = c("PATIENT_ID", "LAB_VIRAL_DATE", "LAB_VIRAL_RESULT"),
-   join      = list(
-      "ohasis_lake.px_pii"       = list(by = c("REC_ID" = "REC_ID"), cols = c("RECORD_DATE", "FACI_ID", "SUB_FACI_ID")),
-      "ohasis_lake.px_faci_info" = list(by = c("REC_ID" = "REC_ID"), cols = c("REC_ID", "SERVICE_FACI", "SERVICE_SUB_FACI"), type = "left")
-   )
-)
+lw_conn    <- connect('mariadb-lw')
+data_forms <- QB$new(lw_conn)$
+   from('ohasis_lake.lab_wide as form')$
+   join('ohasis_lake.px_demographics as pii', 'form.rec_id', '=', 'pii.rec_id')$
+   leftJoin('ohasis_lake.px_provider as provider', 'form.rec_id', '=', 'provider.rec_id')$
+   select("form.rec_id", "pii.faci_id", "pii.sub_faci_id", "provider.service_faci", "provider.service_sub_faci", "form.lab_viral_date", "form.lab_viral_result", "pii.patient_id", "pii.record_date")$
+   whereNotNull("form.lab_viral_date")$
+   whereNotNull("form.lab_viral_result")$
+   get()
 dbDisconnect(lw_conn)
 
 data_forms <- data_forms %>%
    # get latest central ids
-   get_cid(id_registry, PATIENT_ID) %>%
+   get_cid(id_registry, patient_id) %>%
    select(
-      CENTRAL_ID,
-      FACI_ID,
-      SUB_FACI_ID,
-      SERVICE_FACI,
-      SERVICE_SUB_FACI,
-      VISIT_DATE = RECORD_DATE,
-      vl_date    = LAB_VIRAL_DATE,
-      LAB_VIRAL_RESULT
+      central_id,
+      faci_id,
+      sub_faci_id,
+      service_faci,
+      service_sub_faci,
+      visit_date = record_date,
+      vl_date    = lab_viral_date,
+      lab_viral_result
    ) %>%
-   process_vl("LAB_VIRAL_RESULT", "vl_result")
+   process_vl("lab_viral_result", "vl_result")
 
 
 ##  Get masterlist data from the past 4 quarters -------------------------------
@@ -86,6 +71,8 @@ data_ml <- bind_rows(data_ml) %>%
    mutate(
       vl_date = as.Date(vl_date),
    ) %>%
+   select(-LAB_VIRAL_RESULT) %>%
+   rename_all(tolower) %>%
    bind_rows(
       read_dta(file.path(Sys.getenv("HARP_VL"), "20220510_vl_ml_ever.dta")) %>%
          rename(
@@ -94,46 +81,47 @@ data_ml <- bind_rows(data_ml) %>%
          ) %>%
          mutate(
             vl_result        = as.numeric(vl_result),
-            LAB_VIRAL_RESULT = as.character(vl_result)
-         )
+            lab_viral_result = as.character(vl_result)
+         ) %>%
+         rename_all(tolower)
    )
 
-if (vl_tly != "") {
-   data_ml %<>%
-      filter(hub != "TLY") %>%
-      bind_rows(
-         read_dta(vl_tly) %>%
-            select(
-               PATIENT_ID,
-               vl_date          = VL_DATE,
-               LAB_VIRAL_RESULT = VL_RESULT
-            ) %>%
-            mutate(
-               hub = "TLY"
-            ) %>%
-            process_vl("LAB_VIRAL_RESULT", "vl_result")
-      )
-}
+# if (vl_tly != "") {
+#    data_ml %<>%
+#       filter(hub != "TLY") %>%
+#       bind_rows(
+#          read_dta(vl_tly) %>%
+#             select(
+#                PATIENT_ID,
+#                vl_date          = VL_DATE,
+#                LAB_VIRAL_RESULT = VL_RESULT
+#             ) %>%
+#             mutate(
+#                hub = "TLY"
+#             ) %>%
+#             process_vl("LAB_VIRAL_RESULT", "vl_result")
+#       )
+# }
 
 # get only needed columns
 data_ml %<>%
    select(
-      PATIENT_ID,
+      patient_id,
       hub,
       any_of("vlml2022"),
       starts_with("vl_result"),
       starts_with("vl_date"),
-      VL_ERROR,
-      VL_DROP,
+      vl_error,
+      vl_drop,
    ) %>%
-   get_cid(id_registry, PATIENT_ID) %>%
+   get_cid(id_registry, patient_id) %>%
    mutate(
       hub    = toupper(hub),
       branch = NA_character_
    ) %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
-      c(FACI_ID = "hub", SUB_FACI_ID = "branch")
+      c(faci_id = "hub", sub_faci_id = "branch")
    )
 
 ##  Append data and clean results ----------------------------------------------
@@ -148,17 +136,17 @@ vl_data <- data_forms %>%
    distinct_all() %>%
    select(-hub) %>%
    mutate(
-      FINAL_FACI   = coalesce(SERVICE_FACI, FACI_ID),
-      FINAL_SUB    = coalesce(SERVICE_SUB_FACI, SUB_FACI_ID),
-      FINAL_FACI_2 = FINAL_FACI,
-      FINAL_SUB_2  = FINAL_SUB,
+      final_faci   = coalesce(service_faci, faci_id),
+      final_sub    = coalesce(service_sub_faci, sub_faci_id),
+      final_faci_2 = final_faci,
+      final_sub_2  = final_sub,
    ) %>%
    ohasis$get_faci(
-      list("facility_name" = c("FINAL_FACI", "FINAL_SUB")),
+      list("facility_name" = c("final_faci", "final_sub")),
       "name"
    ) %>%
    ohasis$get_faci(
-      list("hub" = c("FINAL_FACI_2", "FINAL_SUB_2")),
+      list("hub" = c("final_faci_2", "final_sub_2")),
       "code"
    ) %>%
    mutate(
@@ -171,25 +159,25 @@ vl_data <- data_forms %>%
       )
    ) %>%
    select(
-      CENTRAL_ID,
+      central_id,
       hub,
       facility_name,
       res_tag,
       vl_date,
-      vl_result_encoded = LAB_VIRAL_RESULT,
+      vl_result_encoded = lab_viral_result,
       vl_result_clean   = vl_result,
-      VL_ERROR,
-      VL_DROP
+      vl_error,
+      vl_drop
    ) %>%
    mutate(
-      VL_SORT  = case_when(
+      vl_sort  = case_when(
          if_all(c(vl_date, vl_result_clean), ~!is.na(.)) ~ 1,
          !is.na(vl_date) & is.na(vl_result_clean) ~ 2,
          is.na(vl_date) & !is.na(vl_result_clean) ~ 3,
          TRUE ~ 9999
       ),
-      VL_DROP  = coalesce(if_else(VL_SORT == 9999, 1, VL_DROP, VL_DROP), 0),
-      VL_ERROR = coalesce(VL_ERROR, 0)
+      vl_drop  = coalesce(if_else(vl_sort == 9999, 1, vl_drop, vl_drop), 0),
+      vl_error = coalesce(vl_error, 0)
    )
 
 
