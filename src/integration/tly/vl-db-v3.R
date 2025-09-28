@@ -1,10 +1,10 @@
-LyArt <- R6Class(
-   "LyArt",
+LyVl <- R6Class(
+   "LyVl",
    public = list(
       root              = "",
       data              = list(
          artDb     = tibble(),
-         arv       = tibble(),
+         vl        = tibble(),
          ids       = tibble(),
          converted = tibble(),
          existing  = tibble(),
@@ -39,36 +39,22 @@ LyArt <- R6Class(
 
          invisible(self)
       },
-      downloadArv       = function() {
+      downloadVl        = function() {
          local_drive_quiet()
          local_gs4_quiet()
 
          # ! ARV
-         dir <- file.path(self$root, "arv")
+         dir <- file.path(self$root, "vl")
          check_dir(dir)
 
-         ss     <- "1D7LlsPvPwjdhqbTWlPOZmTNtNX4bflZx_dYADyN5X9s"
-         sheets <- sheet_names(ss)
+         ss <- "1nLaOoPB7_Or7BDsMKW9J0wOe5MOPxTAG2KWFrBLTYhc"
+         # sheets <- sheet_names(ss)
 
-         for (branch in sheets) {
-            if (!(branch %in% c("template", "DataImport"))) {
-               link <- as_id(ss)
-               file <- file.path(dir, stri_c(branch, ".ods"))
-               log_info("Downloading ARV = {green(branch)}.")
-               write_ods(read_sheet(link, branch, col_types = "c"), file)
-            }
-         }
-
-         ss     <- "1DX8S-5ykevEhX5tgvfOetKBOpfFGd8YlAfTdjCxDmU0"
-         sheets <- sheet_names(ss)
-
-         for (branch in sheets) {
-            if (!(branch %in% c("template", "DataImport"))) {
-               link <- as_id(ss)
-               file <- file.path(dir, stri_c(branch, ".ods"))
-               log_info("Downloading ARV = {green(branch)}.")
-               write_ods(read_sheet(link, branch, col_types = "c"), file)
-            }
+         for (year in 2018:2025) {
+            link <- as_id(ss)
+            file <- file.path(dir, stri_c(year, ".ods"))
+            log_info("Downloading ARV = {green(year)}.")
+            write_ods(read_sheet(link, as.character(year), col_types = "c", range = "C:O"), file)
          }
 
          invisible(self)
@@ -96,6 +82,20 @@ LyArt <- R6Class(
          data        <- lapply(data, mutate, Row = stri_c("A", row_number() + 1), .before = 1)
          data        <- lapply(data, rename_all, ~toupper(stri_replace_all_regex(., "\\s", "")))
          names(data) <- tools::file_path_sans_ext(basename(files))
+
+         progress        <- pblapply(files, read_ods, sheet = "Client Progress Report", col_types = cols(.default = "c"), .name_repair = "unique_quiet")
+         progress        <- lapply(progress, mutate_all, toupper)
+         progress        <- lapply(progress, mutate_all, ~na_if(., "0"))
+         progress        <- lapply(progress, mutate_all, ~na_if(., "-"))
+         progress        <- lapply(progress, mutate_all, ~na_if(., "N/A"))
+         progress        <- lapply(progress, mutate_all, ~na_if(., "Err:522"))
+         progress        <- lapply(progress, mutate_all, ~na_if(., "NULL"))
+         progress        <- lapply(progress, mutate_all, ~na_if(., "#REF!"))
+         progress        <- lapply(progress, mutate_all, ~na_if(., "#NAME!"))
+         progress        <- lapply(progress, mutate_all, ~na_if(., "#VALUE!"))
+         progress        <- lapply(progress, mutate, Row = stri_c("A", row_number() + 1), .before = 1)
+         progress        <- lapply(progress, rename_all, ~toupper(stri_replace_all_regex(., "\\s", "")))
+         names(progress) <- tools::file_path_sans_ext(basename(files))
 
          self$data$artDb <- bind_rows(data, .id = "src") %>%
             mutate(row_id = row_number()) %>%
@@ -133,7 +133,25 @@ LyArt <- R6Class(
                birthdate      = as.Date(parse_date_time(coalesce(birthdate_manual, birthdate_auto), "mdY")),
                .after         = uic
             ) %>%
-            remove_empty("rows", 0.154)
+            remove_empty("rows", 0.154) %>%
+            left_join(
+               y  = bind_rows(progress, .id = "src") %>%
+                  mutate(Branch = if_else(src %in% c("ANGLO-1", "ANGLO-2"), "ANGLO", src, src)) %>%
+                  rename_all(tolower) %>%
+                  select(
+                     Branch           = branch,
+                     file             = `src`,
+                     patient_code     = 4,
+                     uic              = 5,
+                     lab_viral_date   = 7,
+                     lab_viral_result = 6
+                  ) %>%
+                  filter(if_all(c(lab_viral_date, lab_viral_result), ~!is.na(.))),
+               by = join_by(file, patient_code, uic)
+            ) %>%
+            mutate(
+               lab_viral_date = as.Date(parse_date_time(lab_viral_date, "mdY")),
+            )
 
          addr     <- range_speedread("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "addr", show_col_types = FALSE, col_types = cols(.default = "c"), name_repair = "unique_quiet")
          ref_addr <- range_speedread("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "ref_addr", show_col_types = FALSE, col_types = cols(.default = "c"), name_repair = "unique_quiet")
@@ -193,8 +211,8 @@ LyArt <- R6Class(
 
          invisible(self)
       },
-      readArv           = function() {
-         files       <- list.files(file.path(self$root, "arv"), full.names = TRUE)
+      readVl            = function() {
+         files       <- list.files(file.path(self$root, "vl"), full.names = TRUE)
          data        <- pblapply(files, read_ods, col_types = cols(.default = "c"), .name_repair = "unique_quiet")
          data        <- lapply(data, mutate_all, toupper)
          data        <- lapply(data, mutate_all, ~na_if(., ""))
@@ -212,111 +230,38 @@ LyArt <- R6Class(
          data        <- lapply(data, rename_all, ~toupper(stri_replace_all_regex(., "\\s", "")))
          names(data) <- tools::file_path_sans_ext(basename(files))
 
-         self$data$arv <- bind_rows(data, .id = "Branch") %>%
+         self$data$vl <- bind_rows(data, .id = "year") %>%
             mutate(row_id = row_number()) %>%
             rename_all(tolower) %>%
             select(
                row_id,
-               Branch          = branch,
-               Row             = `row`,
-               disp_date       = `datedispensed`,
-               patient_code    = `clientcode`,
-               status          = `clientstatus`,
-               uic             = `uniqueidentifiercode(uic)`,
-               philhealth_no   = `philhealthnumber`,
-               visit_type      = `visittype`,
-               tb_screen       = `tbsymptoms`,
-               tb_ipt_status   = `tptstatus`,
-               tx_status       = `artstatus`,
-               arv_regimen     = `regimenonfile`,
-               other_regimen   = `othermedicationsonfile`,
-               arv_disp        = `medsgiven(pleaseinput)`,
-               client_type     = `dispensingmodality`,
-               disp_total      = `pilldispensed`,
-               per_day         = `pillsperday`,
-               medicine_missed = `missedpills`,
-               medicine_left   = `pillsleft`,
-               next_date       = `nextrefill`,
-               remarks         = `remarks`,
-               name            = `name`,
-               hub_origin      = `huboforigin`,
-               regimen         = `regimen`,
+               year,
+               name             = 4,
+               patient_code     = 5,
+               birthdate        = 7,
+               age              = 8,
+               sex              = 9,
+               lab_viral_date   = 3,
+               lab_viral_result = 14,
             ) %>%
-            filter(!if_all(c(disp_date, patient_code), ~is.na(.))) %>%
+            filter(!if_all(c(lab_viral_date, lab_viral_result), ~is.na(.))) %>%
             mutate(patient_code = coalesce(patient_code, name)) %>%
             mutate_at(
-               .vars = vars(disp_date, next_date),
-               ~as.Date(parse_date_time(., c("Ymd", "mdY")))
+               .vars = vars(lab_viral_date, birthdate),
+               ~as.Date(parse_date_time(., "mdY"))
+            ) %>%
+            mutate(
+               sex = case_when(
+                  sex == "M" ~ "MALE",
+                  sex == "F" ~ "FEMALE",
+                  TRUE ~ NA_character_
+               ),
             )
 
          invisible(self)
       },
       convert           = function() {
-         self$data$converted <- self$data$arv %>%
-            mutate(
-               # arv_regimen   = coalesce(arv_disp, arv_regimen, regimen),
-               final_arv     = str_squish(toupper(coalesce(arv_regimen, regimen))),
-               final_arv     = case_when(
-                  final_arv == 'TENOFOVIR+EMTRICITABINE+EFAVIRENZ' ~ 'TDF+FTC+EFV',
-                  final_arv == 'LAMIVUDINE 300MG / TENOFOVIR DISOPROXIL FUMARATE 300MG + LOPINAVIR 200MG + RITONAVIR 50MG (3TC/TDF + LPV/R) (LAMI/TENO + LOPI/RITO)' ~ 'TDF/3TC+LPV/R',
-                  final_arv == 'ZIDOVUDINE-LAMIVUDINE-RILPIVIRINE + EFAVIRENZ' ~ 'AZT/3TC+RIL+EFV',
-                  final_arv == 'LAMIVUDINE 150MG / ZIDOVUDINE 300MG + LOPINAVIR 200MG + RITONAVIR 50MG (3TC/AZT + LPV/R) (LAMI/ZIDO + LOPI/RITO)' ~ 'AZT/3TC+LPV/R',
-                  final_arv == 'DOLUTEGRAVIR 50MG / LAMIVUDINE 300MG / TENOFOVIR DISOPROXIL FUMARATE 300MG (DTG/3TC/TDF) (TLD) + DTG' ~ 'TDF/3TC/DTG+DTG',
-                  final_arv == 'ABACAVIR 300MG + LAMIVUDINE 150MG + EFAVIRENZ 600MG (ABC + 3TC + EFV)' ~ 'ABC+3TC+EFV',
-                  final_arv == 'DOLUTEGRAVIR 50MG / LAMIVUDINE 300MG / TENOFOVIR DISOPROXIL FUMARATE 300MG (DTG/3TC/TDF) (TLD)' ~ 'TDF/3TC/DTG',
-                  final_arv == 'LAMIVUDINE 300MG +LOPINAVIR /RITONAVIR(RITOCOM) 200MG/50MG+DOLUTEGRAVIR 50MG' ~ '3TC+LPV/R+DTG',
-                  final_arv == 'DOLUTEGRAVIR 50MG / LAMIVUDINE 300MG / TENOFOVIR DISOPROXIL FUMARATE 300MG (DTG/3TC/TDF) (TLD' ~ 'TDF/3TC/DTG',
-                  final_arv == 'EFAVIRENZ 600MG + LAMIVUDINE 300MG + TENOFOVIR DISOPROXIL FUMARATE 300MG (EFV/3TC/TDF) (LTE)' ~ 'TDF/3TC/EFV',
-                  final_arv == 'DOLUTEGRAVIR 50 MG+EMTRICITABINE 200MG+ TENOFOVIR ALAFENAMIDE 25 MG' ~ 'TDF+FTC+DTG',
-                  final_arv == 'ABACAVIR-LAMIVUDINE-NEVIRAPINE' ~ 'ABC+3TC+NVP',
-                  final_arv == 'ARV UNKNOWN' ~ '',
-                  final_arv == 'LAMIVUDINE 150MG / ZIDOVUDINE 300MG + EFAVIRENZ 600MG (3TC/AZT + EFV) (LAMI/ZIDO + EFV)' ~ 'AZT/3TC+EFV',
-                  final_arv == 'LAMIVUDINE 300MG +LOPINAVIR/RITONAVIR(RITOCOM)+DOLUTEGRAVIR' ~ '3TC+LPV/R+DTG',
-                  final_arv == 'LOPINAVIR+RITONAVIR(LPV/R)' ~ 'LPV/R',
-                  final_arv == 'DOLUTEGRAVIR 50MG / EMTRICITABINE 200MG / TENOFOVIR ALAFENAMIDE 25MG (PEP)' ~ 'TAF/FTC+DTG',
-                  final_arv == 'DOLUTEGRAVIR 50MG / LAMIVUDINE 300MG / TENOFOVIR DISOPROXIL FUMARATE 300MG + DOLUTEGRAVIR 50MG - (DTG/3TC/TDF + DTG)' ~ 'TDF/3TC/DTG+DTG',
-                  final_arv == 'ABACAVIR 300MG / LAMIVUDINE 150MG / DOLUTEGRAVIR 50MG' ~ 'ABC+3TC+DTG',
-                  final_arv == 'LAMIVUDINE 150MG/ZIDOVUDINE 300MG/ DOLUTEGRAVIR 50MG' ~ 'AZT/3TC+DTG',
-                  final_arv == '3TC/AZT + DTG' ~ 'AZT/3TC+DTG',
-                  TRUE ~ final_arv
-               ),
-
-
-               client_type   = case_when(
-                  client_type == "COURIER" ~ "8",
-                  client_type == "PICK-UP" ~ "2",
-                  TRUE ~ client_type
-               ),
-               tb_screen     = if_else(!is.na(tb_screen), "1", NA_character_),
-               visit_type    = case_when(
-                  str_detect(visit_type, "CONTINUING") ~ "2",
-                  str_detect(visit_type, "FIRST CONSULT") ~ "1",
-                  str_detect(visit_type, "FOLLOW-UP") ~ "2",
-                  str_detect(visit_type, "SHIFTING") ~ "2",
-                  str_detect(visit_type, "TRANSFER OUT") ~ "2",
-                  TRUE ~ visit_type
-               ),
-               tx_status     = case_when(
-                  str_detect(tx_status, "CONTINUING") ~ "2",
-                  str_detect(tx_status, "ENROLLING") ~ "1",
-                  TRUE ~ tx_status
-               ),
-               tb_status     = if_else(!is.na(tb_ipt_status), "0", NA_character_),
-               tb_ipt_status = case_when(
-                  tb_ipt_status == "NOT ON TPT" ~ "0",
-                  tb_ipt_status == "STARTED" ~ "12",
-                  tb_ipt_status == "ONGOING" ~ "11",
-                  tb_ipt_status == "ENDED" ~ "13",
-                  TRUE ~ tb_ipt_status
-               ),
-            ) %>%
-            left_join(self$data$art %>% select(-Branch, -Row, -row_id), join_by(patient_code)) %>%
-            mutate(
-               uic           = coalesce(uic.x, uic.y),
-               philhealth_no = coalesce(philhealth_no.x, philhealth_no.y),
-               birthdate     = if_else(is.na(birthdate) & nchar(uic) == 14, as.Date(stri_c(sep = "-", str_right(uic, 4), substr(uic, 7, 8), substr(uic, 9, 10))), birthdate, birthdate),
-            ) %>%
-            select(-ends_with(".x"), -ends_with(".y")) %>%
+         art                 <- self$data$artDb %>%
             left_join(
                y  = self$data$ids %>%
                   rename_all(tolower) %>%
@@ -350,36 +295,31 @@ LyArt <- R6Class(
                   uic,
                   philhealth_no
                )
+            )
+         self$data$converted <- self$data$vl %>%
+            fullname_to_components(name) %>%
+            rename(
+               first  = FirstName,
+               middle = MiddleName,
+               last   = LastName
             ) %>%
-            arrange(Branch, disp_date) %>%
+            left_join(art %>% select(-Row, -row_id, -first, -middle, -last, -sex, -lab_viral_result, -lab_viral_date), join_by(patient_code)) %>%
+            mutate(
+               birthdate = coalesce(birthdate.x, birthdate.y),
+               birthdate = if_else(is.na(birthdate) & nchar(uic) == 14, as.Date(stri_c(sep = "-", str_right(uic, 4), substr(uic, 7, 8), substr(uic, 9, 10))), birthdate, birthdate),
+            ) %>%
+            select(-ends_with(".x"), -ends_with(".y")) %>%
+            arrange(lab_viral_date) %>%
             distinct(row_id, .keep_all = TRUE) %>%
-            left_join(
-               read_sheet("1c334aEKFTOl3Cg9Uji7tq1rZjlPM8RKpdXwQgOGyAIg", "facility_id", col_types = "c")
-                  %>% rename(
-                  Branch      = SITE,
-                  faci_id     = FACI_ID,
-                  sub_faci_id = SUB_FACI_ID
-               ),
-               join_by(Branch)
+            bind_rows(
+               art %>%
+                  filter(!is.na(lab_viral_result))
             ) %>%
             mutate(
-               sex              = case_when(
+               sex = case_when(
                   sex == "MALE" ~ "1",
                   sex == "FEMALE" ~ "2",
-               ),
-               age              = calc_age(birthdate, disp_date),
-               self_ident_other = if_else(!(self_ident %in% c("MAN", "WOMAN", "MALE", "FEMALE")), self_ident, NA_character_),
-               self_ident       = case_when(
-                  self_ident == "MALE" ~ "1",
-                  self_ident == "MAN" ~ "1",
-                  self_ident == "FEMALE" ~ "2",
-                  self_ident == "WOMAN" ~ "2",
-                  self_ident == "Q/NB/NC" ~ "3",
-                  self_ident == "TRANSWOMAN" ~ "3",
-                  self_ident == "TRANSMAN" ~ "3",
-                  self_ident == "OTHER" ~ "3",
-                  !is.na(self_ident_other) ~ "3",
-                  TRUE ~ self_ident
+                  TRUE ~ sex
                ),
             )
 
@@ -504,9 +444,11 @@ LyArt <- R6Class(
 
          lw_conn            <- connect('mariadb-lw')
          self$data$existing <- QB$new(lw_conn)$
-            from('ohasis_warehouse.form_art_bc as art')$
-            select("art.rec_id", "art.record_date as visit_date", "art.medicine_summary", "art.created_by", "art.created_at", "art.patient_id")$
-            whereBetween("art.record_date", c("2025-01-01", format(Sys.time(), "%Y-%m-%d")))$
+            from('ohasis_lake.lab_wide as form')$
+            join('ohasis_lake.px_demographics as pii', 'form.rec_id', '=', 'pii.rec_id')$
+            select("form.rec_id", "form.lab_viral_date", "form.lab_viral_result", "form.created_by", "form.created_at", "pii.patient_id")$
+            whereNotNull("form.lab_viral_date")$
+            whereNotNull("form.lab_viral_result")$
             get()
 
          self$data$existing %<>%
@@ -526,27 +468,21 @@ LyArt <- R6Class(
          timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 
          for_import <- self$data$converted %>%
-            filter(disp_date >= as.Date("2025-01-01")) %>%
-            filter(disp_date <= now()) %>%
+            filter(lab_viral_date <= now()) %>%
             mutate(
-               disp_date    = as.Date(disp_date),
-               service_type = '101201',
-               disease      = '101000',
-               module       = '3',
+               lab_viral_date = as.Date(lab_viral_date),
+               disease        = '101000',
+               module         = '5',
+               faci_id        = '130001',
+               sub_faci_id    = NA_character_,
             ) %>%
             rename(
-               visit_date       = disp_date,
-               clinic_notes     = remarks,
-               latest_next_date = next_date,
-               medicine_summary = final_arv,
-               patient_id       = central_id
+               patient_id = central_id
             ) %>%
             get_cid(self$data$idreg, patient_id) %>%
+            distinct(central_id, lab_viral_date, .keep_all = TRUE) %>%
             mutate(
-               record_date      = visit_date,
-               form_version     = "ART Form (v2021)",
-               service_faci     = faci_id,
-               service_sub_faci = sub_faci_id,
+               record_date = lab_viral_date,
             ) %>%
             # get records id if existing
             left_join(
@@ -556,16 +492,16 @@ LyArt <- R6Class(
                      created_by,
                      created_at,
                      central_id,
-                     visit_date
+                     lab_viral_date
                   ),
-               by = join_by(central_id, visit_date)
+               by = join_by(central_id, record_date == lab_viral_date)
             ) %>%
             mutate(birthdate = as.Date(birthdate)) %>%
             # retain only not uploaded and those with changes
-            filter(!is.na(patient_id), !is.na(medicine_summary)) %>%
+            filter(!is.na(patient_id)) %>%
             anti_join(
                y  = self$data$existing,
-               by = join_by(rec_id, visit_date, medicine_summary),
+               by = join_by(rec_id),
             ) %>%
             mutate(
                old_rec    = if_else(!is.na(rec_id), 1, 0, 0),
@@ -858,52 +794,7 @@ LyArt <- R6Class(
          #       )
          # )
 
-         self$tables <- deconstruct_art(self$data$forUpload)
-
-         idreg <- update_idreg()
-         self$tables$patients$data %<>%
-            get_cid(idreg, patient_id) %>%
-            mutate(birthdate = as.Date(birthdate)) %>%
-            get_latest_pii(
-               "central_id",
-               c(
-                  'confirmatory_code',
-                  'patient_code',
-                  'uic',
-                  'philhealth_no',
-                  'philsys_id',
-                  'first',
-                  'middle',
-                  'last',
-                  'suffix',
-                  'birthdate',
-                  'sex',
-                  'self_ident',
-                  'self_ident_other',
-                  'client_email',
-                  'client_mobile',
-                  'nationality',
-                  'civil_status',
-                  'educ_level',
-                  'curr_reg',
-                  'curr_prov',
-                  'curr_munc',
-                  'curr_brgy',
-                  'perm_reg',
-                  'perm_prov',
-                  'perm_munc',
-                  'perm_brgy',
-                  'birth_reg',
-                  'birth_prov',
-                  'birth_munc',
-                  'birth_brgy'
-               )
-            ) %>%
-            select(-central_id) %>%
-            mutate_at(
-               .vars = vars(civil_status, educ_level, sex, self_ident),
-               keep_code
-            )
+         self$tables <- deconstruct_vl(self$data$forUpload)
 
          for (table in names(self$tables)) {
             value_cols <- names(self$tables[[table]]$data)
@@ -918,12 +809,6 @@ LyArt <- R6Class(
       },
       upload            = function() {
          db_conn <- ohasis$conn("db")
-         dbxDelete(
-            db_conn,
-            Id(schema = "ohasis", table = "px_medicine"),
-            self$data$forUpload %>% select(rec_id),
-            batch_size = 1000
-         )
          lapply(self$tables, function(ref, db_conn) {
             log_info("Uploading {green(ref$name)}.")
             table_space <- Id(schema = "ohasis", table = ref$name)
