@@ -1024,6 +1024,9 @@ output_dta <- function(official, params, save = "2") {
          if (nrow(official[[output]]) > 0) {
             official[[output]] %>%
                format_stata() %>%
+               select(
+                  -contains("."),
+               ) %>%
                write_dta(files[[output]])
 
             # compress_stata(files[[output]])
