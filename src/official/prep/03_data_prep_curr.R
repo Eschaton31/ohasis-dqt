@@ -1034,7 +1034,7 @@ output_dta <- function(official, params, save = "2") {
       }
 
       flow_dta(official$new_reg, "prep", "reg", params$yr, params$mo)
-      flow_dta(official$new_outcome, "prep", "outcome", params$yr, params$mo)
+      flow_dta(official$new_outcome %>% select(-contains(".")), "prep", "outcome", params$yr, params$mo)
    }
 }
 
