@@ -631,49 +631,25 @@ batch_px_ids <- function(data, px_id, faci_id, row_ids) {
          seed_faci = {{faci_id}}
       )
 
-
-   gen_pid <- function(data) {
-      data %<>% mutate(ohasis_id = NA_character_)
+   gen_pid <- function(faci_id, record_date = NULL) {
       letters <- stri_c(collapse = "", strrep(LETTERS[1:26], 5))
       numbers <- strrep("0123456789", 5)
 
-      pb <- progress_bar$new(format = ":current of :total rows | [:bar] (:percent) | eta: :eta | Elapsed: :elapsed", total = nrow(data), width = 100, clear = FALSE)
-      pb$tick(0)
-      for (i in seq_len(nrow(data))) {
-         letters <- stri_rand_shuffle(letters)
-         letter  <- str_left(letters, 1)
-         numbers <- stri_rand_shuffle(numbers)
-         number  <- str_left(numbers, 3)
+      letters <- stri_rand_shuffle(letters)
+      letter  <- str_left(letters, 1)
+      numbers <- stri_rand_shuffle(numbers)
+      number  <- str_left(numbers, 3)
 
-         date <- Sys.time()
-         if ("record_date" %in% names(data)) {
-            date <- as.POSIXct(data[i,]$record_date)
-         }
-
-         ohasis_id <- stri_c(letter, number)
-         ohasis_id <- stri_rand_shuffle(ohasis_id)
-         ohasis_id <- stri_c(format(date, "%Y%m%d"), data[i,]$seed_faci, ohasis_id)
-
-         data[i,]$ohasis_id <- ohasis_id
-         pb$tick(1)
+      date <- Sys.time()
+      if (!is.null(record_date)) {
+         date <- as.Date(record_date)
       }
 
-      # data %<>%
-      #    mutate(
-      #       letter    = stri_c(collapse = "", strrep(LETTERS[1:26], 5)),
-      #       letter    = stri_rand_shuffle(letter),
-      #       letter    = str_left(letter, 1),
-      #       number    = strrep("0123456789", 5),
-      #       number    = stri_rand_shuffle(number),
-      #       number    = str_left(number, 3),
-      #
-      #       ohasis_id = stri_c(letter, number),
-      #       ohasis_id = stri_rand_shuffle(ohasis_id),
-      #       ohasis_id = stri_c(format(Sys.time(), "%Y%m%d"), seed_faci, ohasis_id)
-      #    ) %>%
-      #    select(-number, -letter)
+      ohasis_id <- stri_c(letter, number)
+      ohasis_id <- stri_rand_shuffle(ohasis_id)
+      ohasis_id <- stri_c(format(date, "%Y%m%d"), faci_id, ohasis_id)
 
-      return(data)
+      return(ohasis_id)
    }
 
    get_issues <- function(data, conn) {
@@ -692,11 +668,43 @@ batch_px_ids <- function(data, px_id, faci_id, row_ids) {
    }
 
    db_conn <- ohasis$conn("db")
-   data    <- gen_pid(data)
-   issues  <- get_issues(data, db_conn)
+
+   if ('record_date' %in% names(data)) {
+      data %<>%
+         rowwise() %>%
+         mutate(
+            ohasis_id = gen_pid(seed_faci, record_date)
+         ) %>%
+         ungroup()
+   } else {
+      data %<>%
+         rowwise() %>%
+         mutate(
+            ohasis_id = gen_pid(seed_faci)
+         ) %>%
+         ungroup()
+   }
+
+   issues <- get_issues(data, db_conn)
    while (nrow(issues) > 0) {
-      new <- gen_pid(issues) %>%
+      if ('record_date' %in% names(data)) {
+         new <- issues %>%
+            rowwise() %>%
+            mutate(
+               ohasis_id = gen_pid(seed_faci, record_date)
+            ) %>%
+            ungroup()
+      } else {
+         new <- issues %>%
+            rowwise() %>%
+            mutate(
+               ohasis_id = gen_pid(seed_faci)
+            ) %>%
+            ungroup()
+      }
+      new %<>%
          select(all_of(row_ids), new_oh = ohasis_id)
+
       data %<>%
          left_join(new, by = row_ids, na_matches = "never") %>%
          mutate(
@@ -726,27 +734,20 @@ batch_rec_ids <- function(data, rec_id, user_id, row_ids) {
          creds_id = {{user_id}}
       )
 
-   gen_rid <- function(data) {
-      data %<>% mutate(record_id = NA_character_)
+   gen_rid <- function(creds_id) {
       letters <- stri_c(collapse = "", strrep(LETTERS[1:26], 5))
       numbers <- strrep("0123456789", 5)
 
-      pb <- progress_bar$new(format = ":current of :total rows | [:bar] (:percent) | eta: :eta | Elapsed: :elapsed", total = nrow(data), width = 100, clear = FALSE)
-      for (i in seq_len(nrow(data))) {
-         letters <- stri_rand_shuffle(letters)
-         letter  <- str_left(letters, 2)
-         numbers <- stri_rand_shuffle(numbers)
-         number  <- str_left(numbers, 3)
+      letters <- stri_rand_shuffle(letters)
+      letter  <- str_left(letters, 2)
+      numbers <- stri_rand_shuffle(numbers)
+      number  <- str_left(numbers, 3)
 
-         rec_id <- stri_c(letter, number)
-         rec_id <- stri_rand_shuffle(rec_id)
-         rec_id <- stri_c(format(Sys.time(), "%Y%m%d%H"), rec_id, data[i,]$creds_id)
+      rec_id <- stri_c(letter, number)
+      rec_id <- stri_rand_shuffle(rec_id)
+      rec_id <- stri_c(format(Sys.time(), "%Y%m%d%H"), rec_id, creds_id)
 
-         data[i,]$record_id <- rec_id
-
-         pb$tick(1)
-      }
-      return(data)
+      return(rec_id)
    }
 
    get_issues <- function(data, conn) {
@@ -765,10 +766,20 @@ batch_rec_ids <- function(data, rec_id, user_id, row_ids) {
    }
 
    db_conn <- ohasis$conn("db")
-   data    <- gen_rid(data)
-   issues  <- get_issues(data, db_conn)
+   data %<>%
+      rowwise() %>%
+      mutate(
+         record_id = gen_rid(creds_id)
+      ) %>%
+      ungroup()
+   issues <- get_issues(data, db_conn)
    while (nrow(issues) > 0) {
-      new <- gen_rid(issues) %>%
+      new <- issues %>%
+         rowwise() %>%
+         mutate(
+            record_id = gen_rid(creds_id)
+         ) %>%
+         ungroup() %>%
          select(all_of(row_ids), new_rec = record_id)
       data %<>%
          left_join(new, by = row_ids, na_matches = "never") %>%
@@ -1420,17 +1431,20 @@ oh_batch_newpx <- function(data, id_col) {
       mutate(
          sex              = case_when(
             sex == 'MALE' ~ '1',
-            sex == 'FEMALE' ~ '1',
+            sex == 'FEMALE' ~ '2',
+            TRUE ~ sex
          ),
          self_ident       = case_when(
             self_ident == 'MAN' ~ '1',
             self_ident == 'WOMAN' ~ '2',
             self_ident == 'TRANSWOMAN' ~ '3',
             self_ident == 'Q/NB/NC' ~ '3',
+            TRUE ~ self_ident
          ),
          self_ident_other = case_when(
             self_ident == 'TRANSWOMAN' ~ self_ident,
             self_ident == 'Q/NB/NC' ~ self_ident,
+            TRUE ~ self_ident_other
          ),
       )
 
