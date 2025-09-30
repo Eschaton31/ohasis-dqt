@@ -3,7 +3,6 @@
 get_records <- function(form_data, new_reg) {
    log_info("Processing latest visit.")
    remove_cols <- names(new_reg)
-   remove_cols <- remove_cols[remove_cols != 'central_id']
    remove_cols <- remove_cols[remove_cols != 'rec_id']
    remove_cols <- remove_cols[!grepl('^prep', remove_cols)]
    remove_cols <- remove_cols[!grepl('^hts', remove_cols)]

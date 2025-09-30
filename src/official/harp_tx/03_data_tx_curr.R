@@ -3,7 +3,6 @@
 get_latest_record <- function(form_data, new_reg, params) {
    log_info("Processing latest visit.")
    remove_cols <- names(new_reg)
-   remove_cols <- remove_cols[remove_cols != 'central_id']
    remove_cols <- remove_cols[remove_cols != 'age']
    remove_cols <- remove_cols[remove_cols != 'rec_id']
 
