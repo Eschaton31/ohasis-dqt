@@ -3,6 +3,7 @@
 get_latest_record <- function(form_data, new_reg, params) {
    log_info("Processing latest visit.")
    remove_cols <- names(new_reg)
+   remove_cols <- remove_cols[remove_cols != 'central_id']
    remove_cols <- remove_cols[remove_cols != 'age']
    remove_cols <- remove_cols[remove_cols != 'rec_id']
 
@@ -745,7 +746,6 @@ finalize_faci <- function(data) {
       distinct_all() %>%
       arrange(art_id, desc(latest_nextpickup)) %>%
       distinct(art_id, .keep_all = TRUE) %>%
-      mutate(central_id = central_id) %>%
       mutate_at(
          .vars = vars(ends_with("_ffupdate"), ends_with("_nextpickup")),
          ~as.Date(.)
@@ -975,8 +975,7 @@ get_reg_disagg <- function(data, col) {
             art_reg == "azt 3tc dtg" ~ 2,
             !is.na(art_reg) ~ 3
          ),
-      ) %>%
-      select(-central_id)
+      )
    return(data)
 }
 
