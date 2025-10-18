@@ -295,6 +295,9 @@ harp_addr_to_id <- function(data, ref_addr, harp_addr, aem_sub_ntl = FALSE, add_
          ),
 
          {{col_reg}}   := case_when(
+            {{col_prov}} == "NEGROS OCCIDENTAL" ~ "NIR",
+            {{col_prov}} == "NEGROS ORIENTAL" ~ "NIR",
+            {{col_prov}} == "SIQUIJOR" ~ "NIR",
             {{col_reg}} == "" & {{col_prov}} == "LANAO DEL NORTE" ~ "10",
             {{col_reg}} == "" & {{col_prov}} == "MISAMIS ORIENTAL" ~ "10",
             {{col_prov}} == "ILOILO" ~ "6",
@@ -335,52 +338,56 @@ harp_addr_to_id <- function(data, ref_addr, harp_addr, aem_sub_ntl = FALSE, add_
       ) %>%
       left_join(
          y  = ref_addr %>%
-            mutate(
-               drop = case_when(
-                  str_left(PSGC_PROV, 4) == "1339" & (PSGC_MUNC != "133900000" | is.na(PSGC_MUNC)) ~ 1,
-                  str_left(PSGC_REG, 4) == "1300" & PSGC_MUNC == "" ~ 1,
-                  stri_detect_fixed(NAME_PROV, "City") & NHSSS_MUNC == "UNKNOWN" ~ 1,
-                  TRUE ~ 0
-               ),
-            ) %>%
-            filter(drop == 0) %>%
-            add_row(
-               PSGC_REG   = "130000000",
-               PSGC_PROV  = "",
-               PSGC_MUNC  = "",
-               NAME_REG   = "National Capital Region (NCR)",
-               NAME_PROV  = "Unknown",
-               NAME_MUNC  = "Unknown",
-               NHSSS_REG  = "NCR",
-               NHSSS_PROV = "UNKNOWN",
-               NHSSS_MUNC = "UNKNOWN",
-            ) %>%
-            mutate(
-               PSGC_PROV = if (aem_sub_ntl) {
-                  case_when(
-                     PSGC_MUNC == "129804000" ~ "124700000",
-                     TRUE ~ PSGC_PROV
-                  )
-               } else {
-                  PSGC_PROV
-               }
-            ) %>%
+            # mutate(
+            #    drop = case_when(
+            #       str_left(prov, 4) == "1339" & (munc != "133900000" | is.na(munc)) ~ 1,
+            #       str_left(reg, 4) == "1300" & munc == "" ~ 1,
+            #       stri_detect_fixed(name_prov, "City") & nhsss_munc == "UNKNOWN" ~ 1,
+            #       TRUE ~ 0
+            #    ),
+            # ) %>%
+            # filter(drop == 0) %>%
+            # add_row(
+            #    reg        = "130000000",
+            #    prov       = "",
+            #    munc       = "",
+            #    brgy       = "",
+            #    name_reg   = "National Capital Region (NCR)",
+            #    name_prov  = "Unknown",
+            #    name_munc  = "Unknown",
+            #    name_brgy  = "Unknown",
+            #    nhsss_reg  = "NCR",
+            #    nhsss_prov = "UNKNOWN",
+            #    nhsss_munc = "UNKNOWN",
+            #    nhsss_brgy = "UNKNOWN",
+            # ) %>%
+            # mutate(
+            #    prov = if (aem_sub_ntl) {
+            #       case_when(
+            #          munc == "129804000" ~ "124700000",
+            #          TRUE ~ prov
+            #       )
+            #    } else {
+            #       prov
+            #    }
+            # ) %>%
+            distinct(nhsss_reg, nhsss_prov, nhsss_munc, .keep_all = TRUE) %>%
             select(
-               PSGC_REG,
-               PSGC_PROV,
-               PSGC_MUNC,
-               {{col_reg}}  := NHSSS_REG,
-               {{col_prov}} := NHSSS_PROV,
-               {{col_munc}} := NHSSS_MUNC,
+               reg,
+               prov,
+               munc,
+               {{col_reg}}  := nhsss_reg,
+               {{col_prov}} := nhsss_prov,
+               {{col_munc}} := nhsss_munc,
             ),
          by = join_by({{col_reg}}, {{col_prov}}, {{col_munc}})
       ) %>%
-      relocate(PSGC_REG, PSGC_PROV, PSGC_MUNC, .after = {{col_munc}}) %>%
+      relocate(reg, prov, munc, .after = {{col_munc}}) %>%
       rename_all(
          ~case_when(
-            . == "PSGC_REG" ~ psgc_reg,
-            . == "PSGC_PROV" ~ psgc_prov,
-            . == "PSGC_MUNC" ~ psgc_munc,
+            . == "reg" ~ psgc_reg,
+            . == "prov" ~ psgc_prov,
+            . == "munc" ~ psgc_munc,
             TRUE ~ .
          )
       ) %>%
