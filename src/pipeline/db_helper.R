@@ -111,7 +111,7 @@ update_credentials <- function(rec_ids) {
    upd_at <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
    dbExecute(
       db_conn,
-      glue(r"(UPDATE ohasis_interim.px_record SET UPDATED_BY = '{upd_by}', UPDATED_AT = '{upd_at}' WHERE REC_ID IN (?);)"),
+      glue(r"(update ohasis.px_record set updated_by = '{upd_by}', updated_at = '{upd_at}' where rec_id in (?);)"),
       params = list(rec_ids)
    )
    dbDisconnect(db_conn)
@@ -1707,7 +1707,7 @@ update_idreg <- function() {
 
    log_info("Fetching Data")
 
-   conn_lw   <- connect('ohasis-lw')
+   conn_lw   <- connect('mariadb-lw')
    new_idreg <- QB$new(conn_lw)$from("ohasis_lake.id_registry")$where("created_at", ">=", loc_snap, 'or')$where("updated_at", ">=", loc_snap, 'or')$where("deleted_at", ">=", loc_snap, 'or')$get()
    # new_idreg <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$whereBetween("SNAPSHOT", c(loc_snap, lw_snap))$get()
    dbDisconnect(conn_lw)
