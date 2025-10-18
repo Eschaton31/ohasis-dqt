@@ -162,7 +162,12 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
          form_a %>%
             as_tibble() %>%
             mutate(
-               form_version = "Form A (v2017)",
+               form_version = case_when(
+                  form_id == 'a2011' ~ "Form A (v2011)",
+                  form_id == 'a2014' ~ "Form A (v2014)",
+                  form_id == 'a2017' ~ "Form A (v2017)",
+                  TRUE ~ "Form A (v2017)"
+               ),
             ),
          # lastly - cfbs form
          form_cfbs %>%
@@ -250,7 +255,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             screen_agreed == 0 ~ "REACH",
             is.na(screen_agreed) & is.na(hts_result) ~ "REACH",
             confirm_result != 4 & is.na(modality) ~ "FBT",
-            src == "a2017" ~ "FBT",
+            src %in% c("a2011", "a2014", "2017") ~ "FBT",
             src == "cfbs2020" & !is.na(hts_result) ~ "CBS",
             src == "hts2021" &
                is.na(modality) &
@@ -340,10 +345,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
 
          risk_sexwithf         = case_when(
             # form a
-            src == "a2017" & expose_sex_f_nocondom == 0 ~ "none",
-            src == "a2017" & expose_sex_f_nocondom == 1 ~ "yes-p12m",
-            src == "a2017" & expose_sex_f_nocondom == 2 ~ "yes-beyond_p12m",
-            src == "a2017" & is.na(expose_sex_f_nocondom) ~ "(no data)",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_f_nocondom == 0 ~ "none",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_f_nocondom == 1 ~ "yes-p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_f_nocondom == 2 ~ "yes-beyond_p12m",
+            src %in% c("a2011", "a2014", "2017") & is.na(expose_sex_f_nocondom) ~ "(no data)",
 
             # hts form
             src == "hts2021" &
@@ -384,10 +389,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
          ),
          risk_sexwithf_nocdm   = case_when(
             # form a
-            src == "a2017" & expose_sex_f_nocondom == 0 ~ "none",
-            src == "a2017" & expose_sex_f_nocondom == 1 ~ "yes-p12m",
-            src == "a2017" & expose_sex_f_nocondom == 2 ~ "yes-beyond_p12m",
-            src == "a2017" & is.na(expose_sex_f_nocondom) ~ "(no data)",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_f_nocondom == 0 ~ "none",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_f_nocondom == 1 ~ "yes-p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_f_nocondom == 2 ~ "yes-beyond_p12m",
+            src %in% c("a2011", "a2014", "2017") & is.na(expose_sex_f_nocondom) ~ "(no data)",
 
             # hts form
             src == "hts2021" &
@@ -465,10 +470,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
 
          risk_sexwithm         = case_when(
             # form a
-            src == "a2017" & expose_sex_m_nocondom == 0 ~ "none",
-            src == "a2017" & expose_sex_m_nocondom == 1 ~ "yes-p12m",
-            src == "a2017" & expose_sex_m_nocondom == 2 ~ "yes-beyond_p12m",
-            src == "a2017" & is.na(expose_sex_m_nocondom) ~ "(no data)",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_m_nocondom == 0 ~ "none",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_m_nocondom == 1 ~ "yes-p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_m_nocondom == 2 ~ "yes-beyond_p12m",
+            src %in% c("a2011", "a2014", "2017") & is.na(expose_sex_m_nocondom) ~ "(no data)",
 
             # hts form
             src == "hts2021" &
@@ -529,10 +534,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
          ),
          risk_sexwithm_nocdm   = case_when(
             # form a
-            src == "a2017" & expose_sex_m_nocondom == 0 ~ "none",
-            src == "a2017" & expose_sex_m_nocondom == 1 ~ "yes-p12m",
-            src == "a2017" & expose_sex_m_nocondom == 2 ~ "yes-beyond_p12m",
-            src == "a2017" & is.na(expose_sex_m_nocondom) ~ "(no data)",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_m_nocondom == 0 ~ "none",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_m_nocondom == 1 ~ "yes-p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_m_nocondom == 2 ~ "yes-beyond_p12m",
+            src %in% c("a2011", "a2014", "2017") & is.na(expose_sex_m_nocondom) ~ "(no data)",
 
             # hts form
             src == "hts2021" &
@@ -589,10 +594,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             TRUE ~ "(no data)"
          ),
          risk_payingforsex     = case_when(
-            src == "a2017" & expose_sex_paying == 1 ~ "yes-p12m",
-            src == "a2017" & expose_sex_paying == 2 ~ "yes-beyond_p12m",
-            src == "a2017" & expose_sex_paying == 0 ~ "none",
-            src == "a2017" & is.na(expose_sex_paying) ~ "(no data)",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_paying == 1 ~ "yes-p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_paying == 2 ~ "yes-beyond_p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_paying == 0 ~ "none",
+            src %in% c("a2011", "a2014", "2017") & is.na(expose_sex_paying) ~ "(no data)",
             src == "cfbs2020" ~ "(no data)",
             src == "hts2021" &
                expose_sex_paying == 1 &
@@ -617,10 +622,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             TRUE ~ "(no data)"
          ),
          risk_paymentforsex    = case_when(
-            src == "a2017" & expose_sex_payment == 1 ~ "yes-p12m",
-            src == "a2017" & expose_sex_payment == 2 ~ "yes-beyond_p12m",
-            src == "a2017" & expose_sex_payment == 0 ~ "none",
-            src == "a2017" & is.na(expose_sex_payment) ~ "(no data)",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_payment == 1 ~ "yes-p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_payment == 2 ~ "yes-beyond_p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_payment == 0 ~ "none",
+            src %in% c("a2011", "a2014", "2017") & is.na(expose_sex_payment) ~ "(no data)",
             src == "hts2021" &
                expose_sex_payment == 1 &
                !(recent_paymentforsex %in% c("none", "(no data)")) ~ paste0("yes-", recent_paymentforsex),
@@ -662,10 +667,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             TRUE ~ "(no data)"
          ),
          risk_sexwithhiv       = case_when(
-            src == "a2017" & expose_sex_hiv == 1 ~ "yes-p12m",
-            src == "a2017" & expose_sex_hiv == 2 ~ "yes-beyond_p12m",
-            src == "a2017" & expose_sex_hiv == 0 ~ "none",
-            src == "a2017" & is.na(expose_sex_hiv) ~ "(no data)",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_hiv == 1 ~ "yes-p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_hiv == 2 ~ "yes-beyond_p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_sex_hiv == 0 ~ "none",
+            src %in% c("a2011", "a2014", "2017") & is.na(expose_sex_hiv) ~ "(no data)",
             src == "hts2021" ~ "(no data)",
             src == "cfbs2020" &
                expose_sex_hiv == 2 &
@@ -711,10 +716,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
 
          risk_injectdrug       = case_when(
             # form a
-            src == "a2017" & expose_drug_inject == 1 ~ "yes-p12m",
-            src == "a2017" & expose_drug_inject == 2 ~ "yes-beyond_p12m",
-            src == "a2017" & expose_drug_inject == 0 ~ "none",
-            src == "a2017" & is.na(expose_drug_inject) ~ "(no data)",
+            src %in% c("a2011", "a2014", "2017") & expose_drug_inject == 1 ~ "yes-p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_drug_inject == 2 ~ "yes-beyond_p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_drug_inject == 0 ~ "none",
+            src %in% c("a2011", "a2014", "2017") & is.na(expose_drug_inject) ~ "(no data)",
 
             # hts form
             src == "hts2021" &
@@ -776,10 +781,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             TRUE ~ "(no data)"
          ),
          risk_needlestick      = case_when(
-            src == "a2017" & expose_occupation == 1 ~ "yes-p12m",
-            src == "a2017" & expose_occupation == 2 ~ "yes-beyond_p12m",
-            src == "a2017" & expose_occupation == 0 ~ "none",
-            src == "a2017" & is.na(expose_occupation) ~ "(no data)",
+            src %in% c("a2011", "a2014", "2017") & expose_occupation == 1 ~ "yes-p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_occupation == 2 ~ "yes-beyond_p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_occupation == 0 ~ "none",
+            src %in% c("a2011", "a2014", "2017") & is.na(expose_occupation) ~ "(no data)",
             src == "cfbs2020" ~ "(no data)",
             src == "hts2021" &
                expose_occupation == 1 &
@@ -804,10 +809,10 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             TRUE ~ "(no data)"
          ),
          risk_bloodtransfuse   = case_when(
-            src == "a2017" & expose_blood_transfuse == 1 ~ "yes-p12m",
-            src == "a2017" & expose_blood_transfuse == 2 ~ "yes-beyond_p12m",
-            src == "a2017" & expose_blood_transfuse == 0 ~ "none",
-            src == "a2017" & is.na(expose_blood_transfuse) ~ "(no data)",
+            src %in% c("a2011", "a2014", "2017") & expose_blood_transfuse == 1 ~ "yes-p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_blood_transfuse == 2 ~ "yes-beyond_p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_blood_transfuse == 0 ~ "none",
+            src %in% c("a2011", "a2014", "2017") & is.na(expose_blood_transfuse) ~ "(no data)",
             src == "cfbs2020" ~ "(no data)",
             src == "hts2021" &
                expose_blood_transfuse == 1 &
@@ -832,7 +837,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             TRUE ~ "(no data)"
          ),
          risk_illicitdrug      = case_when(
-            src == "a2017" ~ "(no data)",
+            src %in% c("a2011", "a2014", "2017") ~ "(no data)",
             src == "hts2021" ~ "(no data)",
             src == "cfbs2020" &
                expose_illicit_drugs == 2 &
@@ -857,7 +862,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             TRUE ~ "(no data)"
          ),
          risk_chemsex          = case_when(
-            src == "a2017" ~ "(no data)",
+            src %in% c("a2011", "a2014", "2017") ~ "(no data)",
             src == "cfbs2020" ~ "(no data)",
             src == "hts2021" &
                expose_sex_drugs == 1 &
@@ -873,20 +878,20 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
 
          # tattoo
          risk_tattoo           = case_when(
-            src == "a2017" & expose_tattoo == 1 ~ "yes-p12m",
-            src == "a2017" & expose_tattoo == 2 ~ "yes-beyond_p12m",
-            src == "a2017" & expose_tattoo == 0 ~ "none",
-            src == "a2017" & is.na(expose_tattoo) ~ "(no data)",
+            src %in% c("a2011", "a2014", "2017") & expose_tattoo == 1 ~ "yes-p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_tattoo == 2 ~ "yes-beyond_p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_tattoo == 0 ~ "none",
+            src %in% c("a2011", "a2014", "2017") & is.na(expose_tattoo) ~ "(no data)",
             src == "cfbs2020" ~ "(no data)",
             src == "hts2021" ~ "(no data)",
          ),
 
          # sti
          risk_sti              = case_when(
-            src == "a2017" & expose_sti == 1 ~ "yes-p12m",
-            src == "a2017" & expose_sti == 2 ~ "yes-beyond_p12m",
-            src == "a2017" & expose_sti == 0 ~ "none",
-            src == "a2017" & is.na(expose_sti) ~ "(no data)",
+            src %in% c("a2011", "a2014", "2017") & expose_sti == 1 ~ "yes-p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_sti == 2 ~ "yes-beyond_p12m",
+            src %in% c("a2011", "a2014", "2017") & expose_sti == 0 ~ "none",
+            src %in% c("a2011", "a2014", "2017") & is.na(expose_sti) ~ "(no data)",
             src == "cfbs2020" ~ "(no data)",
             src == "hts2021" ~ "(no data)",
          ),
@@ -989,7 +994,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             TRUE ~ mot
          ),
 
-         # ivdu
+         # IVDU
          mot                   = case_when(
             expose_drug_inject > 0 & str_left(perm_prov, 4) == "0722" ~ 5,
             TRUE ~ mot
@@ -1070,7 +1075,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             TRUE ~ mot
          ),
 
-         # ivdu hx
+         # IVDU hx
          mot                   = case_when(
             injectdrug > 0 & str_left(perm_prov, 4) == "0722" ~ 51,
             TRUE ~ mot
@@ -1178,7 +1183,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
                'M->(M+F) sex'            = 2,
                'M->F only'               = 3,
                'F->M'                    = 4,
-               'ivdu (Cebu province)'    = 5,
+               'IVDU (Cebu province)'    = 5,
                'Vertical'                = 6,
                'Needlestick'             = 7,
                'Transfusion'             = 8,
@@ -1186,7 +1191,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
                'M->M hx'                 = 21,
                'M->(M+F) hx'             = 31,
                'F->M hx'                 = 41,
-               'ivdu hx (Cebu province)' = 51,
+               'IVDU hx (Cebu province)' = 51,
                'Vertical (<5 y.o.)'      = 61,
                'No risk'                 = 9,
                'F->F only'               = 10,
@@ -1194,7 +1199,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
                'M->M unreliable'         = 12,
                'M->F unreliable'         = 32,
                'F->M unreliable'         = 42,
-               'ivdu unreliable'         = 52
+               'IVDU unreliable'         = 52
             )
          )
       ) %>%
@@ -1269,7 +1274,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             !str_detect(risk_sexwithm, "yes") & str_detect(risk_sexwithf, "yes") ~ "F",
          ),
          kap_unknown = if_else(coalesce(risks, "(no data)") == "(no data)", "(no data)", NA_character_),
-         kap_msm     = if_else(sex == "1_Male" & sexual_risk %in% c("M", "M+F"), "msm", NA_character_),
+         kap_msm     = if_else(sex == "1_Male" & sexual_risk %in% c("M", "M+F"), "MSM", NA_character_),
          kap_heterom = if_else(sex == "1_Male" & sexual_risk == "F", "Hetero Male", NA_character_),
          kap_heterof = if_else(sex == "2_Female" & !is.na(sexual_risk), "Hetero Female", NA_character_),
          kap_pwid    = if_else(str_detect(risk_injectdrug, "yes"), "PWID", NA_character_),
@@ -1385,7 +1390,7 @@ convert_hts <- function(hts_data, convert_type = c("nhsss", "name", "code")) {
          ),
          convert_type
       ) %>%
-      ohasis$get_addr(
+      get_addr(
          c(
             cbs_reg  = "hiv_service_reg",
             cbs_prov = "hiv_service_prov",
@@ -1395,7 +1400,7 @@ convert_hts <- function(hts_data, convert_type = c("nhsss", "name", "code")) {
       ) %>%
       ohasis$get_staff(c(created_by = "created")) %>%
       ohasis$get_staff(c(updated_by = "updated")) %>%
-      ohasis$get_staff(c(hts_provider = "service_by")) %>%
+      ohasis$get_staff(c(hts_provider = "provider_id")) %>%
       ohasis$get_staff(c(analyzed_by = "signatory_1")) %>%
       ohasis$get_staff(c(reviewed_by = "signatory_2")) %>%
       ohasis$get_staff(c(noted_by = "signatory_3"))
@@ -2128,7 +2133,7 @@ convert_dx <- function(hts_data, yr, mo) {
             TRUE ~ mot
          ),
 
-         # ivdu
+         # IVDU
          mot        = case_when(
             expose_drug_inject > 0 & str_left(perm_prov, 4) == "0722" ~ 5,
             TRUE ~ mot
@@ -2209,7 +2214,7 @@ convert_dx <- function(hts_data, yr, mo) {
             TRUE ~ mot
          ),
 
-         # ivdu hx
+         # IVDU hx
          mot        = case_when(
             injectdrug > 0 & str_left(perm_prov, 4) == "0722" ~ 51,
             TRUE ~ mot
@@ -2294,7 +2299,7 @@ convert_dx <- function(hts_data, yr, mo) {
          # transmit
          transmit   = case_when(
             mot %in% c(1, 2, 3, 4, 11, 12, 21, 22, 31, 32, 41, 42) ~ "sex",
-            mot %in% c(5, 51, 52) ~ "ivdu",
+            mot %in% c(5, 51, 52) ~ "IVDU",
             mot %in% c(6, 61) ~ "perinatal",
             mot %in% c(8, 9, 10) ~ "unknown",
             mot == 7 ~ "others",
