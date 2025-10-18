@@ -103,7 +103,15 @@ Dedup <- R6Class(
                   left_birthdate    = birthdate,
                   left_confirmatory = confirmatory_code,
                   left_uic          = uic,
-                  left_pxcode       = patient_code
+                  left_pxcode       = patient_code,
+                  left_region       = residence_region,
+                  left_province     = residence_province,
+                  left_muncity      = residence_muncity,
+                  left_philhealth   = philhealth_no,
+                  left_philsys      = philsys_id,
+                  left_mobile       = client_mobile,
+                  left_email        = client_email,
+                  left_occupation   = occupation,
                ) %>%
                left_join(
                   y  = reclink_matched$dfB.match %>%
@@ -121,6 +129,14 @@ Dedup <- R6Class(
                         right_confirmatory = confirmatory_code,
                         right_uic          = uic,
                         right_pxcode       = patient_code,
+                        right_region       = residence_region,
+                        right_province     = residence_province,
+                        right_muncity      = residence_muncity,
+                        right_philhealth   = philhealth_no,
+                        right_philsys      = philsys_id,
+                        right_mobile       = client_mobile,
+                        right_email        = client_email,
+                        right_occupation   = occupation,
                      ),
                   by = join_by(match_id)
                ) %>%
@@ -130,22 +146,22 @@ Dedup <- R6Class(
                ) %>%
                mutate(
                   left_name  = stri_c(
-                     left_family_name,
+                     coalesce(left_family_name, ''),
                      ", ",
-                     left_given_name,
+                     coalesce(left_given_name, ''),
                      " ",
-                     left_middle_name,
+                     coalesce(left_middle_name, ''),
                      " ",
-                     left_suffix_name
+                     coalesce(left_suffix_name, '')
                   ),
                   right_name = stri_c(
-                     right_family_name,
+                     coalesce(right_family_name, ''),
                      ", ",
-                     right_given_name,
+                     coalesce(right_given_name, ''),
                      " ",
-                     right_middle_name,
+                     coalesce(right_middle_name, ''),
                      " ",
-                     right_suffix_name
+                     coalesce(right_suffix_name, '')
                   ),
                ) %>%
                mutate_at(
@@ -165,7 +181,7 @@ Dedup <- R6Class(
                   name_levenshtein = stringsim(
                      left_name,
                      right_name,
-                     method = 'levenshtein'
+                     method = 'lv'
                   ),
                   # jaro-winkler
                   name_jarowinkler = stringsim(
@@ -186,7 +202,8 @@ Dedup <- R6Class(
                      3,
                ) %>%
                # choose 60% and above match
-               filter(avg_dist >= 0.60, !is.na(posterior))
+               filter(avg_dist >= 0.60, !is.na(posterior)) %>%
+               select(-name_levenshtein, -name_jarowinkler, -name_qgram, -avg_dist)
 
             # assign to global env
             self$review$reclink <- reclink_review %>%
@@ -338,6 +355,13 @@ Dedup <- R6Class(
             "given_name_sieve"
          ))
 
+         # log_info("EM Algorithm = {green('First Name (3)')}.")
+         # linker$
+         #    training$
+         #    estimate_parameters_using_expectation_maximisation(sp$block_on(
+         #    "given_name_3"
+         # ))
+
          log_info("EM Algorithm = {green('Last Name')}.")
          linker$
             training$
@@ -345,49 +369,49 @@ Dedup <- R6Class(
             "family_name_sieve"
          ))
 
-         # log_info("EM Algorithm = {green('First+Last Name')}.")
+         # log_info("EM Algorithm = {green('First Name(3)+Last Name')}.")
          # linker$
          #    training$
-         #    estimate_parameters_using_expectation_maximisation(sp$block_on("given_name_sieve", "family_name_sieve"))
-
+         #    estimate_parameters_using_expectation_maximisation(sp$block_on("given_name_3", "family_name_sieve"))
+         #
          # log_info("EM Algorithm = {green('Birth Date')}.")
          # linker$
          #    training$
          #    estimate_parameters_using_expectation_maximisation(sp$block_on("birthdate"))
 
-         # log_info("EM Algorithm = {green('First Name+Birth Date')}.")
-         # linker$
-         #    training$
-         #    estimate_parameters_using_expectation_maximisation(sp$block_on("given_name_sieve", "birthdate"))
-         # log_info("EM Algorithm = {green('Last Name+Birth Date')}.")
-         # linker$
-         #    training$
-         #    estimate_parameters_using_expectation_maximisation(sp$block_on("family_name_sieve", "birthdate"))
+         log_info("EM Algorithm = {green('First Name+Birth Date')}.")
+         linker$
+            training$
+            estimate_parameters_using_expectation_maximisation(sp$block_on("given_name_3", "birthdate"))
+         log_info("EM Algorithm = {green('Last Name+Birth Date')}.")
+         linker$
+            training$
+            estimate_parameters_using_expectation_maximisation(sp$block_on("family_name_sieve", "birthdate"))
 
-         log_info("EM Algorithm = {green('First Name+Birth Yr+Birth Mo')}.")
-         linker$
-            training$
-            estimate_parameters_using_expectation_maximisation(sp$block_on(
-            "given_name_sieve",
-            "birth_yr",
-            "birth_mo"
-         ))
-         log_info("EM Algorithm = {green('First Name+Birth Yr+Birth Dy')}.")
-         linker$
-            training$
-            estimate_parameters_using_expectation_maximisation(sp$block_on(
-            "given_name_sieve",
-            "birth_yr",
-            "birth_dy"
-         ))
-         log_info("EM Algorithm = {green('First Name+Birth Mo+Birth Dy')}.")
-         linker$
-            training$
-            estimate_parameters_using_expectation_maximisation(sp$block_on(
-            "given_name_sieve",
-            "birth_mo",
-            "birth_dy"
-         ))
+         # log_info("EM Algorithm = {green('First Name+Birth Yr+Birth Mo')}.")
+         # linker$
+         #    training$
+         #    estimate_parameters_using_expectation_maximisation(sp$block_on(
+         #    "given_name_sieve",
+         #    "birth_yr",
+         #    "birth_mo"
+         # ))
+         # log_info("EM Algorithm = {green('First Name+Birth Yr+Birth Dy')}.")
+         # linker$
+         #    training$
+         #    estimate_parameters_using_expectation_maximisation(sp$block_on(
+         #    "given_name_sieve",
+         #    "birth_yr",
+         #    "birth_dy"
+         # ))
+         # log_info("EM Algorithm = {green('First Name+Birth Mo+Birth Dy')}.")
+         # linker$
+         #    training$
+         #    estimate_parameters_using_expectation_maximisation(sp$block_on(
+         #    "given_name_sieve",
+         #    "birth_mo",
+         #    "birth_dy"
+         # ))
 
          log_info("Generating match pairs.")
          pairwise_predictions <- linker$inference$predict(
@@ -486,23 +510,27 @@ Dedup <- R6Class(
             ) %>%
             mutate(
                left_name  = stri_c(
-                  left_family_name,
+                  coalesce(left_family_name, ''),
                   ", ",
-                  left_given_name,
+                  coalesce(left_given_name, ''),
                   " ",
-                  left_middle_name,
+                  coalesce(left_middle_name, ''),
                   " ",
-                  left_suffix_name
+                  coalesce(left_suffix_name, '')
                ),
                right_name = stri_c(
-                  right_family_name,
+                  coalesce(right_family_name, ''),
                   ", ",
-                  right_given_name,
+                  coalesce(right_given_name, ''),
                   " ",
-                  right_middle_name,
+                  coalesce(right_middle_name, ''),
                   " ",
-                  right_suffix_name
+                  coalesce(right_suffix_name, '')
                ),
+            ) %>%
+            mutate_at(
+               .vars = vars(left_name, right_name),
+               ~na_if(str_squish(.), ",")
             ) %>%
             # select(
             #    -ends_with("given_name"),
@@ -798,6 +826,17 @@ upload_splink <- function(data, surv_name, dedup_type) {
    dbDisconnect(lw_conn)
 }
 
+upload_reclink <- function(data, surv_name, dedup_type) {
+   issue  <- "reclink"
+   table  <- paste0(dedup_type, "-", issue)
+   id_col <- "match_id"
+
+   lw_conn <- connect(surv_name)
+   dbExecute(lw_conn, glue(r"(TRUNCATE `{surv_name}`.`{table}`)"))
+   ohasis$upsert(lw_conn, surv_name, table, data, id_col)
+   dbDisconnect(lw_conn)
+}
+
 generate_splink <- function(yr, mo, surv_name) {
    table <- str_c('reg_', yr, stri_pad_left(mo, 2, '0'))
 
@@ -938,7 +977,135 @@ generate_splink <- function(yr, mo, surv_name) {
    dedup$preparePii()
    dedup$splinkDedupe()
 
-   return(dedup$review$splinkDedup)
+   return(dedup)
+}
+
+reclink_to_dx <- function(yr, mo, surv_name) {
+   table <- str_c('reg_', yr, stri_pad_left(mo, 2, '0'))
+
+   idreg <- update_idreg()
+
+   conn <- connect('mariadb-lw')
+   data <- switch(
+      surv_name,
+      harp_tx   = QB$new(conn)$select(
+         patient_id,
+         art_id,
+         idnum,
+         first,
+         middle,
+         last,
+         suffix,
+         birthdate,
+         sex,
+         uic,
+         confirmatory_code,
+         px_code,
+         philhealth_no,
+         philsys_id,
+         mobile,
+         email
+      )$from(stri_c(surv_name, ".", table))$get(),
+      harp_dead = QB$new(conn)$select(
+         patient_id,
+         mort_id,
+         idnum,
+         fname,
+         mname,
+         lname,
+         sname,
+         birthdate,
+         sex,
+         uic,
+         saccl_lab_code,
+         patient_code,
+         philhealth,
+         philsys_id,
+         mobile,
+         email
+      )$from(stri_c(surv_name, ".", table))$get()
+   )
+
+   dx <- QB$new(conn)$select(
+      patient_id,
+      idnum,
+      firstname,
+      middle,
+      last,
+      name_suffix,
+      bdate,
+      sex,
+      uic,
+      labcode2,
+      patient_code,
+      philhealth,
+      philsys_id,
+      mobile,
+      email,
+      region,
+      province,
+      muncity,
+      curr_work,
+      prev_work,
+      job
+   )$from(stri_c("harp_dx.", table))$get()
+   data %<>%
+      select(-any_of(c("curr_reg", "curr_prov", "curr_munc"))) %>%
+      left_join(
+         y  = dx %>%
+            select(
+               idnum,
+               region,
+               province,
+               muncity,
+               job,
+               curr_work,
+               prev_work
+            ),
+         by = join_by(idnum)
+      )
+   dbDisconnect(conn)
+
+   if (surv_name == "prep") {
+      data %<>%
+         mutate(
+            job               = NA_character_,
+            curr_work         = NA_character_,
+            prev_work         = NA_character_,
+            confirmatory_code = NA_character_
+         )
+   }
+
+   data %<>%
+      mutate_at(vars(job, curr_work, prev_work, job), ~na_if(., "")) %>%
+      mutate(
+         occupation = coalesce(curr_work, prev_work, job)
+      ) %>%
+      rename_all(tolower) %>%
+      get_cid(idreg, patient_id)
+
+   dx %<>%
+      mutate_at(vars(job, curr_work, prev_work, job), ~na_if(., "")) %>%
+      mutate(
+         occupation = coalesce(curr_work, prev_work, job)
+      ) %>%
+      rename_all(tolower) %>%
+      get_cid(idreg, patient_id)
+
+   id <- switch(
+      surv_name,
+      harp_tx   = "art_id",
+      harp_dead = "mort_id",
+      prep      = "prep_id",
+   )
+
+   dedup <- Dedup$new()
+   dedup$setMaster(data %>% filter(is.na(idnum)), id)
+   dedup$setUsing(dx, 'idnum')
+   dedup$preparePii()
+   dedup$reclink()
+
+   return(dedup)
 }
 
 ## sample run for surveillance
