@@ -12,15 +12,15 @@ QB <- R6Class(
          private$conn <- db_conn
       },
 
-      from            = function(table) {
-         private$main <- private$quoteIdentifier(table)
+      from            = function(table, final = FALSE) {
+         private$main <- private$quoteIdentifier(table, final)
          self$title   <- private$getAlias(private$main)
 
          invisible(self)
       },
 
-      table           = function(table) {
-         private$main <- private$quoteIdentifier(table)
+      table           = function(table, final = FALSE) {
+         private$main <- private$quoteIdentifier(table, final)
          self$title   <- private$getAlias(private$main)
 
          invisible(self)
@@ -250,7 +250,7 @@ QB <- R6Class(
       main            = NULL,
       conn            = NULL,
 
-      quoteIdentifier = function(identifier) {
+      quoteIdentifier = function(identifier, final = FALSE) {
          if (is.null(identifier)) {
             return()
          }
@@ -275,6 +275,10 @@ QB <- R6Class(
          }
 
          query <- str_flatten(collapse = " AS ", na.rm = TRUE, c(actual, alias))
+
+         if (final) {
+            query <- str_c(query, ' final')
+         }
 
          return(query)
       },
