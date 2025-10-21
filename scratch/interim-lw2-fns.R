@@ -372,7 +372,6 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
 
 deconstruct_art <- function(forms, dispense = NULL, discontinue = NULL) {
    tables <- c(
-      "patients",
       "px_record",
       "px_pii",
       "px_profile",
