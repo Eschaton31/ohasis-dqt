@@ -188,7 +188,8 @@ LyArt <- R6Class(
                      curr_prov = prov,
                      curr_munc = munc
                   ),
-               by = join_by(CURR_PSGC)
+               by = join_by(CURR_PSGC),
+               na_matches = "never"
             )
 
          invisible(self)
@@ -264,6 +265,7 @@ LyArt <- R6Class(
                   final_arv == 'DOLUTEGRAVIR 50MG / LAMIVUDINE 300MG / TENOFOVIR DISOPROXIL FUMARATE 300MG (DTG/3TC/TDF) (TLD) + DTG' ~ 'TDF/3TC/DTG+DTG',
                   final_arv == 'ABACAVIR 300MG + LAMIVUDINE 150MG + EFAVIRENZ 600MG (ABC + 3TC + EFV)' ~ 'ABC+3TC+EFV',
                   final_arv == 'DOLUTEGRAVIR 50MG / LAMIVUDINE 300MG / TENOFOVIR DISOPROXIL FUMARATE 300MG (DTG/3TC/TDF) (TLD)' ~ 'TDF/3TC/DTG',
+                  final_arv == 'DOLUTEGRAVIR 50MG/ LAMIVUDINE 300MG/ TENOFOVIR DISOPROXIL FUMARATE 300MG (DTG/3TC/TDF) TLD' ~ 'TDF/3TC/DTG',
                   final_arv == 'LAMIVUDINE 300MG +LOPINAVIR /RITONAVIR(RITOCOM) 200MG/50MG+DOLUTEGRAVIR 50MG' ~ '3TC+LPV/R+DTG',
                   final_arv == 'DOLUTEGRAVIR 50MG / LAMIVUDINE 300MG / TENOFOVIR DISOPROXIL FUMARATE 300MG (DTG/3TC/TDF) (TLD' ~ 'TDF/3TC/DTG',
                   final_arv == 'EFAVIRENZ 600MG + LAMIVUDINE 300MG + TENOFOVIR DISOPROXIL FUMARATE 300MG (EFV/3TC/TDF) (LTE)' ~ 'TDF/3TC/EFV',
@@ -278,6 +280,9 @@ LyArt <- R6Class(
                   final_arv == 'ABACAVIR 300MG / LAMIVUDINE 150MG / DOLUTEGRAVIR 50MG' ~ 'ABC+3TC+DTG',
                   final_arv == 'LAMIVUDINE 150MG/ZIDOVUDINE 300MG/ DOLUTEGRAVIR 50MG' ~ 'AZT/3TC+DTG',
                   final_arv == '3TC/AZT + DTG' ~ 'AZT/3TC+DTG',
+                  final_arv == 'LAMIVUDINE 300MG / TENOFOVIR DISOPROXIL FUMARATE 300MG + RILPIVIRINE 25MG (3TC/TDF + RPV)' ~ 'TDF/3TC+RIL',
+                  final_arv == 'DOLUTEGRAVIR 50MG + EMTRICITABINE 200MG + TENOFOVIR ALAFENAMIDE 25MG (DTG+FTC+TAF)' ~ 'TDF+FTC+TAF',
+                  final_arv == 'LAMIVUDINE 150MG + LOPINAVIR 200MG/RITONAVIR 50MG + DOLUTEGRAVIR 50MG' ~ '3TC+LPV/r+DTG',
                   TRUE ~ final_arv
                ),
 
@@ -323,6 +328,13 @@ LyArt <- R6Class(
                   filter(!is.na(central_id)) %>%
                   select(-row_id) %>%
                   rename(patient_code = client_code) %>%
+                  mutate(
+                     sex = case_when(
+                        sex == '1' ~ 'MALE',
+                        sex == '2' ~ 'FEMALE',
+                        TRUE ~ sex
+                     )
+                  ) %>%
                   distinct(
                      patient_code,
                      birthdate,
@@ -381,6 +393,7 @@ LyArt <- R6Class(
                   !is.na(self_ident_other) ~ "3",
                   TRUE ~ self_ident
                ),
+               central_id       = na_if(central_id, '20250523130000167P')
             )
 
          invisible(self)
@@ -435,8 +448,10 @@ LyArt <- R6Class(
          max_id <- max(self$data$ids$row_id)
          new    <- self$data$converted %>%
             filter(is.na(central_id)) %>%
-            mutate(
-               row_id = max_id + row_number()
+            select(
+               -curr_reg,
+               -curr_prov,
+               -curr_munc
             ) %>%
             left_join(read_sheet("1c334aEKFTOl3Cg9Uji7tq1rZjlPM8RKpdXwQgOGyAIg", "facility_id", col_types = "c") %>% rename(Branch = SITE), join_by(Branch)) %>%
             left_join(read_sheet("1c334aEKFTOl3Cg9Uji7tq1rZjlPM8RKpdXwQgOGyAIg", "addr", col_types = "c") %>% rename(curr_addr = addr), join_by(curr_addr)) %>%
@@ -475,7 +490,8 @@ LyArt <- R6Class(
                self_ident
             ) %>%
             mutate(
-               drop = is.na(uic) & is.na(birthdate) & is.na(first)
+               row_id = max_id + row_number(),
+               drop   = is.na(uic) & is.na(birthdate) & is.na(first)
             ) %>%
             filter(!drop) %>%
             select(-drop)
@@ -861,49 +877,49 @@ LyArt <- R6Class(
          self$tables <- deconstruct_art(self$data$forUpload)
 
          idreg <- update_idreg()
-         self$tables$patients$data %<>%
-            get_cid(idreg, patient_id) %>%
-            mutate(birthdate = as.Date(birthdate)) %>%
-            get_latest_pii(
-               "central_id",
-               c(
-                  'confirmatory_code',
-                  'patient_code',
-                  'uic',
-                  'philhealth_no',
-                  'philsys_id',
-                  'first',
-                  'middle',
-                  'last',
-                  'suffix',
-                  'birthdate',
-                  'sex',
-                  'self_ident',
-                  'self_ident_other',
-                  'client_email',
-                  'client_mobile',
-                  'nationality',
-                  'civil_status',
-                  'educ_level',
-                  'curr_reg',
-                  'curr_prov',
-                  'curr_munc',
-                  'curr_brgy',
-                  'perm_reg',
-                  'perm_prov',
-                  'perm_munc',
-                  'perm_brgy',
-                  'birth_reg',
-                  'birth_prov',
-                  'birth_munc',
-                  'birth_brgy'
-               )
-            ) %>%
-            select(-central_id) %>%
-            mutate_at(
-               .vars = vars(civil_status, educ_level, sex, self_ident),
-               keep_code
-            )
+         # self$tables$patients$data %<>%
+         #    get_cid(idreg, patient_id) %>%
+         #    mutate(birthdate = as.Date(birthdate)) %>%
+         #    get_latest_pii(
+         #       "central_id",
+         #       c(
+         #          'confirmatory_code',
+         #          'patient_code',
+         #          'uic',
+         #          'philhealth_no',
+         #          'philsys_id',
+         #          'first',
+         #          'middle',
+         #          'last',
+         #          'suffix',
+         #          'birthdate',
+         #          'sex',
+         #          'self_ident',
+         #          'self_ident_other',
+         #          'client_email',
+         #          'client_mobile',
+         #          'nationality',
+         #          'civil_status',
+         #          'educ_level',
+         #          'curr_reg',
+         #          'curr_prov',
+         #          'curr_munc',
+         #          'curr_brgy',
+         #          'perm_reg',
+         #          'perm_prov',
+         #          'perm_munc',
+         #          'perm_brgy',
+         #          'birth_reg',
+         #          'birth_prov',
+         #          'birth_munc',
+         #          'birth_brgy'
+         #       )
+         #    ) %>%
+         #    select(-central_id) %>%
+         #    mutate_at(
+         #       .vars = vars(civil_status, educ_level, sex, self_ident),
+         #       keep_code
+         #    )
 
          for (table in names(self$tables)) {
             value_cols <- names(self$tables[[table]]$data)

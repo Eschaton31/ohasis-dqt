@@ -199,14 +199,15 @@ LyVl <- R6Class(
                CURR_PSGC = coalesce(CURR_PSGC_MUNC, CURR_PSGC_PROV, CURR_PSGC_REG),
             ) %>%
             left_join(
-               y  = ohasis$ref_addr %>%
+               y          = ohasis$ref_addr %>%
                   select(
                      CURR_PSGC = psgc_old,
                      curr_reg  = reg,
                      curr_prov = prov,
                      curr_munc = munc
                   ),
-               by = join_by(CURR_PSGC)
+               by         = join_by(CURR_PSGC),
+               na_matches = "never"
             )
 
          invisible(self)
