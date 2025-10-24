@@ -336,85 +336,78 @@ dbTable2 <- function(conn, dbname, table, cols = ..1, where = ..2, join = NULL, 
 # get inventory data
 get_inv <- function(iid) {
    inv        <- list()
-   db_conn    <- ohasis$conn("db")
-   inv$status <- dbGetQuery(db_conn, r"(
-SELECT inv.INVENTORY_ID,
-       prod.NAME          AS ITEM,
-       inv.BATCH_NUM,
-       inv.BATCH_QUANTITY AS BATCH_INITIAL,
-       inv.BATCH_CURR,
-       batch.DEFINITION   AS BATCH_UNIT,
-       inv.ITEM_PER_BATCH,
-       inv.ITEM_QUANTITY  AS ITEM_INITIAL,
-       inv.ITEM_CURR,
-       item.DEFINITION    AS ITEM_UNIT,
-       inv.RECORD_DATE    AS DATE_RECEIVE,
-       inv.EXPIRE_DATE    AS DATE_EXPIRE,
-       inv.FACI_ID,
-       ''                 AS SUB_FACI_ID
-FROM ohasis_interim.inventory AS inv
-         LEFT JOIN ohasis_interim.inventory_product AS prod ON inv.ITEM_ID = prod.ITEM
-         LEFT JOIN ohasis_interim.ref_text AS batch ON inv.BATCH_UNIT = batch.VALUE AND batch.NAME = 'STOCK_UNIT'
-         LEFT JOIN ohasis_interim.ref_text AS item ON inv.ITEM_UNIT = item.VALUE AND item.NAME = 'ITEM_UNIT'
-WHERE inv.INVENTORY_ID = ?
-)", params = iid)
-
+   db_conn    <- connect('ohasis-live')
+   inv$status <- QB$new(db_conn)$
+      from('ohasis.inventories as inv')$
+      leftJoin('ohasis.products as prod', 'inv.item_id', '=', 'prod.product_id')$
+      where('inv.inventory_id', iid)$
+      select('inv.inventory_id',
+             'prod.name as item',
+             'inv.batch_num',
+             'inv.batch_quantity',
+             'inv.batch_curr',
+             'inv.item_per_batch',
+             'inv.item_quantity',
+             'inv.item_curr',
+             'inv.receipt_date',
+             'inv.expire_date',
+             'inv.faci_id')$
+      get()
 
    trxn      <- list()
-   trxn$data <- dbGetQuery(db_conn, r"(
-SELECT trans.*,
-       IF(ISNULL(rec.DELETED_AT), 0, 1) AS INVALID
-FROM ohasis_interim.inventory_transact AS trans
-         LEFT JOIN ohasis_interim.px_record AS rec ON trans.TRANSACT_ID = rec.REC_ID
-WHERE trans.INVENTORY_ID = ?
-)", params = iid)
-   trxn$add  <- trxn$data %>%
+   trxn$data <- QB$new(db_conn)$
+      from('ohasis.inventory_transactions as trans')$
+      select('trans.*')$
+      leftJoin('ohasis.px_record as rec', 'trans.rec_id', '=', 'rec.rec_id')$
+      whereNull('rec.deleted_at')$
+      where('trans.inventory_id', iid)$
+      get()
+
+   trxn$add <- trxn$data %>%
       filter(
-         TRANSACT_TYPE == 1,
-         INVALID == 0
+         transact_type == 1,
       ) %>%
-      group_by(UNIT_BASIS) %>%
+      group_by(unit_basis) %>%
       summarise(
-         TOTAL = sum(TRANSACT_QUANTITY, na.rm = TRUE)
+         total = sum(transact_quantity, na.rm = TRUE)
       ) %>%
       ungroup() %>%
       mutate(
-         TOTAL = if_else(
-            condition = UNIT_BASIS == 1,
-            true      = TOTAL * inv$status$ITEM_PER_BATCH,
-            false     = TOTAL,
-            missing   = TOTAL
+         total = if_else(
+            condition = unit_basis == 1,
+            true      = total * inv$status$item_per_batch,
+            false     = total,
+            missing   = total
          )
       ) %>%
       summarise(
-         TOTAL = sum(TOTAL, na.rm = TRUE)
+         total = sum(total, na.rm = TRUE)
       )
 
    trxn$subtract <- trxn$data %>%
       filter(
-         TRANSACT_TYPE == 2,
-         INVALID == 0
+         transact_type == 2,
       ) %>%
-      group_by(UNIT_BASIS) %>%
+      group_by(unit_basis) %>%
       summarise(
-         TOTAL = sum(TRANSACT_QUANTITY, na.rm = TRUE)
+         total = sum(transact_quantity, na.rm = TRUE)
       ) %>%
       ungroup() %>%
       mutate(
          TOTAL = if_else(
-            condition = UNIT_BASIS == 1,
-            true      = TOTAL * inv$status$ITEM_PER_BATCH,
-            false     = TOTAL,
-            missing   = TOTAL
+            condition = unit_basis == 1,
+            true      = total * inv$status$item_per_batch,
+            false     = total,
+            missing   = total
          )
       ) %>%
       summarise(
-         TOTAL = sum(TOTAL, na.rm = TRUE)
+         total = sum(total, na.rm = TRUE)
       )
 
    inv$status <- ohasis$get_faci(
       inv$status,
-      list("FACI" = c("FACI_ID", "SUB_FACI_ID")),
+      list("faci" = c("faci_id", "sub_faci_id")),
       "name"
    )
 
@@ -426,20 +419,22 @@ WHERE trans.INVENTORY_ID = ?
 update_inv <- function(iid) {
    inv <- get_inv(iid)
 
-   remain_item  <- inv$trxn$add$TOTAL - inv$trxn$subtract$TOTAL
-   remain_batch <- (remain_item / inv$status$ITEM_PER_BATCH)
+   remain_item  <- inv$trxn$add$total - inv$trxn$subtract$total
+   remain_batch <- (remain_item / inv$status$item_per_batch)
 
-   db_conn <- ohasis$conn("db")
-   dbExecute(
-      db_conn,
-      r"(
-UPDATE ohasis_interim.inventory
-SET ITEM_CURR  = ?,
-    BATCH_CURR = ?
-WHERE INVENTORY_ID = ?
-)",
-      params = list(remain_item, remain_batch, iid)
-   )
+   db_conn <- connect('ohasis-live')
+   new_inv <- inv$status %>%
+      select(
+         inventory_id,
+      ) %>%
+      mutate(
+         item_quantity = inv$trxn$add$total,
+         item_curr     = remain_item,
+         batch_curr    = remain_batch,
+         updated_by    = Sys.getenv("OH_USER_ID"),
+         updated_at    = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+      )
+   dbxUpsert(db_conn, Id(schema = 'ohasis', table = 'inventories'), new_inv, 'inventory_id')
    dbDisconnect(db_conn)
 }
 
@@ -805,96 +800,38 @@ batch_rec_ids <- function(data, rec_id, user_id, row_ids) {
 dup_faci_id <- function(keep_faci, drop_faci, reason = NA_character_) {
    # get dupes
    dupes <- ohasis$ref_faci %>%
-      filter(FACI_ID %in% c(keep_faci, drop_faci)) %>%
-      filter(SUB_FACI_ID == "") %>%
+      filter(faci_id %in% c(keep_faci, drop_faci)) %>%
+      filter(sub_faci_id == "") %>%
       mutate(
-         REASON     = reason,
-         MAIN_FACI  = keep_faci,
-         CREATED_BY = '1300000001',
-         CREATED_AT = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+         reason     = reason,
+         main_faci  = keep_faci,
+         created_by = '1300000001',
+         created_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
       ) %>%
       select(
-         MAIN_FACI,
-         DUPE_FACI = FACI_ID,
-         REASON,
-         FACI_NAME,
-         FACI_NAME_CLEAN,
-         FACI_CODE,
-         PUBPRIV,
-         LAT,
-         LONG,
-         EMAIL,
-         MOBILE,
-         LANDLINE,
-         REG       = FACI_PSGC_REG,
-         PROV      = FACI_PSGC_PROV,
-         MUNC      = FACI_PSGC_MUNC,
-         ADDRESS   = FACI_ADDR,
+         main_faci,
+         dupe_faci       = faci_id,
+         reason,
+         faci_name,
+         faci_name_clean = faci_name_nhsss,
+         faci_code,
+         pubpriv         = ownership,
+         lat             = latitude,
+         long            = longitude,
+         email,
+         mobile,
+         landline,
+         reg             = addr_psgc_reg,
+         prov            = addr_psgc_prov,
+         munc            = addr_psgc_munc,
+         address         = physical_address,
       )
 
    #  prepare update & select queries queries per table
    sql_update <- list()
    sql_select <- list()
    table_cols <- list(
-      "px_cfbs.FACI_ID",
-      "px_cfbs.PARTNER_FACI",
-      "px_confirm.FACI_ID",
-      "px_confirm.SOURCE",
-      "px_faci.FACI_ID",
-      "px_faci.REFER_BY_ID",
-      "px_faci.REFER_TO_ID",
-      "px_medicine.FACI_ID",
-      "px_medicine_disc.FACI_ID",
-      "px_record.FACI_ID",
-      "px_test.FACI_ID",
-      "px_test_hiv.FACI_ID",
-      "referral.REFER_BY_ID",
-      "referral.REFER_TO_ID",
-      "users.FACI_ID",
-      "inventory.FACI_ID",
-      "inventory.SOURCE"
-   )
-   for (table_col in table_cols) {
-      pair  <- strsplit(table_col, "\\.")[[1]]
-      table <- pair[1]
-      col   <- pair[2]
-
-      sql_update[[table_col]] <- paste0("UPDATE ohasis_interim.", table, " SET ", col, " = ? WHERE ", col, " = ?;")
-
-      if (grepl("^px", table))
-         sql_select[[table_col]] <- paste0("SELECT DISTINCT REC_ID FROM ohasis_interim.", table, " WHERE ", col, " = ?;")
-   }
-
-   # get record ids for those affected
-   db_conn <- ohasis$conn("db")
-   rec_ids <- data.frame()
-   for (query in sql_select) {
-      data    <- dbGetQuery(db_conn, query, params = list(drop_faci))
-      rec_ids <- rec_ids %>% bind_rows(data) %>% distinct(REC_ID)
-   }
-
-   # update records
-   for (query in sql_update) {
-      dbExecute(db_conn, query, params = list(keep_faci, drop_faci))
-   }
-   update_credentials(rec_ids$REC_ID)
-
-   # remove duplicate facility from referece data
-   dbExecute(db_conn, "DELETE FROM ohasis_interim.facility WHERE FACI_ID = ?;", params = list(drop_faci))
-
-   # log data in facility_duplicates
-   dbxUpsert(db_conn,
-             Id(schema = "ohasis_interim", table = "facility_duplicates"),
-             dupes,
-             c("MAIN_FACI", "DUPE_FACI"))
-   dbDisconnect(db_conn)
-}
-
-dup_faci_id <- function(keep_faci, drop_faci, reason = NA_character_) {
-   #  prepare update & select queries queries per table
-   sql_update <- list()
-   sql_select <- list()
-   table_cols <- list(
+      "patients.faci_id",
       "px_cfbs.faci_id",
       "px_cfbs.partner_faci",
       "px_confirm.faci_id",
@@ -914,14 +851,14 @@ dup_faci_id <- function(keep_faci, drop_faci, reason = NA_character_) {
       table <- pair[1]
       col   <- pair[2]
 
-      sql_update[[table_col]] <- paste0("UPDATE ohasis.", table, " SET ", col, " = ? WHERE ", col, " = ?;")
+      sql_update[[table_col]] <- paste0("update ohasis.", table, " set updated_by = ?, updated_at = now(), ", col, " = ? where ", col, " = ?;")
 
       if (grepl("^px", table))
-         sql_select[[table_col]] <- paste0("SELECT DISTINCT rec_id FROM ohasis.", table, " WHERE ", col, " = ?;")
+         sql_select[[table_col]] <- paste0("select distinct rec_id from ohasis.", table, " where ", col, " = ?;")
    }
 
    # get record ids for those affected
-   db_conn <- connect('oh2')
+   db_conn <- connect('ohasis-live')
    rec_ids <- data.frame()
    for (query in sql_select) {
       data    <- dbGetQuery(db_conn, query, params = list(drop_faci))
@@ -930,15 +867,111 @@ dup_faci_id <- function(keep_faci, drop_faci, reason = NA_character_) {
 
    # update records
    for (query in sql_update) {
-      dbExecute(db_conn, query, params = list(keep_faci, drop_faci))
+      dbExecute(db_conn, query, params = list('1300000001', keep_faci, drop_faci))
    }
+   update_credentials(rec_ids$rec_id)
 
    # remove duplicate facility from referece data
-   dbExecute(db_conn, "DELETE FROM ohasis.facilities WHERE faci_id = ?;", params = list(drop_faci))
-   dbDisconnect(db_conn)
+   dbExecute(db_conn, "delete from ohasis.facilities where faci_id = ?;", params = list(drop_faci))
 
-   return(rec_ids)
+   # log data in facility_duplicates
+   dbxUpsert(db_conn,
+             Id(schema = "ohasis", table = "facility_duplicates"),
+             dupes,
+             c("main_faci", "dupe_faci"))
+   dbDisconnect(db_conn)
 }
+
+nullify_subunit <- function(subunit) {
+   sql_update <- list()
+   sql_select <- list()
+   table_cols <- list(
+      "patients.sub_faci_id",
+      "px_cfbs.sub_faci_id",
+      "px_confirm.sub_faci_id",
+      "px_confirm.sub_source",
+      "px_service.sub_faci_id",
+      "px_medicine.sub_faci_id",
+      "px_medicine_disc.sub_faci_id",
+      "px_record.sub_faci_id",
+      "px_test.sub_faci_id"
+   )
+   for (table_col in table_cols) {
+      pair  <- strsplit(table_col, "\\.")[[1]]
+      table <- pair[1]
+      col   <- pair[2]
+
+      sql_update[[table_col]] <- paste0("update ohasis.", table, " set updated_by = ?, updated_at = now(), ", col, " = null where ", col, " = ?;")
+
+      if (grepl("^px", table))
+         sql_select[[table_col]] <- paste0("select distinct rec_id from ohasis.", table, " where ", col, " = ?;")
+   }
+
+   # get record ids for those affected
+   db_conn <- connect('ohasis-live')
+   rec_ids <- data.frame()
+   for (query in sql_select) {
+      data    <- dbGetQuery(db_conn, query, params = list(drop_faci))
+      rec_ids <- rec_ids %>% bind_rows(data) %>% distinct(rec_id)
+   }
+
+   # update records
+   for (query in sql_update) {
+      dbExecute(db_conn, query, params = list('1300000001', keep_faci, drop_faci))
+   }
+   update_credentials(rec_ids$rec_id)
+   dbDisconnect(db_conn)
+}
+
+# dup_faci_id <- function(keep_faci, drop_faci, reason = NA_character_) {
+#    #  prepare update & select queries queries per table
+#    sql_update <- list()
+#    sql_select <- list()
+#    table_cols <- list(
+#       "px_cfbs.faci_id",
+#       "px_cfbs.partner_faci",
+#       "px_confirm.faci_id",
+#       "px_confirm.source",
+#       "px_service.faci_id",
+#       "px_service.refer_by_id",
+#       "px_medicine.faci_id",
+#       "px_medicine_disc.faci_id",
+#       "px_record.faci_id",
+#       "px_test.faci_id",
+#       "users.faci_id",
+#       "inventories.faci_id",
+#       "inventories.source_id"
+#    )
+#    for (table_col in table_cols) {
+#       pair  <- strsplit(table_col, "\\.")[[1]]
+#       table <- pair[1]
+#       col   <- pair[2]
+#
+#       sql_update[[table_col]] <- paste0("UPDATE ohasis.", table, " SET ", col, " = ? WHERE ", col, " = ?;")
+#
+#       if (grepl("^px", table))
+#          sql_select[[table_col]] <- paste0("SELECT DISTINCT rec_id FROM ohasis.", table, " WHERE ", col, " = ?;")
+#    }
+#
+#    # get record ids for those affected
+#    db_conn <- connect('oh2')
+#    rec_ids <- data.frame()
+#    for (query in sql_select) {
+#       data    <- dbGetQuery(db_conn, query, params = list(drop_faci))
+#       rec_ids <- rec_ids %>% bind_rows(data) %>% distinct(rec_id)
+#    }
+#
+#    # update records
+#    for (query in sql_update) {
+#       dbExecute(db_conn, query, params = list(keep_faci, drop_faci))
+#    }
+#
+#    # remove duplicate facility from referece data
+#    dbExecute(db_conn, "DELETE FROM ohasis.facilities WHERE faci_id = ?;", params = list(drop_faci))
+#    dbDisconnect(db_conn)
+#
+#    return(rec_ids)
+# }
 
 ##  update medicine
 disp_bottle_to_pill <- function(rec_ids) {
