@@ -1217,16 +1217,14 @@ generate_splink <- function(yr, mo, surv_name) {
          birthdate,
          sex,
          uic,
-         patient_code,
+         px_code,
          philhealth_no,
          philsys_id,
-         client_mobile,
-         client_email,
+         mobile,
+         email,
          curr_reg,
-         currr_prov,
-         currr_munc,
-         curr_work,
-         prev_work
+         curr_prov,
+         curr_munc
       )$from(stri_c(surv_name, ".", table))$get(),
    )
 
@@ -1360,16 +1358,14 @@ generate_exact <- function(yr, mo, surv_name) {
          birthdate,
          sex,
          uic,
-         patient_code,
+         px_code,
          philhealth_no,
          philsys_id,
-         client_mobile,
-         client_email,
+         mobile,
+         email,
          curr_reg,
-         currr_prov,
-         currr_munc,
-         curr_work,
-         prev_work
+         curr_prov,
+         curr_munc
       )$from(stri_c(surv_name, ".", table))$get(),
    )
 
@@ -1428,6 +1424,7 @@ generate_exact <- function(yr, mo, surv_name) {
 
 reclink_to_dx <- function(yr, mo, surv_name) {
    table <- str_c('reg_', yr, stri_pad_left(mo, 2, '0'))
+   log_info(table)
 
    idreg <- update_idreg()
 
