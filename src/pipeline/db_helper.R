@@ -394,7 +394,7 @@ get_inv <- function(iid) {
       ) %>%
       ungroup() %>%
       mutate(
-         TOTAL = if_else(
+         total = if_else(
             condition = unit_basis == 1,
             true      = total * inv$status$item_per_batch,
             false     = total,
@@ -1479,6 +1479,13 @@ oh_batch_newpx <- function(data, id_col) {
             self_ident == 'Q/NB/NC' ~ self_ident,
             TRUE ~ self_ident_other
          ),
+         client_mobile    = str_replace_all(client_mobile, "[^[:digit:]]", ""),
+         client_mobile    = case_when(
+            str_left(client_mobile, 1) == "9" ~ stri_c("0", client_mobile),
+            str_left(client_mobile, 2) == "63" ~ str_replace(client_mobile, "^63", "0"),
+            TRUE ~ client_mobile
+         ),
+         client_mobile    = if_else(nchar(client_mobile) == 11, str_c(sep = " ", str_left(client_mobile, 4), str_mid(client_mobile, 5, 3), str_right(client_mobile, 4)), client_mobile, client_mobile)
       )
 
    db_conn     <- connect('ohasis-live')
