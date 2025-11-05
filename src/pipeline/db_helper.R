@@ -381,7 +381,7 @@ get_inv <- function(iid) {
          )
       ) %>%
       summarise(
-         total = sum(total, na.rm = TRUE)
+         total = coalesce(sum(total, na.rm = TRUE), 0)
       )
 
    trxn$subtract <- trxn$data %>%
@@ -402,7 +402,7 @@ get_inv <- function(iid) {
          )
       ) %>%
       summarise(
-         total = sum(total, na.rm = TRUE)
+         total = coalesce(sum(total, na.rm = TRUE), 0)
       )
 
    inv$status <- ohasis$get_faci(
