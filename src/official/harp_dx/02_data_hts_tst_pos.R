@@ -158,7 +158,15 @@ clean_data <- function(forms) {
          age_dta        = calc_age(birthdate, visit_date),
 
          form_sort      = if_else(rec_id == hts_rec, 1, 9999, 9999)
-      )
+      ) %>%
+      rename(country_code = nationality) %>%
+      left_join(
+         y  = ohasis$ref_country %>%
+            select(country_code, nationality = country_name),
+         by = join_by(country_code)
+      ) %>%
+      relocate(nationality, .before = country_code) %>%
+      select(-country_code)
 
    return(data)
 }
