@@ -1,6 +1,6 @@
-get_hts <- function(min, max) {
+get_hts <- function(min, max, faci_ids) {
 
-   read_forms <- function(min, max) {
+   read_forms <- function(min, max, faci_ids) {
       con   <- connect('mariadb-lw')
       forms <- QB$new(con)
       forms$select(
@@ -53,6 +53,15 @@ get_hts <- function(min, max) {
          query$whereBetween('test.t3_date', c(min, max), "or")
          query$whereNested
       })
+
+      if (!missing(faci_ids)) {
+         forms$where(function(query = QB$new(con)) {
+            query$whereIn("faci_id", faci_ids, 'or')
+            query$whereIn("service_faci", faci_ids, 'or')
+            query$whereNested
+         })
+      }
+
       form_hts <- forms$get()
 
       forms <- QB$new(con)
@@ -106,6 +115,15 @@ get_hts <- function(min, max) {
          query$whereBetween('test.t3_date', c(min, max), "or")
          query$whereNested
       })
+
+      if (!missing(faci_ids)) {
+         forms$where(function(query = QB$new(con)) {
+            query$whereIn("faci_id", faci_ids, 'or')
+            query$whereIn("service_faci", faci_ids, 'or')
+            query$whereNested
+         })
+      }
+
       form_a <- forms$get()
 
       forms <- QB$new(con)
@@ -115,6 +133,15 @@ get_hts <- function(min, max) {
          query$whereBetween('test_date', c(min, max), "or")
          query$whereNested
       })
+
+      if (!missing(faci_ids)) {
+         forms$where(function(query = QB$new(con)) {
+            query$whereIn("faci_id", faci_ids, 'or')
+            query$whereIn("service_faci", faci_ids, 'or')
+            query$whereNested
+         })
+      }
+
       form_cfbs <- forms$get()
       dbDisconnect(con)
       return(list(hts = form_hts, a = form_a, cfbs = form_cfbs))
@@ -129,7 +156,7 @@ get_hts <- function(min, max) {
 
    hts <- lapply(periods, function(period) {
       log_info(r"({green(period[[1]])} to {green(period[[2]])})")
-      return(read_forms(period[[1]], period[[2]]))
+      return(read_forms(period[[1]], period[[2]], faci_ids))
    })
 
    hts_all  <- purrr::flatten(hts)
@@ -1915,9 +1942,9 @@ convert_dx <- function(hts_data, yr, mo) {
 
          # confirmatory info
          test_done                 = case_when(
-            str_detect(toupper(t3_kit), "geenius") ~ "geenius",
-            str_detect(toupper(t3_kit), "stat-pak") ~ "stat-pak",
-            str_detect(toupper(t3_kit), "mp diagnostics") ~ "western blot",
+            str_detect(toupper(t3_kit), "GEENIUS") ~ "GEENIUS",
+            str_detect(toupper(t3_kit), "STAT-PAK") ~ "STAT-PAK",
+            str_detect(toupper(t3_kit), "MP DIAGNOSTICS") ~ "WESTERN BLOT",
             age <= 1 ~ "pcr"
          ),
          rhivda_done               = if_else(
@@ -1932,11 +1959,11 @@ convert_dx <- function(hts_data, yr, mo) {
          sex                       = remove_code(stri_trans_toupper(sex)),
          self_identity             = remove_code(stri_trans_toupper(self_ident)),
          self_identity             = case_when(
-            self_identity == "other" ~ "others",
-            self_identity == "man" ~ "male",
-            self_identity == "woman" ~ "female",
-            self_identity == "male" ~ "male",
-            self_identity == "female" ~ "female",
+            SELF_IDENTITY == "OTHER" ~ "OTHERS",
+            SELF_IDENTITY == "MAN" ~ "MALE",
+            SELF_IDENTITY == "WOMAN" ~ "FEMALE",
+            SELF_IDENTITY == "MALE" ~ "MALE",
+            SELF_IDENTITY == "FEMALE" ~ "FEMALE",
             TRUE ~ self_identity
          ),
          self_identity_other       = stri_trans_toupper(self_ident_other),
@@ -1944,9 +1971,9 @@ convert_dx <- function(hts_data, yr, mo) {
 
          civil_status              = stri_trans_toupper(civil_status),
          nationalit                = case_when(
-            toupper(nationality) == "philippines" ~ "filipino",
-            toupper(nationality) != "philippines" ~ "non-filipino",
-            TRUE ~ "unknown"
+            toupper(nationality) == "PHILIPPINES" ~ "FILIPINO",
+            toupper(nationality) != "PHILIPPINES" ~ "NON-FILIPINO",
+            TRUE ~ "UNKNOWN"
          ),
          current_school_level      = if_else(
             condition = str_left(is_student, 1) == "1",
