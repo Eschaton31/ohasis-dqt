@@ -80,27 +80,63 @@ change_rec_id <- function(pid, old_recid, new_recid) {
 }
 
 # update db duplicate rec_ids
-change_px_id <- function(recid, old_pid, new_pid) {
-   db_conn <- ohasis$conn("db")
+change_px_id <- function(recids, new_pid) {
+   db_conn <- connect('ohasis-live')
 
    upd_by <- Sys.getenv("OH_USER_ID")
    upd_at <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-   dbExecute(
-      db_conn,
-      r"(UPDATE ohasis_interim.px_name SET PATIENT_ID = ?, UPDATED_BY = ?, UPDATED_AT = ? WHERE REC_ID = ? AND PATIENT_ID = ?;)",
-      params = list(new_pid, upd_by, upd_at, recid, old_pid)
-   )
-   dbExecute(
-      db_conn,
-      r"(UPDATE ohasis_interim.px_info SET PATIENT_ID = ?, UPDATED_BY = ?, UPDATED_AT = ? WHERE REC_ID = ? AND PATIENT_ID = ?;)",
-      params = list(new_pid, upd_by, upd_at, recid, old_pid)
-   )
-   dbExecute(
-      db_conn,
-      r"(UPDATE ohasis_interim.px_record SET PATIENT_ID = ?, UPDATED_BY = ?, UPDATED_AT = ? WHERE REC_ID = ? AND PATIENT_ID = ?;)",
-      params = list(new_pid, upd_by, upd_at, recid, old_pid)
-   )
+   # dbExecute(
+   #    db_conn,
+   #    r"(update ohasis.px_record set patient_id = ?, updated_by = ?, updated_at = ? WHERE rec_id = ? AND patient_id = ?;)",
+   #    params = list(new_pid, upd_by, upd_at, recid, old_pid)
+   # )
+   data   <- tibble(rec_id = recids) %>%
+      mutate(
+         patient_id = new_pid,
+         updated_by = upd_by,
+         updated_at = upd_at
+      )
+
+   dbxUpsert(db_conn, Id(schema = 'ohasis', table = 'px_record'), data, where_cols = 'rec_id')
+
    dbDisconnect(db_conn)
+}
+
+apply_pii_to_patient <- function(rid, pid) {
+   conn <- connect('ohasis-live')
+
+   patients  <- QB$new(conn)$from('ohasis.patients')$where('patient_id', pid)$get()
+   px_record <- QB$new(conn)$from('ohasis.px_record')$whereIn('rec_id', rid)$get()
+   px_pii    <- QB$new(conn)$from('ohasis.px_pii')$whereIn('rec_id', rid)$get()
+
+   new_pii <- px_record %>%
+      select(
+         rec_id,
+         patient_id,
+         faci_id,
+         sub_faci_id,
+         record_date,
+         patient_id,
+         created_by,
+         created_at,
+         updated_by,
+         updated_at,
+         deleted_by,
+         deleted_at,
+      ) %>%
+      left_join(px_pii %>% select(rec_id, any_of(names(patients))), join_by(rec_id)) %>%
+      select(-ends_with('.y')) %>%
+      rename_all(~str_replace(., '\\.x$', '')) %>%
+      mutate(
+         age        = calc_age(birthdate, record_date),
+         updated_by = '1300000001',
+         updated_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+      ) %>%
+      select(any_of(names(patients))) %>%
+      distinct(patient_id, .keep_all = TRUE)
+
+   dbxUpsert(conn, Id(schema = 'ohasis', table = 'patients'), new_pii, 'patient_id')
+   dbDisconnect(conn)
 }
 
 # update UPDATED_*
@@ -860,18 +896,23 @@ dup_faci_id <- function(keep_faci, drop_faci, reason = NA_character_) {
    # get record ids for those affected
    db_conn <- connect('ohasis-live')
    rec_ids <- data.frame()
-   for (query in sql_select) {
+   for (table_col in names(sql_select)) {
+      log_info("Selecting = {green(table_col)}")
+      query   <- sql_select[[table_col]]
       data    <- dbGetQuery(db_conn, query, params = list(drop_faci))
       rec_ids <- rec_ids %>% bind_rows(data) %>% distinct(rec_id)
    }
 
    # update records
-   for (query in sql_update) {
+   for (table_col in names(sql_update)) {
+      log_info("Updating = {green(table_col)}")
+      query <- sql_update[[table_col]]
       dbExecute(db_conn, query, params = list('1300000001', keep_faci, drop_faci))
    }
    update_credentials(rec_ids$rec_id)
 
    # remove duplicate facility from referece data
+   log_info("Deleting profile.")
    dbExecute(db_conn, "delete from ohasis.facilities where faci_id = ?;", params = list(drop_faci))
 
    # log data in facility_duplicates
@@ -879,6 +920,50 @@ dup_faci_id <- function(keep_faci, drop_faci, reason = NA_character_) {
              Id(schema = "ohasis", table = "facility_duplicates"),
              dupes,
              c("main_faci", "dupe_faci"))
+   dbDisconnect(db_conn)
+}
+
+subunit_to_faci <- function(subunit, to_faci) {
+   sql_update <- list()
+   sql_select <- list()
+   table_cols <- list(
+      "patients.sub_faci_id,faci_id",
+      "px_cfbs.sub_faci_id,faci_id",
+      "px_confirm.sub_faci_id,faci_id",
+      "px_confirm.sub_source,source",
+      "px_service.sub_faci_id,faci_id",
+      "px_medicine.sub_faci_id,faci_id",
+      "px_medicine_disc.sub_faci_id,faci_id",
+      "px_record.sub_faci_id,faci_id",
+      "px_test.sub_faci_id,faci_id"
+   )
+   for (table_col in table_cols) {
+      pair     <- strsplit(table_col, "\\.")[[1]]
+      table    <- pair[1]
+      cols     <- strsplit(pair[2], ",")[[1]]
+      col_main <- cols[1]
+      col_sub  <- cols[2]
+
+      sql_update[[table_col]] <- paste0("update ohasis.", table, " set updated_by = ?, updated_at = now(), ", col_main, " = ? where ", col_sub, " = ?;")
+
+      if (grepl("^px", table))
+         sql_select[[table_col]] <- paste0("select distinct rec_id from ohasis.", table, " where ", col_sub, " = ?;")
+   }
+
+   # get record ids for those affected
+   db_conn <- connect('ohasis-live')
+   rec_ids <- data.frame()
+   for (table_col in names(sql_select)) {
+      log_info("Selecting = {green(table_col)}")
+      data    <- dbGetQuery(db_conn, sql_select[[table_col]], params = list(subunit))
+      rec_ids <- rec_ids %>% bind_rows(data) %>% distinct(rec_id)
+   }
+
+   # update records
+   for (query in sql_update) {
+      dbExecute(db_conn, query, params = list('1300000001', to_faci, subunit))
+   }
+   update_credentials(rec_ids$rec_id)
    dbDisconnect(db_conn)
 }
 
