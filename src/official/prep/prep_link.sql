@@ -9,12 +9,12 @@ WITH hts_data AS (SELECT CENTRAL_ID,
                         UNION
                         SELECT REC_ID, RECORD_DATE, PATIENT_ID, FORM_VERSION
                         FROM ohasis_warehouse.form_cfbs) AS hts
-                           JOIN ohasis_warehouse.id_registry ON hts.PATIENT_ID = id_registry.PATIENT_ID),
+                           JOIN ohasis_lake.id_registry ON hts.PATIENT_ID = id_registry.PATIENT_ID),
      prep_data AS (SELECT prep.REC_ID                                AS PREP_REC,
                           IFNULL(id_reg.CENTRAL_ID, prep.PATIENT_ID) AS CENTRAL_ID,
                           prep.RECORD_DATE                           AS PREP_DATE
                    FROM ohasis_warehouse.form_prep AS prep
-                            LEFT JOIN ohasis_warehouse.id_registry AS id_reg ON prep.PATIENT_ID = id_reg.PATIENT_ID
+                            LEFT JOIN ohasis_lake.id_registry AS id_reg ON prep.PATIENT_ID = id_reg.PATIENT_ID
                    WHERE prep.REC_ID NOT IN (SELECT DESTINATION_REC from ohasis_warehouse.rec_link))
 
 SELECT prep_data.CENTRAL_ID,

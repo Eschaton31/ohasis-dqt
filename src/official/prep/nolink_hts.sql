@@ -34,7 +34,7 @@ FROM (SELECT REC_ID,
              ''          AS CONFIRM_RESULT,
              FORM_VERSION
       FROM ohasis_warehouse.form_cfbs) AS hts
-         LEFT JOIN ohasis_warehouse.id_registry AS id_reg ON hts.PATIENT_ID = id_reg.PATIENT_ID
+         LEFT JOIN ohasis_lake.id_registry AS id_reg ON hts.PATIENT_ID = id_reg.PATIENT_ID
          LEFT JOIN ohasis_warehouse.rec_link AS link ON hts.REC_ID = link.SOURCE_REC
 WHERE link.SOURCE_REC IS NULL
   AND LEFT(COALESCE(NULLIF(NULLIF(CONFIRM_RESULT, '4_Pending'), '5_Duplicate'), T3_RESULT, T2_RESULT, T1_RESULT,

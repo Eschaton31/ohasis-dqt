@@ -14,7 +14,7 @@ FROM (SELECT data.CENTRAL_ID,
                   UNION ALL
                   SELECT REC_ID, RECORD_DATE, PATIENT_ID, NULL AS MED_PREP_PX, SERVICE_PREP_REFER
                   FROM ohasis_warehouse.form_cfbs) AS hts_data
-                     LEFT JOIN ohasis_warehouse.id_registry AS id_reg ON hts_data.PATIENT_ID = id_reg.PATIENT_ID
+                     LEFT JOIN ohasis_lake.id_registry AS id_reg ON hts_data.PATIENT_ID = id_reg.PATIENT_ID
             WHERE (hts_data.MED_PREP_PX = '1_Yes' OR hts_data.SERVICE_PREP_REFER = '1_Yes')
               AND RECORD_DATE <= ?) AS data) AS prepstart
 WHERE VISIT_NUM = 1;
