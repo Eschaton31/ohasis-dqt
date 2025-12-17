@@ -13,7 +13,7 @@ export_excel <- function(data, file) {
    xlsx$style$cells    <- createStyle(
       fontName = "Calibri",
       fontSize = 11,
-      numFmt   = openxlsx_getOp("numFmt", "COMMA")
+      numFmt   = openxlsx_getOp("numFmt", "comma")
    )
    xlsx$style$datetime <- createStyle(
       fontName = "Calibri",
@@ -74,57 +74,57 @@ export_excel <- function(data, file) {
       ) %>%
       select(
          -any_of(c(
-            "CREATED_BY",
-            "UPDATED_BY",
-            "CLINIC_NOTES",
-            "COUNSEL_NOTES",
+            "created_by",
+            "updated_by",
+            "clinic_notes",
+            "counsel_notes",
             "use_curr",
-            "AGE_DTA",
+            "age_dta",
             "risks",
             "idnum",
             "male",
             "female",
-            "SELF_IDENT_OTHER_SIEVE",
-            "VL_ERROR",
-            "VL_DROP"
+            "self_ident_other_sieve",
+            "vl_error",
+            "vl_drop"
          ))
       )
    data %>% write_sheet("1RN3JFNgWkyDf27qb3pfl_R-R_v-_lOPe8ZU_ZgS3Wtc", "PostProcessed")
 
-   dir       <- Sys.getenv("TRACE_BOX")
-   files     <- list(
-      final = file.path(dir, "RecencyTesting-PostProcess.xlsx"),
-      faci  = file.path(dir, "OHASIS-FacilityIDs.xlsx"),
-      json  = file.path(dir, "DataStatus.json")
-   )
-   json_data <- jsonlite::read_json(files$json)
-
-
-   json_data$`RecencyTesting-PostProcess` <- list(
-      upload_date  = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
-      version_date = format(max(as.POSIXct(data$SNAPSHOT), na.rm = TRUE), "%Y-%m-%d %H:%M:%S")
-   )
-   json_data$`OHASIS-FacilityIDs`         <- list(
-      upload_date  = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
-      version_date = format(
-         as.POSIXct(
-            paste0(
-               strsplit(ohasis$timestamp, "\\.")[[1]][1], "-",
-               strsplit(ohasis$timestamp, "\\.")[[1]][2], "-",
-               strsplit(ohasis$timestamp, "\\.")[[1]][3], " ",
-               str_left(strsplit(ohasis$timestamp, "\\.")[[1]][4], 2), ":",
-               substr(strsplit(ohasis$timestamp, "\\.")[[1]][4], 3, 4), ":",
-               StrRight(strsplit(ohasis$timestamp, "\\.")[[1]][4], 2)
-            )
-         ),
-
-         "%Y-%m-%d %H:%M:%S"
-      )
-   )
-
-   export_excel(data, files$final)
-   export_excel(ohasis$ref_faci, files$faci)
-   jsonlite::write_json(json_data, files$json, pretty = TRUE, auto_unbox = TRUE)
+   # dir       <- Sys.getenv("TRACE_BOX")
+   # files     <- list(
+   #    final = file.path(dir, "RecencyTesting-PostProcess.xlsx"),
+   #    faci  = file.path(dir, "OHASIS-FacilityIDs.xlsx"),
+   #    json  = file.path(dir, "DataStatus.json")
+   # )
+   # json_data <- jsonlite::read_json(files$json)
+   #
+   #
+   # json_data$`RecencyTesting-PostProcess` <- list(
+   #    upload_date  = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+   #    version_date = format(max(as.POSIXct(data$snapshot), na.rm = TRUE), "%Y-%m-%d %H:%M:%S")
+   # )
+   # json_data$`ohasis-FacilityIDs`         <- list(
+   #    upload_date  = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+   #    version_date = format(
+   #       as.POSIXct(
+   #          paste0(
+   #             strsplit(ohasis$timestamp, "\\.")[[1]][1], "-",
+   #             strsplit(ohasis$timestamp, "\\.")[[1]][2], "-",
+   #             strsplit(ohasis$timestamp, "\\.")[[1]][3], " ",
+   #             str_left(strsplit(ohasis$timestamp, "\\.")[[1]][4], 2), ":",
+   #             substr(strsplit(ohasis$timestamp, "\\.")[[1]][4], 3, 4), ":",
+   #             StrRight(strsplit(ohasis$timestamp, "\\.")[[1]][4], 2)
+   #          )
+   #       ),
+   #
+   #       "%Y-%m-%d %H:%M:%S"
+   #    )
+   # )
+   #
+   # export_excel(data, files$final)
+   # export_excel(ohasis$ref_faci, files$faci)
+   # jsonlite::write_json(json_data, files$json, pretty = TRUE, auto_unbox = TRUE)
 
    log_success("Done.")
 }

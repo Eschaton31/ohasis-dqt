@@ -3,49 +3,50 @@
 clean_data <- function(forms, harp) {
    local_gs4_quiet()
    log_info("Processing recent tests.")
-   trace_validation <- read_sheet("1wmCemVcAtp5nUEpti1qacU7nFQqi8GE0_qT7PE0WtC0", .name_repair = "unique_quiet")
+   trace_validation <- read_sheet("1wmCemVcAtp5nUEpti1qacU7nFQqi8GE0_qT7PE0WtC0", .name_repair = "unique_quiet") %>%
+      rename_all(tolower)
 
    data <- forms$hiv_recency %>%
       left_join(
          y  = process_hts(forms$form_hts, forms$form_a, forms$form_cfbs) %>%
             select(
                -any_of(c(
-                  "RECORD_DATE",
-                  "CONFIRM_FACI",
-                  "CONFIRM_SUB_FACI",
-                  "SPECIMEN_SOURCE",
-                  "SPECIMEN_SUB_SOURCE",
-                  "CONFIRM_CODE",
-                  "DATE_COLLECT",
-                  "DATE_RECEIVE",
-                  "DATE_CONFIRM"
+                  "record_date",
+                  "confirm_faci",
+                  "confirm_sub_faci",
+                  "specimen_source",
+                  "specimen_sub_source",
+                  "confirm_code",
+                  "date_collect",
+                  "date_receive",
+                  "date_confirm"
                ))
             ),
-         by = join_by(REC_ID)
+         by = join_by(rec_id)
       ) %>%
-      distinct(REC_ID, .keep_all = TRUE) %>%
-      get_cid(forms$id_reg, PATIENT_ID)
+      distinct(rec_id, .keep_all = TRUE) %>%
+      get_cid(forms$id_reg, patient_id)
 
    hts_risk <- data %>%
       select(
-         REC_ID,
+         rec_id,
          contains("risk", ignore.case = FALSE)
       ) %>%
       pivot_longer(
          cols = contains("risk", ignore.case = FALSE)
       ) %>%
-      group_by(REC_ID) %>%
+      group_by(rec_id) %>%
       summarise(
          risks = stri_c(collapse = ", ", unique(sort(value)))
       )
 
    data %<>%
       mutate_at(
-         .vars = vars(FIRST, MIDDLE, LAST, SUFFIX),
+         .vars = vars(first, middle, last, suffix),
          ~coalesce(clean_pii(.), "")
       ) %>%
       mutate_at(
-         .vars = vars(PATIENT_CODE, UIC, PHILHEALTH_NO, PHILSYS_ID, CLIENT_MOBILE, CLIENT_EMAIL),
+         .vars = vars(patient_code, uic, philhealth_no, philsys_id, client_mobile, client_email),
          ~clean_pii(.)
       ) %>%
       mutate_if(
@@ -57,145 +58,145 @@ clean_data <- function(forms, harp) {
          ~if_else(. <= -25567, NA_Date_, ., .)
       ) %>%
       mutate(
-         RT_OFFER_DATE   = coalesce(DATE_COLLECT, RECORD_DATE),
+         rt_offer_date   = coalesce(date_collect, record_date),
 
          # name
-         STANDARD_FIRST  = stri_trans_general(FIRST, "latin-ascii"),
-         name            = str_squish(stri_c(LAST, ", ", FIRST, " ", MIDDLE, " ", SUFFIX)),
+         standard_first  = stri_trans_general(first, "latin-ascii"),
+         name            = str_squish(stri_c(last, ", ", first, " ", middle, " ", suffix)),
 
          # Permanent
-         PERM_PSGC_PROV  = if_else(str_left(PERM_PSGC_REG, 2) == "99", "999900000", PERM_PSGC_PROV, PERM_PSGC_PROV),
-         PERM_PSGC_MUNC  = if_else(str_left(PERM_PSGC_REG, 2) == "99", "999999000", PERM_PSGC_MUNC, PERM_PSGC_MUNC),
+         perm_prov       = if_else(str_left(perm_reg, 2) == "99", "999900000", perm_prov, perm_prov),
+         perm_munc       = if_else(str_left(perm_reg, 2) == "99", "999999000", perm_munc, perm_munc),
          use_curr        = if_else(
-            condition = !is.na(CURR_PSGC_MUNC) & (is.na(PERM_PSGC_MUNC) | str_left(PERM_PSGC_MUNC, 2) == "99"),
+            condition = !is.na(curr_munc) & (is.na(perm_munc) | str_left(perm_munc, 2) == "99"),
             true      = 1,
             false     = 0
          ),
-         PERM_PSGC_REG   = if_else(
+         perm_reg        = if_else(
             condition = use_curr == 1,
-            true      = CURR_PSGC_REG,
-            false     = PERM_PSGC_REG
+            true      = curr_reg,
+            false     = perm_reg
          ),
-         PERM_PSGC_PROV  = if_else(
+         perm_prov       = if_else(
             condition = use_curr == 1,
-            true      = CURR_PSGC_PROV,
-            false     = PERM_PSGC_PROV
+            true      = curr_prov,
+            false     = perm_prov
          ),
-         PERM_PSGC_MUNC  = if_else(
+         perm_munc       = if_else(
             condition = use_curr == 1,
-            true      = CURR_PSGC_MUNC,
-            false     = PERM_PSGC_MUNC
+            true      = curr_munc,
+            false     = perm_munc
          ),
 
          # Age
-         AGE_DTA         = calc_age(BIRTHDATE, RT_OFFER_DATE),
-         AGE             = coalesce(AGE, AGE_MO / 12, AGE_DTA),
+         age_dta         = calc_age(birthdate, rt_offer_date),
+         age             = coalesce(age, age_mo / 12, age_dta),
 
-         # FORM_VERSION (HTS)
-         FORM_VERSION    = if_else(FORM_VERSION == " (vNA)", NA_character_, FORM_VERSION),
+         # form_version (HTS)
+         form_version    = if_else(form_version == " (vNA)", NA_character_, form_version),
 
          # provider type (HTS)
-         PROVIDER_TYPE   = as.integer(keep_code(PROVIDER_TYPE)),
+         provider_type   = as.integer(keep_code(provider_type)),
 
          # other services (HTS)
-         GIVEN_SSNT      = case_when(
-            SERVICE_SSNT_ACCEPT == 1 ~ "Accepted",
-            SERVICE_SSNT_OFFER == 1 ~ "Offered",
+         given_ssnt      = case_when(
+            service_ssnt_accept == 1 ~ "Accepted",
+            service_ssnt_offer == 1 ~ "Offered",
          ),
 
          # combi prev (HTS)
-         SERVICE_CONDOMS = if_else(SERVICE_CONDOMS == 0, NA_integer_, as.integer(SERVICE_CONDOMS), NA_integer_),
-         SERVICE_LUBES   = if_else(SERVICE_LUBES == 0, NA_integer_, as.integer(SERVICE_LUBES), NA_integer_),
+         service_condoms = if_else(service_condoms == 0, NA_integer_, as.integer(service_condoms), NA_integer_),
+         service_lubes   = if_else(service_lubes == 0, NA_integer_, as.integer(service_lubes), NA_integer_),
       ) %>%
       mutate(
-         FORM_ENCODED = if_else(!is.na(FORM_VERSION), '1_Yes', "0_No", "0_No"),
-         .after       = RT_RESULT
+         form_encoded = if_else(!is.na(form_version), '1_Yes', "0_No", "0_No"),
+         .after       = rt_result
       ) %>%
       mutate(
-         CBS_VENUE      = toupper(str_squish(HIV_SERVICE_ADDR)),
-         ONLINE_APP     = case_when(
-            grepl("GRINDR", CBS_VENUE) ~ "GRINDR",
-            grepl("GRNDR", CBS_VENUE) ~ "GRINDR",
-            grepl("GRINDER", CBS_VENUE) ~ "GRINDR",
-            grepl("TWITTER", CBS_VENUE) ~ "TWITTER",
-            grepl("FACEBOOK", CBS_VENUE) ~ "FACEBOOK",
-            grepl("MESSENGER", CBS_VENUE) ~ "FACEBOOK",
-            grepl("\\bFB\\b", CBS_VENUE) ~ "FACEBOOK",
-            grepl("\\bGR\\b", CBS_VENUE) ~ "GRINDR",
+         cbs_venue      = toupper(str_squish(hiv_service_addr)),
+         online_app     = case_when(
+            grepl("GRINDR", cbs_venue) ~ "GRINDR",
+            grepl("GRNDR", cbs_venue) ~ "GRINDR",
+            grepl("GRINDER", cbs_venue) ~ "GRINDR",
+            grepl("TWITTER", cbs_venue) ~ "TWITTER",
+            grepl("FACEBOOK", cbs_venue) ~ "FACEBOOK",
+            grepl("MESSENGER", cbs_venue) ~ "FACEBOOK",
+            grepl("\\bFB\\b", cbs_venue) ~ "FACEBOOK",
+            grepl("\\bGR\\b", cbs_venue) ~ "GRINDR",
          ),
-         REACH_ONLINE   = if_else(!is.na(ONLINE_APP), "1_Yes", REACH_ONLINE, REACH_ONLINE),
-         REACH_CLINICAL = if_else(
-            condition = if_all(starts_with("REACH_"), ~is.na(.)) & hts_modality == "FBT",
+         reach_online   = if_else(!is.na(online_app), "1_Yes", reach_online, reach_online),
+         reach_clinical = if_else(
+            condition = if_all(starts_with("reach_"), ~is.na(.)) & hts_modality == "fbt",
             true      = "1_Yes",
-            false     = REACH_CLINICAL,
-            missing   = REACH_CLINICAL
+            false     = reach_clinical,
+            missing   = reach_clinical
          ),
       ) %>%
       select(-matches("risks")) %>%
-      left_join(hts_risk, join_by(REC_ID)) %>%
+      left_join(hts_risk, join_by(rec_id)) %>%
       mutate(
-         SEXUAL_RISK = case_when(
+         sexual_risk = case_when(
             str_detect(risk_sexwithm, "yes") & str_detect(risk_sexwithf, "yes") ~ "M+F",
             str_detect(risk_sexwithm, "yes") & !str_detect(risk_sexwithf, "yes") ~ "M",
             !str_detect(risk_sexwithm, "yes") & str_detect(risk_sexwithf, "yes") ~ "F",
          ),
          kap_unknown = if_else(coalesce(risks, "(no data)") == "(no data)", "(no data)", NA_character_),
-         kap_msm     = if_else(SEX == "MALE" & SEXUAL_RISK %in% c("M", "M+F"), "MSM", NA_character_),
-         kap_heterom = if_else(SEX == "MALE" & SEXUAL_RISK == "F", "Hetero Male", NA_character_),
-         kap_heterof = if_else(SEX == "FEMALE" & !is.na(SEXUAL_RISK), "Hetero Female", NA_character_),
+         kap_msm     = if_else(sex == "MALE" & sexual_risk %in% c("M", "M+F"), "MSM", NA_character_),
+         kap_heterom = if_else(sex == "MALE" & sexual_risk == "F", "Hetero Male", NA_character_),
+         kap_heterof = if_else(sex == "FEMALE" & !is.na(sexual_risk), "Hetero Female", NA_character_),
          kap_pwid    = if_else(str_detect(risk_injectdrug, "yes"), "PWID", NA_character_),
          kap_pip     = if_else(str_detect(risk_paymentforsex, "yes"), "PIP", NA_character_),
          kap_pdl     = case_when(
-            str_left(CLIENT_TYPE, 1) == "7" ~ "PDL",
-            str_left(CLIENT_TYPE, 1) == "7" ~ "PDL",
+            str_left(client_type, 1) == "7" ~ "PDL",
+            str_left(client_type, 1) == "7" ~ "PDL",
          ),
       ) %>%
       rename(
-         CREATED                 = CREATED_BY,
-         UPDATED                 = UPDATED_BY,
-         HTS_PROVIDER_TYPE       = PROVIDER_TYPE,
-         HTS_PROVIDER_TYPE_OTHER = PROVIDER_TYPE_OTHER,
+         created                 = created_by,
+         updated                 = updated_by,
+         hts_provider_type       = provider_type,
+         hts_provider_type_other = provider_type_other,
       ) %>%
-      left_join(trace_validation, join_by(CONFIRM_CODE)) %>%
+      left_join(trace_validation, join_by(confirm_code)) %>%
       left_join(
          y  = harp$dx %>%
             select(
                idnum,
-               CENTRAL_ID,
-               HARP_INCLUSION_DATE,
-               HARP_CONFIRM_DATE = confirm_date,
-               HARP_CONFIRM_CODE = labcode2,
+               central_id,
+               harp_inclusion_date,
+               harp_confirm_date = confirm_date,
+               harp_confirm_code = labcode2,
             ),
-         by = join_by(CENTRAL_ID)
+         by = join_by(central_id)
       ) %>%
-      left_join(harp$tx %>% select(CENTRAL_ID, ART_START_DATE = artstart_date), join_by(CENTRAL_ID)) %>%
-      left_join(harp$prep %>% select(CENTRAL_ID, PREP_START_DATE = prepstart_date), join_by(CENTRAL_ID)) %>%
-      relocate(HARP_INCLUSION_DATE, .after = DATE_CONFIRM) %>%
-      relocate(RT_AGREED_ACTUAL, RT_VALIDATION_REMARKS, .before = RT_AGREED) %>%
+      left_join(harp$tx %>% select(central_id, art_start_date = artstart_date), join_by(central_id)) %>%
+      left_join(harp$prep %>% select(central_id, prep_start_date = prepstart_date), join_by(central_id)) %>%
+      relocate(harp_inclusion_date, .after = date_confirm) %>%
+      relocate(rt_agreed_actual, rt_validation_remarks, .before = rt_agreed) %>%
       mutate(
-         RT_AGREED       = case_when(
-            RT_AGREED_ACTUAL == "Y" ~ "1_Yes",
-            RT_AGREED_ACTUAL == "N" ~ "0_No",
-            TRUE ~ RT_AGREED
+         rt_agreed       = case_when(
+            rt_agreed_actual == "Y" ~ "1_Yes",
+            rt_agreed_actual == "N" ~ "0_No",
+            TRUE ~ rt_agreed
          ),
-         RT_INCLUDED     = case_when(
-            CONFIRM_CODE != HARP_CONFIRM_CODE & year(HARP_CONFIRM_DATE) < year(DATE_CONFIRM) ~ 0,
-            interval(ART_START_DATE, hts_date) / days(1) > 28 ~ 0,
-            AGE < 15 ~ 0,
-            !is.na(RT_AGREED) ~ 1,
-            !is.na(RT_RESULT) ~ 1,
-            AGE >= 15 ~ 1,
+         rt_included     = case_when(
+            confirm_code != harp_confirm_code & year(harp_confirm_date) < year(date_confirm) ~ 0,
+            interval(art_start_date, hts_date) / days(1) > 28 ~ 0,
+            age < 15 ~ 0,
+            !is.na(rt_agreed) ~ 1,
+            !is.na(rt_result) ~ 1,
+            age >= 15 ~ 1,
             TRUE ~ 1
          ),
-         TAT_TEST_ENROLL = interval(RT_OFFER_DATE, ART_START_DATE) / days(1),
-         TAT_TEST_ENROLL = case_when(
-            TAT_TEST_ENROLL < 0 ~ "0) Tx before dx",
-            TAT_TEST_ENROLL == 0 ~ "1) Same day",
-            TAT_TEST_ENROLL >= 1 & TAT_TEST_ENROLL <= 14 ~ "2) RAI (w/in 14 days)",
-            TAT_TEST_ENROLL >= 15 & TAT_TEST_ENROLL <= 30 ~ "3) W/in 30days",
-            TAT_TEST_ENROLL >= 31 ~ "4) More than 30 days",
-            is.na(HARP_CONFIRM_DATE) & !is.na(idnum) ~ "5) More than 30 days",
-            is.na(ART_START_DATE) ~ "(not yet enrolled)",
+         tat_test_enroll = interval(rt_offer_date, art_start_date) / days(1),
+         tat_test_enroll = case_when(
+            tat_test_enroll < 0 ~ "0) Tx before dx",
+            tat_test_enroll == 0 ~ "1) Same day",
+            tat_test_enroll >= 1 & tat_test_enroll <= 14 ~ "2) rai (w/in 14 days)",
+            tat_test_enroll >= 15 & tat_test_enroll <= 30 ~ "3) W/in 30days",
+            tat_test_enroll >= 31 ~ "4) More than 30 days",
+            is.na(harp_confirm_date) & !is.na(idnum) ~ "5) More than 30 days",
+            is.na(art_start_date) ~ "(not yet enrolled)",
             TRUE ~ "(not yet confirmed)",
          )
       )
@@ -208,9 +209,9 @@ clean_data <- function(forms, harp) {
 prioritize_reports <- function(data) {
    log_info("Add inclusion criteria.")
    data %<>%
-      filter(RT_INCLUDED == 1) %>%
-      arrange(RT_RESULT, RT_AGREED, CONFIRM_RESULT, RECORD_DATE, DATE_CONFIRM) %>%
-      distinct(CENTRAL_ID, .keep_all = TRUE)
+      filter(rt_included == 1) %>%
+      arrange(rt_result, rt_agreed, confirm_result, record_date, date_confirm) %>%
+      distinct(central_id, .keep_all = TRUE)
 
    return(data)
 }
@@ -221,43 +222,43 @@ get_cd4 <- function(data, forms) {
    log_info("Attaching baseline cd4.")
    lab_cd4 <- forms$lab_cd4 %>%
       mutate(
-         CD4_RESULT = str_replace_all(CD4_RESULT, "[:alpha:]", ""),
-         CD4_RESULT = str_replace_all(CD4_RESULT, " ", ""),
-         CD4_RESULT = str_replace_all(CD4_RESULT, "<", ""),
-         CD4_RESULT = suppress_warnings(as.numeric(CD4_RESULT), "NAs introduced")
+         cd4_result = str_replace_all(cd4_result, "[:alpha:]", ""),
+         cd4_result = str_replace_all(cd4_result, " ", ""),
+         cd4_result = str_replace_all(cd4_result, "<", ""),
+         cd4_result = suppress_warnings(as.numeric(cd4_result), "NAs introduced")
       ) %>%
-      get_cid(forms$id_reg, PATIENT_ID)
+      get_cid(forms$id_reg, patient_id)
 
    data %<>%
       # get cd4 data
-      # TODO: attach max dates for filtering of cd4 data
+      # todo: attach max dates for filtering of cd4 data
       left_join(
          y  = lab_cd4 %>%
             select(
-               CD4_DATE,
-               CD4_RESULT,
-               CENTRAL_ID
+               cd4_date,
+               cd4_result,
+               central_id
             ),
-         by = join_by(CENTRAL_ID)
+         by = join_by(central_id)
       ) %>%
       mutate(
          # calculate distance from confirmatory date
-         CD4_DATE     = as.Date(CD4_DATE),
-         CD4_CONFIRM  = interval(CD4_DATE, RT_OFFER_DATE) / days(1),
+         cd4_date     = as.Date(cd4_date),
+         cd4_confirm  = interval(cd4_date, rt_offer_date) / days(1),
 
          # baseline is within 182 days
-         BASELINE_CD4 = if_else(
-            CD4_CONFIRM >= -182 & CD4_CONFIRM <= 182,
+         baseline_cd4 = if_else(
+            cd4_confirm >= -182 & cd4_confirm <= 182,
             1,
             0
          ),
 
          # make values absolute to take date nearest to confirmatory
-         CD4_CONFIRM  = abs(CD4_CONFIRM),
+         cd4_confirm  = abs(cd4_confirm),
       ) %>%
-      arrange(REC_ID, CD4_CONFIRM) %>%
-      distinct(REC_ID, .keep_all = TRUE) %>%
-      arrange(desc(CONFIRM_TYPE), CONFIRM_CODE)
+      arrange(rec_id, cd4_confirm) %>%
+      distinct(rec_id, .keep_all = TRUE) %>%
+      arrange(desc(confirm_type), confirm_code)
 
    return(data)
 }
@@ -265,58 +266,58 @@ get_cd4 <- function(data, forms) {
 ##  Generate subset variables --------------------------------------------------
 
 standardize_data <- function(initial) {
-   log_info("Converting to final HARP variables.")
+   log_info("Converting to final harp variables.")
    data <- initial %>%
       mutate(
          # tagging vars
          male                   = if_else(
-            condition = str_left(SEX, 1) == "1",
+            condition = str_left(sex, 1) == "1",
             true      = 1,
             false     = 0
          ),
          female                 = if_else(
-            condition = str_left(SEX, 1) == "2",
+            condition = str_left(sex, 1) == "2",
             true      = 1,
             false     = 0
          ),
 
          # demographics
-         SEX                    = remove_code(stri_trans_toupper(SEX)),
-         SELF_IDENT             = remove_code(stri_trans_toupper(SELF_IDENT)),
-         SELF_IDENT             = case_when(
-            SELF_IDENT == "OTHER" ~ "OTHERS",
-            SELF_IDENT == "MAN" ~ "MALE",
-            SELF_IDENT == "WOMAN" ~ "FEMALE",
-            SELF_IDENT == "MALE" ~ "MALE",
-            SELF_IDENT == "FEMALE" ~ "FEMALE",
-            TRUE ~ SELF_IDENT
+         sex                    = remove_code(stri_trans_toupper(sex)),
+         self_ident             = remove_code(stri_trans_toupper(self_ident)),
+         self_ident             = case_when(
+            self_ident == "OTHER" ~ "OTHERS",
+            self_ident == "MAN" ~ "MALE",
+            self_ident == "WOMAN" ~ "FEMALE",
+            self_ident == "MALE" ~ "MALE",
+            self_ident == "FEMALE" ~ "FEMALE",
+            TRUE ~ self_ident
          ),
-         SELF_IDENT_OTHER       = stri_trans_toupper(SELF_IDENT_OTHER),
-         SELF_IDENT_OTHER_SIEVE = str_replace_all(SELF_IDENT_OTHER, "[^[:alnum:]]", ""),
+         self_ident_other       = stri_trans_toupper(self_ident_other),
+         self_ident_other_sieve = str_replace_all(self_ident_other, "[^[:alnum:]]", ""),
 
-         CIVIL_STATUS           = stri_trans_toupper(CIVIL_STATUS),
+         civil_status           = stri_trans_toupper(civil_status),
 
          # clinical pic
-         WHO_CLASS              = as.integer(keep_code(WHO_CLASS)),
+         who_class              = as.integer(keep_code(who_class)),
 
-         CLINICAL_PIC           = case_when(
-            str_left(CLINICAL_PIC, 1) == "1" ~ "0_Asymptomatic",
-            str_left(CLINICAL_PIC, 1) == "2" ~ "1_Symptomatic",
+         clinical_pic           = case_when(
+            str_left(clinical_pic, 1) == "1" ~ "0_Asymptomatic",
+            str_left(clinical_pic, 1) == "2" ~ "1_Symptomatic",
          ),
 
-         OFW_STATION            = case_when(
-            str_left(OFW_STATION, 1) == "1" ~ "1_On ship",
-            str_left(OFW_STATION, 1) == "2" ~ "2_Land",
+         ofw_station            = case_when(
+            str_left(ofw_station, 1) == "1" ~ "1_On ship",
+            str_left(ofw_station, 1) == "2" ~ "2_Land",
          ),
 
-         REFER_TYPE             = case_when(
-            str_left(REFER_TYPE, 1) == "1" ~ "1",
-            str_left(REFER_TYPE, 1) == "2" ~ "1",
+         refer_type             = case_when(
+            str_left(refer_type, 1) == "1" ~ "1",
+            str_left(refer_type, 1) == "2" ~ "1",
          )
       ) %>%
       # exposure history
       mutate_at(
-         .vars = vars(starts_with("EXPOSE_") & !contains("DATE")),
+         .vars = vars(starts_with("expose_") & !contains("date")),
          ~if_else(
             condition = !is.na(.),
             true      = str_left(., 1),
@@ -325,7 +326,7 @@ standardize_data <- function(initial) {
       ) %>%
       # medical history
       mutate_at(
-         .vars = vars(starts_with("MED_")),
+         .vars = vars(starts_with("med_")),
          ~if_else(
             condition = !is.na(.),
             true      = str_left(., 1),
@@ -334,7 +335,7 @@ standardize_data <- function(initial) {
       ) %>%
       # test reason
       mutate_at(
-         .vars = vars(starts_with("TEST_REASON") & !matches("_OTHER")),
+         .vars = vars(starts_with("test_reason") & !matches("_OTHER")),
          ~if_else(
             condition = !is.na(.),
             true      = str_left(., 1),
@@ -343,7 +344,7 @@ standardize_data <- function(initial) {
       ) %>%
       # mode of reach (HTS)
       mutate_at(
-         .vars = vars(starts_with("REACH_")),
+         .vars = vars(starts_with("reach_")),
          ~if_else(
             condition = !is.na(.),
             true      = str_left(., 1),
@@ -352,7 +353,7 @@ standardize_data <- function(initial) {
       ) %>%
       # mode of reach (HTS)
       mutate_at(
-         .vars = vars(starts_with("REFER")),
+         .vars = vars(starts_with("refer")),
          ~if_else(
             condition = !is.na(.),
             true      = str_left(., 1),
@@ -361,28 +362,28 @@ standardize_data <- function(initial) {
       ) %>%
       # services provided (HTS)
       mutate_at(
-         .vars = vars(starts_with("SERVICE_") & !ends_with("FACI")),
+         .vars = vars(starts_with("service_") & !ends_with("faci")),
          ~if_else(
             condition = !is.na(.),
             true      = str_left(., 1),
             false     = NA_character_
          ) %>% as.integer()
       ) %>%
-      generate_gender_identity(SEX, SELF_IDENT, SELF_IDENT_OTHER, gender_identity) %>%
-      process_vl("RT_VL_RESULT", "RT_VL_RESULT_CLEAN") %>%
-      relocate(RT_VL_RESULT_CLEAN, .after = RT_VL_RESULT) %>%
+      generate_gender_identity(sex, self_ident, self_ident_other, gender_identity) %>%
+      process_vl("rt_vl_result", "rt_vl_result_clean") %>%
+      relocate(rt_vl_result_clean, .after = rt_vl_result) %>%
       mutate_at(
-         .vars = vars(SPECIMEN_SOURCE, SERVICE_FACI, CONFIRM_FACI, SPECIMEN_SUB_SOURCE, SERVICE_SUB_FACI, CONFIRM_SUB_FACI),
+         .vars = vars(specimen_source, service_faci, confirm_faci, specimen_sub_source, service_sub_faci, confirm_sub_faci),
          ~na_if(as.character(.), "0")
       ) %>%
       mutate(
-         RITA_RESULT = case_when(
-            RT_VL_RESULT_CLEAN >= 1000 ~ "1_Recent",
-            RT_VL_RESULT_CLEAN < 1000 ~ "2_Long-term",
+         rita_result = case_when(
+            rt_vl_result_clean >= 1000 ~ "1_Recent",
+            rt_vl_result_clean < 1000 ~ "2_Long-term",
          ),
-         RT_FACI     = coalesce(SPECIMEN_SOURCE, SERVICE_FACI, CONFIRM_FACI),
-         RT_SUB_FACI = coalesce(SPECIMEN_SUB_SOURCE, SERVICE_SUB_FACI, CONFIRM_SUB_FACI),
-         .after      = RT_VL_RESULT_CLEAN,
+         rt_faci     = coalesce(specimen_source, service_faci, confirm_faci),
+         rt_sub_faci = coalesce(specimen_sub_source, service_sub_faci, confirm_sub_faci),
+         .after      = rt_vl_result_clean,
       )
 
    return(data)
@@ -397,98 +398,98 @@ tag_mot <- function(data, params) {
       mutate(
          # for mot
          motherisi1 = case_when(
-            EXPOSE_HIV_MOTHER > 0 ~ 1,
+            expose_hiv_mother > 0 ~ 1,
             TRUE ~ 0
          ),
          sexwithf   = case_when(
-            EXPOSE_SEX_F > 0 ~ 1,                      # HTS Form
-            !is.na(EXPOSE_SEX_F_AV_DATE) ~ 1,          # HTS Form
-            !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ 1, # HTS Form
-            EXPOSE_SEX_F_NOCONDOM > 0 ~ 1,
+            expose_sex_f > 0 ~ 1,                      # HTS Form
+            !is.na(expose_sex_f_av_date) ~ 1,          # HTS Form
+            !is.na(expose_sex_f_av_nocondom_date) ~ 1, # HTS Form
+            expose_sex_f_nocondom > 0 ~ 1,
             TRUE ~ 0
          ),
          sexwithm   = case_when(
-            EXPOSE_SEX_M > 0 ~ 1,                      # HTS Form
-            !is.na(EXPOSE_SEX_M_AV_DATE) ~ 1,          # HTS Form
-            !is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ 1, # HTS Form
-            EXPOSE_SEX_M_NOCONDOM > 0 ~ 1,
+            expose_sex_m > 0 ~ 1,                      # HTS Form
+            !is.na(expose_sex_m_av_date) ~ 1,          # HTS Form
+            !is.na(expose_sex_m_av_nocondom_date) ~ 1, # HTS Form
+            expose_sex_m_nocondom > 0 ~ 1,
             TRUE ~ 0
          ),
          sexwithpro = case_when(
-            EXPOSE_SEX_PAYING > 0 ~ 1,
+            expose_sex_paying > 0 ~ 1,
             TRUE ~ 0
          ),
          regularlya = case_when(
-            EXPOSE_SEX_PAYMENT > 0 ~ 1,
+            expose_sex_payment > 0 ~ 1,
             TRUE ~ 0
          ),
          injectdrug = case_when(
-            EXPOSE_DRUG_INJECT > 0 ~ 1,
+            expose_drug_inject > 0 ~ 1,
             TRUE ~ 0
          ),
          chemsex    = case_when(
-            EXPOSE_SEX_DRUGS > 0 ~ 1, # HTS Form
+            expose_sex_drugs > 0 ~ 1, # HTS Form
             TRUE ~ 0
          ),
          receivedbt = case_when(
-            EXPOSE_BLOOD_TRANSFUSE > 0 ~ 1,
+            expose_blood_transfuse > 0 ~ 1,
             TRUE ~ 0
          ),
          sti        = case_when(
-            EXPOSE_STI > 0 ~ 1,
+            expose_sti > 0 ~ 1,
             TRUE ~ 0
          ),
          needlepri1 = case_when(
-            EXPOSE_OCCUPATION > 0 ~ 1,
+            expose_occupation > 0 ~ 1,
             TRUE ~ 0
          ),
 
          mot        = 0,
          # m->m only
          mot        = case_when(
-            male == 1 & EXPOSE_SEX_M_NOCONDOM == 1 ~ 1,
-            male == 1 & YR_LAST_M >= params$p10y ~ 1,
-            male == 1 & year(EXPOSE_SEX_M_AV_DATE) >= params$p10y ~ 1,          # HTS Form
-            male == 1 & year(EXPOSE_SEX_M_AV_NOCONDOM_DATE) >= params$p10y ~ 1, # HTS Form
+            male == 1 & expose_sex_m_nocondom == 1 ~ 1,
+            male == 1 & yr_last_m >= params$p10y ~ 1,
+            male == 1 & year(expose_sex_m_av_date) >= params$p10y ~ 1,          # HTS Form
+            male == 1 & year(expose_sex_m_av_nocondom_date) >= params$p10y ~ 1, # HTS Form
             TRUE ~ mot
          ),
 
          # m->m+f
          mot        = case_when(
-            mot == 1 & EXPOSE_SEX_F_NOCONDOM == 1 ~ 2,
-            mot == 1 & YR_LAST_F >= params$p10y ~ 2,
-            mot == 1 & year(EXPOSE_SEX_F_AV_DATE) >= params$p10y ~ 2,          # HTS Form
-            mot == 1 & year(EXPOSE_SEX_F_AV_NOCONDOM_DATE) >= params$p10y ~ 2, # HTS Form
+            mot == 1 & expose_sex_f_nocondom == 1 ~ 2,
+            mot == 1 & yr_last_f >= params$p10y ~ 2,
+            mot == 1 & year(expose_sex_f_av_date) >= params$p10y ~ 2,          # HTS Form
+            mot == 1 & year(expose_sex_f_av_nocondom_date) >= params$p10y ~ 2, # HTS Form
             TRUE ~ mot
          ),
 
          # m->f only
          mot        = case_when(
-            male == 1 & mot == 0 & EXPOSE_SEX_F_NOCONDOM == 1 ~ 3,
+            male == 1 & mot == 0 & expose_sex_f_nocondom == 1 ~ 3,
             male == 1 &
                mot == 0 &
-               YR_LAST_F >= params$p10y ~ 3,
+               yr_last_f >= params$p10y ~ 3,
             male == 1 &
                mot == 0 &
-               year(EXPOSE_SEX_F_AV_DATE) >= params$p10y ~ 3,          # HTS Form
+               year(expose_sex_f_av_date) >= params$p10y ~ 3,          # HTS Form
             male == 1 &
                mot == 0 &
-               year(EXPOSE_SEX_F_AV_NOCONDOM_DATE) >= params$p10y ~ 3, # HTS Form
+               year(expose_sex_f_av_nocondom_date) >= params$p10y ~ 3, # HTS Form
             TRUE ~ mot
          ),
 
          # f->m
          mot        = case_when(
-            female == 1 & EXPOSE_SEX_M_NOCONDOM == 1 ~ 4,
-            female == 1 & YR_LAST_M >= params$p10y ~ 4,
-            female == 1 & year(EXPOSE_SEX_M_AV_DATE) >= params$p10y ~ 4,          # HTS Form
-            female == 1 & year(EXPOSE_SEX_M_AV_NOCONDOM_DATE) >= params$p10y ~ 4, # HTS Form
+            female == 1 & expose_sex_m_nocondom == 1 ~ 4,
+            female == 1 & yr_last_m >= params$p10y ~ 4,
+            female == 1 & year(expose_sex_m_av_date) >= params$p10y ~ 4,          # HTS Form
+            female == 1 & year(expose_sex_m_av_nocondom_date) >= params$p10y ~ 4, # HTS Form
             TRUE ~ mot
          ),
 
          # ivdu
          mot        = case_when(
-            EXPOSE_DRUG_INJECT > 0 & str_left(PERM_PSGC_PROV, 4) == "0722" ~ 5,
+            expose_drug_inject > 0 & str_left(perm_prov, 4) == "0722" ~ 5,
             TRUE ~ mot
          ),
 
@@ -502,30 +503,30 @@ tag_mot <- function(data, params) {
          mot        = case_when(
             male == 1 &
                mot == 0 &
-               NUM_M_PARTNER > 0 &
-               is.na(YR_LAST_M) ~ 11,
+               num_m_partner > 0 &
+               is.na(yr_last_m) ~ 11,
             male == 1 &
                mot == 0 &
-               YR_LAST_M >= params$p10y ~ 11,
+               yr_last_m >= params$p10y ~ 11,
             male == 1 &
                mot == 0 &
-               !is.na(EXPOSE_SEX_M_AV_DATE) ~ 11,                     # HTS Form
+               !is.na(expose_sex_m_av_date) ~ 11,                     # HTS Form
             male == 1 &
                mot == 0 &
-               !is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ 11,            # HTS Form
-            male == 1 & mot == 0 & EXPOSE_SEX_M > 0 ~ 11,             # HTS Form
+               !is.na(expose_sex_m_av_nocondom_date) ~ 11,            # HTS Form
+            male == 1 & mot == 0 & expose_sex_m > 0 ~ 11,             # HTS Form
             TRUE ~ mot
          ),
 
          # m->m+f hx
          mot        = case_when(
-            mot == 1 & NUM_F_PARTNER > 0 & is.na(YR_LAST_F) ~ 21,
-            mot == 3 & NUM_M_PARTNER > 0 & is.na(YR_LAST_M) ~ 21,
-            mot == 11 & NUM_F_PARTNER > 0 & is.na(YR_LAST_F) ~ 21,
-            mot == 11 & YR_LAST_F >= params$p10y ~ 21,
-            mot == 11 & !is.na(EXPOSE_SEX_F_AV_DATE) ~ 21,          # HTS Form,
-            mot == 11 & !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ 21, # HTS Form,
-            mot == 11 & EXPOSE_SEX_F > 0 ~ 21,                      # HTS Form,
+            mot == 1 & num_f_partner > 0 & is.na(yr_last_f) ~ 21,
+            mot == 3 & num_m_partner > 0 & is.na(yr_last_m) ~ 21,
+            mot == 11 & num_f_partner > 0 & is.na(yr_last_f) ~ 21,
+            mot == 11 & yr_last_f >= params$p10y ~ 21,
+            mot == 11 & !is.na(expose_sex_f_av_date) ~ 21,          # HTS Form,
+            mot == 11 & !is.na(expose_sex_f_av_nocondom_date) ~ 21, # HTS Form,
+            mot == 11 & expose_sex_f > 0 ~ 21,                      # HTS Form,
             TRUE ~ mot
          ),
 
@@ -533,18 +534,18 @@ tag_mot <- function(data, params) {
          mot        = case_when(
             male == 1 &
                mot == 0 &
-               NUM_F_PARTNER > 0 &
-               is.na(YR_LAST_F) ~ 31,
+               num_f_partner > 0 &
+               is.na(yr_last_f) ~ 31,
             male == 1 &
                mot == 0 &
-               YR_LAST_F >= params$p10y ~ 31,
+               yr_last_f >= params$p10y ~ 31,
             male == 1 &
                mot == 0 &
-               !is.na(EXPOSE_SEX_F_AV_DATE) ~ 31,                     # HTS Form,
+               !is.na(expose_sex_f_av_date) ~ 31,                     # HTS Form,
             male == 1 &
                mot == 0 &
-               !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ 31,            # HTS Form,
-            male == 1 & mot == 0 & EXPOSE_SEX_F > 0 ~ 31,             # HTS Form,
+               !is.na(expose_sex_f_av_nocondom_date) ~ 31,            # HTS Form,
+            male == 1 & mot == 0 & expose_sex_f > 0 ~ 31,             # HTS Form,
             TRUE ~ mot
          ),
 
@@ -552,40 +553,40 @@ tag_mot <- function(data, params) {
          mot        = case_when(
             female == 1 &
                mot == 0 &
-               NUM_M_PARTNER > 0 &
-               is.na(YR_LAST_M) ~ 41,
+               num_m_partner > 0 &
+               is.na(yr_last_m) ~ 41,
             female == 1 &
                mot == 0 &
-               YR_LAST_M >= params$p10y ~ 41,
+               yr_last_m >= params$p10y ~ 41,
             female == 1 &
                mot == 0 &
-               !is.na(EXPOSE_SEX_M_AV_DATE) ~ 41,              # HTS Form,
+               !is.na(expose_sex_m_av_date) ~ 41,              # HTS Form,
             female == 1 &
                mot == 0 &
-               !is.na(EXPOSE_SEX_M_AV_NOCONDOM_DATE) ~ 41,     # HTS Form,
-            female == 1 & mot == 0 & EXPOSE_SEX_M > 0 ~ 41,    # HTS Form,
+               !is.na(expose_sex_m_av_nocondom_date) ~ 41,     # HTS Form,
+            female == 1 & mot == 0 & expose_sex_m > 0 ~ 41,    # HTS Form,
             TRUE ~ mot
          ),
 
          # ivdu hx
          mot        = case_when(
-            injectdrug > 0 & str_left(PERM_PSGC_PROV, 4) == "0722" ~ 51,
+            injectdrug > 0 & str_left(perm_prov, 4) == "0722" ~ 51,
             TRUE ~ mot
          ),
 
          # mtct
          mot        = case_when(
-            mot == 0 & AGE < 5 ~ 61,
+            mot == 0 & age < 5 ~ 61,
             TRUE ~ mot
          ),
 
          # all else fails
          mot        = case_when(
-            male == 1 & mot == 0 & NUM_M_PARTNER > 0 ~ 1,
+            male == 1 & mot == 0 & num_m_partner > 0 ~ 1,
             TRUE ~ mot
          ),
          mot        = case_when(
-            mot == 1 & NUM_F_PARTNER > 0 ~ 2,
+            mot == 1 & num_f_partner > 0 ~ 2,
             TRUE ~ mot
          ),
 
@@ -609,15 +610,15 @@ tag_mot <- function(data, params) {
 
          # f->f
          mot        = case_when(
-            female == 1 & mot == 0 & NUM_F_PARTNER > 0 ~ 10,
-            female == 1 & mot == 0 & !is.na(YR_LAST_F) > 0 ~ 10,
+            female == 1 & mot == 0 & num_f_partner > 0 ~ 10,
+            female == 1 & mot == 0 & !is.na(yr_last_f) > 0 ~ 10,
             female == 1 &
                mot == 0 &
-               !is.na(EXPOSE_SEX_F_AV_DATE) ~ 10,
+               !is.na(expose_sex_f_av_date) ~ 10,
             female == 1 &
                mot == 0 &
-               !is.na(EXPOSE_SEX_F_AV_NOCONDOM_DATE) ~ 10,
-            female == 1 & mot == 0 & EXPOSE_SEX_F > 0 ~ 10,
+               !is.na(expose_sex_f_av_nocondom_date) ~ 10,
+            female == 1 & mot == 0 & expose_sex_f > 0 ~ 10,
             TRUE ~ mot
          ),
 
@@ -651,28 +652,28 @@ tag_mot <- function(data, params) {
 
 tag_class <- function(data) {
    local_gs4_quiet()
-   log_info("Tagging AHD.")
+   log_info("Tagging ahd.")
    class_corr <- read_sheet("1gNLaYTULQij4lzPyiadm_tofgtXZxcwJ5BDVZSyH7Rc")
 
    data %<>%
       mutate(
-         # WHO Case Definition of advanced HIV classification
+         # who Case Definition of advanced HIV classification
          # refined ahd
-         BASELINE_CD4         = case_when(
-            CD4_RESULT >= 500 ~ 1,
-            CD4_RESULT >= 350 & CD4_RESULT < 500 ~ 2,
-            CD4_RESULT >= 200 & CD4_RESULT < 350 ~ 3,
-            CD4_RESULT >= 50 & CD4_RESULT < 200 ~ 4,
-            CD4_RESULT < 50 ~ 5,
+         baseline_cd4         = case_when(
+            cd4_result >= 500 ~ 1,
+            cd4_result >= 350 & cd4_result < 500 ~ 2,
+            cd4_result >= 200 & cd4_result < 350 ~ 3,
+            cd4_result >= 50 & cd4_result < 200 ~ 4,
+            cd4_result < 50 ~ 5,
          ),
          ahd                  = case_when(
-            WHO_CLASS %in% c(3, 4) ~ 1,
-            AGE >= 5 & BASELINE_CD4 %in% c(4, 5) ~ 1,
-            AGE < 5 ~ 1,
-            !is.na(BASELINE_CD4) ~ 0
+            who_class %in% c(3, 4) ~ 1,
+            age >= 5 & baseline_cd4 %in% c(4, 5) ~ 1,
+            age < 5 ~ 1,
+            !is.na(baseline_cd4) ~ 0
          ),
-         BASELINE_CD4         = labelled(
-            BASELINE_CD4,
+         baseline_cd4         = labelled(
+            baseline_cd4,
             c(
                "1_500+ cells/μL"     = 1,
                "2_350-499 cells/μL"  = 2,
@@ -685,18 +686,18 @@ tag_class <- function(data) {
          # tb patient
          # class
          classd               = if_else(
-            condition = !is.na(WHO_CLASS),
-            true      = WHO_CLASS,
+            condition = !is.na(who_class),
+            true      = who_class,
             false     = NA_integer_
          ) %>% as.numeric(),
-         description_symptoms = stri_trans_toupper(SYMPTOMS),
-         MED_TB_PX            = case_when(
+         description_symptoms = stri_trans_toupper(symptoms),
+         med_tb_px            = case_when(
             stri_detect_fixed(description_symptoms, "TB") ~ 1,
-            TRUE ~ as.numeric(MED_TB_PX)
+            TRUE ~ as.numeric(med_tb_px)
          ),
          classd               = case_when(
             stri_detect_regex(description_symptoms, paste(collapse = "|", (class_corr %>% filter(as.numeric(class) == 3))$symptom)) ~ 3,
-            MED_TB_PX == 1 ~ 3,
+            med_tb_px == 1 ~ 3,
             TRUE ~ classd
          ),
          classd               = case_when(
@@ -705,7 +706,7 @@ tag_class <- function(data) {
          ),
 
          # new class for 2022
-         HIV_STAGE            = case_when(
+         hiv_stage            = case_when(
             classd %in% c(3, 4) ~ "AIDS",
             ahd == 1 ~ "AIDS",
             TRUE ~ "HIV"
@@ -714,11 +715,11 @@ tag_class <- function(data) {
          # no data for stAGE of hiv
          nodata_hiv_stage     = if_else(
             is.na(ahd) &
-               is.na(BASELINE_CD4) &
-               ((coalesce(description_symptoms, "") == "" & str_left(CLINICAL_PIC, 1) == "1") | is.na(CLINICAL_PIC)) &
-               is.na(MED_TB_PX) &
-               is.na(WHO_CLASS) &
-               HIV_STAGE == "HIV",
+               is.na(baseline_cd4) &
+               ((coalesce(description_symptoms, "") == "" & str_left(clinical_pic, 1) == "1") | is.na(clinical_pic)) &
+               is.na(med_tb_px) &
+               is.na(who_class) &
+               hiv_stage == "HIV",
             1,
             0,
             0
@@ -735,75 +736,75 @@ convert_faci_addr <- function(data) {
    # rename columns
    data %<>%
       mutate(
-         RT_FACI_ID = RT_FACI,
-         .before    = RT_FACI
+         rt_faci_id = rt_faci,
+         .before    = rt_faci
       ) %>%
       ohasis$get_faci(
-         list(HTS_FACI = c("SERVICE_FACI", "SERVICE_SUB_FACI")),
+         list(hts_faci = c("service_faci", "service_sub_faci")),
          "name"
       ) %>%
       ohasis$get_faci(
-         list(SPECIMEN_SOURCE_FACI = c("SPECIMEN_SOURCE", "SPECIMEN_SUB_SOURCE")),
+         list(specimen_source_faci = c("specimen_source", "specimen_sub_source")),
          "name"
       ) %>%
       ohasis$get_faci(
-         list(CONFIRM_LAB = c("CONFIRM_FACI", "CONFIRM_SUB_FACI")),
+         list(confirm_lab = c("confirm_faci", "confirm_sub_faci")),
          "name"
       ) %>%
       ohasis$get_faci(
-         list(RT_LAB = c("RT_FACI", "RT_SUB_FACI")),
+         list(rt_lab = c("rt_faci", "rt_sub_faci")),
          "name",
-         c("RT_REG", "RT_PROV", "RT_MUNC")
+         c("rt_reg", "rt_prov", "rt_munc")
       ) %>%
-      ohasis$get_addr(
+      get_addr(
          c(
-            PERM_REG  = "PERM_PSGC_REG",
-            PERM_PROV = "PERM_PSGC_PROV",
-            PERM_MUNC = "PERM_PSGC_MUNC"
+            perm_reg  = "perm_reg",
+            perm_prov = "perm_prov",
+            perm_munc = "perm_munc"
          ),
          "name"
       ) %>%
-      ohasis$get_addr(
+      get_addr(
          c(
-            CURR_REG  = "CURR_PSGC_REG",
-            CURR_PROV = "CURR_PSGC_PROV",
-            CURR_MUNC = "CURR_PSGC_MUNC"
+            curr_reg  = "curr_reg",
+            curr_prov = "curr_prov",
+            curr_munc = "curr_munc"
          ),
          "name"
       ) %>%
-      ohasis$get_addr(
+      get_addr(
          c(
-            BIRTH_REG  = "BIRTH_PSGC_REG",
-            BIRTH_PROV = "BIRTH_PSGC_PROV",
-            BIRTH_MUNC = "BIRTH_PSGC_MUNC"
+            birth_reg  = "birth_reg",
+            birth_prov = "birth_prov",
+            birth_munc = "birth_munc"
          ),
          "name"
       ) %>%
-      ohasis$get_addr(
+      get_addr(
          c(
-            CBS_REG  = "HIV_SERVICE_PSGC_REG",
-            CBS_PROV = "HIV_SERVICE_PSGC_PROV",
-            CBS_MUNC = "HIV_SERVICE_PSGC_MUNC"
+            cbs_reg  = "hiv_service_reg",
+            cbs_prov = "hiv_service_prov",
+            cbs_munc = "hiv_service_munc"
          ),
          "name"
       ) %>%
       # country names
       left_join(
          y  = ohasis$ref_country %>%
-            select(COUNTRY_CODE, OCW_COUNTRY = COUNTRY_NAME),
-         by = join_by(OFW_COUNTRY == COUNTRY_CODE)
+            select(country_code, ocw_country = country_name),
+         by = join_by(ofw_country == country_code)
       ) %>%
-      relocate(OCW_COUNTRY, .before = OFW_COUNTRY) %>%
+      relocate(ocw_country, .before = ofw_country) %>%
       mutate_at(
-         .vars = vars(SERVICE_BY, CREATED, UPDATED, SIGNATORY_1, SIGNATORY_2, SIGNATORY_3),
+         .vars = vars(provider_id, created, updated, signatory_1, signatory_2, signatory_3),
          ~as.character(.)
       ) %>%
-      ohasis$get_staff(c(CREATED_BY = "CREATED")) %>%
-      ohasis$get_staff(c(UPDATED_BY = "UPDATED")) %>%
-      ohasis$get_staff(c(HTS_PROVIDER = "SERVICE_BY")) %>%
-      ohasis$get_staff(c(ANALYZED_BY = "SIGNATORY_1")) %>%
-      ohasis$get_staff(c(REVIEWED_BY = "SIGNATORY_2")) %>%
-      ohasis$get_staff(c(NOTED_BY = "SIGNATORY_3"))
+      ohasis$get_staff(c(created_by = "created")) %>%
+      ohasis$get_staff(c(updated_by = "updated")) %>%
+      ohasis$get_staff(c(hts_provider = "provider_id")) %>%
+      ohasis$get_staff(c(analyzed_by = "signatory_1")) %>%
+      ohasis$get_staff(c(reviewed_by = "signatory_2")) %>%
+      ohasis$get_staff(c(noted_by = "signatory_3"))
 
    return(data)
 }
@@ -815,87 +816,87 @@ final_conversion <- function(data) {
       select(
          -any_of(
             c(
-               "PRIME",
-               "RECORD_DATE",
-               "DISEASE",
-               "HIV_SERVICE_TYPE",
-               "GENDER_AFFIRM_THERAPY",
-               "HIV_SERVICE_ADDR",
+               "prime",
+               "record_date",
+               "disease",
+               "hiv_service_type",
+               "gender_affirm_therapy",
+               "hiv_service_addr",
                "src",
-               "MODULE",
-               "MODALITY",
-               "FACI_ID",
-               "SUB_FACI_ID",
-               "CONFIRMATORY_CODE",
-               "DELETED_BY",
-               "DELETED_AT",
-               "SCREEN_AGREED",
-               "EXPOSE_SEX_M_NOCONDOM",
-               "EXPOSE_SEX_F_NOCONDOM",
-               "EXPOSE_SEX_HIV",
-               "AGE_FIRST_SEX",
-               "NUM_F_PARTNER",
-               "YR_LAST_F",
-               "NUM_M_PARTNER",
-               "YR_LAST_M",
-               "AGE_FIRST_INJECT",
-               "MED_CBS_REACTIVE",
-               "MED_IS_PREGNANT",
-               "FORMA_MSM",
-               "FORMA_TGW",
-               "FORMA_PWID",
-               "FORMA_FSW",
-               "FORMA_GENPOP",
-               "SCREEN_REFER",
-               "PARTNER_REFERRAL_FACI",
-               "EXPOSE_SEX_EVER",
-               "EXPOSE_CONDOMLESS_ANAL",
-               "EXPOSE_CONDOMLESS_VAGINAL",
-               "EXPOSE_M_SEX_ORAL_ANAL",
-               "EXPOSE_NEEDLE_SHARE",
-               "EXPOSE_ILLICIT_DRUGS",
-               "EXPOSE_SEX_HIV_DATE",
-               "EXPOSE_CONDOMLESS_ANAL_DATE",
-               "EXPOSE_CONDOMLESS_VAGINAL_DATE",
-               "EXPOSE_NEEDLE_SHARE_DATE",
-               "EXPOSE_ILLICIT_DRUGS_DATE",
-               "SERVICE_GIVEN_CONDOMS",
-               "SERVICE_GIVEN_LUBES",
-               "TEST_REFUSE_NO_TIME",
-               "TEST_REFUSE_OTHER",
-               "TEST_REFUSE_NO_CURE",
-               "TEST_REFUSE_FEAR_RESULT",
-               "TEST_REFUSE_FEAR_DISCLOSE",
-               "TEST_REFUSE_FEAR_MSM",
-               "CFBS_MSM",
-               "CFBS_TGW",
-               "CFBS_PWID",
-               "CFBS_FSW",
-               "CFBS_GENPOP"
+               "module",
+               "modality",
+               "faci_id",
+               "sub_faci_id",
+               "confirmatory_code",
+               "deleted_by",
+               "deleted_at",
+               "screen_agreed",
+               "expose_sex_m_nocondom",
+               "expose_sex_f_nocondom",
+               "expose_sex_hiv",
+               "age_first_sex",
+               "num_f_partner",
+               "yr_last_f",
+               "num_m_partner",
+               "yr_last_m",
+               "age_first_inject",
+               "med_cbs_reactive",
+               "med_is_pregnant",
+               "forma_msm",
+               "forma_tgw",
+               "forma_pwid",
+               "forma_fsw",
+               "forma_genpop",
+               "screen_refer",
+               "partner_referral_faci",
+               "expose_sex_ever",
+               "expose_condomless_anal",
+               "expose_condomless_vaginal",
+               "expose_m_sex_oral_anal",
+               "expose_needle_share",
+               "expose_illicit_drugs",
+               "expose_sex_hiv_date",
+               "expose_condomless_anal_date",
+               "expose_condomless_vaginal_date",
+               "expose_needle_share_date",
+               "expose_illicit_drugs_date",
+               "service_given_condoms",
+               "service_given_lubes",
+               "test_refuse_no_time",
+               "test_refuse_other",
+               "test_refuse_no_cure",
+               "test_refuse_fear_result",
+               "test_refuse_fear_disclose",
+               "test_refuse_fear_msm",
+               "cfbs_msm",
+               "cfbs_tgw",
+               "cfbs_pwid",
+               "cfbs_fsw",
+               "cfbs_genpop"
             )
          )
       ) %>%
       distinct_all() %>%
       mutate(
          kap_unknown = if_else(coalesce(risks, "(no data)") == "(no data)", "(no data)", NA_character_),
-         kap_msm     = if_else(SEX == "MALE" & SEXUAL_RISK %in% c("M", "M+F"), "MSM", NA_character_),
-         kap_heterom = if_else(SEX == "MALE" & SEXUAL_RISK == "F", "Hetero Male", NA_character_),
-         kap_heterof = if_else(SEX == "FEMALE" & !is.na(SEXUAL_RISK), "Hetero Female", NA_character_),
+         kap_msm     = if_else(sex == "MALE" & sexual_risk %in% c("M", "M+F"), "MSM", NA_character_),
+         kap_heterom = if_else(sex == "MALE" & sexual_risk == "F", "Hetero Male", NA_character_),
+         kap_heterof = if_else(sex == "FEMALE" & !is.na(sexual_risk), "Hetero Female", NA_character_),
          kap_pip     = if_else(str_detect(risk_paymentforsex, "yes"), "PIP", NA_character_),
          kap_pdl     = case_when(
-            str_left(CLIENT_TYPE, 1) == "7" ~ "PDL",
-            str_detect(RT_LAB, "Jail") ~ "PDL",
+            str_left(client_type, 1) == "7" ~ "PDL",
+            str_detect(rt_lab, "Jail") ~ "PDL",
             TRUE ~ NA_character_
          ),
       ) %>%
       unite(
-         col   = "KAP_TYPE",
+         col   = "kap_type",
          sep   = "-",
          starts_with("kap_", ignore.case = FALSE),
          na.rm = TRUE
       ) %>%
       mutate(
-         KAP_TYPE = if_else(KAP_TYPE == "", "No apparent risk", KAP_TYPE, KAP_TYPE)
+         kap_type = if_else(kap_type == "", "No apparent risk", kap_type, kap_type)
       )
 
    return(data)
@@ -918,15 +919,15 @@ get_checks <- function(data, run_checks = NULL) {
    if (run_checks == "1") {
       data %<>%
          mutate(
-            reg_order = RT_REG,
+            reg_order = rt_reg,
             reg_order = case_when(
                reg_order == "1" ~ 1,
                reg_order == "2" ~ 2,
-               reg_order == "CAR" ~ 3,
+               reg_order == "car" ~ 3,
                reg_order == "3" ~ 4,
                reg_order == "NCR" ~ 5,
-               reg_order == "4A" ~ 6,
-               reg_order == "4B" ~ 7,
+               reg_order == "4a" ~ 6,
+               reg_order == "4b" ~ 7,
                reg_order == "5" ~ 8,
                reg_order == "6" ~ 9,
                reg_order == "7" ~ 10,
@@ -935,49 +936,49 @@ get_checks <- function(data, run_checks = NULL) {
                reg_order == "10" ~ 13,
                reg_order == "11" ~ 14,
                reg_order == "12" ~ 15,
-               reg_order == "CARAGA" ~ 16,
-               reg_order == "ARMM" ~ 17,
-               reg_order == "BARMM" ~ 17,
+               reg_order == "caraga" ~ 16,
+               reg_order == "armm" ~ 17,
+               reg_order == "barmm" ~ 17,
                TRUE ~ 9999
             ),
          ) %>%
-         arrange(reg_order, RT_REG, RT_LAB, CONFIRM_CODE) %>%
+         arrange(reg_order, rt_reg, rt_lab, confirm_code) %>%
          select(-reg_order)
 
       view_vars <- c(
-         "REC_ID",
-         "PATIENT_ID",
-         "RT_REG",
-         "RT_LAB",
-         "RT_ACTIVATION_DATE",
-         "RT_OFFER_DATE",
-         "RT_INCLUDED",
-         "RT_AGREED",
-         "RT_DATE",
-         "RT_RESULT",
-         "RT_VALIDATION_REMARKS",
-         "RT_VALIDATION_STATUS",
-         "RT_VL_REQUESTED",
-         "RT_VL_DATE",
-         "RT_VL_RESULT",
-         "RITA_RESULT",
-         "HARP_INCLUSION_DATE",
-         "FORM_VERSION",
-         "CONFIRM_CODE",
-         "UIC",
-         "PATIENT_CODE",
-         "FIRST",
-         "MIDDLE",
-         "LAST",
-         "SUFFIX",
-         "BIRTHDATE",
-         "SEX",
-         "SELF_IDENT",
-         "SELF_IDENT_OTHER",
+         "rec_id",
+         "patient_id",
+         "rt_reg",
+         "rt_lab",
+         "rt_activation_date",
+         "rt_offer_date",
+         "rt_included",
+         "rt_agreed",
+         "rt_date",
+         "rt_result",
+         "rt_validation_remarks",
+         "rt_validation_status",
+         "rt_vl_requested",
+         "rt_vl_date",
+         "rt_vl_result",
+         "rita_result",
+         "harp_inclusion_date",
+         "form_version",
+         "confirm_code",
+         "uic",
+         "patient_code",
+         "first",
+         "middle",
+         "last",
+         "suffix",
+         "birthdate",
+         "sex",
+         "self_ident",
+         "self_ident_other",
          "gender_identity",
-         "SPECIMEN_REFER_TYPE",
-         "HTS_FACI",
-         "SOURCE_FACI",
+         "specimen_refer_type",
+         "hts_faci",
+         "source_faci",
          "hts_date",
          "hts_modality",
          "mot",
@@ -988,58 +989,58 @@ get_checks <- function(data, run_checks = NULL) {
 
       # dates
       date_vars <- c(
-         "RT_OFFER_DATE",
-         "DATE_COLLECT",
-         "DATE_RECEIVE",
+         "rt_offer_date",
+         "date_collect",
+         "date_receive",
          "hts_date"
       )
       check     <- check_dates(data, check, view_vars, date_vars)
 
       # non-negotiable variables
       nonnegotiables <- c(
-         "UIC",
-         "AGE",
-         "CONFIRM_LAB",
-         "FORM_VERSION",
-         "SPECIMEN_REFER_TYPE",
-         "SELF_IDENT",
-         "NATIONALITY",
-         "RT_AGREED",
-         "RT_OFFER_DATE",
+         "uic",
+         "age",
+         "confirm_lab",
+         "form_version",
+         "specimen_refer_type",
+         "self_ident",
+         "nationality",
+         "rt_agreed",
+         "rt_offer_date",
          "transmit"
       )
-      check          <- check_unknown(data, check, "perm_addr", view_vars, PERM_REG, PERM_PROV, PERM_MUNC)
-      check          <- check_unknown(data, check, "curr_addr", view_vars, CURR_REG, CURR_PROV, CURR_MUNC)
+      check          <- check_unknown(data, check, "perm_addr", view_vars, perm_reg, perm_prov, perm_munc)
+      check          <- check_unknown(data, check, "curr_addr", view_vars, curr_reg, curr_prov, curr_munc)
       check          <- check_nonnegotiables(data, check, view_vars, nonnegotiables)
-      check          <- check_preggy(data, check, view_vars, sex = SEX)
-      check          <- check_age(data, check, view_vars, birthdate = BIRTHDATE, AGE = AGE, visit_date = RT_OFFER_DATE)
+      check          <- check_preggy(data, check, view_vars, sex = sex)
+      check          <- check_age(data, check, view_vars, birthdate = birthdate, age = age, visit_date = rt_offer_date)
 
       # special checks
-      log_info("Checking for not RT Result.")
+      log_info("Checking for not rt Result.")
       check[["no_rt_result"]] <- data %>%
          filter(
-            RT_AGREED == "1_Yes",
-            is.na(RT_RESULT),
+            rt_agreed == "1_Yes",
+            is.na(rt_result),
          ) %>%
          select(
             any_of(view_vars),
          )
 
-      log_info("Checking for no RITA Result.")
+      log_info("Checking for no rita Result.")
       check[["no_rita_result"]] <- data %>%
          filter(
-            RT_RESULT == "1_Recent",
-            is.na(RITA_RESULT)
+            rt_result == "1_Recent",
+            is.na(rita_result)
          ) %>%
          select(
             any_of(view_vars),
          )
 
-      log_info("Checking for no RITA Result.")
+      log_info("Checking for no rita Result.")
       check[["ahd_recent"]] <- data %>%
          filter(
-            RT_RESULT == "1_Recent",
-            HIV_STAGE == "AIDS"
+            rt_result == "1_Recent",
+            hiv_stage == "AIDS"
          ) %>%
          select(
             any_of(view_vars),
@@ -1056,12 +1057,12 @@ get_checks <- function(data, run_checks = NULL) {
 
       # range-median
       tabstat <- c(
-         "RT_OFFER_DATE",
-         "DATE_COLLECT",
-         "DATE_RECEIVE",
-         "RT_OFFER_DATE",
-         "BIRTHDATE",
-         "AGE"
+         "rt_offer_date",
+         "date_collect",
+         "date_receive",
+         "rt_offer_date",
+         "birthdate",
+         "age"
       )
       check   <- check_tabstat(data, check, tabstat)
    }
@@ -1075,7 +1076,7 @@ output_dta <- function(official, params, save = "2") {
    if (save == "1") {
       log_info("Checking output directory.")
       version <- format(Sys.time(), "%Y%m%d")
-      dir     <- Sys.getenv("HARP_DX")
+      dir     <- Sys.getenv("harp_dx")
       check_dir(dir)
 
       log_info("Saving in Stata data format.")
@@ -1115,10 +1116,10 @@ output_dta <- function(official, params, save = "2") {
          y  = p$params$sites %>%
             mutate(rt_activation_date = as.Date(rt_activation_date)) %>%
             select(
-               RT_FACI_ID         = FACI_ID,
-               RT_ACTIVATION_DATE = rt_activation_date
+               rt_faci_id         = faci_id,
+               rt_activation_date = rt_activation_date
             ),
-         by = join_by(RT_FACI_ID)
+         by = join_by(rt_faci_id)
       )
 
    step$check <- get_checks(final_data, run_checks = vars$run_checks)
