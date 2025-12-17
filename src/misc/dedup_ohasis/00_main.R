@@ -1,10 +1,10 @@
-##  OHASIS Deduplication Controller -------------------------------------------------
+##  ohasis Deduplication Controller -------------------------------------------------
 
 source("src/misc/dedup_ohasis/01_pii.R")
 source("src/misc/dedup_ohasis/02_dedup_fns.R")
 
-ohasis$data_factory("lake", "px_pii", "upsert", TRUE, to = format(Sys.time(), "%Y-%m-%d %H:%M:%S"))
-ohasis$data_factory("warehouse", "id_registry", "upsert", TRUE, to = format(Sys.time(), "%Y-%m-%d %H:%M:%S"))
+# ohasis$data_factory("lake", "px_pii", "upsert", TRUE, to = format(Sys.time(), "%Y-%m-%d %H:%M:%S"))
+# ohasis$data_factory("warehouse", "id_registry", "upsert", TRUE, to = format(Sys.time(), "%Y-%m-%d %H:%M:%S"))
 dedup <- dedup_download()
 dedup <- dedup_linelist(dedup)
 
@@ -22,159 +22,163 @@ dedup_sure <- function() {
 
 }
 
-check_dupes <- ohasis_dupes(FIRST_SIEVE, MIDDLE_SIEVE, LAST_SIEVE, UIC)
+check_dupes <- ohasis_dupes(first_sieve, middle_sieve, last_sieve, uic)
 dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_SIEVE, UIC)
+check_dupes <- ohasis_dupes(first_sieve, last_sieve, uic)
 dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, MIDDLE_SIEVE, LAST_SIEVE, UIC_SORT)
+check_dupes <- ohasis_dupes(first_sieve, middle_sieve, last_sieve, uic_sort)
 dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_SIEVE, UIC_SORT)
+check_dupes <- ohasis_dupes(first_sieve, last_sieve, uic_sort)
 dedup_sure()
-# check_dupes <- ohasis_dupes(FIRST_NY, MIDDLE_NY, LAST_NY, UIC)
-# check_dupes <- ohasis_dupes(FIRST_NY, LAST_NY, UIC)
-# check_dupes <- ohasis_dupes(FIRST_SIEVE, MIDDLE_SIEVE, LAST_SIEVE, BIRTHDATE, UIC_ORDER)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_SIEVE, BIRTHDATE, CONFIRM_SIEVE)
+# check_dupes <- ohasis_dupes(first_ny, middle_ny, last_ny, uic)
+# check_dupes <- ohasis_dupes(first_ny, last_ny, uic)
+# check_dupes <- ohasis_dupes(first_sieve, middle_sieve, last_sieve, birthdate, uic_order)
+check_dupes <- ohasis_dupes(first_sieve, last_sieve, birthdate, confirm_sieve)
 dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_SIEVE, BIRTHDATE, PXCODE_SIEVE)
+check_dupes <- ohasis_dupes(first_sieve, last_sieve, birthdate, pxcode_sieve)
 dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_SIEVE, BIRTHDATE, PHIC)
+check_dupes <- ohasis_dupes(first_sieve, last_sieve, birthdate, phic)
 dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_SIEVE, BIRTHDATE, PHILSYS)
+check_dupes <- ohasis_dupes(first_sieve, last_sieve, birthdate, philsys)
 dedup_sure()
-# check_dupes <- ohasis_dupes(FIRST_NY, LAST_NY, BIRTHDATE, CONFIRM_SIEVE)
-# check_dupes <- ohasis_dupes(FIRST_NY, LAST_NY, BIRTHDATE, PXCODE_SIEVE)
-# check_dupes <- ohasis_dupes(FIRST_NY, LAST_NY, BIRTHDATE, PHIC)
-# check_dupes <- ohasis_dupes(FIRST_NY, LAST_NY, BIRTHDATE, PHILSYS)
-# check_dupes <- ohasis_dupes(FIRST_A, LAST_A, BIRTHDATE, CONFIRM_SIEVE)
-# check_dupes <- ohasis_dupes(FIRST_A, LAST_A, BIRTHDATE, PXCODE_SIEVE)
-# check_dupes <- ohasis_dupes(FIRST_A, LAST_A, BIRTHDATE, PHIC)
-# check_dupes <- ohasis_dupes(FIRST_A, LAST_A, BIRTHDATE, PHILSYS)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, MIDDLE_SIEVE, LAST_A, UIC)
+# check_dupes <- ohasis_dupes(first_ny, last_ny, birthdate, confirm_sieve)
+# check_dupes <- ohasis_dupes(first_ny, last_ny, birthdate, pxcode_sieve)
+# check_dupes <- ohasis_dupes(first_ny, last_ny, birthdate, phic)
+# check_dupes <- ohasis_dupes(first_ny, last_ny, birthdate, philsys)
+# check_dupes <- ohasis_dupes(first_a, last_a, birthdate, confirm_sieve)
+# check_dupes <- ohasis_dupes(first_a, last_a, birthdate, pxcode_sieve)
+# check_dupes <- ohasis_dupes(first_a, last_a, birthdate, phic)
+# check_dupes <- ohasis_dupes(first_a, last_a, birthdate, philsys)
+check_dupes <- ohasis_dupes(first_sieve, middle_sieve, last_a, uic)
 dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic)
 dedup_sure()
-# check_dupes <- ohasis_dupes(FIRST_A, MIDDLE_SIEVE, LAST_SIEVE, UIC)
-# check_dupes <- ohasis_dupes(FIRST_A, LAST_SIEVE, UIC)
-# check_dupes <- ohasis_dupes(FIRST_A, MIDDLE_SIEVE, LAST_A, UIC)
-check_dupes <- ohasis_dupes(NAMESORT_FIRST, NAMESORT_LAST, UIC)
+# check_dupes <- ohasis_dupes(first_a, middle_sieve, last_sieve, uic)
+# check_dupes <- ohasis_dupes(first_a, last_sieve, uic)
+# check_dupes <- ohasis_dupes(first_a, middle_sieve, last_a, uic)
+check_dupes <- ohasis_dupes(namesort_first, namesort_last, uic)
 dedup_sure()
-# check_dupes <- ohasis_dupes(NAMESORT_FIRST, NAMESORT_LAST, UIC_SORT)
+# check_dupes <- ohasis_dupes(namesort_first, namesort_last, uic_sort)
 
-check_dupes <- ohasis_dupes(FIRST_SIEVE, UIC, CLIENT_MOBILE)
+check_dupes <- ohasis_dupes(first_sieve, uic, client_mobile)
 dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, BIRTHDATE, CLIENT_MOBILE)
+check_dupes <- ohasis_dupes(first_sieve, birthdate, client_mobile)
 dedup_sure()
-# check_dupes <- ohasis_dupes(FIRST_NY, UIC, CLIENT_MOBILE)
-# check_dupes <- ohasis_dupes(FIRST_NY, BIRTHDATE, CLIENT_MOBILE)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, UIC, CLIENT_EMAIL)
+# check_dupes <- ohasis_dupes(first_ny, uic, client_mobile)
+# check_dupes <- ohasis_dupes(first_ny, birthdate, client_mobile)
+check_dupes <- ohasis_dupes(first_sieve, uic, client_email)
 dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, BIRTHDATE, CLIENT_EMAIL)
+check_dupes <- ohasis_dupes(first_sieve, birthdate, client_email)
 dedup_sure()
-# check_dupes <- ohasis_dupes(FIRST_NY, UIC, CLIENT_EMAIL)
-# check_dupes <- ohasis_dupes(FIRST_NY, BIRTHDATE, CLIENT_EMAIL)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, UIC, PERM_PROV)
+# check_dupes <- ohasis_dupes(first_ny, uic, client_email)
+# check_dupes <- ohasis_dupes(first_ny, birthdate, client_email)
+check_dupes <- ohasis_dupes(first_sieve, uic, perm_prov)
 dedup_sure()
-# check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_NY, BIRTHDATE, PERM_MUNC)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, UIC, CURR_PROV)
+# check_dupes <- ohasis_dupes(first_sieve, last_ny, birthdate, perm_munc)
+check_dupes <- ohasis_dupes(first_sieve, uic, curr_prov)
 dedup_sure()
-# check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_NY, BIRTHDATE, CURR_MUNC)
-# check_dupes <- ohasis_dupes(FIRST_SIEVE, BIRTHDATE, PXCODE_SIEVE)
-# check_dupes <- ohasis_dupes(FIRST_SIEVE, BIRTH_YR, CLIENT_MOBILE)
-# check_dupes <- ohasis_dupes(FIRST_SIEVE, BIRTH_MO, CLIENT_MOBILE)
-# check_dupes <- ohasis_dupes(FIRST_SIEVE, BIRTH_DY, CLIENT_MOBILE)
-# check_dupes <- ohasis_dupes(FIRST_NY, BIRTH_YR, CLIENT_MOBILE)
-# check_dupes <- ohasis_dupes(FIRST_NY, BIRTH_MO, CLIENT_MOBILE)
-# check_dupes <- ohasis_dupes(FIRST_NY, BIRTH_DY, CLIENT_MOBILE)
-# check_dupes <- ohasis_dupes(FIRST_SIEVE, BIRTH_YR, CLIENT_EMAIL)
-# check_dupes <- ohasis_dupes(FIRST_SIEVE, BIRTH_MO, CLIENT_EMAIL)
-# check_dupes <- ohasis_dupes(FIRST_SIEVE, BIRTH_DY, CLIENT_EMAIL)
-# check_dupes <- ohasis_dupes(FIRST_NY, BIRTH_YR, CLIENT_EMAIL)
-# check_dupes <- ohasis_dupes(FIRST_NY, BIRTH_MO, CLIENT_EMAIL)
-# check_dupes <- ohasis_dupes(FIRST_NY, BIRTH_DY, CLIENT_EMAIL)
+# check_dupes <- ohasis_dupes(first_sieve, last_ny, birthdate, curr_munc)
+# check_dupes <- ohasis_dupes(first_sieve, birthdate, pxcode_sieve)
+# check_dupes <- ohasis_dupes(first_sieve, birth_yr, client_mobile)
+# check_dupes <- ohasis_dupes(first_sieve, birth_mo, client_mobile)
+# check_dupes <- ohasis_dupes(first_sieve, birth_dy, client_mobile)
+# check_dupes <- ohasis_dupes(first_ny, birth_yr, client_mobile)
+# check_dupes <- ohasis_dupes(first_ny, birth_mo, client_mobile)
+# check_dupes <- ohasis_dupes(first_ny, birth_dy, client_mobile)
+# check_dupes <- ohasis_dupes(first_sieve, birth_yr, client_email)
+# check_dupes <- ohasis_dupes(first_sieve, birth_mo, client_email)
+# check_dupes <- ohasis_dupes(first_sieve, birth_dy, client_email)
+# check_dupes <- ohasis_dupes(first_ny, birth_yr, client_email)
+# check_dupes <- ohasis_dupes(first_ny, birth_mo, client_email)
+# check_dupes <- ohasis_dupes(first_ny, birth_dy, client_email)
 
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_1, BIRTHDATE, PERM_MUNC)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_1, birthdate, perm_munc)
 dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_2, BIRTHDATE, PERM_MUNC)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_2, birthdate, perm_munc)
 dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_1, BIRTHDATE, CURR_MUNC)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_1, birthdate, curr_munc)
 dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_2, BIRTHDATE, CURR_MUNC)
-dedup_sure()
-
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_1, UIC_2, BIRTH_YR, BIRTH_MO, PERM_MUNC)
-dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_1, UIC_2, BIRTH_YR, BIRTH_DY, PERM_MUNC)
-dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_1, UIC_2, BIRTH_MO, BIRTH_DY, PERM_MUNC)
-dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_1, UIC_2, BIRTH_YR, BIRTH_MO, CURR_MUNC)
-dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_1, UIC_2, BIRTH_YR, BIRTH_DY, CURR_MUNC)
-dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_1, UIC_2, BIRTH_MO, BIRTH_DY, CURR_MUNC)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_2, birthdate, curr_munc)
 dedup_sure()
 
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_1, BIRTH_YR, BIRTH_MO, PERM_MUNC)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_1, BIRTH_YR, BIRTH_DY, PERM_MUNC)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_1, BIRTH_MO, BIRTH_DY, PERM_MUNC)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_2, BIRTH_YR, BIRTH_MO, PERM_MUNC)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_2, BIRTH_YR, BIRTH_DY, PERM_MUNC)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_2, BIRTH_MO, BIRTH_DY, PERM_MUNC)
-
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_1, BIRTH_YR, BIRTH_MO, CURR_MUNC)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_1, BIRTH_YR, BIRTH_DY, CURR_MUNC)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_1, BIRTH_MO, BIRTH_DY, CURR_MUNC)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_2, BIRTH_YR, BIRTH_MO, CURR_MUNC)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_2, BIRTH_YR, BIRTH_DY, CURR_MUNC)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, LAST_A, UIC_2, BIRTH_MO, BIRTH_DY, CURR_MUNC)
-
-check_dupes <- ohasis_dupes(FIRST_SIEVE, CONFIRM_SIEVE)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_1, uic_2, birth_yr, birth_mo, perm_munc)
 dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_NY, CONFIRM_SIEVE)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, PXCODE_SIEVE)
-check_dupes <- ohasis_dupes(FIRST_NY, PXCODE_SIEVE, BIRTH_YR, BIRTH_MO)
-check_dupes <- ohasis_dupes(LAST_SIEVE, CONFIRM_SIEVE, BIRTH_YR)
-check_dupes <- ohasis_dupes(LAST_SIEVE, CONFIRM_SIEVE)
-check_dupes <- ohasis_dupes(LAST_NY, CONFIRM_SIEVE, BIRTH_YR)
-check_dupes <- ohasis_dupes(LAST_NY, CONFIRM_SIEVE)
-check_dupes <- ohasis_dupes(UIC, CLIENT_MOBILE, FIRST_A)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_1, uic_2, birth_yr, birth_dy, perm_munc)
 dedup_sure()
-check_dupes <- ohasis_dupes(UIC, CLIENT_EMAIL, FIRST_A)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_1, uic_2, birth_mo, birth_dy, perm_munc)
 dedup_sure()
-check_dupes <- ohasis_dupes(UIC, CLIENT_MOBILE, FIRST_NY)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_1, uic_2, birth_yr, birth_mo, curr_munc)
 dedup_sure()
-check_dupes <- ohasis_dupes(UIC, CLIENT_EMAIL, FIRST_NY)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_1, uic_2, birth_yr, birth_dy, curr_munc)
 dedup_sure()
-check_dupes <- ohasis_dupes(UIC, CLIENT_MOBILE, LAST_A)
-dedup_sure()
-check_dupes <- ohasis_dupes(UIC, CLIENT_EMAIL, LAST_A)
-dedup_sure()
-check_dupes <- ohasis_dupes(UIC, CLIENT_MOBILE, LAST_NY)
-dedup_sure()
-check_dupes <- ohasis_dupes(UIC, CLIENT_EMAIL, LAST_NY)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_1, uic_2, birth_mo, birth_dy, curr_munc)
 dedup_sure()
 
-check_dupes <- ohasis_dupes(FIRST_SIEVE, CLIENT_MOBILE, BIRTH_YR)
-dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_NY, CLIENT_MOBILE, BIRTH_YR)
-check_dupes <- ohasis_dupes(FIRST_A, CLIENT_MOBILE, BIRTH_YR)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, CLIENT_MOBILE, BIRTH_MO)
-check_dupes <- ohasis_dupes(FIRST_NY, CLIENT_MOBILE, BIRTH_MO)
-check_dupes <- ohasis_dupes(FIRST_A, CLIENT_MOBILE, BIRTH_MO)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, CLIENT_MOBILE, BIRTH_DY)
-check_dupes <- ohasis_dupes(FIRST_NY, CLIENT_MOBILE, BIRTH_DY)
-check_dupes <- ohasis_dupes(FIRST_A, CLIENT_MOBILE, BIRTH_DY)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_1, birth_yr, birth_mo, perm_munc)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_1, birth_yr, birth_dy, perm_munc)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_1, birth_mo, birth_dy, perm_munc)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_2, birth_yr, birth_mo, perm_munc)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_2, birth_yr, birth_dy, perm_munc)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_2, birth_mo, birth_dy, perm_munc)
 
-check_dupes <- ohasis_dupes(FIRST_SIEVE, CLIENT_EMAIL, BIRTH_YR)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_1, birth_yr, birth_mo, curr_munc)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_1, birth_yr, birth_dy, curr_munc)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_1, birth_mo, birth_dy, curr_munc)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_2, birth_yr, birth_mo, curr_munc)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_2, birth_yr, birth_dy, curr_munc)
+check_dupes <- ohasis_dupes(first_sieve, last_a, uic_2, birth_mo, birth_dy, curr_munc)
+
+
+check_dupes <- ohasis_dupes(pxcode_sieve, client_mobile, client_email)
 dedup_sure()
-check_dupes <- ohasis_dupes(FIRST_NY, CLIENT_EMAIL, BIRTH_YR)
-check_dupes <- ohasis_dupes(FIRST_A, CLIENT_EMAIL, BIRTH_YR)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, CLIENT_EMAIL, BIRTH_MO)
-check_dupes <- ohasis_dupes(FIRST_NY, CLIENT_EMAIL, BIRTH_MO)
-check_dupes <- ohasis_dupes(FIRST_A, CLIENT_EMAIL, BIRTH_MO)
-check_dupes <- ohasis_dupes(FIRST_SIEVE, CLIENT_EMAIL, BIRTH_DY)
-check_dupes <- ohasis_dupes(FIRST_NY, CLIENT_EMAIL, BIRTH_DY)
-check_dupes <- ohasis_dupes(FIRST_A, CLIENT_EMAIL, BIRTH_DY)
+
+check_dupes <- ohasis_dupes(first_sieve, confirm_sieve)
+dedup_sure()
+check_dupes <- ohasis_dupes(first_ny, confirm_sieve)
+check_dupes <- ohasis_dupes(first_sieve, pxcode_sieve)
+check_dupes <- ohasis_dupes(first_ny, pxcode_sieve, birth_yr, birth_mo)
+check_dupes <- ohasis_dupes(last_sieve, confirm_sieve, birth_yr)
+check_dupes <- ohasis_dupes(last_sieve, confirm_sieve)
+check_dupes <- ohasis_dupes(last_ny, confirm_sieve, birth_yr)
+check_dupes <- ohasis_dupes(last_ny, confirm_sieve)
+check_dupes <- ohasis_dupes(uic, client_mobile, first_a)
+dedup_sure()
+check_dupes <- ohasis_dupes(uic, client_email, first_a)
+dedup_sure()
+check_dupes <- ohasis_dupes(uic, client_mobile, first_ny)
+dedup_sure()
+check_dupes <- ohasis_dupes(uic, client_email, first_ny)
+dedup_sure()
+check_dupes <- ohasis_dupes(uic, client_mobile, last_a)
+dedup_sure()
+check_dupes <- ohasis_dupes(uic, client_email, last_a)
+dedup_sure()
+check_dupes <- ohasis_dupes(uic, client_mobile, last_ny)
+dedup_sure()
+check_dupes <- ohasis_dupes(uic, client_email, last_ny)
+dedup_sure()
+
+check_dupes <- ohasis_dupes(first_sieve, client_mobile, birth_yr)
+dedup_sure()
+check_dupes <- ohasis_dupes(first_ny, client_mobile, birth_yr)
+check_dupes <- ohasis_dupes(first_a, client_mobile, birth_yr)
+check_dupes <- ohasis_dupes(first_sieve, client_mobile, birth_mo)
+check_dupes <- ohasis_dupes(first_ny, client_mobile, birth_mo)
+check_dupes <- ohasis_dupes(first_a, client_mobile, birth_mo)
+check_dupes <- ohasis_dupes(first_sieve, client_mobile, birth_dy)
+check_dupes <- ohasis_dupes(first_ny, client_mobile, birth_dy)
+check_dupes <- ohasis_dupes(first_a, client_mobile, birth_dy)
+
+check_dupes <- ohasis_dupes(first_sieve, client_email, birth_yr)
+dedup_sure()
+check_dupes <- ohasis_dupes(first_ny, client_email, birth_yr)
+check_dupes <- ohasis_dupes(first_a, client_email, birth_yr)
+check_dupes <- ohasis_dupes(first_sieve, client_email, birth_mo)
+check_dupes <- ohasis_dupes(first_ny, client_email, birth_mo)
+check_dupes <- ohasis_dupes(first_a, client_email, birth_mo)
+check_dupes <- ohasis_dupes(first_sieve, client_email, birth_dy)
+check_dupes <- ohasis_dupes(first_ny, client_email, birth_dy)
+check_dupes <- ohasis_dupes(first_a, client_email, birth_dy)
 
 # upload
 upload_dupes(check_dupes$registry_up)
@@ -185,8 +189,8 @@ dedup$id_registry <- upload_dupes2(check_dupes$registry_up, dedup$id_registry)
 dedup$id_registry <- upload_dupes2(check_dupes$normal_up, dedup$id_registry)
 dedup             <- dedup_linelist2(dedup)
 
-from              <- "2025-03-26 12:00:00"
-dedup$id_registry <- upload_dupes2(check_dupes$normal_up, dedup$id_registry %>% select(-SNAPSHOT), TRUE, from)
+from              <- "2025-11-12 21:32:00"
+dedup$id_registry <- upload_dupes2(check_dupes$normal_up, dedup$id_registry, TRUE, from)
 
 check_dupes$registry %>%
    mutate(
@@ -200,7 +204,7 @@ check_dupes$registry %>%
             .before = 1
          )
    ) %>%
-   # select(-PATIENT_ID) %>%
+   # select(-patient_id) %>%
    View()
 
 ohasis$data_factory("lake", "px_pii", "upsert", TRUE, to = format(Sys.time(), "%Y-%m-%d %H:%M:%S"))
@@ -209,55 +213,55 @@ dedup      <- dedup_download()
 pii        <- dedup$pii
 id_reg     <- dedup$id_registry
 pii_unique <- pii %>%
-   get_cid(id_reg, PATIENT_ID) %>%
+   get_cid(id_reg, patient_id) %>%
    left_join(
       y  = work,
-      by = join_by(REC_ID)
+      by = join_by(rec_id)
    ) %>%
-   select(-REC_ID, -FACI_ID, -SUB_FACI_ID, -DELETED_AT) %>%
+   select(-rec_id, -faci_id, -sub_faci_id, -deleted_at) %>%
    unite(
-      col   = "PERM_ADDR",
+      col   = "perm_addr",
       sep   = ", ",
-      PERM_REG,
-      PERM_PROV,
-      PERM_MUNC,
+      perm_reg,
+      perm_prov,
+      perm_munc,
       na.rm = TRUE
    ) %>%
    unite(
-      col   = "CURR_ADDR",
+      col   = "curr_addr",
       sep   = ", ",
-      CURR_REG,
-      CURR_PROV,
-      CURR_MUNC,
+      curr_reg,
+      curr_prov,
+      curr_munc,
       na.rm = TRUE
    ) %>%
    pivot_longer(
       cols = c(
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         UIC,
-         CONFIRMATORY_CODE,
-         PATIENT_CODE,
-         BIRTHDATE,
-         PHILSYS_ID,
-         PHILHEALTH_NO,
-         CLIENT_EMAIL,
-         CLIENT_MOBILE,
-         SEX,
-         WORK,
-         CURR_ADDR,
-         PERM_ADDR,
+         first,
+         middle,
+         last,
+         suffix,
+         uic,
+         confirmatory_code,
+         patient_code,
+         birthdate,
+         philsys_id,
+         philhealth_no,
+         client_email,
+         client_mobile,
+         sex,
+         work,
+         curr_addr,
+         perm_addr,
       )
    ) %>%
    mutate(
       sort = if_else(!is.na(value), 1, 9999, 9999)
    ) %>%
-   arrange(sort, desc(SNAPSHOT)) %>%
-   distinct(CENTRAL_ID, name, .keep_all = TRUE) %>%
+   arrange(sort, desc(snapshot)) %>%
+   distinct(central_id, name, .keep_all = TRUE) %>%
    pivot_wider(
-      id_cols     = CENTRAL_ID,
+      id_cols     = central_id,
       names_from  = name,
       values_from = value
    )
@@ -267,122 +271,136 @@ pii_unique <- read_rds("H:/20250328-pii_unique.rds")
 
 data <- pii_unique %>%
    mutate(id = row_number()) %>%
-   rename(occupation = WORK) %>%
+   rename(occupation = work) %>%
    separate_wider_delim(
-      cols    = CURR_ADDR,
+      cols    = curr_addr,
       delim   = ", ",
-      names   = c("CURR_REG", "CURR_PROV", "CURR_MUNC"),
+      names   = c("curr_reg", "curr_prov", "curr_munc"),
       too_few = "align_start"
    ) %>%
    separate_wider_delim(
-      cols    = PERM_ADDR,
+      cols    = perm_addr,
       delim   = ", ",
-      names   = c("PERM_REG", "PERM_PROV", "PERM_MUNC"),
+      names   = c("perm_reg", "perm_prov", "perm_munc"),
       too_few = "align_start"
    ) %>%
    mutate(
-      use_curr      = coalesce(CURR_MUNC == "UNKNOWN" | CURR_MUNC == "OVERSEAS", FALSE),
-      PERMCURR_REG  = if_else(
+      use_curr      = coalesce(curr_munc == "unknown" | curr_munc == "overseas", FALSE),
+      permcurr_reg  = if_else(
          condition = use_curr == 1,
-         true      = CURR_REG,
-         false     = PERM_REG
+         true      = curr_reg,
+         false     = perm_reg
       ),
-      PERMCURR_PROV = if_else(
+      permcurr_prov = if_else(
          condition = use_curr == 1,
-         true      = CURR_PROV,
-         false     = PERM_PROV
+         true      = curr_prov,
+         false     = perm_prov
       ),
-      PERMCURR_MUNC = if_else(
+      permcurr_munc = if_else(
          condition = use_curr == 1,
-         true      = CURR_MUNC,
-         false     = PERM_MUNC
+         true      = curr_munc,
+         false     = perm_munc
       ),
    ) %>%
    select(
       -use_curr,
-      -starts_with("PERM_"),
-      -starts_with("CURR_"),
+      -starts_with("perm_"),
+      -starts_with("curr_"),
    ) %>%
    rename_all(tolower) %>%
-   rename(CENTRAL_ID = central_id) %>%
+   rename(central_id = central_id) %>%
    mutate(
       birthdate = as.Date(parse_date_time(birthdate, "Ymd"))
    )
-try  <- Dedup$new()
-try$setMaster(data, "id")
+
+conn <- connect('mariadb-lw')
+per  <- QB$new(conn)$from('ohasis_lake.ohasis_pii_per_cid')$get()
+dbDisconnect(conn)
+
+write_rds(per, "H:/ohasis_pii_per_cid.rds")
+
+per <- read_rds("H:/ohasis_pii_per_cid.rds")
+per %<>%
+   mutate(
+      row_id     = row_number(),
+      occupation = coalesce(curr_work, prev_work)
+   ) %>%
+   rename(central_id = cid)
+try <- Dedup$new()
+try$setMaster(per, "row_id")
 try$preparePii()
 try$splinkDedupe()
+try$exact()
 
-work   <- QB$new(`oh-lw`)$select(REC_ID, WORK)$from("ohasis_lake.px_occupation")$whereNotNull("WORK")$get()
-id_reg <- QB$new(`oh-lw`)$select(CENTRAL_ID, PATIENT_ID)$from("ohasis_warehouse.id_registry")$get()
 
-lw_conn <- ohasis$conn("lw")
-dbExecute(lw_conn, "DELETE FROM ohasis_lake.pii_unique WHERE PATIENT_ID IS NOT NULL;")
-ohasis$upsert(lw_conn, "lake", "pii_unique", pii_unique, "PATIENT_ID")
+lw_conn <- connect('ohasis-cdc')
+dbExecute(lw_conn, glue(r"(TRUNCATE `ohasis`.`dedup_old-exact`)"))
+dbAppendTable(lw_conn, 'dedup_old-exact', try$review$exact, row.names = NA)
 dbDisconnect(lw_conn)
 
-change_px_id('2024012814706OJ1300000048', '20220120130001D574', "2022071413000173V3")
+
+work   <- QB$new(`oh-lw`)$select(rec_id, work)$from("ohasis_lake.px_occupation")$whereNotNull("work")$get()
+id_reg <- QB$new(`oh-lw`)$select(central_id, patient_id)$from("ohasis_warehouse.id_registry")$get()
+
+lw_conn <- ohasis$conn("lw")
+dbExecute(lw_conn, "delete from ohasis_lake.pii_unique where patient_id is not NULL;")
+ohasis$upsert(lw_conn, "lake", "pii_unique", pii_unique, "patient_id")
+dbDisconnect(lw_conn)
+
+change_px_id('2024012814706oj1300000048', '20220120130001d574', "2022071413000173v3")
 
 distinct_pii <- function(cid1, cid2) {
    data <- dedup$pii %>%
       select(
-         CENTRAL_ID,
-         PATIENT_ID,
-         FIRST,
-         MIDDLE,
-         LAST,
-         SUFFIX,
-         UIC,
-         CONFIRMATORY_CODE,
-         PATIENT_CODE,
-         BIRTHDATE,
-         PHILSYS_ID,
-         PHILHEALTH_NO,
-         CLIENT_EMAIL,
-         CLIENT_MOBILE,
-         SEX,
-         PERM_REG,
-         PERM_PROV,
-         PERM_MUNC,
-         CURR_REG,
-         CURR_PROV,
-         CURR_MUNC,
+         central_id,
+         patient_id,
+         first,
+         middle,
+         last,
+         suffix,
+         uic,
+         confirmatory_code,
+         patient_code,
+         birthdate,
+         philsys_id,
+         philhealth_no,
+         client_email,
+         client_mobile,
+         sex,
+         perm_reg,
+         perm_prov,
+         perm_munc,
+         curr_reg,
+         curr_prov,
+         curr_munc,
       )
 
    return(
       list(
-         p1 = data %>% filter(CENTRAL_ID == cid1),
-         p2 = data %>% filter(CENTRAL_ID == cid2)
+         p1 = data %>% filter(central_id == cid1),
+         p2 = data %>% filter(central_id == cid2)
       )
    )
 }
 
 lapply(
-   c('20240104101246Q0400030011'),
+   c('20240104101246q0400030011'),
    change_px_id,
-   'HARP08011816074489',
-   'HARP08011816049826'
+   'harp08011816074489',
+   'harp08011816049826'
 )
 
 periods <- list(
    # c(format(start_ym(2023, 7), "%Y-%m-%d 00:00:00"), format(end_ym(2023, 7), "%Y-%m-%d 11:59:59")),
    # c(format(start_ym(2023, 8), "%Y-%m-%d 00:00:00"), format(end_ym(2023, 8), "%Y-%m-%d 11:59:59")),
    # c(format(start_ym(2023, 9), "%Y-%m-%d 00:00:00"), format(end_ym(2023, 9), "%Y-%m-%d 11:59:59")),
-   c(format(start_ym(2023, 10), "%Y-%m-%d 00:00:00"), format(end_ym(2023, 10), "%Y-%m-%d 11:59:59")),
-   c(format(start_ym(2023, 11), "%Y-%m-%d 00:00:00"), format(end_ym(2023, 11), "%Y-%m-%d 11:59:59")),
-   c(format(start_ym(2023, 12), "%Y-%m-%d 00:00:00"), format(end_ym(2023, 12), "%Y-%m-%d 11:59:59"))
-   c(format(start_ym(2024, 1), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 1), "%Y-%m-%d 11:59:59")),
-   c(format(start_ym(2024, 2), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 2), "%Y-%m-%d 11:59:59")),
-   c(format(start_ym(2024, 3), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 3), "%Y-%m-%d 11:59:59")),
-   c(format(start_ym(2024, 4), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 4), "%Y-%m-%d 11:59:59")),
-   c(format(start_ym(2024, 5), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 5), "%Y-%m-%d 11:59:59")),
-   c(format(start_ym(2024, 6), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 6), "%Y-%m-%d 11:59:59")),
-   c(format(start_ym(2024, 7), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 7), "%Y-%m-%d 11:59:59")),
-   c(format(start_ym(2024, 8), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 8), "%Y-%m-%d 11:59:59")),
-   c(format(start_ym(2024, 9), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 9), "%Y-%m-%d 11:59:59")),
-   c(format(start_ym(2024, 10), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 10), "%Y-%m-%d 11:59:59")),
-   c(format(start_ym(2024, 11), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 11), "%Y-%m-%d 11:59:59"))
+   # c(format(start_ym(2021, 1), "%Y-%m-%d 00:00:00"), format(end_ym(2021, 12), "%Y-%m-%d 11:59:59")),
+   # c(format(start_ym(2022, 1), "%Y-%m-%d 00:00:00"), format(end_ym(2022, 12), "%Y-%m-%d 11:59:59")),
+   # c(format(start_ym(2023, 1), "%Y-%m-%d 00:00:00"), format(end_ym(2023, 12), "%Y-%m-%d 11:59:59")),
+   c(format(start_ym(2024, 1), "%Y-%m-%d 00:00:00"), format(end_ym(2024, 12), "%Y-%m-%d 11:59:59")),
+   c(format(start_ym(2025, 1), "%Y-%m-%d 00:00:00"), format(end_ym(2025, 12), "%Y-%m-%d 11:59:59"))
 )
+
 
 for (period in periods) download_pii(period[1], period[2])
 
@@ -394,91 +412,60 @@ download_pii <- function(min, max) {
       max <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
    }
 
-   pii <- tibble(REC_ID = NA_character_, BIRTHDATE = NA_Date_) %>%
+   pii <- tibble(patient_id = NA_character_, birthdate = NA_Date_) %>%
       slice(0)
-   # if (file.exists(Sys.getenv("DEDUP_PII")))
-   #    pii <- read_rds(Sys.getenv("DEDUP_PII"))
+   # if (file.exists(Sys.getenv("dedup_pii")))
+   #    pii <- read_rds(Sys.getenv("dedup_pii"))
 
-   lw_conn  <- connect("ohasis-lw")
-   new_data <- QB$new(lw_conn)$
-      selectRaw("COALESCE(serv.SERVICE_FACI, pii.FACI_ID)         AS FACI_ID")$
-      selectRaw("COALESCE(serv.SERVICE_SUB_FACI, pii.SUB_FACI_ID) AS SUB_FACI_ID")$
-      select(pii.REC_ID,
-             pii.PATIENT_ID,
-             pii.FIRST,
-             pii.MIDDLE,
-             pii.LAST,
-             pii.SUFFIX,
-             pii.UIC,
-             pii.CONFIRMATORY_CODE,
-             pii.PATIENT_CODE,
-             pii.BIRTHDATE,
-             pii.PHILSYS_ID,
-             pii.PHILHEALTH_NO,
-             pii.CLIENT_EMAIL,
-             pii.CLIENT_MOBILE,
-             pii.SEX,
-             pii.PERM_PSGC_REG,
-             pii.PERM_PSGC_PROV,
-             pii.PERM_PSGC_MUNC,
-             pii.CURR_PSGC_REG,
-             pii.CURR_PSGC_PROV,
-             pii.CURR_PSGC_MUNC,
-             pii.DELETED_AT,
-             pii.SNAPSHOT)$
-      from("ohasis_lake.px_pii AS pii")$
-      leftJoin("ohasis_lake.px_faci_info AS serv", "pii.REC_ID", "=", "serv.REC_ID")$
-      whereBetween("pii.SNAPSHOT", c(min, max))$
-      get()
+   lw_conn  <- connect("mariadb-lw")
+   new_data <- QB$new(lw_conn)$from('ohasis_lake.patients')
+   new_data$where(function(query = QB$new(lw_conn)) {
+      query$whereBetween('created_at', c(min, max), "or")
+      query$whereBetween('updated_at', c(min, max), "or")
+      query$whereBetween('deleted_at', c(min, max), "or")
+      query$whereNested
+   })
+   new_data <- new_data$get()
    dbDisconnect(lw_conn)
 
    new_data %<>%
-      ohasis$get_addr(
-         c(
-            PERM_REG  = "PERM_PSGC_REG",
-            PERM_PROV = "PERM_PSGC_PROV",
-            PERM_MUNC = "PERM_PSGC_MUNC"
-         ),
-         "nhsss"
-      ) %>%
-      ohasis$get_addr(
-         c(
-            CURR_REG  = "CURR_PSGC_REG",
-            CURR_PROV = "CURR_PSGC_PROV",
-            CURR_MUNC = "CURR_PSGC_MUNC"
-         ),
-         "nhsss"
-      ) %>%
       mutate_at(
-         .vars = vars(ends_with("_REG"), ends_with("_PROV"), ends_with("_MUNC")),
-         ~if_else(. == "UNKNOWN", NA_character_, ., .)
-      ) %>%
-      mutate_if(
-         .predicate = is.character,
+         .vars = vars(
+            first,
+            middle,
+            last,
+            suffix,
+            confirmatory_code,
+            patient_code,
+            uic,
+            philhealth_no,
+            philsys_id,
+            client_mobile,
+            client_email
+         ),
          ~clean_pii(.)
       ) %>%
       mutate(
-         CLIENT_MOBILE = str_replace_all(CLIENT_MOBILE, "[^[:digit:]]", ""),
-         CLIENT_MOBILE = case_when(
-            str_left(CLIENT_MOBILE, 1) == "9" ~ stri_c("0", CLIENT_MOBILE),
-            str_left(CLIENT_MOBILE, 2) == "63" ~ str_replace(CLIENT_MOBILE, "^63", "0"),
-            TRUE ~ CLIENT_MOBILE
+         client_mobile = str_replace_all(client_mobile, "[^[:digit:]]", ""),
+         client_mobile = case_when(
+            str_left(client_mobile, 1) == "9" ~ stri_c("0", client_mobile),
+            str_left(client_mobile, 2) == "63" ~ str_replace(client_mobile, "^63", "0"),
+            TRUE ~ client_mobile
          ),
-         BIRTHDATE     = as.character(BIRTHDATE)
+         birthdate     = as.character(birthdate)
       )
 
    # finalize data
    .GlobalEnv$pii %<>%
       # remove old version of record
-      anti_join(select(new_data, REC_ID)) %>%
-      # remove old data that were already deleted
-      # anti_join(dedup$deleted) %>%
+      anti_join(select(new_data, patient_id)) %>%
       # append new data
-      mutate(BIRTHDATE = as.character(BIRTHDATE)) %>%
-      bind_rows(new_data)
+      mutate(birthdate = as.character(birthdate)) %>%
+      bind_rows(new_data) %>%
+      filter(is.na(deleted_at))
 
    # write to local file for later use
-   # write_rds(pii, Sys.getenv("DEDUP_PII"))
+   # write_rds(pii, Sys.getenv("dedup_pii"))
 }
 
 dupes <- read_excel("H:/splink_review.xlsx", col_types = "text")
