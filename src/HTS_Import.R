@@ -183,7 +183,7 @@ HtsLogsheet <- R6Class(
          invisible(self)
       },
       getExisting    = function() {
-         con <- connect("old-lw")
+         con <- connect("mariadb-lw")
 
          if ("REC_ID" %in% names(data)) {
             self$data$ref <- QB$new(con)$from("ohasis_warehouse.form_hts")$whereIn("rec_id", data$REC_ID)$get()
@@ -298,13 +298,44 @@ HtsLogsheet <- R6Class(
                )
          }
 
-         self$data$convert %<>%
+         main <- self$data$convert %>%
             left_join(
                y  = self$corr$date,
                by = join_by(id, HIV_SERVICE_NAME_REG, HIV_SERVICE_NAME_PROV, HIV_SERVICE_NAME_MUNC)
             ) %>%
             mutate(
                CREATED_AT = coalesce(as.character(CREATED_AT), DATE_SUBMIT, RECORD_DATE),
+            ) %>%
+            select(
+               -PERM_NAME_REG,
+               -PERM_NAME_PROV,
+               -PERM_NAME_MUNC,
+               -CURR_NAME_REG,
+               -CURR_NAME_PROV,
+               -CURR_NAME_MUNC,
+               -BIRTH_NAME_REG,
+               -BIRTH_NAME_PROV,
+               -BIRTH_NAME_MUNC,
+               -HIV_SERVICE_NAME_REG,
+               -HIV_SERVICE_NAME_PROV,
+               -HIV_SERVICE_NAME_MUNC
+            )
+
+         address <- self$data$convert %>%
+            select(
+               row_id,
+               PERM_NAME_REG,
+               PERM_NAME_PROV,
+               PERM_NAME_MUNC,
+               CURR_NAME_REG,
+               CURR_NAME_PROV,
+               CURR_NAME_MUNC,
+               BIRTH_NAME_REG,
+               BIRTH_NAME_PROV,
+               BIRTH_NAME_MUNC,
+               HIV_SERVICE_NAME_REG,
+               HIV_SERVICE_NAME_PROV,
+               HIV_SERVICE_NAME_MUNC
             ) %>%
             mutate_at(
                .vars = vars(
@@ -322,10 +353,12 @@ HtsLogsheet <- R6Class(
                   HIV_SERVICE_NAME_MUNC
                ),
                ~coalesce(na_if(str_squish(toupper(.)), ""), "UNKNOWN")
-            ) %>%
+            )
+
+         address %<>%
             left_join(
                y  = self$corr$addr %>%
-                  select(
+                  distinct(
                      PERM_NAME_REG  = NAME_REG,
                      PERM_NAME_PROV = NAME_PROV,
                      PERM_NAME_MUNC = NAME_MUNC,
@@ -340,10 +373,28 @@ HtsLogsheet <- R6Class(
                PERM_NAME_PROV = coalesce(CORR_NAME_PROV, PERM_NAME_PROV),
                PERM_NAME_MUNC = coalesce(CORR_NAME_MUNC, PERM_NAME_MUNC),
             ) %>%
-            select(-starts_with("CORR_NAME_")) %>%
+            left_join(
+               y  = self$corr$ref_addr %>%
+                  mutate_at(
+                     .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
+                     ~str_squish(toupper(.))
+                  ) %>%
+                  distinct(
+                     PERM_NAME_REG  = NAME_REG,
+                     PERM_NAME_PROV = NAME_PROV,
+                     PERM_NAME_MUNC = NAME_MUNC,
+                     PERM_PSGC_REG  = PSGC_REG,
+                     PERM_PSGC_PROV = PSGC_PROV,
+                     PERM_PSGC_MUNC = PSGC_MUNC
+                  ),
+               by = join_by(PERM_NAME_REG, PERM_NAME_PROV, PERM_NAME_MUNC)
+            ) %>%
+            select(-starts_with("CORR_NAME_"))
+
+         address %<>%
             left_join(
                y  = self$corr$addr %>%
-                  select(
+                  distinct(
                      CURR_NAME_REG  = NAME_REG,
                      CURR_NAME_PROV = NAME_PROV,
                      CURR_NAME_MUNC = NAME_MUNC,
@@ -358,10 +409,28 @@ HtsLogsheet <- R6Class(
                CURR_NAME_PROV = coalesce(CORR_NAME_PROV, CURR_NAME_PROV),
                CURR_NAME_MUNC = coalesce(CORR_NAME_MUNC, CURR_NAME_MUNC),
             ) %>%
-            select(-starts_with("CORR_NAME_")) %>%
+            left_join(
+               y  = self$corr$ref_addr %>%
+                  mutate_at(
+                     .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
+                     ~str_squish(toupper(.))
+                  ) %>%
+                  distinct(
+                     CURR_NAME_REG  = NAME_REG,
+                     CURR_NAME_PROV = NAME_PROV,
+                     CURR_NAME_MUNC = NAME_MUNC,
+                     CURR_PSGC_REG  = PSGC_REG,
+                     CURR_PSGC_PROV = PSGC_PROV,
+                     CURR_PSGC_MUNC = PSGC_MUNC
+                  ),
+               by = join_by(CURR_NAME_REG, CURR_NAME_PROV, CURR_NAME_MUNC)
+            ) %>%
+            select(-starts_with("CORR_NAME_"))
+
+         address %<>%
             left_join(
                y  = self$corr$addr %>%
-                  select(
+                  distinct(
                      BIRTH_NAME_REG  = NAME_REG,
                      BIRTH_NAME_PROV = NAME_PROV,
                      BIRTH_NAME_MUNC = NAME_MUNC,
@@ -376,10 +445,28 @@ HtsLogsheet <- R6Class(
                BIRTH_NAME_PROV = coalesce(CORR_NAME_PROV, BIRTH_NAME_PROV),
                BIRTH_NAME_MUNC = coalesce(CORR_NAME_MUNC, BIRTH_NAME_MUNC),
             ) %>%
-            select(-starts_with("CORR_NAME_")) %>%
+            left_join(
+               y  = self$corr$ref_addr %>%
+                  mutate_at(
+                     .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
+                     ~str_squish(toupper(.))
+                  ) %>%
+                  distinct(
+                     BIRTH_NAME_REG  = NAME_REG,
+                     BIRTH_NAME_PROV = NAME_PROV,
+                     BIRTH_NAME_MUNC = NAME_MUNC,
+                     BIRTH_PSGC_REG  = PSGC_REG,
+                     BIRTH_PSGC_PROV = PSGC_PROV,
+                     BIRTH_PSGC_MUNC = PSGC_MUNC
+                  ),
+               by = join_by(BIRTH_NAME_REG, BIRTH_NAME_PROV, BIRTH_NAME_MUNC)
+            ) %>%
+            select(-starts_with("CORR_NAME_"))
+
+         address %<>%
             left_join(
                y  = self$corr$addr %>%
-                  select(
+                  distinct(
                      HIV_SERVICE_NAME_REG  = NAME_REG,
                      HIV_SERVICE_NAME_PROV = NAME_PROV,
                      HIV_SERVICE_NAME_MUNC = NAME_MUNC,
@@ -394,62 +481,13 @@ HtsLogsheet <- R6Class(
                HIV_SERVICE_NAME_PROV = coalesce(CORR_NAME_PROV, HIV_SERVICE_NAME_PROV),
                HIV_SERVICE_NAME_MUNC = coalesce(CORR_NAME_MUNC, HIV_SERVICE_NAME_MUNC),
             ) %>%
-            select(-starts_with("CORR_NAME_")) %>%
             left_join(
                y  = self$corr$ref_addr %>%
                   mutate_at(
                      .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
                      ~str_squish(toupper(.))
                   ) %>%
-                  select(
-                     PERM_NAME_REG  = NAME_REG,
-                     PERM_NAME_PROV = NAME_PROV,
-                     PERM_NAME_MUNC = NAME_MUNC,
-                     PERM_PSGC_REG  = PSGC_REG,
-                     PERM_PSGC_PROV = PSGC_PROV,
-                     PERM_PSGC_MUNC = PSGC_MUNC
-                  ),
-               by = join_by(PERM_NAME_REG, PERM_NAME_PROV, PERM_NAME_MUNC)
-            ) %>%
-            left_join(
-               y  = self$corr$ref_addr %>%
-                  mutate_at(
-                     .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
-                     ~str_squish(toupper(.))
-                  ) %>%
-                  select(
-                     CURR_NAME_REG  = NAME_REG,
-                     CURR_NAME_PROV = NAME_PROV,
-                     CURR_NAME_MUNC = NAME_MUNC,
-                     CURR_PSGC_REG  = PSGC_REG,
-                     CURR_PSGC_PROV = PSGC_PROV,
-                     CURR_PSGC_MUNC = PSGC_MUNC
-                  ),
-               by = join_by(CURR_NAME_REG, CURR_NAME_PROV, CURR_NAME_MUNC)
-            ) %>%
-            left_join(
-               y  = self$corr$ref_addr %>%
-                  mutate_at(
-                     .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
-                     ~str_squish(toupper(.))
-                  ) %>%
-                  select(
-                     BIRTH_NAME_REG  = NAME_REG,
-                     BIRTH_NAME_PROV = NAME_PROV,
-                     BIRTH_NAME_MUNC = NAME_MUNC,
-                     BIRTH_PSGC_REG  = PSGC_REG,
-                     BIRTH_PSGC_PROV = PSGC_PROV,
-                     BIRTH_PSGC_MUNC = PSGC_MUNC
-                  ),
-               by = join_by(BIRTH_NAME_REG, BIRTH_NAME_PROV, BIRTH_NAME_MUNC)
-            ) %>%
-            left_join(
-               y  = self$corr$ref_addr %>%
-                  mutate_at(
-                     .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
-                     ~str_squish(toupper(.))
-                  ) %>%
-                  select(
+                  distinct(
                      HIV_SERVICE_NAME_REG  = NAME_REG,
                      HIV_SERVICE_NAME_PROV = NAME_PROV,
                      HIV_SERVICE_NAME_MUNC = NAME_MUNC,
@@ -459,72 +497,99 @@ HtsLogsheet <- R6Class(
                   ),
                by = join_by(HIV_SERVICE_NAME_REG, HIV_SERVICE_NAME_PROV, HIV_SERVICE_NAME_MUNC)
             ) %>%
+            select(-starts_with("CORR_NAME_"))
+
+         address %<>%
             mutate(
                CURR_PSGC        = coalesce(CURR_PSGC_MUNC, CURR_PSGC_PROV, CURR_PSGC_REG),
                PERM_PSGC        = coalesce(PERM_PSGC_MUNC, PERM_PSGC_PROV, PERM_PSGC_REG),
                BIRTH_PSGC       = coalesce(BIRTH_PSGC_MUNC, BIRTH_PSGC_PROV, BIRTH_PSGC_REG),
                HIV_SERVICE_PSGC = coalesce(HIV_SERVICE_PSGC_MUNC, HIV_SERVICE_PSGC_PROV, HIV_SERVICE_PSGC_REG),
-            ) %>%
+            )
+
+         address %<>%
             left_join(
-               y  = ohasis$ref_addr %>%
+               y          = ohasis$ref_addr %>%
                   select(
                      PERM_PSGC = psgc_old,
                      PERM_REG  = reg,
                      PERM_PROV = prov,
                      PERM_MUNC = munc
                   ),
-               by = join_by(PERM_PSGC)
-            ) %>%
+               by         = join_by(PERM_PSGC),
+               na_matches = "never"
+            )
+
+         address %<>%
             left_join(
-               y  = ohasis$ref_addr %>%
+               y          = ohasis$ref_addr %>%
                   select(
                      CURR_PSGC = psgc_old,
                      CURR_REG  = reg,
                      CURR_PROV = prov,
                      CURR_MUNC = munc
                   ),
-               by = join_by(CURR_PSGC)
-            ) %>%
+               by         = join_by(CURR_PSGC),
+               na_matches = "never"
+            )
+
+         address %<>%
             left_join(
-               y  = ohasis$ref_addr %>%
+               y          = ohasis$ref_addr %>%
                   select(
                      BIRTH_PSGC = psgc_old,
                      BIRTH_REG  = reg,
                      BIRTH_PROV = prov,
                      BIRTH_MUNC = munc
                   ),
-               by = join_by(BIRTH_PSGC)
-            ) %>%
+               by         = join_by(BIRTH_PSGC),
+               na_matches = "never"
+            )
+
+         address %<>%
             left_join(
-               y  = ohasis$ref_addr %>%
+               y          = ohasis$ref_addr %>%
                   select(
                      HIV_SERVICE_PSGC = psgc_old,
                      HIV_SERVICE_REG  = reg,
                      HIV_SERVICE_PROV = prov,
                      HIV_SERVICE_MUNC = munc
                   ),
-               by = join_by(HIV_SERVICE_PSGC)
-            ) %>%
+               by         = join_by(HIV_SERVICE_PSGC),
+               na_matches = "never"
+            )
+
+         self$data$convert <- main %>%
+            left_join(address, join_by(row_id)) %>%
             rename(COUNTRY_NAME = NATIONALITY) %>%
-            left_join(select(ohasis$ref_country, COUNTRY_NAME = nationality, NATIONALITY = country_code), join_by
-            (COUNTRY_NAME)) %>%
+            left_join(
+               select(ohasis$ref_country, COUNTRY_NAME = nationality, NATIONALITY = country_code),
+               join_by(COUNTRY_NAME),
+               na_matches = "never"
+            ) %>%
             rename(NATIONALITY_RAW = COUNTRY_NAME) %>%
             rename(COUNTRY_NAME = OFW_COUNTRY) %>%
-            left_join(select(ohasis$ref_country, COUNTRY_NAME = country_name, OFW_COUNTRY = country_code), join_by(COUNTRY_NAME)) %>%
+            left_join(
+               select(ohasis$ref_country, COUNTRY_NAME = country_name, OFW_COUNTRY = country_code),
+               join_by(COUNTRY_NAME),
+               na_matches = "never"
+            ) %>%
             rename(OFW_COUNTRY_RAW = COUNTRY_NAME) %>%
             rename(STAFF_NAME = CREATED_BY) %>%
             mutate(STAFF_NAME = str_trim(toupper(STAFF_NAME))) %>%
-            left_join(select(self$corr$staff, STAFF_NAME, CREATED_BY = USER_ID) %>% distinct(STAFF_NAME,
-                                                                                             .keep_all =
-                                                                                                TRUE
-            ), join_by(STAFF_NAME)) %>%
+            left_join(
+               select(self$corr$staff, STAFF_NAME, CREATED_BY = USER_ID) %>% distinct(STAFF_NAME, .keep_all = TRUE),
+               join_by(STAFF_NAME),
+               na_matches = "never"
+            ) %>%
             rename(STAFF_NAME_RAW = STAFF_NAME) %>%
             rename(STAFF_NAME = PROVIDER_ID) %>%
             mutate(STAFF_NAME = str_trim(toupper(STAFF_NAME))) %>%
-            left_join(select(self$corr$staff, STAFF_NAME, PROVIDER_ID = USER_ID) %>% distinct(STAFF_NAME,
-                                                                                              .keep_all =
-                                                                                                 TRUE
-            ), join_by(STAFF_NAME)) %>%
+            left_join(
+               select(self$corr$staff, STAFF_NAME, PROVIDER_ID = USER_ID) %>% distinct(STAFF_NAME, .keep_all = TRUE),
+               join_by(STAFF_NAME),
+               na_matches = "never"
+            ) %>%
             rename(PROVIDER_RAW = STAFF_NAME) %>%
             filter(!is.na(HTS_FACI)) %>%
             mutate(HTS_FACI = str_trim(HTS_FACI)) %>%
@@ -981,14 +1046,14 @@ file_copy(new_uploads$path, "H:/hts-imports/20241112")
 
 
 import <- HtsLogsheet$new()
-import$batchRead("H:/hts-imports/20250907")
-import$getExisting()
-import$getRefs()
-# import$data$raw %<>%
+self$batchRead("H:/hts-imports/20251104")
+self$getExisting()
+self$getRefs()
+# self$data$raw %<>%
 #    mutate_at(.vars = vars(contains("DATE")), ~as.character(excel_numeric_to_date(parse_number(.))))
-import$convert()
-import$checkIssues()
-import$data$convert %>%
+self$convert()
+self$checkIssues()
+self$data$convert %>%
    filter(!is.na(RECORD_DATE)) %>%
    filter(CREATED_AT != "Auto-fill") %>%
    select(
@@ -997,9 +1062,9 @@ import$data$convert %>%
       -ends_with("NAME_MUNC"),
    ) %>%
    nrow()
-import$removeBlanks()
+self$removeBlanks()
 
-tables <- deconstruct_hts(import$data$filtered)
+tables <- deconstruct_hts(self$data$filtered)
 long   <- c("px_test_refuse", "px_other_service", "px_reach", "px_med_profile", "px_test_reason")
 delete <- tables$px_record$data %>% select(rec_id)
 
