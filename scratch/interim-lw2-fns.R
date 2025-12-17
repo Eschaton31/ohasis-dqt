@@ -1492,3 +1492,419 @@ deconstruct_prep <- function(forms) {
    log_success("Done!")
    return(schema)
 }
+
+psgc_aem <- function(ref_addr) {
+   local_drive_quiet()
+
+   # process data
+   aem <- read_xlsx('C:/Users/Bene-G16/Downloads/PLHIV est 2023-2027_14Nov2025 (1).xlsx', col_types = "text", .name_repair = "unique_quiet") %>%
+      select(1:10) %>%
+      slice(3:nrow(.)) %>%
+      rename(
+         province = prov,
+         est2023  = 6,
+         est2024  = 7,
+         est2025  = 8,
+         est2026  = 9,
+         est2027  = 10,
+      ) %>%
+      mutate_at(
+         .vars = vars(region),
+         ~str_replace(., "\\.0$", "")
+      ) %>%
+      mutate_at(
+         .vars = vars(starts_with("est2")),
+         ~as.integer(.)
+      ) %>%
+      mutate(
+         est_type  = case_when(
+            is.na(region) ~ "adjust",
+            !is.na(region) & is.na(province) & is.na(muncity) ~ "region",
+            TRUE ~ "estimate"
+         ),
+         region    = case_when(
+            stri_detect_regex(region, "^Discrepancy") ~ "UNKNOWN",
+            TRUE ~ region
+         ),
+         muncity   = case_when(
+            region == "9" & province == "BASILAN" ~ "ISABELA",
+            TRUE ~ muncity
+         ),
+         province  = case_when(
+            region == "9" & province == "BASILAN" ~ "BASILAN-RO9",
+            TRUE ~ province
+         ),
+         unknown   = if_else(is.na(muncity), 1, 0, 0),
+         aem_class = if_else(unknown == 1, "non a", aem_class, aem_class),
+         munc_alt  = if_else(muncity == "ROTP", "UNKNOWN", muncity, muncity)
+      ) %>%
+      mutate_at(
+         .vars = vars(province, muncity, munc_alt),
+         ~if_else(unknown == 1, "UNKNOWN", ., .)
+      )
+
+   est_reg_adjust <- aem %>%
+      filter(est_type == "region") %>%
+      select(
+         region,
+         starts_with("est2"),
+      ) %>%
+      left_join(
+         y  = aem %>%
+            filter(est_type == "estimate") %>%
+            group_by(region) %>%
+            summarise_at(
+               .vars = vars(starts_with("est2")),
+               ~sum(., na.rm = TRUE)
+            ) %>%
+            rename_all(
+               ~case_when(
+                  stri_detect_regex(., "^est2") ~ paste0("sub_", .),
+                  TRUE ~ .
+               )
+            ),
+         by = "region"
+      )
+
+   est_reg_adjust %<>%
+      mutate(
+         across(
+            names(select(., starts_with("est2", ignore.case = FALSE))),
+            ~as.integer(. - coalesce(pull(est_reg_adjust, str_c("sub_", cur_column())), 0))
+         )
+      ) %>%
+      mutate(
+         province  = "UNKNOWN",
+         muncity   = "UNKNOWN",
+         munc_alt  = "UNKNOWN",
+         aem_class = "non a",
+         est_type  = "adjust",
+         unknown   = 1
+      ) %>%
+      select(
+         region,
+         province,
+         muncity,
+         munc_alt,
+         aem_class,
+         est_type,
+         unknown,
+         starts_with("est2"),
+      )
+
+   new_ref <- ohasis$ref_addr %>%
+      select(
+         region    = nhsss_reg,
+         province  = nhsss_prov,
+         muncity   = nhsss_munc,
+         psgc_reg  = reg,
+         psgc_prov = prov,
+         psgc_munc = munc,
+         name_reg,
+         name_prov,
+         name_munc
+      ) %>%
+      distinct() %>%
+      mutate(
+         province = case_when(
+            province == 'MAGUINDANAO DEL NORTE' ~ 'MAGUINDANAO',
+            province == 'MAGUINDANAO DEL SUR' ~ 'MAGUINDANAO',
+            TRUE ~ province
+         ),
+         drop     = case_when(
+            str_left(psgc_prov, 5) == "13806" & (psgc_munc != "1380600000" | coalesce(psgc_munc, '') == "") ~ 1,
+            str_left(psgc_reg, 4) == "1300" & coalesce(psgc_munc, '') == "" ~ 1,
+            stri_detect_fixed(toupper(name_prov), "CITY") & muncity == "UNKNOWN" ~ 1,
+            TRUE ~ 0
+         ),
+      ) %>%
+      filter(drop == 0)
+
+   ref_aem <- aem %>%
+      filter(est_type == "estimate") %>%
+      bind_rows(est_reg_adjust) %>%
+      left_join(
+         y  = new_ref %>%
+            select(
+               region,
+               province,
+               muncity,
+               psgc_reg,
+               psgc_prov,
+               psgc_munc
+            ) %>%
+            mutate(
+               muncity = if_else(province != "UNKNOWN" & muncity == "UNKNOWN", "ROTP", muncity, muncity)
+            ),
+         by = join_by(region, province, muncity)
+      ) %>%
+      left_join(
+         y  = new_ref %>%
+            select(
+               region,
+               province,
+               rotp_psgc_reg  = psgc_reg,
+               rotp_psgc_prov = psgc_prov,
+               name_prov,
+            ) %>%
+            mutate(
+               drop = case_when(
+                  region == "NCR" & province == "NCR" ~ 1,
+                  rotp_psgc_prov == "129800000" ~ 1,
+                  str_detect(toupper(name_prov), 'CITY') ~ 1,
+                  TRUE ~ 0
+               )
+            ) %>%
+            filter(drop == 0) %>%
+            select(-name_prov) %>%
+            distinct(),
+         by = join_by(region, province)
+      ) %>%
+      mutate(
+         psgc_reg  = coalesce(psgc_reg, rotp_psgc_reg),
+         psgc_prov = coalesce(psgc_prov, rotp_psgc_prov),
+         psgc_aem  = coalesce(psgc_munc, psgc_prov)
+      ) %>%
+      select(-rotp_psgc_reg, -rotp_psgc_prov)
+
+   aem_sites <- ref_aem %>%
+      filter(muncity != "ROTP", province != "BASILAN-RO9") %>%
+      select(
+         aem_class_sites = aem_class,
+         psgc_reg,
+         psgc_prov,
+         psgc_munc
+      )
+
+   aem_rotp <- ref_aem %>%
+      filter(muncity == "ROTP" | province == "BASILAN-RO9") %>%
+      mutate(
+         aem_class = "non a"
+      ) %>%
+      select(
+         aem_class_rotp = aem_class,
+         psgc_reg,
+         psgc_prov
+      )
+
+   # rename columns
+   final_ref <- new_ref %>%
+      rename(
+         nhsss_reg  = region,
+         nhsss_prov = province,
+         nhsss_munc = muncity
+      ) %>%
+      left_join(aem_sites, join_by(psgc_reg, psgc_prov, psgc_munc), na_matches = "never") %>%
+      left_join(aem_rotp, join_by(psgc_reg, psgc_prov), na_matches = "never") %>%
+      distinct() %>%
+      mutate(
+         aem_class = coalesce(aem_class_sites, aem_class_rotp, 'non a'),
+         rotp      = if_else(is.na(aem_class_sites) & !is.na(aem_class_rotp), 1, 0, 0),
+      ) %>%
+      mutate(
+         name_reg  = case_when(
+            psgc_munc == "1908703000" ~ "Region XII (SOCCSKSARGEN)", # cotabato city temp under 12-cotabato
+            psgc_prov == "1999900000" ~ "Region XII (SOCCSKSARGEN)", # special geo area temp under 12-cotabato
+            TRUE ~ name_reg
+         ),
+         name_prov = case_when(
+            stri_detect_fixed(name_prov, "NCR") ~ stri_replace_all_fixed(name_prov, " (Not a Province)", ""),
+            psgc_munc == "1908703000" ~ "Cotabato", # cotabato city temp under 12-cotabato
+            psgc_prov == "1999900000" ~ "Cotabato", # special geo area temp under 12-cotabato
+            TRUE ~ name_prov
+         ),
+         name_munc = case_when(
+            psgc_munc == "0301405000" ~ "Bulacan City",
+            TRUE ~ name_munc
+         ),
+         name_aem  = case_when(
+            psgc_munc == "0301405000" ~ "Bulacan City",
+            psgc_prov == "0990100000" ~ "Basilan Province",
+            psgc_munc == "1908703000" ~ "Cotabato Province", # cotabato city temp under 12-cotabato
+            psgc_prov == "1999900000" ~ "Cotabato Province", # special geo area temp under 12-cotabato
+            psgc_prov == "1908700000" ~ "Maguindanao Province",
+            psgc_prov == "1908800000" ~ "Maguindanao Province",
+            aem_class %in% c("a", "ncr", "cebu city", "cebu province") ~ name_munc,
+            rotp == 1 & !grepl("Province", name_prov) ~ str_c(name_prov, " Province"),
+            TRUE ~ name_prov
+         ),
+         nhsss_aem = case_when(
+            psgc_munc == "0301405000" ~ "BULACAN",
+            # PSGC_MUNC == "129804000" ~ "ROTP",
+            aem_class %in% c("a", "ncr", "cebu city", "cebu province") ~ nhsss_munc,
+            rotp == 1 & !grepl("Province", nhsss_prov) ~ "ROTP",
+            TRUE ~ "ROTP"
+         ),
+
+         psgc_reg  = case_when(
+            psgc_munc == "1908703000" ~ "1200000000", # cotabato city temp under 12-cotabato
+            psgc_prov == "1999900000" ~ "1200000000", # special geo area temp under 12-cotabato
+            TRUE ~ psgc_reg
+         ),
+         psgc_prov = case_when(
+            psgc_munc == "1908703000" ~ "1204700000", # cotabato city temp under 12-cotabato
+            psgc_prov == "1999900000" ~ "1204700000", # special geo area temp under 12-cotabato
+            TRUE ~ psgc_prov
+         ),
+         # aem tagging
+         psgc_aem  = case_when(
+            psgc_munc == "1908703000" ~ "1204700000", # cotabato city temp under 12-cotabato
+            psgc_prov == "1999900000" ~ "1204700000", # special geo area temp under 12-cotabato
+            psgc_prov == "1908700000" ~ "1908700000",
+            psgc_prov == "1908800000" ~ "1908700000",
+            aem_class %in% c("a", "ncr", "cebu city", "cebu province") ~ psgc_munc,
+            TRUE ~ psgc_prov
+         ),
+      ) %>%
+      select(-aem_class_sites, -aem_class_rotp, -rotp, -drop) %>%
+      filter(psgc_munc != '1999900000') %>%
+      filter(psgc_munc != '1908800000') %>%
+      mutate(
+         # correction for HUCs and NCR provinces
+         psgc_aem  = case_when(
+            psgc_aem == "0990100000" ~ "0990101000",
+            TRUE ~ psgc_aem
+         ),
+         psgc_prov = case_when(
+            psgc_munc == '0330100000' ~ '0305400000',
+            psgc_munc == '0331400000' ~ '0307100000',
+            psgc_munc == '0431200000' ~ '0405600000',
+            psgc_munc == '0631000000' ~ '0603000000',
+            psgc_munc == '0730600000' ~ '0702200000',
+            psgc_munc == '0731100000' ~ '0702200000',
+            psgc_munc == '0731300000' ~ '0702200000',
+            psgc_munc == '0831600000' ~ '0803700000',
+            psgc_munc == '0931700000' ~ '0907300000',
+            psgc_munc == '1030500000' ~ '1004300000',
+            psgc_munc == '1030900000' ~ '1003500000',
+            psgc_munc == '1130700000' ~ '1102400000',
+            psgc_munc == '1230800000' ~ '1206300000',
+            psgc_munc == '1380100000' ~ '1330000000',
+            psgc_munc == '1380200000' ~ '1340000000',
+            psgc_munc == '1380300000' ~ '1340000000',
+            psgc_munc == '1380400000' ~ '1330000000',
+            psgc_munc == '1380500000' ~ '1320000000',
+            psgc_munc == '1380600000' ~ '1310000000',
+            psgc_munc == '1380700000' ~ '1320000000',
+            psgc_munc == '1380800000' ~ '1340000000',
+            psgc_munc == '1380900000' ~ '1330000000',
+            psgc_munc == '1381000000' ~ '1340000000',
+            psgc_munc == '1381100000' ~ '1340000000',
+            psgc_munc == '1381200000' ~ '1320000000',
+            psgc_munc == '1381300000' ~ '1320000000',
+            psgc_munc == '1381400000' ~ '1320000000',
+            psgc_munc == '1381500000' ~ '1340000000',
+            psgc_munc == '1381600000' ~ '1330000000',
+            psgc_munc == '1430300000' ~ '1401100000',
+            psgc_munc == '1630400000' ~ '1600200000',
+            psgc_munc == '1731500000' ~ '1705300000',
+            psgc_munc == '1830200000' ~ '1804500000',
+            psgc_munc == '1381701000' ~ '1340000000',
+            TRUE ~ psgc_prov
+         ),
+         name_prov = case_when(
+            psgc_munc == '0330100000' ~ 'Pampanga',
+            psgc_munc == '0331400000' ~ 'Zambales',
+            psgc_munc == '0431200000' ~ 'Quezon',
+            psgc_munc == '0631000000' ~ 'Iloilo',
+            psgc_munc == '0730600000' ~ 'Cebu',
+            psgc_munc == '0731100000' ~ 'Cebu',
+            psgc_munc == '0731300000' ~ 'Cebu',
+            psgc_munc == '0831600000' ~ 'Leyte',
+            psgc_munc == '0931700000' ~ 'Zamboanga del Sur',
+            psgc_munc == '0990100000' ~ 'Basilan',
+            psgc_munc == '1030500000' ~ 'Misamis Oriental',
+            psgc_munc == '1030900000' ~ 'Lanao del Norte',
+            psgc_munc == '1130700000' ~ 'Davao del Sur',
+            psgc_munc == '1230800000' ~ 'South Cotabato',
+            psgc_munc == '1380100000' ~ 'Northern Manila District (Camanava) (3rd District)',
+            psgc_munc == '1380200000' ~ 'Southern Manila District (4th District)',
+            psgc_munc == '1380300000' ~ 'Southern Manila District (4th District)',
+            psgc_munc == '1380400000' ~ 'Northern Manila District (Camanava) (3rd District)',
+            psgc_munc == '1380500000' ~ 'Eastern Manila District (2nd District)',
+            psgc_munc == '1380600000' ~ 'Capital District (1st District)',
+            psgc_munc == '1380700000' ~ 'Eastern Manila District (2nd District)',
+            psgc_munc == '1380800000' ~ 'Southern Manila District (4th District)',
+            psgc_munc == '1380900000' ~ 'Northern Manila District (Camanava) (3rd District)',
+            psgc_munc == '1381000000' ~ 'Southern Manila District (4th District)',
+            psgc_munc == '1381100000' ~ 'Southern Manila District (4th District)',
+            psgc_munc == '1381200000' ~ 'Eastern Manila District (2nd District)',
+            psgc_munc == '1381300000' ~ 'Eastern Manila District (2nd District)',
+            psgc_munc == '1381400000' ~ 'Eastern Manila District (2nd District)',
+            psgc_munc == '1381500000' ~ 'Southern Manila District (4th District)',
+            psgc_munc == '1381600000' ~ 'Northern Manila District (Camanava) (3rd District)',
+            psgc_munc == '1430300000' ~ 'Benguet',
+            psgc_munc == '1630400000' ~ 'Agusan del Norte',
+            psgc_munc == '1731500000' ~ 'Palawan',
+            psgc_munc == '1830200000' ~ 'Negros Occidental',
+            psgc_munc == '1381701000' ~ 'Southern Manila District (4th District)',
+            TRUE ~ name_prov
+         )
+      )
+
+   final_aem <- ref_aem %>%
+      left_join(
+         y  = final_ref %>%
+            select(
+               psgc_munc,
+               psgc_aem,
+               name_reg,
+               name_prov,
+               name_aem
+            ) %>%
+            distinct_all(),
+         by = join_by(psgc_aem, psgc_munc)
+      ) %>%
+      # filter(name_prov != 'City of Isabela (Not a Province)') %>%
+      select(
+         nhsss_reg  = region,
+         nhsss_prov = province,
+         nhsss_munc = muncity,
+         name_reg,
+         name_prov,
+         name_aem,
+         aem_class,
+         starts_with("est2"),
+         starts_with("psgc"),
+      ) %>%
+      pivot_longer(
+         cols      = starts_with("est2"),
+         names_to  = "report_yr",
+         values_to = "est"
+      ) %>%
+      mutate(
+         report_date = as.numeric(stri_replace_first_fixed(report_yr, "est", "")),
+         report_date = stri_c(report_date, '-12-31')
+      ) %>%
+      select(-report_yr) %>%
+      filter(!is.na(name_reg))
+
+   unlist(tmpfile)
+   refs <- list(
+      addr = final_ref,
+      aem  = final_aem
+   )
+
+   return(refs)
+}
+
+
+# conn <- connect('mariadb-lw')
+# dbxInsert(conn, Id(schema = 'dashboard', table = 'estimates'), final_aem)
+# dbxInsert(conn, Id(schema = 'dashboard', table = 'ref_aem'), final_ref %>% mutate(psgc = coalesce(psgc_munc, psgc_prov, psgc_reg)))
+#
+# data <- QB$new(conn)$from('harp_dx.corr_dxlab')$get()
+#
+# unique <- data %>% distinct(dx_region, dx_province, dx_muncity, dxlab_standard, .keep_all = TRUE)
+# dbxInsert(conn, Id(schema = 'harp_dx', table = 'corr_dxlab'), unique)
+#
+# try <- dbGetQuery(conn, "select distinct cast(faci_id as String) as faci_id,
+#                              coalesce(if(addr_psgc_prov = '1380600000', '1380600000', addr_psgc_munc), addr_psgc_prov,
+#                                       addr_psgc_reg) as psgc,
+#                              addr_name_munc,
+#                              psgc_aem
+#              from ohasis_lake.ref_faci
+#                       left join dashboard.ref_aem on psgc = ref_aem.psgc
+#              where deleted_at is null")
+#
+# try %>% get_dupes(faci_id)
