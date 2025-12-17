@@ -1,208 +1,214 @@
-lw_conn <- ohasis$conn("lw")
-min     <- "2023-10-01"
-max     <- "2024-03-31"
-faci    <- "990005"
+min  <- "2024-10-01"
+max  <- "2025-10-31"
+faci <- c('060274', '070163', '180002', '990005')
 
-forms <- QB$new(lw_conn)
-forms$where(function(query = QB$new(lw_conn)) {
-   query$whereBetween('RECORD_DATE', c(min, max), "or")
-   query$whereBetween('DATE_CONFIRM', c(min, max), "or")
-   query$whereBetween('T0_DATE', c(min, max), "or")
-   query$whereBetween('T1_DATE', c(min, max), "or")
-   query$whereBetween('T2_DATE', c(min, max), "or")
-   query$whereBetween('T3_DATE', c(min, max), "or")
-   query$whereNested
-})
-forms$where(function(query = QB$new(lw_conn)) {
-   query$where('FACI_ID', faci, boolean = "or")
-   query$where('SERVICE_FACI', faci, boolean = "or")
-   query$whereNested
-})
+# forms <- QB$new(lw_conn)
+# forms$where(function(query = QB$new(lw_conn)) {
+#    query$whereBetween('RECORD_DATE', c(min, max), "or")
+#    query$whereBetween('date_confirm', c(min, max), "or")
+#    query$whereBetween('T0_DATE', c(min, max), "or")
+#    query$whereBetween('T1_DATE', c(min, max), "or")
+#    query$whereBetween('T2_DATE', c(min, max), "or")
+#    query$whereBetween('T3_DATE', c(min, max), "or")
+#    query$whereNested
+# })
+# forms$where(function(query = QB$new(lw_conn)) {
+#    query$where('FACI_ID', faci, boolean = "or")
+#    query$where('SERVICE_FACI', faci, boolean = "or")
+#    query$whereNested
+# })
+#
+# forms$from("ohasis_warehouse.form_hts")
+# hts <- forms$get()
+#
+# forms$from("ohasis_warehouse.form_a")
+# a <- forms$get()
+#
+# cfbs <- QB$new(lw_conn)$
+#    from("ohasis_warehouse.form_cfbs")$
+#    limit(0)$
+#    get()
 
-forms$from("ohasis_warehouse.form_hts")
-hts <- forms$get()
+forms <- get_hts(min, max, faci)
 
-forms$from("ohasis_warehouse.form_a")
-a <- forms$get()
+id_reg <- update_idreg()
 
-cfbs <- QB$new(lw_conn)$
-   from("ohasis_warehouse.form_cfbs")$
-   limit(0)$
-   get()
+testing <- process_hts(forms$hts, forms$a, forms$cfbs) %>%
+   get_cid(id_reg, patient_id)
 
-testing <- process_hts(hts, a, cfbs)
-
-id_reg <- QB$new(lw_conn)$
-   from("ohasis_warehouse.id_registry")$
-   select(PATIENT_ID, CENTRAL_ID)$
-   get()
-
+lw_conn <- connect('mariadb-lw')
 confirm <- QB$new(lw_conn)$
-   from("ohasis_lake.px_hiv_testing AS test")$
-   join("ohasis_lake.px_pii AS pii", "test.REC_ID", "=", "pii.REC_ID")$
-   whereNotNull("CONFIRM_RESULT")$
-   select("pii.PATIENT_ID", "test.*")$
-   get()
+   from("ohasis_lake.px_hiv_confirmatory AS test")$
+   join("ohasis_lake.px_demographics AS pii", "test.rec_id", "=", "pii.rec_id")$
+   whereNotNull("confirm_result")$
+   select("pii.patient_id", "test.*")$
+   get() %>%
+   get_cid(id_reg, patient_id)
 
-dx <- hs_data("harp_dx", "reg", 2023, 12) %>%
-   read_dta(col_select = c(PATIENT_ID, confirm_date, labcode2)) %>%
-   get_cid(id_reg, PATIENT_ID) %>%
-   select(-PATIENT_ID)
+dx <- QB$new(lw_conn)$
+   from('harp_dx.reg_202510')$
+   select(patient_id, confirm_date, labcode2)$
+   get() %>%
+   get_cid(id_reg, patient_id) %>%
+   select(-patient_id)
 
-tx <- hs_data("harp_tx", "reg", 2023, 12) %>%
-   read_dta(col_select = c(PATIENT_ID, artstart_date)) %>%
-   get_cid(id_reg, PATIENT_ID) %>%
-   select(-PATIENT_ID)
+tx <- QB$new(lw_conn)$
+   from('harp_tx.reg_202510')$
+   select(patient_id, artstart_date)$
+   get() %>%
+   get_cid(id_reg, patient_id) %>%
+   select(-patient_id)
 
-prep <- hs_data("prep", "outcome", 2023, 12) %>%
-   read_dta(col_select = c(PATIENT_ID, prepstart_date)) %>%
-   get_cid(id_reg, PATIENT_ID) %>%
-   select(-PATIENT_ID)
+prep <- QB$new(lw_conn)$
+   from('prep.outcome_202507')$
+   select(patient_id, prepstart_date)$
+   get() %>%
+   get_cid(id_reg, patient_id) %>%
+   select(-patient_id)
 
 pos     <- confirm %>%
-   filter(str_detect(toupper(CONFIRM_RESULT), "POSITIVE")) %>%
-   get_cid(id_reg, PATIENT_ID) %>%
-   arrange(DATE_CONFIRM) %>%
-   distinct(CENTRAL_ID, .keep_all = TRUE) %>%
-   select(CENTRAL_ID, CONFIRM_CODE, DATE_CONFIRM)
+   filter(str_detect(toupper(confirm_result), "POSITIVE")) %>%
+   get_cid(id_reg, patient_id) %>%
+   arrange(date_confirm) %>%
+   distinct(central_id, .keep_all = TRUE) %>%
+   select(central_id, confirm_code, date_confirm)
 ind     <- confirm %>%
-   filter(str_detect(toupper(CONFIRM_RESULT), "INDETERMINATE")) %>%
-   get_cid(id_reg, PATIENT_ID) %>%
-   arrange(desc(DATE_CONFIRM)) %>%
-   distinct(CENTRAL_ID, .keep_all = TRUE) %>%
-   select(CENTRAL_ID, CONFIRM_CODE, DATE_CONFIRM)
+   filter(str_detect(toupper(confirm_result), "INDETERMINATE")) %>%
+   get_cid(id_reg, patient_id) %>%
+   arrange(desc(date_confirm)) %>%
+   distinct(central_id, .keep_all = TRUE) %>%
+   select(central_id, confirm_code, date_confirm)
 neg     <- confirm %>%
-   filter(str_detect(toupper(CONFIRM_RESULT), "NEGATIVE")) %>%
-   get_cid(id_reg, PATIENT_ID) %>%
-   arrange(desc(DATE_CONFIRM)) %>%
-   distinct(CENTRAL_ID, .keep_all = TRUE) %>%
-   select(CENTRAL_ID, CONFIRM_CODE, DATE_CONFIRM)
+   filter(str_detect(toupper(confirm_result), "NEGATIVE")) %>%
+   get_cid(id_reg, patient_id) %>%
+   arrange(desc(date_confirm)) %>%
+   distinct(central_id, .keep_all = TRUE) %>%
+   select(central_id, confirm_code, date_confirm)
 pending <- confirm %>%
-   filter(str_detect(toupper(CONFIRM_RESULT), "PENDING")) %>%
-   get_cid(id_reg, PATIENT_ID) %>%
-   arrange(desc(DATE_CONFIRM)) %>%
-   distinct(CENTRAL_ID, .keep_all = TRUE) %>%
-   select(CENTRAL_ID, CONFIRM_CODE, DATE_CONFIRM)
+   filter(str_detect(toupper(confirm_result), "PENDING")) %>%
+   get_cid(id_reg, patient_id) %>%
+   arrange(desc(date_confirm)) %>%
+   distinct(central_id, .keep_all = TRUE) %>%
+   select(central_id, confirm_code, date_confirm)
 
 
-hts <- process_hts(hts, a, cfbs) %>%
+hts <- process_hts(forms$hts, forms$a, forms$cfbs) %>%
    # filter(hts_result == "R") %>%
-   get_cid(id_reg, PATIENT_ID)
+   get_cid(id_reg, patient_id)
 
 
 codes <- dx %>%
-   select(CENTRAL_ID, CONFIRM_CODE = labcode2, CONFIRM_DATE = confirm_date) %>%
+   select(central_id, confirm_code = labcode2, confirm_date = confirm_date) %>%
    mutate(
-      RESULT = "Positive"
+      result = "Positive"
    ) %>%
    bind_rows(
       pos %>%
-         select(CENTRAL_ID, CONFIRM_CODE, CONFIRM_DATE = DATE_CONFIRM) %>%
+         select(central_id, confirm_code, confirm_date = date_confirm) %>%
          mutate(
-            RESULT = "Positive"
+            result = "Positive"
          )
    ) %>%
    bind_rows(
       neg %>%
-         select(CENTRAL_ID, CONFIRM_CODE, CONFIRM_DATE = DATE_CONFIRM) %>%
+         select(central_id, confirm_code, confirm_date = date_confirm) %>%
          mutate(
-            RESULT = "Negative"
+            result = "Negative"
          )
    ) %>%
    bind_rows(
       ind %>%
-         select(CENTRAL_ID, CONFIRM_CODE, CONFIRM_DATE = DATE_CONFIRM) %>%
+         select(central_id, confirm_code, confirm_date = date_confirm) %>%
          mutate(
-            RESULT = "Indeterminate"
+            result = "Indeterminate"
          )
    ) %>%
    bind_rows(
       pending %>%
-         select(CENTRAL_ID, CONFIRM_CODE, CONFIRM_DATE = DATE_CONFIRM) %>%
+         select(central_id, confirm_code, confirm_date = date_confirm) %>%
          mutate(
-            RESULT = "Pending"
+            result = "Pending"
          )
    ) %>%
-   distinct(CENTRAL_ID, RESULT, .keep_all = TRUE) %>%
+   distinct(central_id, result, .keep_all = TRUE) %>%
    pivot_wider(
-      id_cols     = CENTRAL_ID,
-      names_from  = RESULT,
-      values_from = CONFIRM_CODE
+      id_cols     = central_id,
+      names_from  = result,
+      values_from = confirm_code
    )
 
 dates <- dx %>%
-   select(CENTRAL_ID, CONFIRM_CODE = labcode2, CONFIRM_DATE = confirm_date) %>%
+   select(central_id, confirm_code = labcode2, confirm_date = confirm_date) %>%
    mutate(
-      RESULT = "Positive"
+      result = "Positive"
    ) %>%
    bind_rows(
       pos %>%
-         select(CENTRAL_ID, CONFIRM_CODE, CONFIRM_DATE = DATE_CONFIRM) %>%
+         select(central_id, confirm_code, confirm_date = date_confirm) %>%
          mutate(
-            RESULT = "Positive"
+            result = "Positive"
          )
    ) %>%
    bind_rows(
       neg %>%
-         select(CENTRAL_ID, CONFIRM_CODE, CONFIRM_DATE = DATE_CONFIRM) %>%
+         select(central_id, confirm_code, confirm_date = date_confirm) %>%
          mutate(
-            RESULT = "Negative"
+            result = "Negative"
          )
    ) %>%
    bind_rows(
       ind %>%
-         select(CENTRAL_ID, CONFIRM_CODE, CONFIRM_DATE = DATE_CONFIRM) %>%
+         select(central_id, confirm_code, confirm_date = date_confirm) %>%
          mutate(
-            RESULT = "Indeterminate"
+            result = "Indeterminate"
          )
    ) %>%
    bind_rows(
       pending %>%
-         select(CENTRAL_ID, CONFIRM_CODE, CONFIRM_DATE = DATE_CONFIRM) %>%
+         select(central_id, confirm_code, confirm_date = date_confirm) %>%
          mutate(
-            RESULT = "Pending"
+            result = "Pending"
          )
    ) %>%
-   distinct(CENTRAL_ID, RESULT, .keep_all = TRUE) %>%
+   distinct(central_id, result, .keep_all = TRUE) %>%
    pivot_wider(
-      id_cols     = CENTRAL_ID,
-      names_from  = RESULT,
-      values_from = CONFIRM_DATE
+      id_cols     = central_id,
+      names_from  = result,
+      values_from = confirm_date
    )
 
-
 results <- codes %>%
-   full_join(dates, join_by(CENTRAL_ID)) %>%
+   full_join(dates, join_by(central_id)) %>%
    rename(
-      POSITIVE_CODE      = Positive.x,
-      POSITIVE_DATE      = Positive.y,
-      NEGATIVE_CODE      = Negative.x,
-      NEGATIVE_DATE      = Negative.y,
-      IDNETERMINATE_CODE = Indeterminate.x,
-      IDNETERMINATE_DATE = Indeterminate.y,
-      PENDING_CODE       = Pending.x,
-      PENDING_DATE       = Pending.y,
+      positive_code      = Positive.x,
+      positive_date      = Positive.y,
+      negative_code      = Negative.x,
+      negative_date      = Negative.y,
+      idneterminate_code = Indeterminate.x,
+      idneterminate_date = Indeterminate.y,
+      pending_code       = Pending.x,
+      pending_date       = Pending.y,
    ) %>%
    select(
-      CENTRAL_ID,
-      starts_with("POSITIVE"),
-      starts_with("NEGATIVE"),
-      starts_with("INDETERMINATE"),
-      starts_with("PENDING"),
+      central_id,
+      starts_with("positive"),
+      starts_with("negative"),
+      starts_with("indeterminate"),
+      starts_with("pending"),
    )
 
 new_r <- hts %>%
-   distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+   distinct(central_id, .keep_all = TRUE) %>%
    left_join(
       y  = results,
-      by = join_by(CENTRAL_ID)
+      by = join_by(central_id)
    ) %>%
    convert_hts("nhsss")
 
 new_r <- hts %>%
    mutate(
       hts_priority = case_when(
-         CONFIRM_RESULT %in% c(1, 2, 3) ~ 1,
+         confirm_result %in% c(1, 2, 3) ~ 1,
          hts_result != "(no data)" & hts_modality == "FBT" ~ 3,
          hts_result != "(no data)" & hts_modality == "CBS" ~ 4,
          hts_result != "(no data)" & hts_modality == "FBS" ~ 5,
@@ -210,102 +216,102 @@ new_r <- hts %>%
          TRUE ~ 9999
       )
    ) %>%
-   arrange(CENTRAL_ID, hts_priority) %>%
-   distinct(CENTRAL_ID, .keep_all = TRUE) %>%
+   arrange(central_id, hts_priority) %>%
+   distinct(central_id, .keep_all = TRUE) %>%
    left_join(
       y  = results,
-      by = join_by(CENTRAL_ID)
+      by = join_by(central_id)
    ) %>%
    convert_hts("nhsss")
 
 new_r %>%
    filter(is.na(pos)) %>%
-   tab(CLIENT_MOBILE)
+   tab(client_mobile)
 new_r %>%
-   filter(CREATED_BY == "Tarbosa, Manndy Brett") %>%
+   filter(created_by == "Tarbosa, Manndy Brett") %>%
    tab(pos)
 
 aiha_reach <- new_r %>%
    mutate_at(
-      .vars = vars(ends_with("DATE")),
+      .vars = vars(ends_with("date")),
       ~as.Date(.)
    ) %>%
    mutate(
-      RECORD_DATE = if_else(RECORD_DATE < -25567, T0_DATE, RECORD_DATE, RECORD_DATE),
-      T0_DATE     = if_else(hts_result != "(no data)", RECORD_DATE, T0_DATE, T0_DATE),
+      record_date = if_else(record_date < -25567, t0_date, record_date, record_date),
+      t0_date     = if_else(hts_result != "(no data)", record_date, t0_date, t0_date),
    ) %>%
-   arrange(RECORD_DATE) %>%
+   arrange(record_date) %>%
    select(
-      CENTRAL_ID,
-      REACH_DATE       = RECORD_DATE,
-      SCREENING_DATE   = T0_DATE,
-      SCREENING_RESULT = hts_result,
-      CREATED_BY,
-      HTS_PROVIDER,
-      UIC,
-      FIRST,
-      MIDDLE,
-      LAST,
-      SUFFIX,
-      starts_with("POSITIVE"),
-      starts_with("NEGATIVE"),
-      starts_with("INDETERMINATE"),
-      starts_with("PENDING"),
-      HTS_REG
+      central_id,
+      reach_date       = record_date,
+      screening_date   = t0_date,
+      screening_result = hts_result,
+      created_by,
+      hts_provider,
+      uic,
+      first,
+      middle,
+      last,
+      suffix,
+      starts_with("positive"),
+      starts_with("negative"),
+      starts_with("indeterminate"),
+      starts_with("pending"),
+      hts_reg
    ) %>%
    mutate_if(
       .predicate = is.character,
       ~str_squish(toupper(.))
    ) %>%
    mutate(
-      is_pos = if_else(!is.na(POSITIVE_CODE), "Confirmed Positive", "Not confirmed", "Not confirmed")
+      is_pos = if_else(!is.na(positive_code), "Confirmed Positive", "Not confirmed", "Not confirmed")
    ) %>%
    mutate(
-      REG = case_when(
-         HTS_PROVIDER == "ALAPAR, JANMAY" ~ "6",
-         HTS_PROVIDER == "BATALUNA, RHEA LEE" ~ "7",
-         HTS_PROVIDER == "BAYOG, ROY OPINA" ~ "6",
-         HTS_PROVIDER == "BITAMOR, JOVAN" ~ "6",
-         HTS_PROVIDER == "BORDAMONTE, ROMEO LOSBAÑES, JR" ~ "6",
-         HTS_PROVIDER == "CUNANAN, JOHN CARLO" ~ "6",
-         HTS_PROVIDER == "DULLEGUEZ, JOSHUA" ~ "6",
-         HTS_PROVIDER == "ESTIMAR, JOHNMEL MINERVA" ~ "6",
-         HTS_PROVIDER == "FABIANO, JOHN ALEXIS SOLINAP" ~ "6",
-         HTS_PROVIDER == "LACSON, RAYMUND" ~ "6",
-         HTS_PROVIDER == "LAURENTE, LIONEL" ~ "6",
-         HTS_PROVIDER == "OBIDOS, JUGIE VIOLATA" ~ "6",
-         HTS_PROVIDER == "SULLA, SYNDY" ~ "7",
-         HTS_PROVIDER == "SULLA, SYNDY ANN" ~ "7",
-         HTS_PROVIDER == "TAMON, ROLAND" ~ "6",
-         HTS_PROVIDER == "TARBOSA, MANNDY BRETT" ~ "7",
+      reg = case_when(
+         hts_provider == "ALAPAR, JANMAY" ~ "6",
+         hts_provider == "BATALUNA, RHEA LEE" ~ "7",
+         hts_provider == "BAYOG, ROY OPINA" ~ "6",
+         hts_provider == "BITAMOR, JOVAN" ~ "6",
+         hts_provider == "BORDAMONTE, ROMEO LOSBAÑES, JR" ~ "6",
+         hts_provider == "CUNANAN, JOHN CARLO" ~ "6",
+         hts_provider == "DULLEGUEZ, JOSHUA" ~ "6",
+         hts_provider == "ESTIMAR, JOHNMEL MINERVA" ~ "6",
+         hts_provider == "FABIANO, JOHN ALEXIS SOLINAP" ~ "6",
+         hts_provider == "LACSON, RAYMUND" ~ "6",
+         hts_provider == "LAURENTE, LIONEL" ~ "6",
+         hts_provider == "OBIDOS, JUGIE VIOLATA" ~ "6",
+         hts_provider == "SULLA, SYNDY" ~ "7",
+         hts_provider == "SULLA, SYNDY ANN" ~ "7",
+         hts_provider == "TAMON, ROLAND" ~ "6",
+         hts_provider == "TARBOSA, MANNDY BRETT" ~ "7",
       )
    ) %>%
    left_join(
       y  = tx %>%
-         select(CENTRAL_ID, ART_START_DATE = artstart_date),
-      by = join_by(CENTRAL_ID)
+         select(central_id, art_start_date = artstart_date),
+      by = join_by(central_id)
    ) %>%
    left_join(
       y  = prep %>%
-         select(CENTRAL_ID, PREP_START_DATE = prepstart_date),
-      by = join_by(CENTRAL_ID)
+         select(central_id, prep_start_date = prepstart_date),
+      by = join_by(central_id)
    )
 
 aiha_reach %>%
    mutate(
-      pos = if_else(!is.na(POSITIVE_CODE), 1, 0, 0)
+      pos = if_else(!is.na(positive_code), 1, 0, 0)
    ) %>%
-   filter(SCREENING_RESULT == "R") %>%
-   tab(SCREENING_RESULT, pos)
+   filter(screening_result == "R") %>%
+   tab(screening_result, pos)
 aiha_reach %>%
    View('pos')
 
 
 aiha_reach %>%
    mutate(
-      is_pos = if_else(!is.na(POSITIVE_CODE), "Confirmed Positive", "Not confirmed", "Not confirmed")
+      is_pos = if_else(!is.na(positive_code), "Confirmed Positive", "Not confirmed", "Not confirmed")
    ) %>%
-   filter(SCREENING_RESULT == "R") %>%
+   filter(screening_result == "R") %>%
    mutate(
       REG = case_when(
          HTS_PROVIDER == "ALAPAR, JANMAY" ~ "6",
@@ -329,7 +335,7 @@ aiha_reach %>%
    # View('pos')
    tab(REG, cross_tab = is_pos, cross_return = "freq+row")
 
-write_flat_file(list(AIHA = aiha_reach), "D:/20240408_aiha-reach-confirmatory_results (Oct 2023 - Mar 2024).xlsx")
+write_flat_file(list(AIHA = aiha_reach), "H:/20251212_aiha-reach-confirmatory_results (Oct 2024 - Oct 2025).xlsx")
 
 hts_aiha <- testing %>%
    left_join(
@@ -338,15 +344,15 @@ hts_aiha <- testing %>%
 
 write_flat_file(list(AIHA = new_r %>%
    mutate_at(
-      .vars = vars(ends_with("DATE")),
+      .vars = vars(ends_with("date")),
       ~as.Date(.)
    ) %>%
    mutate(
-      RECORD_DATE = if_else(RECORD_DATE < -25567, T0_DATE, RECORD_DATE, RECORD_DATE),
-      T0_DATE     = if_else(hts_result != "(no data)", RECORD_DATE, T0_DATE, T0_DATE),
-      hts_date    = if_else(hts_result != "(no data)", RECORD_DATE, hts_date, hts_date),
+      record_date = if_else(record_date < -25567, t0_date, record_date, record_date),
+      t0_date     = if_else(hts_result != "(no data)", record_date, t0_date, t0_date),
+      hts_date    = if_else(hts_result != "(no data)", record_date, hts_date, hts_date),
    ) %>%
-   arrange(RECORD_DATE)), "D:/20240408_aiha-reach (Oct 2023 - Mar 2024).xlsx")
+   arrange(record_date)), "H:/20251212_aiha-reach (Oct 2024 - Oct 2025).xlsx")
 
 new_r %>%
    mutate_at(
@@ -354,9 +360,9 @@ new_r %>%
       ~as.Date(.)
    ) %>%
    mutate(
-      RECORD_DATE = if_else(RECORD_DATE < -25567, T0_DATE, RECORD_DATE, RECORD_DATE),
-      T0_DATE     = if_else(hts_result != "(no data)", RECORD_DATE, T0_DATE, T0_DATE),
-      hts_date    = if_else(hts_result != "(no data)", RECORD_DATE, hts_date, hts_date),
+      record_date = if_else(record_date < -25567, t0_date, record_date, record_date),
+      t0_date     = if_else(hts_result != "(no data)", record_date, t0_date, t0_date),
+      hts_date    = if_else(hts_result != "(no data)", record_date, hts_date, hts_date),
    ) %>%
-   arrange(RECORD_DATE) %>%
-   write_xlsx("D:/20240408_aiha-reach (Oct 2023 - Mar 2024).xlsx")
+   arrange(record_date) %>%
+   write_xlsx("D:/20251210_aiha-reach (Oct 2024 - Oct 2025).xlsx")
