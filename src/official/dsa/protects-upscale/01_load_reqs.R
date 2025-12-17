@@ -1,98 +1,115 @@
 cities    <- read_sheet("1qunK5aO5-TDj7mAz7rQzCpN1plLGS3kSJArptcFtfsw", "gf-city")
 supported <- read_sheet("1qunK5aO5-TDj7mAz7rQzCpN1plLGS3kSJArptcFtfsw", "Sheet1")
 supported %<>%
-   filter(site_gf_2024 == 1, !is.na(FACI_ID))
+   rename_all(tolower) %>%
+   filter(site_gf_2024 == 1, !is.na(faci_id))
+
+cities %<>%
+   left_join(
+      y          = ohasis$ref_addr %>%
+         select(
+            FACI_PSGC_MUNC = psgc_old,
+            psgc_reg       = reg,
+            psgc_prov      = prov,
+            psgc_munc      = munc
+         ),
+      by         = join_by(FACI_PSGC_MUNC),
+      na_matches = "never"
+   )
 
 sites <- ohasis$ref_faci %>%
+   rename(
+      faci_psgc_reg  = addr_psgc_reg,
+      faci_psgc_prov = addr_psgc_prov,
+      faci_psgc_munc = addr_psgc_munc,
+   ) %>%
    inner_join(
       y  = cities %>%
          select(
-            FACI_PSGC_REG,
-            FACI_PSGC_PROV,
-            FACI_PSGC_MUNC
+            faci_psgc_reg  = psgc_reg,
+            faci_psgc_prov = psgc_prov,
+            faci_psgc_munc = psgc_munc
          ),
       by = join_by(
-         FACI_PSGC_REG,
-         FACI_PSGC_PROV,
-         FACI_PSGC_MUNC
+         faci_psgc_reg,
+         faci_psgc_prov,
+         faci_psgc_munc
       )
    ) %>%
    left_join(
-      y = supported %>%
-         select(FACI_ID, site_gf_2024),
-      by = join_by(FACI_ID)
+      y  = supported %>%
+         select(faci_id, site_gf_2024),
+      by = join_by(faci_id)
    )
 
-min <- "2024-01-01"
-max <- "2024-12-31"
-yr  <- "2024"
-mo  <- "12"
+min <- "2025-01-01"
+max <- "2025-09-30"
+yr  <- "2025"
+mo  <- "09"
 
 faci_type <- read_sheet("1aOqYjx5wbc403xy-64YHJU6NzhEBRUu6Ldg59yDEUMw", "Sheet1", range = "A:D", col_types = "c")
-ohasis$ref_faci %>%
+read_csv("C:/Users/Bene-G16/Downloads/facilities-20251017.csv") %>%
    left_join(
       y = sites %>%
          filter(site_gf_2024 == 1) %>%
-         distinct(FACI_ID, site_gf_2024)
-   ) %>%
-   left_join(
-      y = faci_type %>%
-         distinct(FACI_ID = HARP_FACI, FINAL_PUBPRIV)
+         distinct(faci_id = faci_id, site_gf_2024)
    ) %>%
    select(
-      'FACI_ID', 'SUB_FACI_ID', 'FACI_NAME', 'FINAL_PUBPRIV', 'FACI_NAME_REG', 'FACI_NAME_PROV', 'FACI_NAME_MUNC', 'FACI_ADDR', 'MOBILE', 'EMAIL', 'LONG', 'LAT', 'site_gf_2024'
+      'faci_id', 'sub_faci_id', 'faci_name', 'ownership', 'addr_name_reg', 'addr_name_prov', 'addr_name_munc', 'physical_address', 'mobile', 'email', 'longitude', 'latitude', 'site_gf_2024'
    ) %>%
    write_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "ref_faci")
 
-staff <- QB$new(`oh-live`)$from("ohasis_interim.users")$get() %>%
+conn  <- connect('ohasis-live')
+staff <- QB$new(conn)$from("ohasis.users")$get() %>%
    inner_join(
       y = sites %>%
          filter(site_gf_2024 == 1) %>%
-         distinct(FACI_ID, site_gf_2024)
+         distinct(faci_id, site_gf_2024)
    ) %>%
    unite(
-      col   = "FMS",
+      col   = "fms",
       sep   = " ",
-      FIRST,
-      MIDDLE,
-      SUFFIX,
+      first,
+      middle,
+      suffix,
       na.rm = TRUE
    ) %>%
    unite(
-      col   = "FULLNAME",
+      col   = "fullname",
       sep   = ", ",
-      LAST,
-      FMS,
+      last,
+      fms,
       na.rm = TRUE
    ) %>%
    mutate(
-      IS_USER = USER_NAME != '' & PASSWORD != ''
+      is_user = user_name != '' & password != ''
    ) %>%
    select(
-      FACI_ID,
-      STAFF_ID     = USER_ID,
-      STAFF_NAME   = FULLNAME,
-      STAFF_DESIG  = DESIGNATION,
-      STAFF_EMAIL  = EMAIL,
-      STAFF_MOBILE = MOBILE,
-      IS_USER
+      faci_id,
+      staff_id     = user_id,
+      staff_name   = fullname,
+      staff_desig  = designation,
+      staff_email  = email,
+      staff_mobile = mobile,
+      is_user
    )
+dbDisconnect(conn)
 
-ohasis$ref_staff %>%
-   inner_join(
-      y = sites %>%
-         filter(site_gf_2024 == 1) %>%
-         distinct(FACI_ID, site_gf_2024)
-   ) %>%
-   select(
-      FACI_ID,
-      STAFF_ID,
-      STAFF_NAME,
-      STAFF_DESIG,
-      STAFF_EMAIL  = EMAIL,
-      STAFF_MOBILE = MOBILE,
-   ) %>%
-   write_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "ref_staff")
+# ohasis$ref_staff %>%
+#    inner_join(
+#       y = sites %>%
+#          filter(site_gf_2024 == 1) %>%
+#          distinct(faci_id, site_gf_2024)
+#    ) %>%
+#    select(
+#       faci_id,
+#       staff_id,
+#       staff_name,
+#       staff_desig,
+#       staff_email  = email,
+#       staff_mobile = mobile,
+#    ) %>%
+#    write_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "ref_staff")
 
 staff %>%
    write_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "ref_staff")

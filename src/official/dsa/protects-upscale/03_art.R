@@ -1,11 +1,11 @@
 source("src/official/dsa/protects-upscale/01_load_reqs.R")
 
 tx_gf <- tx_out %>%
-   left_join(sites %>% select(ART_FACI = FACI_ID, ART_SUB_FACI = FACI_CODE, site_gf_2024), join_by(ART_FACI, ART_SUB_FACI)) %>%
+   left_join(sites %>% select(art_faci = faci_id, art_sub_faci = faci_code, site_gf_2024), join_by(art_faci, art_sub_faci)) %>%
    mutate(
       keep = case_when(
          site_gf_2024 == 1 ~ 1,
-         CENTRAL_ID %in% testing$CENTRAL_ID ~ 1,
+         central_id %in% testing$central_id ~ 1,
          TRUE ~ 1
       )
    ) %>%
@@ -46,8 +46,8 @@ tx_gf <- tx_out %>%
       ~if_else(. < -25567, NA_Date_, ., .)
    ) %>%
    select(
-      REC_ID,
-      CENTRAL_ID,
+      rec_id,
+      central_id,
       art_id,
       idnum,
       prep_id,
@@ -78,12 +78,12 @@ tx_gf <- tx_out %>%
       sexhow
    )
 
-con         <- ohasis$conn("lw")
-rec_ids     <- tx_gf$REC_ID
+con         <- connect('mariadb-lw')
+rec_ids     <- tx_gf$rec_id
 rec_ids     <- rec_ids[!is.na(rec_ids)]
 form_art_bc <- QB$new(con)$
    from("ohasis_warehouse.form_art_bc")$
-   whereIn("REC_ID", rec_ids)$
+   whereIn("rec_id", rec_ids)$
    get()
 dbDisconnect(con)
 
@@ -91,33 +91,33 @@ tx_gf %<>%
    left_join(
       y  = form_art_bc %>%
          select(
-            REC_ID,
-            CREATED            = CREATED_BY,
-            CREATED_AT,
-            UPDATED            = UPDATED_BY,
-            UPDATED_AT,
-            tb_status          = TB_STATUS,
-            tb_ipt_start_date  = TB_IPT_START_DATE,
-            tb_ipt_status      = TB_IPT_STATUS,
-            tb_ipt_outcome     = TB_IPT_OUTCOME,
-            tb_site_p          = TB_SITE_P,
-            tb_site_ep         = TB_SITE_EP,
-            tb_drug_resistance = TB_DRUG_RESISTANCE,
-            tb_tx_status       = TB_TX_STATUS,
-            tb_tx_outcome      = TB_TX_OUTCOME,
-            dispense_modality  = CLIENT_TYPE,
-            is_pregnant        = IS_PREGNANT,
-            oi_syph            = OI_SYPH_PRESENT,
-            oi_hepb            = OI_HEPB_PRESENT,
-            oi_hepc            = OI_HEPC_PRESENT,
-            oi_pcp             = OI_PCP_PRESENT,
-            oi_cmv             = OI_CMV_PRESENT,
-            oi_orocandidiasis  = OI_OROCAND_PRESENT,
-            oi_herpes_zoster   = OI_HERPES_PRESENT,
-            oi_other           = OI_OTHER_PRESENT,
+            rec_id,
+            created            = created_by,
+            created_at,
+            updated            = updated_by,
+            updated_at,
+            tb_status          = tb_status,
+            tb_ipt_start_date  = tb_ipt_start_date,
+            tb_ipt_status      = tb_ipt_status,
+            tb_ipt_outcome     = tb_ipt_outcome,
+            tb_site_p          = tb_site_p,
+            tb_site_ep         = tb_site_ep,
+            tb_drug_resistance = tb_drug_resistance,
+            tb_tx_status       = tb_tx_status,
+            tb_tx_outcome      = tb_tx_outcome,
+            dispense_modality  = client_type,
+            is_pregnant        = is_pregnant,
+            oi_syph            = oi_syph_present,
+            oi_hepb            = oi_hepb_present,
+            oi_hepc            = oi_hepc_present,
+            oi_pcp             = oi_pcp_present,
+            oi_cmv             = oi_cmv_present,
+            oi_orocandidiasis  = oi_orocand_present,
+            oi_herpes_zoster   = oi_herpes_present,
+            oi_other           = oi_other_present,
          ) %>%
-         ohasis$get_staff(c(CREATED_BY = "CREATED")) %>%
-         ohasis$get_staff(c(UPDATED_BY = "UPDATED")) %>%
+         ohasis$get_staff(c(created_by = "created")) %>%
+         ohasis$get_staff(c(updated_by = "updated")) %>%
          mutate_at(
             .vars = vars(
                tb_status,
@@ -134,19 +134,19 @@ tx_gf %<>%
             ),
             ~remove_code(.)
          ) %>%
-         distinct(REC_ID, .keep_all = TRUE),
-      by = join_by(REC_ID)
+         distinct(rec_id, .keep_all = TRUE),
+      by = join_by(rec_id)
    ) %>%
    left_join(
       y  = dead %>%
          select(
-            CENTRAL_ID,
+            central_id,
             date_of_death,
          ) %>%
          mutate(
             reported_dead = 1
          ),
-      by = join_by(CENTRAL_ID)
+      by = join_by(central_id)
    ) %>%
    mutate(
       dispense_modality = case_when(
@@ -159,8 +159,8 @@ tx_gf %<>%
          TRUE ~ is_pregnant
       )
    ) %>%
-   relocate(CREATED_BY, CREATED_AT, UPDATED_BY, UPDATED_AT, .after = REC_ID) %>%
-   relocate(CENTRAL_ID, .before = 1)
+   relocate(created_by, created_at, updated_by, updated_at, .after = rec_id) %>%
+   relocate(central_id, .before = 1)
 
 write_clip(names(tx_gf))
 

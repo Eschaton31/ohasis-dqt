@@ -1,13 +1,13 @@
 source("src/official/dsa/protects-upscale/01_load_reqs.R")
 
 prep_gf <- read_dta(hs_data("prep", "reg", yr, mo)) %>%
-   get_cid(id_reg, PATIENT_ID) %>%
-   select(-any_of(c("prep_reg", "prep_prov", "prep_munc", "prep_faci", 'REC_ID'))) %>%
+   get_cid(id_reg, patient_id) %>%
+   select(-any_of(c("prep_reg", "prep_prov", "prep_munc", "prep_faci", 'rec_id'))) %>%
    left_join(
       y  = read_dta(
          hs_data("prep", "outcome", yr, mo),
          col_select = c(
-            REC_ID,
+            rec_id,
             prep_id,
             kp_pdl,
             kp_sw,
@@ -29,15 +29,15 @@ prep_gf <- read_dta(hs_data("prep", "reg", yr, mo)) %>%
       ) %>%
          faci_code_to_id(
             ohasis$ref_faci_code,
-            list(FACI_ID = "faci", SUB_FACI_ID = "branch")
+            list(faci_id = "faci", sub_faci_id = "branch")
          ) %>%
          mutate(
-            PREP_FACI     = FACI_ID,
-            PREP_SUB_FACI = SUB_FACI_ID,
+            prep_faci_id     = faci_id,
+            prep_sub_faci_id = sub_faci_id,
          ) %>%
          select(-any_of(c("prep_reg", "prep_prov", "prep_munc"))) %>%
          ohasis$get_faci(
-            list(prep_faci = c("FACI_ID", "SUB_FACI_ID")),
+            list(prep_faci = c("faci_id", "sub_faci_id")),
             "name",
          ),
       by = join_by(prep_id)
@@ -47,11 +47,11 @@ prep_gf <- read_dta(hs_data("prep", "reg", yr, mo)) %>%
          select(prep_id, prepstart_hub = site_name),
       by = join_by(prep_id)
    ) %>%
-   left_join(sites %>% select(PREP_FACI = FACI_ID, PREP_SUB_FACI = FACI_CODE, site_gf_2024), join_by(PREP_FACI, PREP_SUB_FACI)) %>%
+   left_join(sites %>% select(prep_faci_id = faci_id, prep_sub_faci_id = faci_code, site_gf_2024), join_by(prep_faci_id, prep_sub_faci_id)) %>%
    mutate(
       keep          = case_when(
          site_gf_2024 == 1 ~ 1,
-         CENTRAL_ID %in% testing$CENTRAL_ID ~ 1,
+         central_id %in% testing$central_id ~ 1,
          TRUE ~ 1
       ),
 
@@ -76,8 +76,8 @@ prep_gf <- read_dta(hs_data("prep", "reg", yr, mo)) %>%
    ) %>%
    filter(!is.na(prepstart_date)) %>%
    select(
-      REC_ID,
-      CENTRAL_ID,
+      rec_id,
+      central_id,
       prep_id,
       idnum,
       art_id,
@@ -160,33 +160,33 @@ prep_gf <- read_dta(hs_data("prep", "reg", yr, mo)) %>%
    )
 
 
-con       <- ohasis$conn("lw")
-rec_ids   <- prep_gf$REC_ID
+con       <- connect('mariadb-lw')
+rec_ids   <- prep_gf$rec_id
 rec_ids   <- rec_ids[!is.na(rec_ids)]
 form_prep <- QB$new(con)$
    from("ohasis_warehouse.form_prep")$
-   whereIn("REC_ID", rec_ids)$
+   whereIn("rec_id", rec_ids)$
    get()
 dbDisconnect(con)
 con       <- ohasis$conn("db")
 prep_disc <- QB$new(con)$
-   from("ohasis_interim.px_prep_discontinue")$
-   whereIn("REC_ID", rec_ids)$
+   from("ohasis.px_prep_discontinue")$
+   whereIn("rec_id", rec_ids)$
    get()
 prep_disc %<>%
    mutate(
-      DISC_REASON = case_when(
-         DISC_REASON == 1 ~ "prep_cost",
-         DISC_REASON == 2 ~ "seroconvert",
-         DISC_REASON == 3 ~ "ineligible",
-         DISC_REASON == 4 ~ "reduced_risk",
-         DISC_REASON == 6 ~ "difficult_regimen",
-         DISC_REASON == 7 ~ "stigma",
-         DISC_REASON == 8888 ~ "other",
+      disc_reason = case_when(
+         disc_reason == 1 ~ "prep_cost",
+         disc_reason == 2 ~ "seroconvert",
+         disc_reason == 3 ~ "ineligible",
+         disc_reason == 4 ~ "reduced_risk",
+         disc_reason == 6 ~ "difficult_regimen",
+         disc_reason == 7 ~ "stigma",
+         disc_reason == 8888 ~ "other",
       ),
    ) %>%
    rename(
-      disc = IS_DISC,
+      disc = is_disc,
    ) %>%
    mutate(
       disc = case_when(
@@ -195,19 +195,19 @@ prep_disc %<>%
       )
    ) %>%
    pivot_wider(
-      id_cols     = REC_ID,
-      names_from  = DISC_REASON,
-      values_from = c(disc, DISC_OTHER)
+      id_cols     = rec_id,
+      names_from  = disc_reason,
+      values_from = c(disc, disc_other)
    ) %>%
    select(
-      REC_ID,
+      rec_id,
       disc_reduced_risk,
       disc_seroconvert,
       disc_ineligible,
       disc_prep_cost,
       disc_difficult_regimen,
       disc_other,
-      disc_other_text = DISC_OTHER_other,
+      disc_other_text = disc_other_other,
    )
 dbDisconnect(con)
 
@@ -215,23 +215,23 @@ prep_gf %<>%
    left_join(
       y  = form_prep %>%
          select(
-            REC_ID,
-            CREATED = CREATED_BY,
-            CREATED_AT,
-            UPDATED = UPDATED_BY,
-            UPDATED_AT,
+            rec_id,
+            created = created_by,
+            created_at,
+            updated = updated_by,
+            updated_at,
          ) %>%
-         ohasis$get_staff(c(CREATED_BY = "CREATED")) %>%
-         ohasis$get_staff(c(UPDATED_BY = "UPDATED")) %>%
-         distinct(REC_ID, .keep_all = TRUE),
-      by = join_by(REC_ID)
+         ohasis$get_staff(c(created_by = "created")) %>%
+         ohasis$get_staff(c(updated_by = "updated")) %>%
+         distinct(rec_id, .keep_all = TRUE),
+      by = join_by(rec_id)
    ) %>%
    left_join(
       y  = prep_disc,
-      by = join_by(REC_ID)
+      by = join_by(rec_id)
    ) %>%
-   relocate(CREATED_BY, CREATED_AT, UPDATED_BY, UPDATED_AT, .after = REC_ID) %>%
-   relocate(CENTRAL_ID, .before = 1)
+   relocate(created_by, created_at, updated_by, updated_at, .after = rec_id) %>%
+   relocate(central_id, .before = 1)
 
 
 write_clip(names(prep_gf))

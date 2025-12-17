@@ -8,294 +8,403 @@ aiha_staff <- c(
    '9900050072', '9900050058', '9900050073'
 )
 
-con   <- ohasis$conn("lw")
-forms <- QB$new(con)
-forms$where(function(query = QB$new(con)) {
-   query$whereBetween('RECORD_DATE', c(min, max), "or")
-   query$whereBetween('DATE_CONFIRM', c(min, max), "or")
-   query$whereBetween('T0_DATE', c(min, max), "or")
-   query$whereBetween('T1_DATE', c(min, max), "or")
-   query$whereBetween('T2_DATE', c(min, max), "or")
-   query$whereBetween('T3_DATE', c(min, max), "or")
-   query$whereNested
-})
-forms$where(function(query = QB$new(con)) {
-   query$whereIn('FACI_ID', sites$FACI_ID, boolean = "or")
-   query$whereIn('SERVICE_FACI', sites$FACI_ID, boolean = "or")
-   query$whereIn('CREATED_BY', aiha_staff, boolean = "or")
-   query$whereIn('SERVICE_BY', aiha_staff, boolean = "or")
-   query$whereNested
-})
+# con   <- ohasis$conn("lw")
+# forms <- qb$new(con)
+# forms$where(function(query = qb$new(con)) {
+#    query$whereBetween('record_date', c(min, max), "or")
+#    query$whereBetween('date_confirm', c(min, max), "or")
+#    query$whereBetween('t0_date', c(min, max), "or")
+#    query$whereBetween('t1_date', c(min, max), "or")
+#    query$whereBetween('t2_date', c(min, max), "or")
+#    query$whereBetween('t3_date', c(min, max), "or")
+#    query$whereNested
+# })
+# forms$where(function(query = qb$new(con)) {
+#    query$whereIn('faci_id', sites$faci_id, boolean = "or")
+#    query$whereIn('service_faci', sites$faci_id, boolean = "or")
+#    query$whereIn('created_by', aiha_staff, boolean = "or")
+#    query$whereIn('provider_id', aiha_staff, boolean = "or")
+#    query$whereNested
+# })
+#
+# forms$from("ohasis_warehouse.form_hts")
+# hts <- forms$get()
+#
+# forms$from("ohasis_warehouse.form_a")
+# a <- forms$get()
+#
+# cfbs <- qb$new(con)$
+#    from("ohasis_warehouse.form_cfbs")$
+#    limit(0)$
+#    get()
 
-forms$from("ohasis_warehouse.form_hts")
-hts <- forms$get()
+hts <- get_hts(min, max)
 
-forms$from("ohasis_warehouse.form_a")
-a <- forms$get()
+not_imported <- read_rds("C:/Users/Bene-g16/Downloads/hts-imports_20250805.rds")
+to_append    <- not_imported$data$convert %>%
+   rename_all(tolower) %>%
+   filter(!is.na(record_date)) %>%
+   filter(created_at != "Auto-fill") %>%
+   select(
+      -ends_with("name_reg"),
+      -ends_with("name_prov"),
+      -ends_with("name_munc"),
+   ) %>%
+   mutate(
+      curr_psgc        = coalesce(curr_munc, curr_prov, curr_reg),
+      birth_psgc       = coalesce(birth_munc, birth_prov, birth_reg),
+      hiv_service_psgc = coalesce(hiv_service_munc, hiv_service_prov, hiv_service_reg),
+   ) %>%
+   left_join(
+      y          = ohasis$ref_addr %>%
+         select(
+            curr_psgc      = psgc_old,
+            curr_psgc_reg  = reg,
+            curr_psgc_prov = prov,
+            curr_psgc_munc = munc
+         ),
+      by         = join_by(curr_psgc),
+      na_matches = "never"
+   ) %>%
+   left_join(
+      y          = ohasis$ref_addr %>%
+         select(
+            birth_psgc      = psgc_old,
+            birth_psgc_reg  = reg,
+            birth_psgc_prov = prov,
+            birth_psgc_munc = munc
+         ),
+      by         = join_by(birth_psgc),
+      na_matches = "never"
+   ) %>%
+   left_join(
+      y          = ohasis$ref_addr %>%
+         select(
+            hiv_service_psgc      = psgc_old,
+            hiv_service_psgc_reg  = reg,
+            hiv_service_psgc_prov = prov,
+            hiv_service_psgc_munc = munc
+         ),
+      by         = join_by(hiv_service_psgc),
+      na_matches = "never"
+   ) %>%
+   rename(
+      modality               = service_type,
+      test_refuse_other_text = test_refuse_reason_other_text,
+      reach_index_testing    = reach_index,
+   ) %>%
+   mutate(
+      form_version    = "HTS Form (v2021)",
+      self_ident      = case_when(
+         self_ident == "OTHERS" ~ "3_Other",
+         TRUE ~ self_ident
+      ),
+      disease         = "HIV",
 
-cfbs <- QB$new(con)$
-   from("ohasis_warehouse.form_cfbs")$
-   limit(0)$
-   get()
+      service_condoms = parse_number(service_condoms),
+      service_lubes   = parse_number(service_lubes),
+   )
 
-id_reg <- QB$new(con)$
-   from("ohasis_warehouse.id_registry")$
-   select(PATIENT_ID, CENTRAL_ID)$
-   get()
+form_hts <- hts$hts %>%
+   bind_rows(
+      to_append %>%
+         mutate(
+            created_at = parse_date_time(created_at, "YmdHMS"),
+            updated_at = parse_date_time(updated_at, "YmdHMS"),
+         ) %>%
+         mutate(
+            rec_id      = stri_c('temp-oh2-', stri_pad_left(row_number(), 16, '0')),
+            patient_id  = stri_c('temp-oh2-', stri_pad_left(row_number(), 9, '0')),
+            record_date = as.Date(record_date),
+            birthdate   = as.Date(birthdate),
+            age         = as.integer(age),
+            age_mo      = as.integer(age_mo),
+            children    = as.integer(children),
+            ofw_yr_ret  = as.integer(ofw_yr_ret),
+            retest_mos  = as.integer(retest_mos),
+            retest_wks  = as.integer(retest_wks),
+         ) %>%
+         mutate_at(
+            .vars = vars(ends_with("date")),
+            ~as.Date(.)
+         ) %>%
+         filter(!is.na(faci_id)) %>%
+         select(any_of(names(hts$hts)))
+   )
+
+compare_vars <- function(data1, data2, var) {
+   print(data1 %>% tab({{var}}))
+   data2 %>% tab({{var}})
+}
+
+# compare_vars(to_append, hts$hts, disease)
+
+id_reg <- update_idreg()
 dbDisconnect(con)
 
 dx         <- read_dta(hs_data("harp_dx", "reg", yr, mo)) %>%
-   get_cid(id_reg, PATIENT_ID) %>%
+   get_cid(id_reg, patient_id) %>%
    mutate(
       confirm_branch = NA_character_
    ) %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
-      c(CONFIRM_FACI = "confirmlab", CONFIRM_SUB_FACI = "confirm_branch")
+      c(confirm_faci = "confirmlab", confirm_sub_faci = "confirm_branch")
    ) %>%
    ohasis$get_faci(
-      list(confirm_lab = c("CONFIRM_FACI", "CONFIRM_SUB_FACI")),
+      list(confirm_lab = c("confirm_faci", "confirm_sub_faci")),
       "name"
    )
 dead       <- read_dta(hs_data("harp_dead", "reg", yr, mo)) %>%
-   get_cid(id_reg, PATIENT_ID)
+   get_cid(id_reg, patient_id)
 tx_reg     <- read_dta(hs_data("harp_tx", "reg", yr, mo)) %>%
-   get_cid(id_reg, PATIENT_ID) %>%
+   get_cid(id_reg, patient_id) %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
-      list(FACI_ID = "artstart_hub", SUB_FACI_ID = "artstart_branch")
+      list(faci_id = "artstart_hub", sub_faci_id = "artstart_branch")
    ) %>%
    mutate(
-      ART_FACI     = FACI_ID,
-      ART_SUB_FACI = SUB_FACI_ID
+      art_faci     = faci_id,
+      art_sub_faci = sub_faci_id
    ) %>%
    ohasis$get_faci(
-      list(tx_hub = c("FACI_ID", "SUB_FACI_ID")),
+      list(tx_hub = c("faci_id", "sub_faci_id")),
       "name",
       c("tx_reg", "tx_prov", "tx_munc")
    )
 tx_out     <- read_dta(hs_data("harp_tx", "outcome", yr, mo)) %>%
-   select(-any_of("CENTRAL_ID")) %>%
-   left_join(y = tx_reg %>% select(art_id, CENTRAL_ID), by = join_by(art_id)) %>%
+   select(-any_of("central_id")) %>%
+   left_join(y = tx_reg %>% select(art_id, central_id), by = join_by(art_id)) %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
-      list(FACI_ID = "realhub", SUB_FACI_ID = "realhub_branch")
+      list(faci_id = "realhub", sub_faci_id = "realhub_branch")
    ) %>%
    mutate(
-      ART_FACI     = FACI_ID,
-      ART_SUB_FACI = SUB_FACI_ID
+      art_faci     = faci_id,
+      art_sub_faci = sub_faci_id
    ) %>%
    select(-tx_reg, -tx_prov, -tx_munc) %>%
    ohasis$get_faci(
-      list(tx_hub = c("FACI_ID", "SUB_FACI_ID")),
+      list(tx_hub = c("faci_id", "sub_faci_id")),
       "name",
       c("tx_reg", "tx_prov", "tx_munc")
    )
 prep_curr  <- read_dta(hs_data("prep", "outcome", yr, mo)) %>%
-   get_cid(id_reg, PATIENT_ID) %>%
+   get_cid(id_reg, patient_id) %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
-      list(FACI_ID = "faci", SUB_FACI_ID = "branch")
+      list(faci_id = "faci", sub_faci_id = "branch")
    ) %>%
    mutate(
-      PREP_FACI     = FACI_ID,
-      PREP_SUB_FACI = SUB_FACI_ID
+      prep_faci     = faci_id,
+      prep_sub_faci = sub_faci_id
    ) %>%
    ohasis$get_faci(
-      list(site_name = c("FACI_ID", "SUB_FACI_ID")),
+      list(site_name = c("faci_id", "sub_faci_id")),
       "name",
    )
-prep_start <- read_dta("H:/_R/library/prep/20250127_prepstart_2024-12.dta") %>%
-   get_cid(id_reg, PATIENT_ID) %>%
+prep_start <- read_dta("H:/_R/library/prep/20251007_prepstart_2025-08.dta") %>%
+   get_cid(id_reg, patient_id) %>%
    faci_code_to_id(
       ohasis$ref_faci_code,
-      list(FACI_ID = "prepstart_faci", SUB_FACI_ID = "prepstart_branch")
+      list(faci_id = "prepstart_faci", sub_faci_id = "prepstart_branch")
    ) %>%
    mutate(
-      PREP_FACI     = FACI_ID,
-      PREP_SUB_FACI = SUB_FACI_ID
+      prep_faci     = faci_id,
+      prep_sub_faci = sub_faci_id
    ) %>%
    ohasis$get_faci(
-      list(site_name = c("FACI_ID", "SUB_FACI_ID")),
+      list(site_name = c("faci_id", "sub_faci_id")),
       "name",
    )
 
-testing   <- process_hts(hts, a, cfbs) %>%
-   get_cid(id_reg, PATIENT_ID) %>%
+testing   <- process_hts(form_hts, hts$a, hts$cfbs) %>%
+   # slice(1:100) %>%
+   mutate(
+      keep = case_when(
+         faci_id %in% sites$faci_id ~ 1,
+         service_faci %in% sites$faci_id ~ 1,
+         created_by %in% aiha_staff ~ 1,
+         provider_id %in% aiha_staff ~ 1,
+         TRUE ~ 0
+      )
+   ) %>%
+   filter(keep == 1) %>%
+   get_cid(id_reg, patient_id) %>%
    get_latest_pii(
-      "CENTRAL_ID",
+      "central_id",
       c(
-         "BIRTHDATE",
-         "SEX",
-         "SELF_IDENT",
-         "SELF_IDENT_OTHER",
-         "CIVIL_STATUS",
-         "NATIONALITY",
-         "EDUC_LEVEL",
-         "CURR_PSGC_REG",
-         "CURR_PSGC_PROV",
-         "CURR_PSGC_MUNC",
-         "PERM_PSGC_REG",
-         "PERM_PSGC_PROV",
-         "PERM_PSGC_MUNC",
-         "BIRTH_PSGC_REG",
-         "BIRTH_PSGC_PROV",
-         "BIRTH_PSGC_MUNC"
+         "birthdate",
+         "sex",
+         "self_ident",
+         "self_ident_other",
+         "civil_status",
+         "nationality",
+         "educ_level",
+         "curr_reg",
+         "curr_prov",
+         "curr_munc",
+         "perm_reg",
+         "perm_prov",
+         "perm_munc",
+         "birth_reg",
+         "birth_prov",
+         "birth_munc"
       )
    ) %>%
    mutate(
-      use_record_faci = if_else(is.na(SERVICE_FACI), 1, 0, 0),
-      SERVICE_FACI    = if_else(use_record_faci == 1, FACI_ID, SERVICE_FACI),
-      site_gf         = SERVICE_FACI %in% supported$FACI_ID
+      use_record_faci = if_else(is.na(service_faci), 1, 0, 0),
+      service_faci    = if_else(use_record_faci == 1, faci_id, service_faci),
+      site_gf         = service_faci %in% supported$faci_id
    ) %>%
    convert_hts("name") %>%
-   generate_gender_identity(SEX, SELF_IDENT, SELF_IDENT_OTHER, gender_identity) %>%
+   generate_gender_identity(sex, self_ident, self_ident_other, gender_identity) %>%
    select(
-      REC_ID,
-      CENTRAL_ID,
-      PATIENT_ID,
-      FORM_VERSION,
-      CREATED_BY,
-      CREATED_AT,
-      UPDATED_BY,
-      UPDATED_AT,
-      REPORT_FACI,
-      RECORD_DATE,
-      UIC,
-      SEX,
-      BIRTHDATE,
-      AGE,
-      AGE_MO,
-      SELF_IDENT,
-      SELF_IDENT_OTHER,
-      NATIONALITY,
-      EDUC_LEVEL,
-      CIVIL_STATUS,
-      IS_STUDENT,
-      LIVING_WITH_PARTNER,
-      CHILDREN,
-      CURR_REG,
-      CURR_PROV,
-      CURR_MUNC,
-      PERM_REG,
-      PERM_PROV,
-      PERM_MUNC,
-      BIRTH_REG,
-      BIRTH_PROV,
-      BIRTH_MUNC,
-      IS_PREGNANT,
-      VERBAL_CONSENT,
-      SIGNATURE_ESIG,
-      SIGNATURE_NAME,
-      WORK,
-      IS_EMPLOYED,
-      IS_OFW,
-      OFW_YR_RET,
-      OFW_STATION,
-      OFW_COUNTRY,
-      EXPOSE_HIV_MOTHER,
-      EXPOSE_SEX_M,
-      EXPOSE_SEX_M_AV_DATE,
-      EXPOSE_SEX_M_AV_NOCONDOM_DATE,
-      EXPOSE_SEX_F,
-      EXPOSE_SEX_F_AV_DATE,
-      EXPOSE_SEX_F_AV_NOCONDOM_DATE,
-      EXPOSE_SEX_PAYING,
-      EXPOSE_SEX_PAYING_DATE,
-      EXPOSE_SEX_PAYMENT,
-      EXPOSE_SEX_PAYMENT_DATE,
-      EXPOSE_SEX_DRUGS,
-      EXPOSE_SEX_DRUGS_DATE,
-      EXPOSE_DRUG_INJECT,
-      EXPOSE_DRUG_INJECT_DATE,
-      EXPOSE_BLOOD_TRANSFUSE,
-      EXPOSE_BLOOD_TRANSFUSE_DATE,
-      EXPOSE_OCCUPATION,
-      EXPOSE_OCCUPATION_DATE,
-      TEST_REASON_HIV_EXPOSE,
-      TEST_REASON_PHYSICIAN,
-      TEST_REASON_PEER_ED,
-      TEST_REASON_EMPLOY_OFW,
-      TEST_REASON_EMPLOY_LOCAL,
-      TEST_REASON_TEXT_EMAIL,
-      TEST_REASON_INSURANCE,
-      TEST_REASON_OTHER_TEXT,
-      PREV_TESTED,
-      PREV_TEST_DATE,
-      PREV_TEST_FACI,
-      PREV_TEST_RESULT,
-      MED_TB_PX,
-      MED_STI,
-      MED_HEP_B,
-      MED_HEP_C,
-      MED_PREP_PX,
-      MED_PEP_PX,
-      CLINICAL_PIC,
-      SYMPTOMS,
-      WHO_CLASS,
-      REACH_CLINICAL,
-      REACH_ONLINE,
-      REACH_INDEX_TESTING,
-      REACH_SSNT,
-      REACH_VENUE,
-      TEST_REFUSE_OTHER_TEXT,
-      REFER_ART,
-      REFER_CONFIRM,
-      REFER_RETEST,
-      RETEST_MOS,
-      RETEST_WKS,
-      RETEST_DATE,
-      SERVICE_HIV_101,
-      SERVICE_IEC_MATS,
-      SERVICE_RISK_COUNSEL,
-      SERVICE_PREP_REFER,
-      SERVICE_SSNT_OFFER,
-      SERVICE_SSNT_ACCEPT,
-      SERVICE_CONDOMS,
-      SERVICE_LUBES,
-      CBS_REG,
-      CBS_PROV,
-      CBS_MUNC,
-      CBS_VENUE,
-      HTS_REG,
-      HTS_PROV,
-      HTS_MUNC,
-      HTS_FACI,
-      HTS_PROVIDER,
-      HTS_PROVIDER_TYPE,
-      HTS_PROVIDER_TYPE_OTHER,
-      EXPOSE_SEX_M_NOCONDOM,
-      EXPOSE_SEX_F_NOCONDOM,
-      EXPOSE_SEX_HIV,
-      EXPOSE_TATTOO,
-      EXPOSE_STI,
-      AGE_FIRST_SEX,
-      AGE_FIRST_INJECT,
-      NUM_M_PARTNER,
-      YR_LAST_M,
-      NUM_F_PARTNER,
-      YR_LAST_F,
-      MED_IS_PREGNANT,
-      MED_CBS_REACTIVE,
-      TEST_REASON_RETEST,
-      TEST_REASON_NO_REASON,
-      EXPOSE_SEX_EVER,
-      EXPOSE_M_SEX_ORAL_ANAL,
-      EXPOSE_CONDOMLESS_ANAL,
-      EXPOSE_CONDOMLESS_ANAL_DATE,
-      EXPOSE_CONDOMLESS_VAGINAL,
-      EXPOSE_CONDOMLESS_VAGINAL_DATE,
-      EXPOSE_NEEDLE_SHARE,
-      EXPOSE_NEEDLE_SHARE_DATE,
-      EXPOSE_ILLICIT_DRUGS,
-      EXPOSE_ILLICIT_DRUGS_DATE,
-      EXPOSE_SEX_HIV_DATE,
-      TEST_REFUSE_NO_TIME,
-      TEST_REFUSE_OTHER,
-      TEST_REFUSE_NO_CURE,
-      TEST_REFUSE_FEAR_RESULT,
-      TEST_REFUSE_FEAR_DISCLOSE,
-      TEST_REFUSE_FEAR_MSM,
+      rec_id,
+      central_id,
+      patient_id,
+      form_version,
+      created_by,
+      created_at,
+      updated_by,
+      updated_at,
+      report_faci,
+      record_date,
+      uic,
+      sex,
+      birthdate,
+      age,
+      age_mo,
+      self_ident,
+      self_ident_other,
+      nationality,
+      educ_level,
+      civil_status,
+      is_student,
+      living_with_partner,
+      children,
+      curr_reg,
+      curr_prov,
+      curr_munc,
+      perm_reg,
+      perm_prov,
+      perm_munc,
+      birth_reg,
+      birth_prov,
+      birth_munc,
+      is_pregnant,
+      verbal_consent,
+      signature_esig,
+      signature_name,
+      work        = work_text,
+      is_employed,
+      is_ofw,
+      ofw_yr_ret,
+      ofw_station,
+      ofw_country,
+      expose_hiv_mother,
+      expose_sex_m,
+      expose_sex_m_av_date,
+      expose_sex_m_av_nocondom_date,
+      expose_sex_f,
+      expose_sex_f_av_date,
+      expose_sex_f_av_nocondom_date,
+      expose_sex_paying,
+      expose_sex_paying_date,
+      expose_sex_payment,
+      expose_sex_payment_date,
+      expose_sex_drugs,
+      expose_sex_drugs_date,
+      expose_drug_inject,
+      expose_drug_inject_date,
+      expose_blood_transfuse,
+      expose_blood_transfuse_date,
+      expose_occupation,
+      expose_occupation_date,
+      test_reason_hiv_expose,
+      test_reason_physician,
+      test_reason_peer_ed,
+      test_reason_employ_ofw,
+      test_reason_employ_local,
+      test_reason_text_email,
+      test_reason_insurance,
+      test_reason_other_text,
+      prev_tested,
+      prev_test_date,
+      prev_test_faci,
+      prev_test_result,
+      med_tb_px,
+      med_sti,
+      med_hep_b,
+      med_hep_c,
+      med_prep_px,
+      med_pep_px,
+      clinical_pic,
+      symptoms,
+      who_class,
+      reach_clinical,
+      reach_online,
+      reach_index_testing,
+      reach_ssnt,
+      reach_venue,
+      test_refuse_other_text,
+      refer_art,
+      refer_confirm,
+      refer_retest,
+      retest_mos,
+      retest_wks,
+      retest_date,
+      service_hiv_101,
+      service_iec_mats,
+      service_risk_counsel,
+      service_prep_refer,
+      service_ssnt_offer,
+      service_ssnt_accept,
+      service_condoms,
+      service_lubes,
+      cbs_reg,
+      cbs_prov,
+      cbs_munc,
+      cbs_venue,
+      hts_reg,
+      hts_prov,
+      hts_munc,
+      hts_faci,
+      hts_provider,
+      hts_provider_type,
+      hts_provider_type_other,
+      expose_sex_m_nocondom,
+      expose_sex_f_nocondom,
+      expose_sex_hiv,
+      expose_tattoo,
+      expose_sti,
+      age_first_sex,
+      age_first_inject,
+      num_m_partner,
+      yr_last_m,
+      num_f_partner,
+      yr_last_f,
+      med_is_pregnant,
+      med_cbs_reactive,
+      test_reason_retest,
+      test_reason_no_reason,
+      expose_sex_ever,
+      expose_m_sex_oral_anal,
+      expose_condomless_anal,
+      expose_condomless_anal_date,
+      expose_condomless_vaginal,
+      expose_condomless_vaginal_date,
+      expose_needle_share,
+      expose_needle_share_date,
+      expose_illicit_drugs,
+      expose_illicit_drugs_date,
+      expose_sex_hiv_date,
+      test_refuse_no_time,
+      test_refuse_other,
+      test_refuse_no_cure,
+      test_refuse_fear_result,
+      test_refuse_fear_disclose,
+      test_refuse_fear_msm,
       gender_identity,
       hts_date,
       hts_result,
@@ -317,8 +426,8 @@ testing   <- process_hts(hts, a, cfbs) %>%
       risk_chemsex,
       risk_tattoo,
       risk_sti,
-      online_app  = ONLINE_APP,
-      sexual_risk = SEXUAL_RISK,
+      online_app  = online_app,
+      sexual_risk = sexual_risk,
       kap_unknown,
       kap_msm,
       kap_heterom,
@@ -330,73 +439,73 @@ testing   <- process_hts(hts, a, cfbs) %>%
    ) %>%
    mutate_at(
       .vars = vars(
-         SEX,
-         SELF_IDENT,
-         EDUC_LEVEL,
-         CIVIL_STATUS,
-         LIVING_WITH_PARTNER,
-         IS_PREGNANT,
-         VERBAL_CONSENT,
-         SIGNATURE_ESIG,
-         SIGNATURE_NAME,
-         IS_STUDENT,
-         IS_EMPLOYED,
-         IS_OFW,
-         OFW_STATION,
-         TEST_REASON_HIV_EXPOSE,
-         TEST_REASON_PHYSICIAN,
-         TEST_REASON_PEER_ED,
-         TEST_REASON_EMPLOY_OFW,
-         TEST_REASON_EMPLOY_LOCAL,
-         TEST_REASON_TEXT_EMAIL,
-         TEST_REASON_INSURANCE,
-         PREV_TESTED,
-         PREV_TEST_RESULT,
-         MED_TB_PX,
-         MED_STI,
-         MED_HEP_B,
-         MED_HEP_C,
-         MED_PREP_PX,
-         MED_PEP_PX,
-         CLINICAL_PIC,
-         WHO_CLASS,
-         REACH_CLINICAL,
-         REACH_ONLINE,
-         REACH_INDEX_TESTING,
-         REACH_SSNT,
-         REACH_VENUE,
-         REFER_ART,
-         REFER_CONFIRM,
-         REFER_RETEST,
-         SERVICE_HIV_101,
-         SERVICE_IEC_MATS,
-         SERVICE_RISK_COUNSEL,
-         SERVICE_PREP_REFER,
-         SERVICE_SSNT_OFFER,
-         SERVICE_SSNT_ACCEPT,
-         HTS_PROVIDER_TYPE,
-         MED_IS_PREGNANT,
-         MED_CBS_REACTIVE,
-         TEST_REASON_RETEST,
-         TEST_REASON_NO_REASON,
-         EXPOSE_HIV_MOTHER,
-         EXPOSE_SEX_M,
-         EXPOSE_SEX_F,
-         EXPOSE_SEX_PAYING,
-         EXPOSE_SEX_PAYMENT,
-         EXPOSE_SEX_DRUGS,
-         EXPOSE_DRUG_INJECT,
-         EXPOSE_BLOOD_TRANSFUSE,
-         EXPOSE_OCCUPATION,
-         EXPOSE_SEX_M_NOCONDOM,
-         EXPOSE_SEX_F_NOCONDOM,
-         EXPOSE_SEX_HIV,
-         EXPOSE_TATTOO,
-         EXPOSE_STI
+         sex,
+         self_ident,
+         educ_level,
+         civil_status,
+         living_with_partner,
+         is_pregnant,
+         verbal_consent,
+         signature_esig,
+         signature_name,
+         is_student,
+         is_employed,
+         is_ofw,
+         ofw_station,
+         test_reason_hiv_expose,
+         test_reason_physician,
+         test_reason_peer_ed,
+         test_reason_employ_ofw,
+         test_reason_employ_local,
+         test_reason_text_email,
+         test_reason_insurance,
+         prev_tested,
+         prev_test_result,
+         med_tb_px,
+         med_sti,
+         med_hep_b,
+         med_hep_c,
+         med_prep_px,
+         med_pep_px,
+         clinical_pic,
+         who_class,
+         reach_clinical,
+         reach_online,
+         reach_index_testing,
+         reach_ssnt,
+         reach_venue,
+         refer_art,
+         refer_confirm,
+         refer_retest,
+         service_hiv_101,
+         service_iec_mats,
+         service_risk_counsel,
+         service_prep_refer,
+         service_ssnt_offer,
+         service_ssnt_accept,
+         hts_provider_type,
+         med_is_pregnant,
+         med_cbs_reactive,
+         test_reason_retest,
+         test_reason_no_reason,
+         expose_hiv_mother,
+         expose_sex_m,
+         expose_sex_f,
+         expose_sex_paying,
+         expose_sex_payment,
+         expose_sex_drugs,
+         expose_drug_inject,
+         expose_blood_transfuse,
+         expose_occupation,
+         expose_sex_m_nocondom,
+         expose_sex_f_nocondom,
+         expose_sex_hiv,
+         expose_tattoo,
+         expose_sti
       ),
       ~str_to_title(remove_code(.)) %>%
          str_replace_all("\\bHiv\\b", "HIV") %>%
-         str_replace_all("\\Cbs\\b", "CBS")
+         str_replace_all("\\Cbs\\b", "cbs")
    ) %>%
    left_join(
       y  = dx %>%
@@ -405,7 +514,7 @@ testing   <- process_hts(hts, a, cfbs) %>%
                                      confirm_date) %>% as.Date()
          ) %>%
          select(
-            CENTRAL_ID,
+            central_id,
             reactive_date,
             confirm_hiv_class = class2022,
             confirm_date,
@@ -414,31 +523,31 @@ testing   <- process_hts(hts, a, cfbs) %>%
             class2022,
             ahd,
          ),
-      by = join_by(CENTRAL_ID)
+      by = join_by(central_id)
    ) %>%
    left_join(
       y  = dead %>%
          select(
-            CENTRAL_ID,
+            central_id,
             date_of_death,
          ) %>%
          mutate(
             reported_dead = 1
          ),
-      by = join_by(CENTRAL_ID)
+      by = join_by(central_id)
    ) %>%
    left_join(
       y  = tx_reg %>%
          select(
-            CENTRAL_ID,
+            central_id,
             artstart_hub = tx_hub
          ),
-      by = join_by(CENTRAL_ID)
+      by = join_by(central_id)
    ) %>%
    left_join(
       y  = tx_out %>%
          select(
-            CENTRAL_ID,
+            central_id,
             artstart_date,
             art_latest_hub        = tx_hub,
             art_latest_ffupdate   = latest_ffupdate,
@@ -446,17 +555,17 @@ testing   <- process_hts(hts, a, cfbs) %>%
             art_latest_regimen    = latest_regimen,
             art_outcome           = outcome,
          ),
-      by = join_by(CENTRAL_ID)
+      by = join_by(central_id)
    ) %>%
    left_join(
       y  = prep_start %>%
          filter(!is.na(prepstart_date)) %>%
          select(
-            CENTRAL_ID,
+            central_id,
             prepstart_date,
             prepstart_hub = site_name,
          ),
-      by = join_by(CENTRAL_ID)
+      by = join_by(central_id)
    ) %>%
    left_join(
       y  = prep_curr %>%
@@ -465,27 +574,27 @@ testing   <- process_hts(hts, a, cfbs) %>%
             preplast_given = if_else(!is.na(latest_regimen), 1, 0, 0)
          ) %>%
          select(
-            CENTRAL_ID,
+            central_id,
             preplast_hub   = site_name,
             preplast_visit = latest_ffupdate,
             preplast_given,
          ),
-      by = join_by(CENTRAL_ID)
+      by = join_by(central_id)
    ) %>%
    mutate_if(
       .predicate = is.Date,
       ~if_else(. < -25567, NA_Date_, ., .)
    ) %>%
    mutate(
-      WHO_CLASS        = toupper(WHO_CLASS),
-      PREV_TEST_RESULT = case_when(
-         PREV_TEST_RESULT == "Positive" ~ "Reactive",
-         PREV_TEST_RESULT == "Negative" ~ "Non-Reactive",
-         TRUE ~ PREV_TEST_RESULT
+      who_class        = toupper(who_class),
+      prev_test_result = case_when(
+         prev_test_result == "Positive" ~ "Reactive",
+         prev_test_result == "Negative" ~ "Non-Reactive",
+         TRUE ~ prev_test_result
       )
    ) %>%
    mutate(
-      HTS_FACI = if_else(!site_gf, "(non-gf site)", HTS_FACI, HTS_FACI)
+      hts_faci = if_else(!site_gf, "(non-gf site)", hts_faci, hts_faci)
    )
 variables <- read_sheet("1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc", "hts")
 dict      <- data_dictionary(testing, variables)
