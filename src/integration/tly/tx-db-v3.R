@@ -21,6 +21,7 @@ LyArt <- R6Class(
       downloadArtDb     = function() {
          local_drive_quiet()
          local_gs4_quiet()
+         google_account("eb@loveyourself.ph")
 
          ss     <- "1smORFFrPwFFrbXQuUUqxNnxyD9VInEPFL7XgL-dmvUM"
          sheets <- range_speedread(ss, "art", col_types = cols(.default = "c"))
@@ -42,6 +43,7 @@ LyArt <- R6Class(
       downloadArv       = function() {
          local_drive_quiet()
          local_gs4_quiet()
+         google_account("eb@loveyourself.ph")
 
          # ! ARV
          dir <- file.path(self$root, "arv")
@@ -82,6 +84,7 @@ LyArt <- R6Class(
          invisible(self)
       },
       readArtDb         = function() {
+         google_account("nhsss@doh.gov.ph")
          files       <- list.files(file.path(self$root, "art"), full.names = TRUE)
          data        <- pblapply(files, read_ods, sheet = "Client Information", col_types = cols(.default = "c"), .name_repair = "unique_quiet")
          data        <- lapply(data, mutate_all, toupper)
@@ -195,6 +198,7 @@ LyArt <- R6Class(
          invisible(self)
       },
       readArv           = function() {
+         google_account("nhsss@doh.gov.ph")
          files       <- list.files(file.path(self$root, "arv"), full.names = TRUE)
          data        <- pblapply(files, read_ods, col_types = cols(.default = "c"), .name_repair = "unique_quiet")
          data        <- lapply(data, mutate_all, toupper)
@@ -448,26 +452,25 @@ LyArt <- R6Class(
          max_id <- max(self$data$ids$row_id)
          new    <- self$data$converted %>%
             filter(is.na(central_id)) %>%
-            select(
-               -curr_reg,
-               -curr_prov,
-               -curr_munc
-            ) %>%
+            # select(
+            #    -curr_reg,
+            #    -curr_prov,
+            #    -curr_munc
+            # ) %>%
             left_join(read_sheet("1c334aEKFTOl3Cg9Uji7tq1rZjlPM8RKpdXwQgOGyAIg", "facility_id", col_types = "c") %>% rename(Branch = SITE), join_by(Branch)) %>%
-            left_join(read_sheet("1c334aEKFTOl3Cg9Uji7tq1rZjlPM8RKpdXwQgOGyAIg", "addr", col_types = "c") %>% rename(curr_addr = addr), join_by(curr_addr)) %>%
-            left_join(
-               y  = ohasis$ref_addr %>%
-                  select(
-                     psgc,
-                     curr_reg  = reg,
-                     curr_prov = prov,
-                     curr_munc = munc,
-                     curr_brgy = brgy,
-                  ),
-               by = join_by(psgc)
-            ) %>%
+            # left_join(read_sheet("1c334aEKFTOl3Cg9Uji7tq1rZjlPM8RKpdXwQgOGyAIg", "addr", col_types = "c") %>% rename(curr_addr = addr), join_by(curr_addr)) %>%
+            # left_join(
+            #    y  = ohasis$ref_addr %>%
+            #       select(
+            #          psgc,
+            #          curr_reg  = reg,
+            #          curr_prov = prov,
+            #          curr_munc = munc,
+            #          curr_brgy = brgy,
+            #       ),
+            #    by = join_by(psgc)
+            # ) %>%
             distinct(
-               row_id,
                faci_id     = FACI_ID,
                sub_faci_id = SUB_FACI_ID,
                patient_code,
@@ -485,7 +488,7 @@ LyArt <- R6Class(
                curr_reg,
                curr_prov,
                curr_munc,
-               curr_brgy,
+               # curr_brgy,
                curr_addr,
                self_ident
             ) %>%

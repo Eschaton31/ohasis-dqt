@@ -15,7 +15,9 @@ LyHts <- R6Class(
             month <- month(Sys.time())
          }
 
-         self$months <- toupper(month.name[seq_len(month)])
+         self$months <- toupper(month.name[month])
+         # self$months <- toupper(month.name[seq_len(month)])
+         # self$months <- toupper(month.name[4:month])
 
          invisible(self)
       },
@@ -31,10 +33,13 @@ LyHts <- R6Class(
 
          for (i in seq_len(nrow(sheets))) {
             branch <- sheets[i,]$branch
-            link   <- sheets[i,]$link
-            file   <- file.path(dir, stri_c(branch, ".ods"))
-            log_info("Downloading = {green(branch)}.")
-            drive_download(link, file, overwrite = TRUE)
+
+            if (branch != 'ANGLO') { # try to manual download ods of anglo every time
+               link <- sheets[i,]$link
+               file <- file.path(dir, stri_c(branch, ".ods"))
+               log_info("Downloading = {green(branch)}.")
+               drive_download(link, file, overwrite = TRUE)
+            }
          }
 
          invisible(self)
@@ -131,7 +136,8 @@ LyHts <- R6Class(
                   Branch == 'LUXECARE ALABANG' ~ 'LoveYourself, Inc. - LuxeCare Alabang',
                   Branch == 'MOCHI' ~ 'LoveYourself, Inc. - MOCHI',
                   Branch == 'ANGLO' ~ 'LoveYourself, Inc. - Anglo',
-               )
+               ),
+               `LOCATION` = NA_character_
             ) %>%
             separate_wider_delim(
                `CITY/MUNICIPALITYOFRESIDENCE(CURRENT)`,

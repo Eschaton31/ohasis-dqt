@@ -19,6 +19,7 @@ LyVl <- R6Class(
          invisible(self)
       },
       downloadArtDb     = function() {
+         google_account("eb@loveyourself.ph")
          local_drive_quiet()
          local_gs4_quiet()
 
@@ -40,6 +41,7 @@ LyVl <- R6Class(
          invisible(self)
       },
       downloadVl        = function() {
+         google_account("eb@loveyourself.ph")
          local_drive_quiet()
          local_gs4_quiet()
 
@@ -68,6 +70,7 @@ LyVl <- R6Class(
          invisible(self)
       },
       readArtDb         = function() {
+         google_account("nhsss@doh.gov.ph")
          files       <- list.files(file.path(self$root, "art"), full.names = TRUE)
          data        <- pblapply(files, read_ods, sheet = "Client Information", col_types = cols(.default = "c"), .name_repair = "unique_quiet")
          data        <- lapply(data, mutate_all, toupper)
