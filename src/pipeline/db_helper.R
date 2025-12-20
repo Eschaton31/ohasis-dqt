@@ -1801,7 +1801,7 @@ trial_to_live <- function(form, faci_id, min, max) {
    return(tables)
 }
 
-update_idreg <- function() {
+update_idreg <- function(start = NULL) {
    if (!file.exists(Sys.getenv("LOC_IDREG"))) {
       df <- data.frame(
          patient_id = NA_character_,
@@ -1814,15 +1814,14 @@ update_idreg <- function() {
          deleted_at = NA_POSIXct_
       )
       write_rds(df, Sys.getenv("LOC_IDREG"))
-      print("Hello")
    }
 
    log_info("Reading Local File")
-
    idreg <- read_rds(Sys.getenv("LOC_IDREG"))
 
    loc_snap <- suppress_warnings(max(max(idreg$created_at, na.rm = TRUE), max(idreg$updated_at, na.rm = TRUE), max(idreg$deleted_at, na.rm = TRUE)), 'no non-missing')
    loc_snap <- format(as.POSIXct(ifelse(is.na(loc_snap) | is.infinite(loc_snap), "1970-01-01", loc_snap)), "%Y-%m-%d %H:%M:%S")
+   loc_snap <- ifelse(!is.null(start), start, loc_snap)
 
    # conn_lw <- ohasis$conn("lw")
    # lw_snap <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$selectRaw("MAX(SNAPSHOT) AS snap")$get()
@@ -1833,8 +1832,12 @@ update_idreg <- function() {
    log_info("Fetching Data")
 
    conn_lw   <- connect('mariadb-lw')
-   new_idreg <- QB$new(conn_lw)$from("ohasis_lake.id_registry")$where("created_at", ">=", loc_snap, 'or')$where("updated_at", ">=", loc_snap, 'or')$where("deleted_at", ">=", loc_snap, 'or')$get()
-   # new_idreg <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$whereBetween("SNAPSHOT", c(loc_snap, lw_snap))$get()
+   new_idreg <- QB$new(conn_lw)$
+      from("ohasis_lake.id_registry")$
+      where("created_at", ">=", loc_snap, 'or')$
+      where("updated_at", ">=", loc_snap, 'or')$
+      where("deleted_at", ">=", loc_snap, 'or')$
+      get()
    dbDisconnect(conn_lw)
 
    updated_idreg <- idreg %>%
@@ -1851,9 +1854,11 @@ update_idreg <- function() {
 
    write_rds(updated_idreg, Sys.getenv("LOC_IDREG"))
 
-   diff <- nrow(updated_idreg) - nrow(idreg)
-   log_info("diff = {red(diff)} rows added")
-   log_success("ID REGISTRY UPDATED!!!!")
+   new_rows     <- nrow(updated_idreg) - nrow(idreg)
+   updated_rows <- nrow(inner_join(idreg, new_idreg, join_by(patient_id)))
+   log_info("New IDs = {red(new_rows)} rows added")
+   log_info("Updated IDs = {red(updated_rows)} rows added")
+   log_success("Done!")
 
    return(updated_idreg)
 }
