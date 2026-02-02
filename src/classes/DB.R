@@ -181,10 +181,10 @@ DB <- R6Class(
          table_sql   <- DBI::SQL(paste0('`', db_name, '`.`', table_name, '`'))
 
          # check if table exists, if not create
-         if (!dbExistsTable(db_conn, table_name)) {
-            sql <- self$create(db_name, table_name, data, id_col)
-            dbExecute(db_conn, sql)
-         }
+         # if (!dbExistsTable(db_conn, table_name)) {
+         #    sql <- self$create(db_name, table_name, data, id_col)
+         #    dbExecute(db_conn, sql)
+         # }
 
          # compare columns match, if not re-create table
          # names_data  <- sort(names(data))
@@ -706,14 +706,19 @@ DB <- R6Class(
          faci_id     <- as.name(faci_id)
          sub_faci_id <- as.name(sub_faci_id)
 
-         # rename columns
          linelist %<>%
+            mutate(
+               fn_id = row_number()
+            )
+
+         mergeable <- linelist %>%
+            select(fn_id, {{faci_id}}, {{sub_faci_id}}) %>%
             mutate(
                {{faci_id}}     := coalesce({{faci_id}}, ""),
                {{sub_faci_id}} := case_when(
                   str_left({{sub_faci_id}}, 6) != {{faci_id}} ~ "",
-                  # {{sub_faci_id}} == "130023_001" ~ "130023_001",
-                  # str_left({{sub_faci_id}}, 6) %in% c("130001", "130605", "040200", "130797") ~ {{sub_faci_id}},
+                  {{sub_faci_id}} == "130023_001" ~ "130023_001",
+                  str_left({{sub_faci_id}}, 6) %in% c("130001", "130605", "040200", "130797") ~ {{sub_faci_id}},
                   TRUE ~ ""
                )
             ) %>%
@@ -734,21 +739,26 @@ DB <- R6Class(
                   ),
                by = input_set[[1]]
             ) %>%
-            # move then rename to old version
-            relocate({{final_faci}}, .after = {{sub_faci_id}}) %>%
             # remove id data
             select(-any_of(input_set[[1]]))
 
          # extract address
          if (!is.null(addr_names)) {
             names(addr_cols) <- addr_names
-            linelist %<>%
+            mergeable %<>%
                get_addr(
                   addr_cols,
                   return_type
                ) %>%
                relocate(names(addr_names), .after = {{final_faci}})
          }
+
+         linelist %<>%
+            # remove id data
+            left_join(mergeable, join_by(fn_id)) %>%
+            # move then rename to old version
+            relocate({{final_faci}}, .after = {{sub_faci_id}}) %>%
+            select(-any_of(input_set[[1]]), -fn_id)
 
          return(linelist)
       },
