@@ -1,4 +1,4 @@
-get_hts <- function(min, max, faci_ids) {
+get_hts <- function(min, max, faci_ids = NULL) {
 
    read_forms <- function(min, max, faci_ids) {
       con   <- connect('mariadb-lw')
@@ -54,7 +54,7 @@ get_hts <- function(min, max, faci_ids) {
          query$whereNested
       })
 
-      if (!missing(faci_ids)) {
+      if (!is.null(faci_ids)) {
          forms$where(function(query = QB$new(con)) {
             query$whereIn("faci_id", faci_ids, 'or')
             query$whereIn("service_faci", faci_ids, 'or')
@@ -116,7 +116,7 @@ get_hts <- function(min, max, faci_ids) {
          query$whereNested
       })
 
-      if (!missing(faci_ids)) {
+      if (!is.null(faci_ids)) {
          forms$where(function(query = QB$new(con)) {
             query$whereIn("faci_id", faci_ids, 'or')
             query$whereIn("service_faci", faci_ids, 'or')
@@ -134,7 +134,7 @@ get_hts <- function(min, max, faci_ids) {
          query$whereNested
       })
 
-      if (!missing(faci_ids)) {
+      if (!is.null(faci_ids)) {
          forms$where(function(query = QB$new(con)) {
             query$whereIn("faci_id", faci_ids, 'or')
             query$whereIn("service_faci", faci_ids, 'or')
@@ -172,6 +172,107 @@ get_hts <- function(min, max, faci_ids) {
       bind_rows() %>%
       distinct(rec_id, .keep_all = TRUE)
 
+   return(list(hts = form_hts, a = form_a, cfbs = form_cfbs))
+}
+
+get_hts_recs <- function(rec_ids) {
+   con   <- connect('mariadb-lw')
+   forms <- QB$new(con)
+   forms$select(
+      "form_hts.*",
+      'confirm.confirm_faci',
+      'confirm.confirm_sub_faci',
+      'confirm.confirm_type',
+      'confirm.confirm_code',
+      'confirm.specimen_refer_type',
+      'confirm.specimen_source',
+      'confirm.specimen_sub_source',
+      'confirm.date_collect',
+      'confirm.date_receive',
+      'confirm.confirm_result',
+      'confirm.confirm_remarks',
+      'confirm.signatory_1',
+      'confirm.signatory_2',
+      'confirm.signatory_3',
+      'confirm.date_release',
+      'confirm.date_confirm',
+      'confirm.idnum',
+      'confirm.rt_agreed',
+      'confirm.rt_date',
+      'confirm.rt_result',
+      'confirm.rt_kit',
+      'confirm.rt_vl_requested',
+      'confirm.rt_vl_done',
+      'confirm.rt_vl_date',
+      'confirm.rt_vl_result',
+      'confirm.rita_result',
+      'test.t1_date',
+      'test.t1_result',
+      'test.t1_kit',
+      'test.t2_date',
+      'test.t2_result',
+      'test.t2_kit',
+      'test.t3_date',
+      'test.t3_result',
+      'test.t3_kit'
+   )
+   forms$from("ohasis_warehouse.form_hts")
+   forms$leftJoin("ohasis_lake.px_hiv_confirmatory as confirm", "form_hts.rec_id", "=", "confirm.rec_id")
+   forms$leftJoin("ohasis_lake.px_hiv_testing as test", "form_hts.rec_id", "=", "test.rec_id")
+   forms$whereIn('form_hts.rec_id', rec_ids)
+   form_hts <- forms$get()
+
+   forms <- QB$new(con)
+   forms$select(
+      "form_a.*",
+      'confirm.confirm_faci',
+      'confirm.confirm_sub_faci',
+      'confirm.confirm_type',
+      'confirm.confirm_code',
+      'confirm.specimen_refer_type',
+      'confirm.specimen_source',
+      'confirm.specimen_sub_source',
+      'confirm.date_collect',
+      'confirm.date_receive',
+      'confirm.confirm_result',
+      'confirm.confirm_remarks',
+      'confirm.signatory_1',
+      'confirm.signatory_2',
+      'confirm.signatory_3',
+      'confirm.date_release',
+      'confirm.date_confirm',
+      'confirm.idnum',
+      'confirm.rt_agreed',
+      'confirm.rt_date',
+      'confirm.rt_result',
+      'confirm.rt_kit',
+      'confirm.rt_vl_requested',
+      'confirm.rt_vl_done',
+      'confirm.rt_vl_date',
+      'confirm.rt_vl_result',
+      'confirm.rita_result',
+      'test.t1_date',
+      'test.t1_result',
+      'test.t1_kit',
+      'test.t2_date',
+      'test.t2_result',
+      'test.t2_kit',
+      'test.t3_date',
+      'test.t3_result',
+      'test.t3_kit'
+   )
+   forms$from("ohasis_warehouse.form_a")
+   forms$leftJoin("ohasis_lake.px_hiv_confirmatory as confirm", "form_a.rec_id", "=", "confirm.rec_id")
+   forms$leftJoin("ohasis_lake.px_hiv_testing as test", "form_a.rec_id", "=", "test.rec_id")
+   forms$whereIn('form_a.rec_id', rec_ids)
+   form_a <- forms$get()
+
+   forms <- QB$new(con)
+   forms$from("ohasis_warehouse.form_cfbs")
+   forms$whereIn('form_cfbs.rec_id', rec_ids)
+   form_cfbs <- forms$get()
+
+   dbDisconnect(con)
    return(list(hts = form_hts, a = form_a, cfbs = form_cfbs))
 }
 
@@ -973,7 +1074,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
             TRUE ~ 0
          ),
 
-         p10y                  = hts_date %m-% years(1),
+         p10y                  = hts_date %m-% years(10),
          p10y                  = year(p10y),
 
          mot                   = 0,
