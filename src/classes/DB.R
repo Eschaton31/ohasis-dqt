@@ -206,7 +206,7 @@ DB <- R6Class(
             mutate_if(is.POSIXct, ~format(., '%Y-%m-%d %H:%M:%S'))
 
          # upsert data
-         chunk_size <- 1000
+         chunk_size <- 10000
          if (nrow(data) >= chunk_size) {
             # upload in chunks to monitor progress
             n_rows     <- nrow(data)
