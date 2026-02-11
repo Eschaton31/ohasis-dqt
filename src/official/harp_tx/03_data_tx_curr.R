@@ -259,7 +259,7 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
          pregnant         = as.integer(keep_code(is_pregnant)),
 
          # tag if new data is to be used
-         new_report       = if_else(is.na(prev_outcome), 1, 0, 0),
+         new_report       = if_else(is.na(prev_outcome) | prev_outcome == '(no data)', 1, 0, 0),
          use_type         = case_when(
             !is.na(medicine_summary) & latest_next_date >= -25567 ~ "latest",
             !is.na(lastdisp_arv) & lastdisp_next_date >= -25567 ~ "lastdisp",
@@ -635,7 +635,7 @@ finalize_faci <- function(data) {
       ) %>%
       mutate(
          branch         = case_when(
-            hub == "BGN" ~ "TLY-bagani",
+            hub == "BGN" ~ "TLY-BAGANI",
             hub == "TLY" & is.na(branch) ~ "TLY-ANGLO",
             TRUE ~ branch
          ),
@@ -1667,8 +1667,10 @@ output_dta <- function(official, params, save = "2") {
    new_outcome <- get_form_data(new_outcome, p$forms$form_art_bc)
    # new_outcome <- label_stata(new_outcome, p$corr$stata_labels)
 
-   step$check <- get_checks(data, new_outcome, p$official$new_reg, p$params, run_checks = vars$run_checks)
-   step$data  <- data
+   step$check      <- get_checks(data, new_outcome, p$official$new_reg, p$params, run_checks = vars$run_checks)
+   step$data       <- data
+   step$last_disp  <- last_disp
+   step$last_visit <- last_visit
 
    p$official$new_outcome <- new_outcome
    output_dta(p$official, p$params, vars$save)
