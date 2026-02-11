@@ -218,17 +218,18 @@ download_tables <- function(params) {
    #    )
    forms$vl_last <- hs_data("harp_vl", "all", params$yr, params$mo) %>%
       read_dta() %>%
+      rename_all(tolower) %>%
       filter(
-         VL_DROP == 0,
-         VL_ERROR == 0,
-         coalesce(CENTRAL_ID, "") != "",
+         vl_drop == 0,
+         vl_error == 0,
+         coalesce(central_id, "") != "",
          vl_date <= params$max,
       ) %>%
-      arrange(VL_SORT, desc(vl_date), res_tag) %>%
+      arrange(vl_sort, desc(vl_date), res_tag) %>%
       select(
-         CENTRAL_ID,
-         LAB_VIRAL_DATE   = vl_date,
-         LAB_VIRAL_RESULT = vl_result_clean
+         central_id,
+         lab_viral_date   = vl_date,
+         lab_viral_result = vl_result_clean
       ) %>%
       rename_all(tolower) %>%
       distinct(central_id, .keep_all = TRUE)
