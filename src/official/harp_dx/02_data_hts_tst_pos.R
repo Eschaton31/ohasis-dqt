@@ -30,7 +30,10 @@ clean_data <- function(forms) {
                hts_visit = record_date
             ),
          by = join_by(central_id, closest(record_date >= hts_visit))
-      )
+      ) %>%
+      # Allow only forms w/in 6-12months
+      filter(floor(abs(interval(record_date, hts_visit) / months(1))) < 12)
+
    after_confirm  <- forms$px_confirmed %>%
       anti_join(same, join_by(rec_id)) %>%
       anti_join(before_confirm, join_by(rec_id)) %>%
@@ -47,7 +50,6 @@ clean_data <- function(forms) {
             ),
          by = join_by(central_id, closest(record_date <= hts_visit))
       )
-
 
    data <- bind_rows(same, before_confirm, after_confirm) %>%
       left_join(
