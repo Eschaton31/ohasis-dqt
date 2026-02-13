@@ -576,13 +576,13 @@ finalize_outcomes <- function(data, params) {
       ) %>%
       mutate(
          baseline_vl   = if_else(
-            condition = floor(interval(artstart_date, vl_date) / days()) <= 182,
+            condition = floor(interval(artstart_date, vl_date) / days()) <= 82,
             true      = as.integer(1),
             false     = NA_integer_,
             missing   = NA_integer_
          ),
          vl_suppressed = if_else(
-            condition = vl_result < 1000,
+            condition = vl_result < 50,
             true      = 1,
             false     = 0,
             missing   = 0
