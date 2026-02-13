@@ -455,7 +455,8 @@ apply_corrections <- function(data, corr, id_name) {
    variables <- lapply(variables, function(corrections) {
       format <- corrections[1,]$format
       corrections %<>%
-         select({{id_col}}, new_value)
+         select({{id_col}}, new_value) %>%
+         mutate(new_value = coalesce(new_value, ''))
 
       corrections[['new_value']] <- infer_type(corrections[['new_value']], format)
 
@@ -517,7 +518,7 @@ hs_download <- function(sys, type, yr, mo) {
    table_data    <- stri_c(sys, ".", type, "_", yr, mo)
 
 
-   con     <- connect('old-lw')
+   con     <- connect('ohasis-lw')
    version <- QB$new(con)$
       from(table_version)$
       where("type", type)$
