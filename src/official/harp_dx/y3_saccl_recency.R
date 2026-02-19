@@ -2,14 +2,14 @@
 
 get_pdf_data <- function(file = NULL) {
    if (is.null(file))
-      file <- input("Kindly provide the UNIX path to the SACCL PDF Logsheet.")
+      file <- input("Kindly provide the unix path to the saccl pdf Logsheet.")
 
    if (tools::file_ext(file) == "pdf") {
-      log_info("Extractinng tables from PDF.")
+      log_info("Extractinng tables from pdf.")
       lst        <- tabulizer::extract_tables(file = file, method = "lattice")
       recency_df <- lst %>%
          lapply(function(data) {
-            col_need   <- c("LAB#", "RECENCYTESTDATE", "RECENCYTESTKIT", "RECENCYTESTRESULT", "VIRALLOADTESTREQUESTED", "VIRALLOADTESTDATE", "VIRALLOADTESTRESULT")
+            col_need   <- c("lab#", "recencytestdate", "recencytestkit", "recencytestresult", "viralloadtestrequested", "viralloadtestdate", "viralloadtestresult")
             col_val    <- str_replace_all(toupper(data[1,]), "\\s", "")
             col_key    <- seq_len(length(col_val))
             col_select <- c()
@@ -29,13 +29,13 @@ get_pdf_data <- function(file = NULL) {
                slice(-1) %>%
                rename_all(
                   ~case_when(
-                     . == "LAB#" ~ "CONFIRM_CODE",
-                     . == "RECENCYTESTDATE" ~ "RT_DATE",
-                     . == "RECENCYTESTKIT" ~ "RT_KIT",
-                     . == "RECENCYTESTRESULT" ~ "RT_RESULT",
-                     . == "VIRALLOADTESTREQUESTED" ~ "RT_VL_REQUESTED",
-                     . == "VIRALLOADTESTDATE" ~ "RT_VL_DATE",
-                     . == "VIRALLOADTESTRESULT" ~ "RT_VL_RESULT",
+                     . == "lab#" ~ "confirm_code",
+                     . == "recencytestdate" ~ "rt_date",
+                     . == "recencytestkit" ~ "rt_kit",
+                     . == "recencytestresult" ~ "rt_result",
+                     . == "viralloadtestrequested" ~ "rt_vl_requested",
+                     . == "viralloadtestdate" ~ "rt_vl_date",
+                     . == "viralloadtestresult" ~ "rt_vl_result",
                      TRUE ~ .
                   )
                )
@@ -49,17 +49,18 @@ get_pdf_data <- function(file = NULL) {
          )
 
    } else if (tools::file_ext(file) == "xlsx") {
-      recency_df <- read_xlsx(file, .name_repair = "unique_quiet") %>%
+      recency_df <- read_xlsx(file, .name_repair = "unique_quiet", col_types = "text") %>%
          rename_all(~str_replace_all(toupper(.), "\\s", "")) %>%
+         rename_with(tolower) %>%
          rename_all(
             ~case_when(
-               . == "LAB#" ~ "CONFIRM_CODE",
-               . == "RECENCYTESTDATE" ~ "RT_DATE",
-               . == "RECENCYTESTKIT" ~ "RT_KIT",
-               . == "RECENCYTESTRESULT" ~ "RT_RESULT",
-               . == "VIRALLOADTESTREQUESTED" ~ "RT_VL_REQUESTED",
-               . == "VIRALLOADTESTDATE" ~ "RT_VL_DATE",
-               . == "VIRALLOADTESTRESULT" ~ "RT_VL_RESULT",
+               . == "lab#" ~ "confirm_code",
+               . == "recencytestdate" ~ "rt_date",
+               . == "recencytestkit" ~ "rt_kit",
+               . == "recencytestresult" ~ "rt_result",
+               . == "viralloadtestrequested" ~ "rt_vl_requested",
+               . == "viralloadtestdate" ~ "rt_vl_date",
+               . == "viralloadtestresult" ~ "rt_vl_result",
                TRUE ~ .
             )
          )
@@ -71,65 +72,68 @@ get_pdf_data <- function(file = NULL) {
          ~str_squish(toupper(.))
       ) %>%
       mutate(
-         CONFIRM_CODE    = str_squish(CONFIRM_CODE),
-         TEST_RESULT     = case_when(
-            str_detect(RT_RESULT, "RECENT") ~ "1",
-            str_detect(RT_RESULT, "LONG-TERM") ~ "2",
-            str_detect(RT_RESULT, "INCONCLUSIVE") ~ "3",
+         confirm_code    = str_squish(confirm_code),
+         confirm_code    = str_replace_all(confirm_code, '--', '-'),
+         test_result     = case_when(
+            str_detect(rt_result, "RECENT") ~ "1",
+            str_detect(rt_result, "LONG-TERM") ~ "2",
+            str_detect(rt_result, "INCONCLUSIVE") ~ "3",
          ),
-         RT_AGREED       = 1,
-         RT_KIT          = "1014",
-         RT_RESULT       = case_when(
-            str_detect(RT_RESULT, "RECENT") ~ "Recent Infection",
-            str_detect(RT_RESULT, "LONG-TERM") ~ "Long Term Infection",
-            str_detect(RT_RESULT, "RITA LONG") ~ "Long Term Infection",
-            str_detect(RT_RESULT, "INCONCLUSIVE") ~ "Inconclusive",
-            TRUE ~ RT_RESULT
+         rt_agreed       = 1,
+         rt_kit          = "1014",
+         rt_result       = case_when(
+            str_detect(rt_result, "RECENT") ~ "Recent Infection",
+            str_detect(rt_result, "LONG-TERM") ~ "Long Term Infection",
+            str_detect(rt_result, "RITA-LONG") ~ "Long Term Infection",
+            str_detect(rt_result, "RITA LONG") ~ "Long Term Infection",
+            str_detect(rt_result, "INCONCLUSIVE") ~ "Inconclusive",
+            TRUE ~ rt_result
          ),
-         RT_VL_REQUESTED = if_else(RT_VL_REQUESTED == "Yes", 1, 0, 0),
+         rt_vl_requested = if_else(rt_vl_requested == "Yes", 1, 0, 0),
       ) %>%
       mutate_at(
-         .vars = vars(RT_DATE, RT_VL_DATE),
+         .vars = vars(rt_date, rt_vl_date),
          ~case_when(
-            str_detect(., "/") ~ as.Date(., "%m/%d/%Y"),
-            StrIsNumeric(.) ~ excel_numeric_to_date(as.numeric(.)),
+            stri_detect_fixed(., "-") ~ as.Date(parse_date_time(., 'mdY')),
+            stri_detect_fixed(., "-") ~ as.Date(parse_date_time(., 'Ymd')),
+            !str_detect(., "[^[:digit:]]") ~ excel_numeric_to_date(as.numeric(.)),
          )
       )
 
    return(recency_df)
 }
 
-##  Match pdf tables with OHASIS -----------------------------------------------
+##  Match pdf tables with ohasis -----------------------------------------------
 
 match_ohasis <- function(pdf_data) {
    # get list of labcodes
-   log_info("Downloading data already in OHASIS.")
-   db_conn  <- ohasis$conn("db")
-   labcodes <- unique(pdf_data$CONFIRM_CODE)
+   log_info("Downloading data already in ohasis.")
+   db_conn  <- connect('ohasis-live')
+   labcodes <- unique(pdf_data$confirm_code)
    query    <- r"(
-SELECT px_confirm.*,
-       1                                          AS EXIST_CONFIRM,
-       IF(px_rtri.RT_RESULT IS NOT NULL, 1, 0)    AS EXIST_RT,
-       IF(px_test_hiv.KIT_NAME IS NOT NULL, 1, 0) AS EXIST_TEST,
-       IF(px_labs.LAB_RESULT IS NOT NULL, 1, 0)   AS EXIST_VL
-FROM ohasis_interim.px_confirm
-         JOIN ohasis_interim.px_record ON px_confirm.REC_ID = px_record.REC_ID
-         LEFT JOIN ohasis_interim.px_rtri ON px_confirm.REC_ID = px_rtri.REC_ID
-         LEFT JOIN ohasis_interim.px_test_hiv ON px_confirm.REC_ID = px_test_hiv.REC_ID AND px_test_hiv.TEST_TYPE = 60
-         LEFT JOIN ohasis_interim.px_labs ON px_confirm.REC_ID = px_labs.REC_ID AND px_labs.LAB_TEST = 4
-WHERE px_record.MODULE = 2
-  AND px_record.DELETED_AT IS NULL
-  AND px_confirm.CONFIRM_CODE IN (?)
+select px_confirm.*,
+       1                                          as exist_confirm,
+       if(px_rtri.rt_result is not NULL, 1, 0)    as exist_rt,
+       if(px_test.test_kit is not NULL, 1, 0)     as exist_test,
+       if(px_labs.lab_result is not NULL, 1, 0)   as exist_vl
+from ohasis.px_confirm
+         join ohasis.px_record on px_confirm.rec_id = px_record.rec_id
+         left join ohasis.px_rtri on px_confirm.rec_id = px_rtri.rec_id
+         left join ohasis.px_test on px_confirm.rec_id = px_test.rec_id and px_test.test_type = 60
+         left join ohasis.px_labs on px_confirm.rec_id = px_labs.rec_id and px_labs.lab_test = 4
+where px_record.module = 2
+  and px_record.deleted_at is NULL
+  and px_confirm.confirm_code in (?)
       )"
    oh_data  <- dbxSelect(db_conn, query, params = list(labcodes))
    dbDisconnect(db_conn)
 
-   log_info("Matchinng against PDF data.")
+   log_info("Matchinng against pdf data.")
    # match with pdf
    data <- pdf_data %>%
-      left_join(oh_data, join_by(CONFIRM_CODE)) %>%
+      left_join(oh_data, join_by(confirm_code), na_matches = 'never') %>%
       mutate_at(
-         .vars = vars(EXIST_CONFIRM, EXIST_RT, EXIST_TEST, EXIST_VL),
+         .vars = vars(exist_confirm, exist_rt, exist_test, exist_vl),
          ~coalesce(., 0)
       )
 
@@ -147,8 +151,8 @@ get_checks <- function(pdf_data) {
 
    check <- list()
    if (update == "1") {
-      check$CONFIRM_NOT_OH <- pdf_data %>%
-         filter(EXIST_CONFIRM == 0)
+      check$confirm_not_oh <- pdf_data %>%
+         filter(exist_confirm == 0)
    }
 
    return(check)
@@ -157,7 +161,7 @@ get_checks <- function(pdf_data) {
 ##  Generating final data for import -------------------------------------------
 
 prepare_import <- function(data) {
-   TIMESTAMP <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+   timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 
    col_dates <- select_if(data, .predicate = is.Date) %>% names()
    col_posix <- select_if(data, .predicate = is.POSIXct) %>% names()
@@ -169,15 +173,16 @@ prepare_import <- function(data) {
       ) %>%
       mutate(
          # credentials
-         CREATED_BY  = Sys.getenv("OH_USER_ID"),
-         CREATED_AT  = coalesce(CREATED_AT, TIMESTAMP),
-         UPDATED_BY  = Sys.getenv("OH_USER_ID"),
-         UPDATED_AT  = coalesce(UPDATED_AT, TIMESTAMP),
+         created_by  = Sys.getenv("oh_user_id"),
+         created_at  = coalesce(created_at, timestamp),
+         updated_by  = Sys.getenv("oh_user_id"),
+         updated_at  = coalesce(updated_at, timestamp),
 
          # confirmatory data
-         FACI_ID     = "130023",
-         SUB_FACI_ID = "130023_001",
-      )
+         faci_id     = "130023",
+         sub_faci_id = "130023_001",
+      ) %>%
+      filter(!is.na(rec_id))
 
    return(import)
 }
@@ -186,88 +191,86 @@ generate_tables <- function(import) {
    tables         <- list()
    tables$px_rtri <- list(
       name = "px_rtri",
-      pk   = "REC_ID",
+      pk   = "rec_id",
       data = import %>%
-         filter(EXIST_RT == 0) %>%
+         filter(exist_rt == 0) %>%
          select(
-            REC_ID,
-            RT_AGREED,
-            RT_RESULT,
-            VL_REQUESTED = RT_VL_REQUESTED,
-            CREATED_BY,
-            CREATED_AT,
-            UPDATED_BY,
-            UPDATED_AT,
+            rec_id,
+            rt_agreed,
+            rt_result,
+            vl_requested = rt_vl_requested,
+            created_by,
+            created_at,
+            updated_by,
+            updated_at,
          )
    )
 
    tables$px_test <- list(
       name = "px_test",
-      pk   = c("REC_ID", "TEST_TYPE", "TEST_NUM"),
+      pk   = c("rec_id", "test_type", "test_num"),
       data = import %>%
-         filter(EXIST_TEST == 0) %>%
+         filter(exist_test == 0) %>%
          mutate(
-            TEST_TYPE = 60,
-            TEST_NUM  = 1,
+            test_type = 60,
+            test_num  = 1,
          ) %>%
          select(
-            REC_ID,
-            FACI_ID,
-            SUB_FACI_ID,
-            TEST_TYPE,
-            TEST_NUM,
-            DATE_PERFORM = RT_DATE,
-            RESULT       = TEST_RESULT,
-            CREATED_AT,
-            CREATED_BY,
-            UPDATED_BY,
-            UPDATED_AT,
+            rec_id,
+            faci_id,
+            sub_faci_id,
+            test_type,
+            test_num,
+            date_perform = rt_date,
+            result       = test_result,
+            test_kit     = rt_kit,
+            created_at,
+            created_by,
+            updated_by,
+            updated_at,
          )
    )
 
    tables$px_test_hiv <- list(
       name = "px_test_hiv",
-      pk   = c("REC_ID", "TEST_TYPE", "TEST_NUM"),
+      pk   = c("rec_id", "test_type", "test_num"),
       data = import %>%
-         filter(EXIST_TEST == 0) %>%
+         filter(exist_test == 0) %>%
          mutate(
-            TEST_TYPE   = 60,
-            TEST_NUM    = 1,
-            TEST_RESULT = str_c("1", TEST_RESULT)
+            test_type   = 60,
+            test_num    = 1,
+            test_result = str_c("1", test_result)
          ) %>%
          select(
-            REC_ID,
-            FACI_ID,
-            SUB_FACI_ID,
-            TEST_TYPE,
-            TEST_NUM,
-            KIT_NAME     = RT_KIT,
-            FINAL_RESULT = TEST_RESULT,
-            CREATED_AT,
-            CREATED_BY,
-            UPDATED_BY,
-            UPDATED_AT,
+            rec_id,
+            test_type,
+            test_num,
+            final_result = test_result,
+            created_at,
+            created_by,
+            updated_by,
+            updated_at,
          )
    )
 
    tables$px_labs <- list(
       name = "px_labs",
-      pk   = c("REC_ID", "LAB_TEST"),
+      pk   = c("rec_id", "lab_test"),
       data = import %>%
-         filter(EXIST_VL == 0, RT_RESULT == "Recent Infection", RT_VL_RESULT != "") %>%
+         filter(exist_vl == 0, rt_result == "Recent Infection", rt_vl_result != "") %>%
          mutate(
-            LAB_TEST = 4,
-            TEST_NUM = 1,
+            lab_test = 4,
+            test_num = 1,
          ) %>%
          select(
-            REC_ID,
-            LAB_TEST,
-            LAB_DATE   = RT_VL_DATE,
-            LAB_RESULT = RT_VL_RESULT,
-            CREATED_AT,
-            CREATED_BY,
-            UPDATED_BY,
-            UPDATED_AT,
+            rec_id,
+            lab_test,
+            lab_date   = rt_vl_date,
+            lab_result = rt_vl_result,
+            created_at,
+            created_by,
+            updated_by,
+            updated_at,
          )
    )
 
@@ -275,12 +278,11 @@ generate_tables <- function(import) {
 }
 
 import_data <- function(tables) {
-
-   db_conn <- ohasis$conn("db")
+   db_conn <- connect('ohasis-live')
    lapply(tables, function(ref, db_conn) {
-      table_space <- Id(schema = "ohasis_interim", table = ref$name)
-      dbxUpsert(db_conn, table_space, ref$data %>% filter(!is.na(REC_ID)), ref$pk)
-      update_credentials(ref$data$REC_ID)
+      table_space <- Id(schema = "ohasis", table = ref$name)
+      dbxUpsert(db_conn, table_space, ref$data %>% filter(!is.na(rec_id)), ref$pk)
+      update_credentials(ref$data$rec_id)
    }, db_conn)
    dbDisconnect(db_conn)
 }
