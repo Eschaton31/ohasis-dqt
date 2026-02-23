@@ -130,9 +130,7 @@ update_prep_rec_link <- function(update, path_to_sql) {
       delete_sql <- r"(
       DELETE ohasis.rec_link
       FROM ohasis.rec_link
-               LEFT JOIN ohasis.px_record
-                         ON rec_link.{replace} collate utf8mb4_unicode_ci = px_record.rec_id
-      WHERE px_record.deleted_at IS NOT NULL;
+      WHERE {replace} in (select rec_id from ohasis.px_record where deleted_at is not null);
       )"
       dbExecute(db_conn, stri_replace_all_fixed(delete_sql, "{replace}", "destination_rec"))
       dbExecute(db_conn, stri_replace_all_fixed(delete_sql, "{replace}", "source_rec"))
@@ -484,7 +482,7 @@ update_dataset <- function(params, corr, forms, reprocess) {
    official$old_reg <- QB$new(conn)$from('ohasis_warehouse.prep_old')$get()
    dbDisconnect(conn)
 
-   official$old_outcome <- hs_data("prep", "outcome", params$prev_yr, params$prev_mo) %>%
+   official$old_outcome <- hs_data("prep", "outcome", params$prev_yr, params$prev_mo, "dta") %>%
       read_dta() %>%
       rename_all(tolower) %>%
       # convert Stata string missing data to NAs
