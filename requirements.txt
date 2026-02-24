@@ -43,3 +43,4 @@ tibble
 readODS
 RClickhouse
 ClickHouseHTTP
+RSQLite
