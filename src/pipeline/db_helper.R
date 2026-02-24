@@ -1828,8 +1828,8 @@ update_idreg <- function(start = NULL) {
    updated_rows <- QB$new(conn)$from("id_registry")$whereIn("patient_id", new_idreg$patient_id)$count()
    new_rows     <- nrow(new_idreg) - updated_rows
 
-   log_info("New IDs = {red(new_rows)} rows")
-   log_info("Updated IDs = {red(updated_rows)} rows")
+   log_info("New IDs = {red(formatC(as.integer(new_rows), big.mark = ','))} rows")
+   log_info("Updated IDs = {red(formatC(as.integer(updated_rows), big.mark = ','))} rows")
 
    dbxUpsert(conn, 'id_registry', new_idreg, 'patient_id', batch_size = 10000)
    log_success("Done!")
@@ -1944,8 +1944,8 @@ update_pii <- function(start = NULL) {
    updated_rows <- QB$new(conn)$from("patients")$whereIn("patient_id", new_data$patient_id)$count()
    new_rows     <- nrow(new_data) - updated_rows
 
-   log_info("New IDs = {red(new_rows)} rows")
-   log_info("Updated IDs = {red(updated_rows)} rows")
+   log_info("New IDs = {red(formatC(as.integer(new_rows), big.mark = ','))} rows")
+   log_info("Updated IDs = {red(formatC(as.integer(updated_rows), big.mark = ','))} rows")
 
    dbxUpsert(conn, 'patients', new_data, 'patient_id', batch_size = 10000)
    log_success("Done!")
