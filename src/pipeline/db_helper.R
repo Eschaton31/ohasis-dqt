@@ -1802,35 +1802,19 @@ trial_to_live <- function(form, faci_id, min, max) {
 }
 
 update_idreg <- function(start = NULL) {
-   if (!file.exists(Sys.getenv("LOC_IDREG"))) {
-      df <- data.frame(
-         patient_id = NA_character_,
-         central_id = NA_character_,
-         created_by = NA_character_,
-         created_at = NA_POSIXct_,
-         updated_by = NA_character_,
-         updated_at = NA_POSIXct_,
-         deleted_by = NA_character_,
-         deleted_at = NA_POSIXct_
-      )
-      write_rds(df, Sys.getenv("LOC_IDREG"))
+   conn <- connect('local-sqlite')
+
+   if (!dbExistsTable(conn, "id_registry")) {
+      dbExecute(conn, "CREATE TABLE id_registry (patient_id TEXT PRIMARY KEY, central_id TEXT, created_by TEXT, created_at TIMESTAMP, updated_by TEXT, updated_at TIMESTAMP, deleted_by TEXT, deleted_at TIMESTAMP)")
    }
 
-   log_info("Reading Local File")
-   idreg <- read_rds(Sys.getenv("LOC_IDREG"))
-
-   loc_snap <- suppress_warnings(max(max(idreg$created_at, na.rm = TRUE), max(idreg$updated_at, na.rm = TRUE), max(idreg$deleted_at, na.rm = TRUE)), 'no non-missing')
-   loc_snap <- format(as.POSIXct(ifelse(is.na(loc_snap) | is.infinite(loc_snap), "1970-01-01", loc_snap)), "%Y-%m-%d %H:%M:%S")
-   loc_snap <- ifelse(!is.null(start), start, loc_snap)
-
-   # conn_lw <- ohasis$conn("lw")
-   # lw_snap <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$selectRaw("MAX(SNAPSHOT) AS snap")$get()
-   # lw_snap <- QB$new(conn_lw)$from("ohasis_warehouse.id_registry")$max("SNAPSHOT")
-   # lw_snap <- lw_snap [1,1]
-   # dbDisconnect(conn_lw)
+   loc_snap <- dbGetQuery(conn, "SELECT MAX(COALESCE(created_at, '1970-01-01')) as max_create, MAX(COALESCE(updated_at, '1970-01-01')) as max_update, MAX(COALESCE(deleted_at, '1970-01-01')) as max_delete FROM id_registry")
+   loc_snap <- as.character(max(loc_snap$max_create, loc_snap$max_update, loc_snap$max_delete, na.rm = TRUE))
+   if (!is.null(start)) {
+      loc_snap <- start
+   }
 
    log_info("Fetching Data")
-
    conn_lw   <- connect('mariadb-lw')
    new_idreg <- QB$new(conn_lw)$
       from("ohasis_lake.id_registry")$
@@ -1840,27 +1824,18 @@ update_idreg <- function(start = NULL) {
       get()
    dbDisconnect(conn_lw)
 
-   updated_idreg <- idreg %>%
-      anti_join(
-         y  = new_idreg,
-         by = join_by(patient_id)
-      ) %>%
-      bind_rows(
-         new_idreg
-      ) %>%
-      filter(
-         !is.na(patient_id)
-      )
+   updated_rows <- QB$new(conn)$from("id_registry")$whereIn("patient_id", new_idreg$patient_id)$count()
+   new_rows     <- nrow(new_idreg) - updated_rows
 
-   write_rds(updated_idreg, Sys.getenv("LOC_IDREG"))
+   log_info("New IDs = {red(new_rows)} rows")
+   log_info("Updated IDs = {red(updated_rows)} rows")
 
-   new_rows     <- nrow(updated_idreg) - nrow(idreg)
-   updated_rows <- nrow(inner_join(idreg, new_idreg, join_by(patient_id)))
-   log_info("New IDs = {red(new_rows)} rows added")
-   log_info("Updated IDs = {red(updated_rows)} rows added")
+   dbxUpsert(conn, 'id_registry', new_idreg, 'patient_id')
    log_success("Done!")
 
-   return(updated_idreg)
+   id_reg <- dbReadTable(conn, "id_registry")
+
+   return(id_reg)
 }
 
 update_pending_positives <- function() {
@@ -1927,4 +1902,24 @@ disp_update_px_medicine <- function(rec_ids) {
    update_credentials(unique(update$REC_ID))
 
    return(update)
+}
+
+validate_death <- function(rec_ids) {
+   data <- tibble(rec_id = rec_ids)
+   data %<>%
+      mutate(
+         death_info = "0",
+         info_num   = "2",
+         info_text  = "1",
+         created_by = Sys.getenv("OH_USER_ID"),
+         created_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+         updated_by = Sys.getenv("OH_USER_ID"),
+         updated_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+      )
+
+   con <- connect("ohasis-live")
+   dbxUpsert(con, Id(schema = "ohasis", table = "px_death"), data, c("rec_id", "death_info", "info_num"))
+   dbDisconnect(con)
+
+   update_credentials(rec_ids)
 }
