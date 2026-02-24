@@ -1805,11 +1805,11 @@ update_idreg <- function(start = NULL) {
    conn <- connect('local-sqlite')
 
    if (!dbExistsTable(conn, "id_registry")) {
-      dbExecute(conn, "CREATE TABLE id_registry (patient_id TEXT PRIMARY KEY, central_id TEXT, created_by TEXT, created_at TIMESTAMP, updated_by TEXT, updated_at TIMESTAMP, deleted_by TEXT, deleted_at TIMESTAMP)")
+      dbExecute(conn, "CREATE TABLE id_registry (patient_id TEXT PRIMARY KEY, central_id TEXT, created_by TEXT, created_at DATETIME, updated_by TEXT, updated_at DATETIME, deleted_by TEXT, deleted_at DATETIME)")
    }
 
    loc_snap <- dbGetQuery(conn, "SELECT MAX(COALESCE(created_at, '1970-01-01')) as max_create, MAX(COALESCE(updated_at, '1970-01-01')) as max_update, MAX(COALESCE(deleted_at, '1970-01-01')) as max_delete FROM id_registry")
-   loc_snap <- as.character(max(loc_snap$max_create, loc_snap$max_update, loc_snap$max_delete, na.rm = TRUE))
+   loc_snap <- as.character(max(loc_snap$max_create, loc_snap$max_update, loc_snap$max_delete, '1970-01-01', na.rm = TRUE))
    if (!is.null(start)) {
       loc_snap <- start
    }
@@ -1830,12 +1830,125 @@ update_idreg <- function(start = NULL) {
    log_info("New IDs = {red(new_rows)} rows")
    log_info("Updated IDs = {red(updated_rows)} rows")
 
-   dbxUpsert(conn, 'id_registry', new_idreg, 'patient_id')
+   dbxUpsert(conn, 'id_registry', new_idreg, 'patient_id', batch_size = 10000)
    log_success("Done!")
 
    id_reg <- dbReadTable(conn, "id_registry")
 
+   dbDisconnect(conn)
+
    return(id_reg)
+}
+
+update_pii <- function(start = NULL) {
+   conn <- connect('local-sqlite')
+
+   if (!dbExistsTable(conn, "patients")) {
+      dbExecute(conn, "CREATE TABLE patients (
+  patient_id        TEXT PRIMARY KEY,
+  faci_id           TEXT,
+  sub_faci_id       TEXT,
+  confirmatory_code TEXT,
+  patient_code      TEXT,
+  uic               TEXT,
+  philhealth_no     TEXT,
+  philsys_id        TEXT,
+  first             TEXT,
+  middle            TEXT,
+  last              TEXT,
+  suffix            TEXT,
+  birthdate         DATE,
+  age               TEXT,
+  age_mo            TEXT,
+  sex               TEXT,
+  self_ident        TEXT,
+  self_ident_other  TEXT,
+  client_email      TEXT,
+  client_mobile     TEXT,
+  nationality       TEXT,
+  civil_status      TEXT,
+  educ_level        TEXT,
+  curr_reg          TEXT,
+  curr_prov         TEXT,
+  curr_munc         TEXT,
+  curr_brgy         TEXT,
+  curr_addr         TEXT,
+  perm_reg          TEXT,
+  perm_prov         TEXT,
+  perm_munc         TEXT,
+  perm_brgy         TEXT,
+  perm_addr         TEXT,
+  birth_reg         TEXT,
+  birth_prov        TEXT,
+  birth_munc        TEXT,
+  birth_brgy        TEXT,
+  birth_addr        TEXT,
+  signature         TEXT,
+  verbal_consent    TEXT,
+  esig              TEXT,
+  created_by        TEXT,
+  created_at        DATETIME,
+  updated_by        TEXT,
+  updated_at        DATETIME,
+  deleted_by        TEXT,
+  deleted_at        DATETIME
+)")
+   }
+
+   loc_snap <- dbGetQuery(conn, "SELECT MAX(COALESCE(created_at, '1970-01-01')) as max_create, MAX(COALESCE(updated_at, '1970-01-01')) as max_update, MAX(COALESCE(deleted_at, '1970-01-01')) as max_delete FROM patients")
+   loc_snap <- as.character(max(loc_snap$max_create, loc_snap$max_update, loc_snap$max_delete, '1970-01-01', na.rm = TRUE))
+   if (!is.null(start)) {
+      loc_snap <- start
+   }
+
+   log_info("Fetching Data")
+   conn_lw  <- connect('mariadb-lw')
+   new_data <- QB$new(conn_lw)$
+      from("ohasis_lake.patients")$
+      where("created_at", ">=", loc_snap, 'or')$
+      where("updated_at", ">=", loc_snap, 'or')$
+      where("deleted_at", ">=", loc_snap, 'or')$
+      get()
+   dbDisconnect(conn_lw)
+
+   new_data %<>%
+      mutate_at(
+         .vars = vars(
+            first,
+            middle,
+            last,
+            suffix,
+            confirmatory_code,
+            patient_code,
+            uic,
+            philhealth_no,
+            philsys_id,
+            client_mobile,
+            client_email
+         ),
+         ~clean_pii(.)
+      ) %>%
+      mutate(
+         client_mobile = str_replace_all(client_mobile, "[^[:digit:]]", ""),
+         client_mobile = case_when(
+            str_left(client_mobile, 1) == "9" ~ stri_c("0", client_mobile),
+            str_left(client_mobile, 2) == "63" ~ str_replace(client_mobile, "^63", "0"),
+            TRUE ~ client_mobile
+         ),
+         birthdate     = as.character(birthdate)
+      )
+
+
+   updated_rows <- QB$new(conn)$from("patients")$whereIn("patient_id", new_data$patient_id)$count()
+   new_rows     <- nrow(new_data) - updated_rows
+
+   log_info("New IDs = {red(new_rows)} rows")
+   log_info("Updated IDs = {red(updated_rows)} rows")
+
+   dbxUpsert(conn, 'patients', new_data, 'patient_id', batch_size = 10000)
+   log_success("Done!")
+
+   dbDisconnect(conn)
 }
 
 update_pending_positives <- function() {
