@@ -1813,6 +1813,7 @@ update_idreg <- function(start = NULL) {
    if (!is.null(start)) {
       loc_snap <- start
    }
+   loc_snap <- str_left(loc_snap, 19)
 
    log_info("Fetching Data")
    conn_lw   <- connect('mariadb-lw')
@@ -1900,6 +1901,7 @@ update_pii <- function(start = NULL) {
    if (!is.null(start)) {
       loc_snap <- start
    }
+   loc_snap <- str_left(loc_snap, 19)
 
    log_info("Fetching Data")
    conn_lw  <- connect('mariadb-lw')
