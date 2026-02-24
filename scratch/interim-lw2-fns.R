@@ -122,37 +122,12 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
       filter(if_any(any_of(pii_cols), ~is.na(.)))
 
    if (nrow(missing) > 0) {
-      idreg <- read_rds(Sys.getenv("LOC_IDREG")) %>%
-         filter(central_id %in% missing$central_id)
-      pids  <- unique(c(idreg$patient_id, missing$patient_id))
+      update_pii()
+      conn <- connect("local-sqlite")
+      idreg <- QB$new(conn)$from('id_registry')$whereIn('central_id', missing$central_id, 'or')$whereIn('patient_id', missing$central_id, 'or')$get()
+      pids  <- unique(c(idreg$patient_id, missing$patient_id, missing$central_id))
 
-      pii <- read_rds(Sys.getenv("DEDUP_PII")) %>%
-         filter(patient_id %in% pids) %>%
-         mutate_at(
-            .vars = vars(
-               first,
-               middle,
-               last,
-               suffix,
-               confirmatory_code,
-               patient_code,
-               uic,
-               philhealth_no,
-               philsys_id,
-               client_mobile,
-               client_email
-            ),
-            ~clean_pii(.)
-         ) %>%
-         mutate(
-            client_mobile = str_replace_all(client_mobile, "[^[:digit:]]", ""),
-            client_mobile = case_when(
-               str_left(client_mobile, 1) == "9" ~ stri_c("0", client_mobile),
-               str_left(client_mobile, 2) == "63" ~ str_replace(client_mobile, "^63", "0"),
-               TRUE ~ client_mobile
-            ),
-            birthdate     = as.character(birthdate)
-         ) %>%
+      pii <-  QB$new(conn)$from('patients')$whereIn('patient_id', pids)$get() %>%
          get_cid(idreg, patient_id) %>%
          mutate(
             snapshot = max(created_at, updated_at, deleted_at, na.rm = TRUE)
@@ -471,11 +446,16 @@ deconstruct_art <- function(forms, dispense = NULL, discontinue = NULL) {
          mutate(
             medicine_summary = str_replace_all(medicine_summary, 'LPV/R', 'LPV/r')
          ) %>%
+         select(-matches('per_day')) %>%
          left_join(
             y  = products %>%
+               mutate(
+                  per_day = as.integer(typical_batch) / 30
+               ) %>%
                select(
                   medicine_summary = short,
-                  medicine         = product_id
+                  medicine         = product_id,
+                  per_day
                ),
             by = join_by(medicine_summary)
          ) %>%
@@ -497,7 +477,6 @@ deconstruct_art <- function(forms, dispense = NULL, discontinue = NULL) {
             medicine,
             disp_num,
             unit_basis,
-            per_day,
             disp_total,
             medicine_left,
             medicine_missed,
@@ -509,6 +488,54 @@ deconstruct_art <- function(forms, dispense = NULL, discontinue = NULL) {
             updated_by,
          ) %>%
          select(any_of(cols$px_medicine))
+
+      # data$px_labs <- forms %>%
+      #    select(
+      #       rec_id,
+      #       created_at,
+      #       created_by,
+      #       updated_at,
+      #       updated_by,
+      #       starts_with("lab"),
+      #    ) %>%
+      #    pivot_longer(
+      #       cols      = starts_with("lab"),
+      #       names_to  = "lab_data",
+      #       values_to = "lab_value"
+      #    ) %>%
+      #    mutate(
+      #       lab_test = substr(lab_data, 5, stri_locate_last_fixed(lab_data, "_") - 1),
+      #       piece    = substr(lab_data, stri_locate_last_fixed(lab_data, "_") + 1, 1000),
+      #    ) %>%
+      #    mutate(
+      #       lab_test = case_when(
+      #          lab_test == "hbsag" ~ "1",
+      #          lab_test == "crea" ~ "2",
+      #          lab_test == "syph" ~ "3",
+      #          lab_test == "vl" ~ "4",
+      #          lab_test == "viral" ~ "4",
+      #          lab_test == "cd4" ~ "5",
+      #          lab_test == "xray" ~ "6",
+      #          lab_test == "xpert" ~ "7",
+      #          lab_test == "dssm" ~ "8",
+      #          lab_test == "hivdr" ~ "9",
+      #          lab_test == "hemo" ~ "10",
+      #          lab_test == "hemog" ~ "10",
+      #          TRUE ~ lab_test
+      #       )
+      #    ) %>%
+      #    distinct(rec_id, created_at, created_by, lab_test, piece, .keep_all = TRUE) %>%
+      #    pivot_wider(
+      #       id_cols      = c(rec_id, created_at, created_by, lab_test),
+      #       names_from   = piece,
+      #       values_from  = lab_value,
+      #       names_prefix = "lab_"
+      #    ) %>%
+      #    filter(!is.na(lab_date) | !is.na(lab_result)) %>%
+      #    arrange(rec_id, lab_test) %>%
+      #    mutate(
+      #       lab_date = as.Date(parse_date_time(lab_date, c("Ymd", "mdY"))),
+      #    )
    } else {
       # labs
       data$px_labs <- forms %>%
