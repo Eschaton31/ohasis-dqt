@@ -385,7 +385,10 @@ connect <- function(group) {
       return(DBI::dbConnect(RMariaDB::MariaDB(), group = group, default.file = "my.cnf"))
    }
    if (group == 'mariadb-lw') {
-      return(DBI::dbConnect(ClickHouseHTTP::ClickHouseHTTP(), host = '192.168.193.236', port = 8123, password = 't1rh0uGCyN2sz6zk', encoding = 'UTF-8'))
+      return(DBI::dbConnect(ClickHouseHTTP::ClickHouseHTTP(), host = Sys.getenv('LW_HOST'), port = 8123, password = Sys.getenv('LW_PASS'), encoding = 'UTF-8'))
+   }
+   if (group == 'local-sqlite') {
+      return(DBI::dbConnect(RSQLite::SQLite(), Sys.getenv('SQLITE_DB')))
    }
 
    return(suppress_warnings(suppress_warnings(DBI::dbConnect(RClickhouse::clickhouse(), config_paths = str_c(group, ".yaml")), 'We have found'), 'incomplete'))
