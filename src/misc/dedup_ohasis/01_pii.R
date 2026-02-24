@@ -13,78 +13,85 @@ dedup_reqs <- function() {
 }
 
 dedup_download <- function() {
-   # open connections
-   lw_conn <- connect("mariadb-lw")
-
-   # instatiate list
+   # # open connections
+   # lw_conn <- connect("mariadb-lw")
+   #
+   # # instatiate list
    dedup     <- list()
-   dedup$pii <- tibble(patient_id = NA_character_) %>%
-      slice(0)
-   if (file.exists(Sys.getenv("DEDUP_PII")))
-      dedup$pii <- read_rds(Sys.getenv("DEDUP_PII"))
+   # dedup$pii <- tibble(patient_id = NA_character_) %>%
+   #    slice(0)
+   # if (file.exists(Sys.getenv("DEDUP_PII")))
+   #    dedup$pii <- read_rds(Sys.getenv("DEDUP_PII"))
+   #
+   # # download latest records not found in previous copy
+   # min <- "1900-01-01 00:00:00"
+   # max <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+   # if (nrow(dedup$pii) > 0)
+   #    min <- format(max(max(dedup$pii$created_at, na.rm = TRUE), max(dedup$pii$updated_at, na.rm = TRUE), max(dedup$pii$deleted_at, na.rm = TRUE)), "%Y-%m-%d %H:%M:00")
+   #
+   # # central id reference
+   # log_info("Downloading {green('id_registry')}.")
+   # dedup$id_registry <- update_idreg()
+   #
+   # # download data based on limits (min, max)
+   # log_info("Downloading {green('pii')}.")
+   # new_data <- QB$new(lw_conn)$from('ohasis_lake.patients')
+   # new_data$where(function(query = QB$new(lw_conn)) {
+   #    query$whereBetween('created_at', c(min, max), "or")
+   #    query$whereBetween('updated_at', c(min, max), "or")
+   #    query$whereBetween('deleted_at', c(min, max), "or")
+   #    query$whereNested
+   # })
+   # new_data <- new_data$get()
+   #
+   # new_data %<>%
+   #    mutate_at(
+   #       .vars = vars(
+   #          first,
+   #          middle,
+   #          last,
+   #          suffix,
+   #          confirmatory_code,
+   #          patient_code,
+   #          uic,
+   #          philhealth_no,
+   #          philsys_id,
+   #          client_mobile,
+   #          client_email
+   #       ),
+   #       ~clean_pii(.)
+   #    ) %>%
+   #    mutate(
+   #       client_mobile = str_replace_all(client_mobile, "[^[:digit:]]", ""),
+   #       client_mobile = case_when(
+   #          str_left(client_mobile, 1) == "9" ~ stri_c("0", client_mobile),
+   #          str_left(client_mobile, 2) == "63" ~ str_replace(client_mobile, "^63", "0"),
+   #          TRUE ~ client_mobile
+   #       ),
+   #       birthdate     = as.character(birthdate)
+   #    )
+   #
+   # # finalize data
+   # dedup$pii <- dedup$pii %>%
+   #    # remove old version of record
+   #    anti_join(select(new_data, patient_id)) %>%
+   #    # append new data
+   #    mutate(birthdate = as.character(birthdate)) %>%
+   #    bind_rows(new_data) %>%
+   #    filter(is.na(deleted_at))
+   #
+   # # write to local file for later use
+   # write_rds(dedup$pii, Sys.getenv("DEDUP_PII"))
+   #
+   # # close connections
+   # dbDisconnect(lw_conn)
 
-   # download latest records not found in previous copy
-   min <- "1900-01-01 00:00:00"
-   max <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-   if (nrow(dedup$pii) > 0)
-      min <- format(max(max(dedup$pii$created_at, na.rm = TRUE), max(dedup$pii$updated_at, na.rm = TRUE), max(dedup$pii$deleted_at, na.rm = TRUE)), "%Y-%m-%d %H:%M:00")
-
-   # central id reference
-   log_info("Downloading {green('id_registry')}.")
+   update_pii()
    dedup$id_registry <- update_idreg()
 
-   # download data based on limits (min, max)
-   log_info("Downloading {green('pii')}.")
-   new_data <- QB$new(lw_conn)$from('ohasis_lake.patients')
-   new_data$where(function(query = QB$new(lw_conn)) {
-      query$whereBetween('created_at', c(min, max), "or")
-      query$whereBetween('updated_at', c(min, max), "or")
-      query$whereBetween('deleted_at', c(min, max), "or")
-      query$whereNested
-   })
-   new_data <- new_data$get()
-
-   new_data %<>%
-      mutate_at(
-         .vars = vars(
-            first,
-            middle,
-            last,
-            suffix,
-            confirmatory_code,
-            patient_code,
-            uic,
-            philhealth_no,
-            philsys_id,
-            client_mobile,
-            client_email
-         ),
-         ~clean_pii(.)
-      ) %>%
-      mutate(
-         client_mobile = str_replace_all(client_mobile, "[^[:digit:]]", ""),
-         client_mobile = case_when(
-            str_left(client_mobile, 1) == "9" ~ stri_c("0", client_mobile),
-            str_left(client_mobile, 2) == "63" ~ str_replace(client_mobile, "^63", "0"),
-            TRUE ~ client_mobile
-         ),
-         birthdate     = as.character(birthdate)
-      )
-
-   # finalize data
-   dedup$pii <- dedup$pii %>%
-      # remove old version of record
-      anti_join(select(new_data, patient_id)) %>%
-      # append new data
-      mutate(birthdate = as.character(birthdate)) %>%
-      bind_rows(new_data) %>%
-      filter(is.na(deleted_at))
-
-   # write to local file for later use
-   write_rds(dedup$pii, Sys.getenv("DEDUP_PII"))
-
-   # close connections
-   dbDisconnect(lw_conn)
+   conn <- connect("local-sqlite")
+   dedup$pii <- dbReadTable(conn, 'patients')
+   dbDisconnect(conn)
 
    return(dedup)
 }
@@ -184,9 +191,9 @@ dedup_linelist <- function(dedup) {
          phic         = philhealth_no,
          philsys      = philsys_id
       ) %>%
-      mutate(row_id = row_number()) %>% 
+      mutate(row_id = row_number()) %>%
       left_join(
-         y = ohasis$ref_addr %>% 
+         y = ohasis$ref_addr %>%
             select(
                curr_psgc = psgc,
                curr_reg = nhsss_reg,
@@ -194,9 +201,9 @@ dedup_linelist <- function(dedup) {
                curr_munc = nhsss_munc
             ),
          by = join_by(curr_psgc)
-      ) %>% 
+      ) %>%
       left_join(
-         y = ohasis$ref_addr %>% 
+         y = ohasis$ref_addr %>%
             select(
                perm_psgc = psgc,
                perm_reg = nhsss_reg,
