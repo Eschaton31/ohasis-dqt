@@ -123,14 +123,15 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
 
    if (nrow(missing) > 0) {
       update_pii()
-      conn <- connect("local-sqlite")
+      conn  <- connect("local-sqlite")
       idreg <- QB$new(conn)$from('id_registry')$whereIn('central_id', missing$central_id, 'or')$whereIn('patient_id', missing$central_id, 'or')$get()
       pids  <- unique(c(idreg$patient_id, missing$patient_id, missing$central_id))
 
-      pii <-  QB$new(conn)$from('patients')$whereIn('patient_id', pids)$get() %>%
+      pii <- QB$new(conn)$from('patients')$whereIn('patient_id', pids)$get() %>%
          get_cid(idreg, patient_id) %>%
+         filter(is.na(deleted_at)) %>%
          mutate(
-            snapshot = max(created_at, updated_at, deleted_at, na.rm = TRUE)
+            snapshot = max(created_at, updated_at, na.rm = TRUE)
          ) %>%
          select(
             central_id,
