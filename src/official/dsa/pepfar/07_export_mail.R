@@ -1,12 +1,12 @@
 local(envir = pepfar, {
    ip <- list()
-   for (program in c("EpiC", "ICAP")) {
+   for (program in c("EpiC", "ICAP", "AIHA")) {
       ip_data  <- list()
       partner  <- tolower(program)
       var      <- switch(
          partner,
          epic = "site_epic_2024",
-         icap = "site_icap_2024",
+         icap = "site_icap_2025",
          aiha = "site_aiha_2023"
       )
       var_name <- as.name(var)
@@ -93,7 +93,7 @@ local(envir = pepfar, {
             remove_pii()
 
          exp %>%
-            write_dta(file.path(ip_data$dir, glue("{surv}.dta")))
+            write_dta(file.path(ip_data$dir, glue("{surv}_{coverage$curr$yr}-{coverage$curr$mo}.dta")))
 
          write_xlsx(
             ip_data$linelist[[surv]] %>%
@@ -102,9 +102,19 @@ local(envir = pepfar, {
                      stri_replace_all_fixed("/", "_") %>%
                      stri_replace_all_fixed(".", "_")
                ),
-            file.path(ip_data$dir, glue("{surv}.xlsx"))
+            file.path(ip_data$dir, glue("{surv}_{coverage$curr$yr}-{coverage$curr$mo}.xlsx"))
          )
       }
+
+      date     <- format(Sys.time(), '%Y%m%d')
+      files    <- c(
+        file.path(ip_data$dir, glue("prep_{coverage$curr$yr}-{coverage$curr$mo}.dta")),
+        file.path(ip_data$dir, glue("reach_{coverage$curr$yr}-{coverage$curr$mo}.dta")),
+        file.path(ip_data$dir, glue("tx_{coverage$curr$yr}-{coverage$curr$mo}.dta")),
+        ip_data$file_agg
+      )
+      zip_file <- file.path(ip_data$dir, glue("{tolower(coverage$type)}-as_of-{date}.zip"))
+      zip::zip(zip_file, files, mode = "cherry-pick")
 
       ip[[program]] <- ip_data
    }
