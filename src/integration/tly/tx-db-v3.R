@@ -53,7 +53,7 @@ LyArt <- R6Class(
          sheets <- sheet_names(ss)
 
          for (branch in sheets) {
-            if (!(branch %in% c("template", "DataImport"))) {
+            if (!(branch %in% c("template", "DataImport", 'ARV REGIMEN', 'TEMPLATE', 'COMBINER'))) {
                link <- as_id(ss)
                file <- file.path(dir, stri_c(branch, ".ods"))
                log_info("Downloading ARV = {green(branch)}.")
@@ -65,7 +65,7 @@ LyArt <- R6Class(
          sheets <- sheet_names(ss)
 
          for (branch in sheets) {
-            if (!(branch %in% c("template", "DataImport"))) {
+            if (!(branch %in% c("template", "DataImport", 'ARV REGIMEN', 'TEMPLATE', 'COMBINER'))) {
                link <- as_id(ss)
                file <- file.path(dir, stri_c(branch, ".ods"))
                log_info("Downloading ARV = {green(branch)}.")
@@ -200,7 +200,10 @@ LyArt <- R6Class(
       readArv           = function() {
          google_account("nhsss@doh.gov.ph")
          files       <- list.files(file.path(self$root, "arv"), full.names = TRUE)
-         data        <- pblapply(files, read_ods, col_types = cols(.default = "c"), .name_repair = "unique_quiet")
+         data        <- pblapply(files, function (file) {
+            # log_info(file)
+            return(read_ods(file, col_types = cols(.default = "c"), .name_repair = "unique_quiet"))
+         })
          data        <- lapply(data, mutate_all, toupper)
          data        <- lapply(data, mutate_all, ~na_if(., ""))
          data        <- lapply(data, mutate_all, ~na_if(., "0"))
@@ -522,10 +525,13 @@ LyArt <- R6Class(
          self$data$idreg <- update_idreg()
 
          lw_conn            <- connect('mariadb-lw')
+         ids <- (ohasis$ref_faci %>% filter(str_detect(faci_code, 'TLY')))$faci_id
          self$data$existing <- QB$new(lw_conn)$
             from('ohasis_warehouse.form_art_bc as art')$
             select("art.rec_id", "art.record_date as visit_date", "art.medicine_summary", "art.created_by", "art.created_at", "art.patient_id")$
-            whereBetween("art.record_date", c("2025-01-01", format(Sys.time(), "%Y-%m-%d")))$
+            whereIn("art.faci_id", ids, boolean = 'or')$
+            whereIn("art.service_faci", ids, boolean = 'or')$
+            # whereBetween("art.record_date", c("2025-01-01", format(Sys.time(), "%Y-%m-%d")))$
             get()
 
          self$data$existing %<>%
@@ -584,7 +590,8 @@ LyArt <- R6Class(
             filter(!is.na(patient_id), !is.na(medicine_summary)) %>%
             anti_join(
                y  = self$data$existing,
-               by = join_by(rec_id, visit_date, medicine_summary),
+               by = join_by(central_id, visit_date, medicine_summary),
+               # by = join_by(rec_id, visit_date, medicine_summary),
             ) %>%
             mutate(
                old_rec    = if_else(!is.na(rec_id), 1, 0, 0),

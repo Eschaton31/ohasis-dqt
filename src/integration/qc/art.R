@@ -10,6 +10,7 @@ QcArt <- R6Class(
          ids        = tibble(),
          converted  = tibble(),
          existing   = tibble(),
+         mapped     = tibble(),
          forUpload  = tibble(),
          breakdown  = list()
       ),
@@ -31,32 +32,16 @@ QcArt <- R6Class(
          self$data$idreg <- update_idreg()
 
          lw_conn            <- connect('mariadb-lw')
-         self$data$existing <- QB$new(lw_conn)$from(
-            'ohasis_warehouse.form_art_bc as art'
-         )$select(
-            "art.rec_id",
-            "art.record_date as visit_date",
-            "art.medicine_summary",
-            "art.created_by",
-            "art.created_at",
-            "art.patient_id"
-         )$whereBetween(
-            "art.record_date",
-            c("2025-01-01", format(Sys.time(), "%Y-%m-%d"))
-         )$whereIn(
-            "art.faci_id",
-            c(
-               '130032',
-               '130666',
-               '130031',
-               '130008',
-               '130033',
-               '130009',
-               '130018',
-               '130004',
-               '130994'
-            )
-         )$get()
+         self$data$existing <- QB$new(lw_conn)$
+            from('ohasis_warehouse.form_art_bc as art')$
+            select("art.rec_id",
+                   "art.record_date as visit_date",
+                   "art.medicine_summary",
+                   "art.created_by",
+                   "art.created_at",
+                   "art.patient_id")$
+            whereIn("art.faci_id", c('130032', '130666', '130031', '130008', '130033', '130009', '130018', '130004', '130994'))$
+            get()
 
          self$data$existing %<>%
             mutate_if(
@@ -94,6 +79,14 @@ QcArt <- R6Class(
             col_types = cols(
                .default = "c"
             )
+         )
+
+         self$refs$ref_addr <- range_speedread(
+            "1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc",
+            "ref_addr",
+            show_col_types = FALSE,
+            col_types      = cols(.default = "c"),
+            name_repair    = "unique_quiet"
          )
 
          invisible(self)
@@ -255,12 +248,7 @@ QcArt <- R6Class(
          invisible(self)
       },
       readMasterlist    = function(path) {
-         self$data$masterlist <- read_excel(path, col_types = "text") %>%
-            bind_rows(read_sheet(
-               "1qyaXK3u0UTlSlbYjILHhfGGGilB1S8qFN2m1-eTpzzE",
-               "xl",
-               col_types = "c"
-            )) %>%
+         self$data$masterlist <- read_excel(path, col_types = "text", sheet = "Clinic_Data_Main") %>%
             select(
                data_main_id         = `Data_Main_ID`,
                ml_num               = `Masterlist count`,
@@ -322,11 +310,24 @@ QcArt <- R6Class(
                is_vl_tested         = `Viral Load Tested?`,
                is_vl_suppressed     = `Virally Suppressed`,
             ) %>%
-            split_names(name, first, middle, last) %>%
             mutate_at(
                .vars = vars(contains("date")),
                ~excel_numeric_to_date(parse_number(.))
-            )
+            ) %>%
+            mutate(
+               ml_id = row_number()
+            ) %>%
+            bind_rows(
+               read_sheet(
+                  "1qyaXK3u0UTlSlbYjILHhfGGGilB1S8qFN2m1-eTpzzE",
+                  "xl",
+                  col_types = "c"
+               ) %>%
+                  mutate(
+                     birthdate = as.Date(birthdate)
+                  )
+            ) %>%
+            split_names(name, first, middle, last)
 
          invisible(self)
       },
@@ -366,19 +367,6 @@ QcArt <- R6Class(
                .before   = birthdate
             ) %>%
             select(-uic_mom, -uic_dad, -uic_order) %>%
-            mutate(
-               curr_prov = "UNKNOWN",
-               curr_reg  = "UNKNOWN",
-               .after    = curr_munc
-            ) %>%
-            left_join(
-               y  = self$refs$corr_addr %>% rename_all(tolower),
-               by = join_by(
-                  curr_reg == name_reg,
-                  curr_prov == name_prov,
-                  curr_munc == name_munc
-               )
-            ) %>%
             bind_rows(
                self$data$masterlist %>%
                   select(
@@ -395,20 +383,26 @@ QcArt <- R6Class(
                      curr_munc,
                      philhealth_no,
                      confirmatory_code,
-                  ) %>%
-                  mutate(
-                     curr_prov = "UNKNOWN",
-                     curr_reg  = "UNKNOWN",
-                     .after    = curr_munc
-                  ) %>%
-                  left_join(
-                     y  = self$refs$corr_addr %>% rename_all(tolower),
-                     by = join_by(
-                        curr_reg == name_reg,
-                        curr_prov == name_prov,
-                        curr_munc == name_munc
-                     )
+                     ml_id,
                   )
+            ) %>%
+            rename(
+               encoded_munc = curr_munc,
+               encoded_brgy = curr_brgy,
+            ) %>%
+            mutate(
+               encoded_prov = "UNKNOWN",
+               encoded_reg  = "UNKNOWN",
+               .after       = encoded_munc
+            ) %>%
+            left_join(
+               y  = self$refs$corr_addr %>%
+                  rename_all(tolower),
+               by = join_by(
+                  encoded_reg == name_reg,
+                  encoded_prov == name_prov,
+                  encoded_munc == name_munc
+               )
             ) %>%
             distinct(
                data_main_id,
@@ -428,11 +422,55 @@ QcArt <- R6Class(
                .keep_all = TRUE
             ) %>%
             mutate(
-               sex = case_when(
+               curr_name_reg  = coalesce(corr_name_reg, encoded_reg),
+               curr_name_prov = coalesce(corr_name_prov, encoded_prov),
+               curr_name_munc = coalesce(corr_name_munc, encoded_munc),
+            ) %>%
+            left_join(
+               y  = self$refs$ref_addr %>%
+                  mutate_at(
+                     .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
+                     ~str_squish(toupper(.))
+                  ) %>%
+                  select(
+                     curr_name_reg  = NAME_REG,
+                     curr_name_prov = NAME_PROV,
+                     curr_name_munc = NAME_MUNC,
+                     curr_psgc_reg  = PSGC_REG,
+                     curr_psgc_prov = PSGC_PROV,
+                     curr_psgc_munc = PSGC_MUNC
+                  ),
+               by = join_by(curr_name_reg, curr_name_prov, curr_name_munc)
+            ) %>%
+            mutate(
+               curr_psgc = coalesce(
+                  curr_psgc_munc,
+                  curr_psgc_prov,
+                  curr_psgc_reg
+               ),
+            ) %>%
+            left_join(
+               y          = ohasis$ref_addr %>%
+                  select(
+                     curr_psgc = psgc_old,
+                     curr_reg  = reg,
+                     curr_prov = prov,
+                     curr_munc = munc
+                  ),
+               by         = join_by(curr_psgc),
+               na_matches = "never"
+            ) %>%
+            mutate(
+               pii_id = row_number(),
+               sex    = case_when(
                   sex == "M" ~ "MALE",
                   sex == "F" ~ "FEMALE",
                   TRUE ~ sex
                )
+            ) %>%
+            mutate_if(
+               .predicate = is.character,
+               ~str_squish(.)
             ) %>%
             left_join(
                y  = self$data$ids %>%
@@ -509,10 +547,11 @@ QcArt <- R6Class(
                )
             ) %>%
             mutate(
-               central_id = coalesce(central_id.x, central_id.y)
+               patient_id = coalesce(central_id.x, central_id.y)
             ) %>%
+            get_cid(self$data$idreg, patient_id) %>%
             relocate(central_id, .before = 1) %>%
-            mutate(pii_id = row_number())
+            distinct(pii_id, .keep_all = TRUE)
 
          invisible(self)
       },
@@ -531,6 +570,62 @@ QcArt <- R6Class(
             mutate_at(
                .vars = vars(contains("date")),
                ~as.Date(parse_date_time(., "mdY"))
+            ) %>%
+            mutate_at(
+               .vars = vars(contains("date")),
+               ~na_if(., as.Date('1-01-01'))
+            ) %>%
+            mutate(
+               medicine_summary = str_replace_all(
+                  toupper(arv_regimen),
+                  "\\s",
+                  ""
+               ),
+               medicine_summary = str_replace_all(
+                  medicine_summary,
+                  "LTE",
+                  "TDF/3TC/EFV"
+               ),
+               medicine_summary = str_replace_all(
+                  medicine_summary,
+                  "3TC/TDF/EFV",
+                  "TDF/3TC/EFV"
+               ),
+               medicine_summary = str_replace_all(
+                  medicine_summary,
+                  "TLD",
+                  "TDF/3TC/DTG"
+               ),
+               medicine_summary = str_replace_all(
+                  medicine_summary,
+                  "LPV/R",
+                  "LPV/r"
+               ),
+               medicine_summary = str_replace_all(
+                  medicine_summary,
+                  "3TC/AZT",
+                  "AZT/3TC"
+               ),
+               medicine_summary = str_replace_all(
+                  medicine_summary,
+                  "3TC/TDF",
+                  "TDF/3TC"
+               ),
+               .after           = arv_regimen
+            ) %>%
+            mutate(
+               faci_id = case_when(
+                  enroll_hub == 'AJM SHC' ~ '130666',
+                  enroll_hub == 'BATASAN SHC' ~ '130008',
+                  enroll_hub == 'BERNARDO SHC' ~ '130009',
+                  enroll_hub == 'KLINIKA BATASAN' ~ '130031',
+                  enroll_hub == 'KLINIKA BERNARDO' ~ '130004',
+                  enroll_hub == 'KLINIKA EASTWOOD' ~ '130994',
+                  enroll_hub == 'KLINIKA NOVALICHES' ~ '130032',
+                  enroll_hub == 'KLINIKA PROJECT 7' ~ '130033',
+                  enroll_hub == 'PROJECT 7 SHC' ~ '130018',
+               ),
+               .after  = enroll_hub
             )
 
          invisible(self)
@@ -538,7 +633,23 @@ QcArt <- R6Class(
       prepareUpload     = function() {
          art_qc <- self$data$converted %>%
             mutate(
-               patient_code = self$cleanPatientCode(patient_code, data_main_id)
+               patient_code = self$cleanPatientCode(patient_code, data_main_id),
+               hub          = str_left(toupper(str_extract(patient_code, '^\\w+')), 3),
+               faci_id      = case_when(
+                  hub == 'AJM' ~ '130666',
+                  hub == 'BAT' ~ '130008',
+                  hub == 'BSH' ~ '130009',
+                  hub == 'KB1' ~ '130004',
+                  hub == 'KB2' ~ '130004',
+                  hub == 'KBA' ~ '130031',
+                  hub == 'KE' ~ '130994',
+                  hub == 'KN1' ~ '130032',
+                  hub == 'KN2' ~ '130032',
+                  hub == 'KP7' ~ '130033',
+                  hub == 'P71' ~ '130018',
+                  hub == 'P72' ~ '130018',
+                  TRUE ~ faci_id
+               )
             ) %>%
             left_join(
                y  = self$data$pii %>%
@@ -586,7 +697,6 @@ QcArt <- R6Class(
                patient_id = coalesce(cid_1, cid_2),
                .before    = 1
             ) %>%
-            get_cid(self$data$idreg, patient_id) %>%
             select(-curr_brgy, -curr_munc, -data_main_id) %>%
             left_join(
                y  = self$data$pii %>%
@@ -601,7 +711,8 @@ QcArt <- R6Class(
                      -patient_code,
                   ),
                by = join_by(data_main_id)
-            )
+            ) %>%
+            get_cid(self$data$idreg, patient_id)
 
          names_overlap <- get_names(art_qc, "\\.x")
          for (var in names_overlap) {
@@ -676,14 +787,15 @@ QcArt <- R6Class(
                   tb_ipt_outcome,
                   tb_cpt_start_date,
                   tb_cpt_outcome,
-                  arv_regimen,
+                  medicine_summary,
                   disp_total,
-                  enroll_hub
+                  enroll_hub,
+                  faci_id
                ) %>%
                left_join(
                   y  = self$data$pii %>%
                      mutate(
-                        curr_addr = str_squish(stri_c(coalesce(na_if(curr_brgy, "N/A"), ""), " ", coalesce(curr_munc, "")))
+                        curr_addr = str_squish(stri_c(coalesce(na_if(encoded_brgy, "N/A"), ""), " ", coalesce(encoded_munc, "")))
                      ) %>%
                      select(
                         pii_id,
@@ -696,9 +808,9 @@ QcArt <- R6Class(
                         birthdate,
                         sex,
                         philhealth_no,
-                        curr_reg  = corr_name_reg,
-                        curr_prov = corr_name_prov,
-                        curr_munc = corr_name_munc,
+                        curr_reg  = curr_psgc_reg,
+                        curr_prov = curr_psgc_prov,
+                        curr_munc = curr_psgc_munc,
                         curr_addr
                      ),
                   by = join_by(pii_id)
@@ -722,9 +834,10 @@ QcArt <- R6Class(
                   tb_ipt_outcome,
                   tb_cpt_start_date,
                   tb_cpt_outcome,
-                  arv_regimen,
+                  medicine_summary,
                   disp_total,
                   enroll_hub,
+                  faci_id,
                   .keep_all = TRUE
                )
          )
@@ -758,6 +871,13 @@ QcArt <- R6Class(
             ) %>%
             arrange(row_id, desc(baseline_cd4_date)) %>%
             distinct(row_id, .keep_all = TRUE) %>%
+            arrange(central_id, visit_date, desc(medicine_summary)) %>%
+            group_by(central_id) %>%
+            tidyr::fill(
+               medicine_summary,
+               .direction = "down"
+            ) %>%
+            ungroup() %>%
             mutate(
                lab_viral_date   = if_else(
                   !is.na(last_vl_date),
@@ -778,57 +898,8 @@ QcArt <- R6Class(
                   !is.na(latest_cd4_date),
                   latest_cd4_result,
                   baseline_cd4_result
-               ),
-
-               medicine_summary = str_replace_all(
-                  toupper(arv_regimen),
-                  "\\s",
-                  ""
-               ),
-               medicine_summary = str_replace_all(
-                  medicine_summary,
-                  "LTE",
-                  "TDF/3TC/EFV"
-               ),
-               medicine_summary = str_replace_all(
-                  medicine_summary,
-                  "3TC/TDF/EFV",
-                  "TDF/3TC/EFV"
-               ),
-               medicine_summary = str_replace_all(
-                  medicine_summary,
-                  "TLD",
-                  "TDF/3TC/DTG"
-               ),
-               medicine_summary = str_replace_all(
-                  medicine_summary,
-                  "LPV/R",
-                  "LPV/r"
-               ),
-               medicine_summary = str_replace_all(
-                  medicine_summary,
-                  "3TC/AZT",
-                  "AZT/3TC"
-               ),
-               medicine_summary = str_replace_all(
-                  medicine_summary,
-                  "3TC/TDF",
-                  "TDF/3TC"
-               ),
-
-               faci_id          = case_when(
-                  enroll_hub == 'AJM SHC' ~ '130666',
-                  enroll_hub == 'BATASAN SHC' ~ '130008',
-                  enroll_hub == 'BERNARDO SHC' ~ '130009',
-                  enroll_hub == 'KLINIKA BATASAN' ~ '130031',
-                  enroll_hub == 'KLINIKA BERNARDO' ~ '130004',
-                  enroll_hub == 'KLINIKA EASTWOOD' ~ '130994',
-                  enroll_hub == 'KLINIKA NOVALICHES' ~ '130032',
-                  enroll_hub == 'KLINIKA PROJECT 7' ~ '130033',
-                  enroll_hub == 'PROJECT 7 SHC' ~ '130018',
                )
             ) %>%
-            get_cid(self$data$idreg, patient_id) %>%
             # get records id if existing
             left_join(
                y  = self$data$existing %>%
@@ -841,6 +912,11 @@ QcArt <- R6Class(
                   ),
                by = join_by(central_id, visit_date)
             ) %>%
+            relocate(any_of(names(self$data$existing)), .before = 1)
+
+         self$data$mapped <- for_import
+
+         for_import %<>%
             # retain only not uploaded and those with changes
             filter(
                !is.na(medicine_summary),
@@ -898,79 +974,6 @@ QcArt <- R6Class(
                patient_id = coalesce(corr_pid, patient_id)
             )
 
-         addr     <- range_speedread(
-            "1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc",
-            "addr",
-            show_col_types = FALSE,
-            col_types      = cols(.default = "c"),
-            name_repair    = "unique_quiet"
-         )
-         ref_addr <- range_speedread(
-            "1OXWxDffKNVrAeoFPI6FIEcoCN1Zrku6W_eXYd-J4Tzc",
-            "ref_addr",
-            show_col_types = FALSE,
-            col_types      = cols(.default = "c"),
-            name_repair    = "unique_quiet"
-         )
-         final_import %<>%
-            select(-starts_with("CORR_NAME_")) %>%
-            mutate(
-               CURR_NAME_REG  = "UNKNOWN",
-               CURR_NAME_PROV = "UNKNOWN",
-               CURR_NAME_MUNC = curr_munc,
-            ) %>%
-            left_join(
-               y  = addr %>%
-                  select(
-                     CURR_NAME_REG  = NAME_REG,
-                     CURR_NAME_PROV = NAME_PROV,
-                     CURR_NAME_MUNC = NAME_MUNC,
-                     CORR_NAME_REG,
-                     CORR_NAME_PROV,
-                     CORR_NAME_MUNC
-                  ),
-               by = join_by(CURR_NAME_REG, CURR_NAME_PROV, CURR_NAME_MUNC)
-            ) %>%
-            mutate(
-               CURR_NAME_REG  = coalesce(CORR_NAME_REG, CURR_NAME_REG),
-               CURR_NAME_PROV = coalesce(CORR_NAME_PROV, CURR_NAME_PROV),
-               CURR_NAME_MUNC = coalesce(CORR_NAME_MUNC, CURR_NAME_MUNC),
-            ) %>%
-            left_join(
-               y  = ref_addr %>%
-                  mutate_at(
-                     .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
-                     ~str_squish(toupper(.))
-                  ) %>%
-                  select(
-                     CURR_NAME_REG  = NAME_REG,
-                     CURR_NAME_PROV = NAME_PROV,
-                     CURR_NAME_MUNC = NAME_MUNC,
-                     CURR_PSGC_REG  = PSGC_REG,
-                     CURR_PSGC_PROV = PSGC_PROV,
-                     CURR_PSGC_MUNC = PSGC_MUNC
-                  ),
-               by = join_by(CURR_NAME_REG, CURR_NAME_PROV, CURR_NAME_MUNC)
-            ) %>%
-            mutate(
-               CURR_PSGC = coalesce(
-                  CURR_PSGC_MUNC,
-                  CURR_PSGC_PROV,
-                  CURR_PSGC_REG
-               ),
-            ) %>%
-            select(-curr_reg, -curr_prov, -curr_munc) %>%
-            left_join(
-               y  = ohasis$ref_addr %>%
-                  select(
-                     CURR_PSGC = psgc_old,
-                     curr_reg  = reg,
-                     curr_prov = prov,
-                     curr_munc = munc
-                  ),
-               by = join_by(CURR_PSGC)
-            )
-
          self$data$forUpload <- final_import
          self$data$breakdown <- art_breakdown
 
@@ -979,26 +982,63 @@ QcArt <- R6Class(
       readIds           = function() {
          con           <- connect("old-lw")
          self$data$ids <- QB$new(con)$from("ohasis_lake.qc_clients")$get() %>%
-            rename_all(tolower)
+            rename_all(tolower) %>%
+            rename(patient_id = central_id) %>%
+            mutate(
+               sex = case_when(
+                  sex == "M" ~ "MALE",
+                  sex == "F" ~ "FEMALE",
+                  TRUE ~ sex
+               )
+            ) %>%
+            mutate_if(
+               .predicate = is.character,
+               ~str_squish(.)
+            ) %>%
+            get_cid(self$data$idreg, patient_id)
          dbDisconnect(con)
 
          invisible(self)
       },
       checkIssues       = function() {
          self$issues <- list(
-            dupe_px_code = self$data$pii %>% get_dupes(patient_code, ml_num),
-            `not2025`    = self$data$converted %>%
+            dupe_px_code     = self$data$pii %>%
+               distinct(patient_code, ml_num, central_id, .keep_all = TRUE) %>%
+               get_dupes(patient_code, ml_num),
+            `not2025`        = self$data$converted %>%
                filter(
                   (latest_ffupdate < "2024-11-01" &
                      year(latest_ffupdate) != year(created_at)) |
                      latest_ffupdate > now()
                ),
-            `clean_addr` = self$data$pii %>%
-               filter(is.na(corr_name_reg)) %>%
-               distinct(curr_reg, curr_prov, curr_munc),
-            `no_cid`     = self$data$pii %>%
-               filter(is.na(central_id)),
-            `not_in_ml`  = self$data$converted %>%
+            `clean_addr`     = self$data$pii %>%
+               filter(is.na(corr_name_reg) | is.na(curr_psgc)) %>%
+               distinct(encoded_reg, encoded_prov, encoded_munc),
+            `clean_faci`     = self$data$converted %>%
+               filter(is.na(faci_id)) %>%
+               distinct(enroll_hub),
+            `clean_arv`      = self$data$converted %>%
+               distinct(arv_regimen, medicine_summary),
+            `no_cid`         = self$data$pii %>%
+               filter(is.na(central_id)) %>%
+               distinct(
+                  central_id,
+                  ml_num,
+                  data_main_id,
+                  patient_code,
+                  last,
+                  first,
+                  middle,
+                  uic,
+                  birthdate,
+                  sex,
+                  corr_name_reg,
+                  corr_name_prov,
+                  corr_name_munc,
+                  philhealth_no,
+                  confirmatory_code
+               ),
+            `not_in_ml`      = self$data$converted %>%
                mutate(
                   patient_code = self$cleanPatientCode(
                      patient_code,
@@ -1024,8 +1064,202 @@ QcArt <- R6Class(
                         )
                      ) %>%
                      distinct(data_main_id, ml_num, patient_code)
+               ),
+            `mlid_not_in_ml` = self$data$converted %>%
+               filter(!is.na(data_main_id)) %>%
+               anti_join(
+                  y  = self$data$masterlist,
+                  by = join_by(data_main_id)
+               ) %>%
+               mutate(
+                  name = str_squish(str_c(sep = ", ", last, str_c(sep = " ", first, middle))),
+                  uic  = stri_c(
+                     stri_pad_right(str_left(uic_mom, 2), 2, "X"),
+                     stri_pad_right(str_left(uic_dad, 2), 2, "X"),
+                     stri_pad_left(str_left(uic_order, 2), 2, "0"),
+                     format(birthdate, "%m%d%Y")
+                  ),
+               ) %>%
+               distinct(
+                  data_main_id,
+                  ml_num,
+                  patient_code,
+                  name,
+                  uic,
+                  birthdate,
+                  sex,
+                  curr_brgy,
+                  curr_munc,
+                  philhealth_no,
+                  confirmatory_code
                )
          )
+
+         # mlnum + pxcode
+         data_main <- art$data$pii %>%
+            filter(!is.na(data_main_id)) %>%
+            distinct(
+               ml_num,
+               patient_code,
+               .keep_all = TRUE
+            ) %>%
+            select(
+               data_main_id,
+               ml_num,
+               patient_code,
+            )
+
+         self$issues[['same_mlnum+pxcode_diff_data_main']] <- art$issues$not_in_ml %>%
+            left_join(
+               y  = data_main %>%
+                  select(
+                     right_data_main = data_main_id,
+                     ml_num,
+                     patient_code,
+                  ),
+               by = join_by(ml_num, patient_code)
+            ) %>%
+            rename(left_data_main = data_main_id) %>%
+            filter(left_data_main != right_data_main) %>%
+            select(
+               ml_num,
+               patient_code,
+               left_data_main,
+               right_data_main
+            ) %>%
+            left_join(
+               y  = self$data$pii %>%
+                  select(
+                     left_data_main = data_main_id,
+                     left_first     = first,
+                     left_middle    = middle,
+                     left_last      = last,
+                     left_birthdate = birthdate,
+                     left_uic       = uic,
+                  ),
+               by = join_by(left_data_main)
+            ) %>%
+            left_join(
+               y  = self$data$pii %>%
+                  select(
+                     right_data_main = data_main_id,
+                     right_first     = first,
+                     right_middle    = middle,
+                     right_last      = last,
+                     right_birthdate = birthdate,
+                     right_uic       = uic,
+                  ),
+               by = join_by(right_data_main)
+            ) %>%
+            select(
+               ml_num,
+               patient_code,
+               starts_with('left_'),
+               starts_with('right_'),
+            ) %>%
+            distinct()
+
+         # mlnum + datamain
+         self$issues[['same_mlnum+data_main_diff_pxcode']] <- art$issues$not_in_ml %>%
+            left_join(
+               y  = data_main %>%
+                  select(
+                     right_patient_code = patient_code,
+                     ml_num,
+                     data_main_id,
+                  ),
+               by = join_by(ml_num, data_main_id)
+            ) %>%
+            rename(left_patient_code = patient_code) %>%
+            filter(left_patient_code != right_patient_code) %>%
+            select(
+               ml_num,
+               data_main_id,
+               left_patient_code,
+               right_patient_code
+            ) %>%
+            left_join(
+               y  = self$data$pii %>%
+                  select(
+                     left_patient_code = patient_code,
+                     left_first        = first,
+                     left_middle       = middle,
+                     left_last         = last,
+                     left_birthdate    = birthdate,
+                     left_uic          = uic,
+                  ),
+               by = join_by(left_patient_code)
+            ) %>%
+            left_join(
+               y  = self$data$pii %>%
+                  select(
+                     right_patient_code = patient_code,
+                     right_first        = first,
+                     right_middle       = middle,
+                     right_last         = last,
+                     right_birthdate    = birthdate,
+                     right_uic          = uic,
+                  ),
+               by = join_by(right_patient_code)
+            ) %>%
+            select(
+               ml_num,
+               data_main_id,
+               starts_with('left_'),
+               starts_with('right_'),
+            ) %>%
+            distinct()
+
+         # pxcode + datamain
+         self$issues[['same_pxcode+data_main_diff_mlnum']] <- art$issues$not_in_ml %>%
+            left_join(
+               y  = data_main %>%
+                  select(
+                     right_ml_num = ml_num,
+                     patient_code,
+                     data_main_id,
+                  ),
+               by = join_by(patient_code, data_main_id)
+            ) %>%
+            rename(left_ml_num = ml_num) %>%
+            filter(left_ml_num != right_ml_num) %>%
+            select(
+               patient_code,
+               data_main_id,
+               left_ml_num,
+               right_ml_num
+            ) %>%
+            left_join(
+               y  = self$data$pii %>%
+                  select(
+                     left_ml_num    = ml_num,
+                     left_first     = first,
+                     left_middle    = middle,
+                     left_last      = last,
+                     left_birthdate = birthdate,
+                     left_uic       = uic,
+                  ),
+               by = join_by(left_ml_num)
+            ) %>%
+            left_join(
+               y  = self$data$pii %>%
+                  select(
+                     right_ml_num    = ml_num,
+                     right_first     = first,
+                     right_middle    = middle,
+                     right_last      = last,
+                     right_birthdate = birthdate,
+                     right_uic       = uic,
+                  ),
+               by = join_by(right_ml_num)
+            ) %>%
+            select(
+               patient_code,
+               data_main_id,
+               starts_with('left_'),
+               starts_with('right_'),
+            ) %>%
+            distinct()
       },
       addNewPatients    = function() {
          max_id <- max(self$data$ids$row_id)
@@ -1092,7 +1326,7 @@ QcArt <- R6Class(
       cleanPatientCode  = function(column, dataMain) {
          clean <- toupper({{column}})
          clean <- case_when(
-            {{dataMain}} == 3515 ~ "BSCH-23-RBR 2",
+            {{dataMain}} == 3515 ~ "BSHC-23 RBR 2",
             {{dataMain}} == 179 ~ "AJMSHC23-WBH",
             {{dataMain}} == 2883 ~ "BAT279-19",
             {{dataMain}} == 3245 ~ "BAT646-23",
@@ -1132,15 +1366,27 @@ QcArt <- R6Class(
             {{dataMain}} == 80 ~ "AJMSHC20-ADS",
             {{dataMain}} == 7021 ~ "BSHC-24 LET",
             {{dataMain}} == 4168 ~ "BSHC-23 MCA",
+            {{dataMain}} == 8960 ~ "KE 25-FBS",
+            {{dataMain}} == 8929 ~ "KE 25-JJM",
+            {{dataMain}} == 8871 ~ "KE 25-JMV",
+            {{dataMain}} == 8764 ~ "KN25-AT",
+            {{dataMain}} == 3687 ~ "BSHC-18 RDM",
+            {{dataMain}} == 6997 ~ "KBAT 491-24",
+            {{dataMain}} == 8084 ~ "KB25-RDP",
+            {{dataMain}} == 8781 ~ "BSHC-25 RDP",
+            {{dataMain}} == 4938 ~ "P716-MCD",
             TRUE ~ clean
          )
-         clean <- str_replace_all(clean, "^AJMSHC\\s", "AJMSHC")
-         clean <- str_replace_all(clean, "^BAT\\s", "BAT")
-         clean <- str_replace_all(clean, "^BSHC\\s(?!-)", "BSHC-")
+         clean <- str_replace_all(clean, "^AJMSHC\\s+", "AJMSHC")
+         clean <- str_replace_all(clean, "^BAT\\s+", "BAT")
+         clean <- str_replace_all(clean, "^BSHC\\s+(?!-)", "BSHC-")
          clean <- str_replace_all(clean, "^KBAT(?!\\s)", "KBAT ")
          clean <- str_replace_all(clean, "^KE(?!\\s)", "KE ")
          clean <- str_replace_all(clean, "^(KE [0-9][0-9])(?!-)", "\\1-")
-         clean <- str_replace_all(clean, "^(BSHC-[0-9][0-9])-", "\\1 ")
+         clean <- str_replace_all(clean, "^(BSHC-[0-9][0-9])-\\s*", "\\1 ")
+         clean <- str_replace_all(clean, "^BSHC([0-9][0-9])-", "BSHC-\\1 ")
+         clean <- str_replace_all(clean, "^(AJMSHC[0-9][0-9])-\\s+", "\\1-")
+         clean <- str_replace_all(clean, "^(AJMSHC[0-9][0-9])(?!-)", "\\1-")
          clean <- str_replace_all(clean, "\\s-", "-")
          clean <- str_replace_all(clean, "-\\s", "-")
          clean <- str_squish(clean)
@@ -1380,7 +1626,7 @@ QcArt <- R6Class(
                      lab_test == "syph" ~ "3",
                      lab_test == "vl" ~ "4",
                      lab_test == "viral" ~ "4",
-                     lab_test == "CD4" ~ "5",
+                     lab_test == "cd4" ~ "5",
                      lab_test == "xray" ~ "6",
                      lab_test == "xpert" ~ "7",
                      lab_test == "dssm" ~ "8",
@@ -1453,12 +1699,167 @@ art$getExisting()
 art$readIds()
 art$readNew()
 art$readUpdate()
-art$readMasterlist("C:/Users/Bene-G16/Downloads/ART Masterlist-QC (1).xlsx")
+art$readMasterlist("C:/Users/Bene-G16/Downloads/QC ART as of December 2025v1 qchiv surveillance.xlsm")
 art$createPii()
 art$convert()
 art$checkIssues()
 art$prepareUpload()
-art$deconstructTables()
+
+tables <- art$data$forUpload %>%
+   mutate(
+      client_mobile    = NA_character_,
+      service_faci     = faci_id,
+      sub_faci_id      = NA_character_,
+      service_sub_faci = NA_character_,
+      medicine_left    = NA_integer_,
+      medicine_missed  = NA_integer_,
+      latest_next_date = visit_date %m+% days(disp_total),
+      disease          = '101000',
+      module           = '3',
+      record_date      = visit_date,
+      form_id          = 'art2021',
+      service_type     = '101201',
+      sex              = case_when(
+         sex == 'MALE' ~ '1',
+         sex == 'FEMALE' ~ '2',
+      )
+   ) %>%
+   mutate_at(vars(starts_with('lab_')), as.character) %>%
+   deconstruct_art()
+
+db_conn <- connect('ohasis-live')
+lapply(tables, function(ref, db_conn) {
+   log_info("Uploading {green(ref$name)}.")
+   table_space <- Id(schema = "ohasis", table = ref$name)
+   dbxUpsert(db_conn, table_space, ref$data, ref$pk)
+}, db_conn)
+dbDisconnect(db_conn)
+
+for (issue in names(art$issues)) {
+   write_sheet(art$issues[[issue]], '1qyaXK3u0UTlSlbYjILHhfGGGilB1S8qFN2m1-eTpzzE', issue)
+}
+
+art$data$forUpload %>% tab(sex)
+art$data$pii %>%
+   select(any_of(tolower(names(art$data$ids)))) %>%
+   filter(data_main_id == '8771') %>%
+   bind_rows(
+      art$data$ids %>%
+         select(any_of(tolower(names(art$data$ids)))) %>%
+         filter(data_main_id == '8771')
+   )
+
+
+ml_with_cid <- art$data$masterlist %>%
+   filter(!is.na(ml_id)) %>%
+   left_join(
+      y = art$data$pii %>%
+         select(central_id, ml_id),
+   ) %>%
+   relocate(central_id, .before = 1)
+
+dupe_ml <- ml_with_cid %>%
+   distinct(ml_id, .keep_all = TRUE) %>%
+   get_dupes(central_id)
+
+cleanPatientCode <- function(column, dataMain) {
+   clean <- toupper({{column}})
+   clean <- case_when(
+      {{dataMain}} == 3515 ~ "BSHC-23 RBR 2",
+      {{dataMain}} == 179 ~ "AJMSHC23-WBH",
+      {{dataMain}} == 2883 ~ "BAT279-19",
+      {{dataMain}} == 3245 ~ "BAT646-23",
+      {{dataMain}} == 3426 ~ "BSHC-13 FAC",
+      {{dataMain}} == 3430 ~ "BSHC-14 DGD",
+      {{dataMain}} == 3576 ~ "BSHC-17 JAL",
+      {{dataMain}} == 364 ~ "KBAT 96-19",
+      {{dataMain}} == 3789 ~ "BSHC-19 HSA",
+      {{dataMain}} == 3878 ~ "BSHC-20 EDB",
+      {{dataMain}} == 3952 ~ "BSHC-21 LAL",
+      {{dataMain}} == 3984 ~ "BSHC-21 DGD",
+      {{dataMain}} == 4169 ~ "BSHC-23 RBT",
+      {{dataMain}} == 4249 ~ "BSHC-23 RMM",
+      {{dataMain}} == 4252 ~ "BSHC-24 SMT",
+      {{dataMain}} == 4269 ~ "BSHC-24 DTT",
+      {{dataMain}} == 5304 ~ "P721-VAG",
+      {{dataMain}} == 5337 ~ "P721-JEM",
+      {{dataMain}} == 5581 ~ "P723-RDD",
+      {{dataMain}} == 704 ~ "KBAT 436-23",
+      {{dataMain}} == 7186 ~ "BSHC-24 MCR",
+      {{dataMain}} == 7620 ~ "AJMSHC24-YFN",
+      {{dataMain}} == 7681 ~ "AJMSHC24-EDA",
+      {{dataMain}} == 7824 ~ "BSHC-24 WSM",
+      {{dataMain}} == 8016 ~ "BSHC-24 JPA",
+      {{dataMain}} == 8259 ~ "P725-LDD",
+      {{dataMain}} == 8277 ~ "BSHC-25 MDR",
+      {{dataMain}} == 8416 ~ "KN25-REF",
+      {{dataMain}} == 4232 ~ "BSHC-24 DEO",
+      {{dataMain}} == 5280 ~ "P720-NLA",
+      {{dataMain}} == 5343 ~ "P721-SJM",
+      {{dataMain}} == 7482 ~ "KE 24-JPT",
+      {{dataMain}} == 7728 ~ "KE 24-JVS",
+      {{dataMain}} == 7866 ~ "KE 24-MCC 2",
+      {{dataMain}} == 711 ~ "KBAT 433-23",
+      {{dataMain}} == 8052 ~ "KE 24-RDC",
+      {{dataMain}} == 7809 ~ "BAT709-24",
+      {{dataMain}} == 80 ~ "AJMSHC20-ADS",
+      {{dataMain}} == 7021 ~ "BSHC-24 LET",
+      {{dataMain}} == 4168 ~ "BSHC-23 MCA",
+      {{dataMain}} == 8960 ~ "KE 25-FBS",
+      {{dataMain}} == 8929 ~ "KE 25-JJM",
+      {{dataMain}} == 8871 ~ "KE 25-JMV",
+      {{dataMain}} == 8764 ~ "KN25-AT",
+      {{dataMain}} == 3687 ~ "BSHC-18 RDM",
+      {{dataMain}} == 6997 ~ "KBAT 491-24",
+      {{dataMain}} == 8084 ~ "KB25-RDP",
+      {{dataMain}} == 8781 ~ "BSHC-25 RDP",
+      {{dataMain}} == 4938 ~ "P716-MCD",
+      TRUE ~ clean
+   )
+   clean <- str_replace_all(clean, "^AJMSHC\\s+", "AJMSHC")
+   clean <- str_replace_all(clean, "^BAT\\s+", "BAT")
+   clean <- str_replace_all(clean, "^BSHC\\s+(?!-)", "BSHC-")
+   clean <- str_replace_all(clean, "^KBAT(?!\\s)", "KBAT ")
+   clean <- str_replace_all(clean, "^KE(?!\\s)", "KE ")
+   clean <- str_replace_all(clean, "^(KE [0-9][0-9])(?!-)", "\\1-")
+   clean <- str_replace_all(clean, "^(BSHC-[0-9][0-9])-\\s*", "\\1 ")
+   clean <- str_replace_all(clean, "^BSHC([0-9][0-9])-", "BSHC-\\1 ")
+   clean <- str_replace_all(clean, "^(AJMSHC[0-9][0-9])-\\s+", "\\1-")
+   clean <- str_replace_all(clean, "^(AJMSHC[0-9][0-9])(?!-)", "\\1-")
+   clean <- str_replace_all(clean, "\\s-", "-")
+   clean <- str_replace_all(clean, "-\\s", "-")
+   clean <- str_squish(clean)
+
+   return(clean)
+}
+
+review <- art$data$pii %>%
+   mutate(
+      cleaned_pxcode = cleanPatientCode(patient_code, data_main_id),
+      faci           = str_left(toupper(str_extract(cleaned_pxcode, '^\\w+')), 3),
+      .after         = patient_code
+   ) %>%
+   arrange(cleaned_pxcode)
+
+review %>% tab(faci)
+
+review %>%
+   group_by(faci) %>%
+   mutate(total = n()) %>%
+   ungroup() %>%
+   filter(total < 100) %>%
+   View()
+
+write_sheet(
+   review,
+   "1qyaXK3u0UTlSlbYjILHhfGGGilB1S8qFN2m1-eTpzzE",
+   "cleaned_pxcodes"
+)
+
+art$issues$dupe_px_code %>%
+   distinct(patient_code, central_id, .keep_all = TRUE) %>%
+   get_dupes(patient_code) %>%
+   View('dupes')
 
 meds   <- art$data$forUpload %>%
    separate_longer_delim(
@@ -1625,8 +2026,8 @@ try       <- art$data$forUpload %>%
    ) %>%
    mutate(
       old_rec    = if_else(!is.na(rec_id), 1, 0, 0),
-      created_by = coalesce(created_by, "1300000048"),
-      created_at = coalesce(created_at.x, created_at.y),
+      created_by = coalesce(created_by.x, created_by.y, "1300000048"),
+      created_at = coalesce(created_at.x, as.character(created_at.y)),
       created_at = coalesce(as.character(created_at), timestamp),
       updated_by = if_else(old_rec == 1, "1300000048", NA_character_),
       updated_at = if_else(old_rec == 1, timestamp, NA_character_)
@@ -1647,59 +2048,9 @@ self$issues$not_in_ml %>%
    relocate(data_main_id, .before = ml_num) %>%
    View('2025')
 
-# mlnum + pxcode
-data_main <- self$data$pii %>%
-   filter(!is.na(data_main_id)) %>%
-   distinct(
-      ml_num,
-      patient_code,
-      .keep_all = TRUE
-   ) %>%
-   select(
-      data_main_id,
-      ml_num,
-      patient_code,
-   )
-
-need_corr <- self$issues$not_in_ml %>%
-   left_join(
-      y = data_main %>%
-         select(
-            corr_data_main = data_main_id,
-            ml_num,
-            patient_code,
-         )
-   ) %>%
-   filter(data_main_id != corr_data_main) %>%
-   relocate(data_main_id, .before = ml_num) %>%
-   relocate(corr_data_main, .before = data_main_id)
-
-# mlnum + datamain
-data_main <- self$data$pii %>%
-   filter(!is.na(data_main_id)) %>%
-   distinct(
-      ml_num,
-      data_main_id,
-      .keep_all = TRUE
-   ) %>%
-   select(
-      data_main_id,
-      ml_num,
-      patient_code,
-   )
-
-need_corr <- self$issues$not_in_ml %>%
-   left_join(
-      y = data_main %>%
-         select(
-            corr_pxcode = patient_code,
-            ml_num,
-            data_main_id,
-         )
-   ) %>%
-   filter(patient_code != corr_pxcode) %>%
-   relocate(data_main_id, .before = ml_num) %>%
-   relocate(corr_pxcode, .before = patient_code)
+for (issue in names(art$issues)) {
+   write_sheet(art$issues[[issue]], '1qyaXK3u0UTlSlbYjILHhfGGGilB1S8qFN2m1-eTpzzE', issue)
+}
 
 
 apply(need_corr, 1, function(row) {
@@ -1740,59 +2091,113 @@ need_corr %>%
 self$data$converted %>% tab(arv_regimen)
 self$data$masterlist %>% get_dupes(patient_code)
 
-pii <- new %>%
-   select(
-      row_id,
+pii <- art$data$converted %>%
+   filter(!is.na(data_main_id)) %>%
+   anti_join(
+      y  = art$data$masterlist,
+      by = join_by(data_main_id)
+   ) %>%
+   mutate(
+      name = str_squish(str_c(sep = ", ", last, str_c(sep = " ", first, middle))),
+      uic  = stri_c(
+         stri_pad_right(str_left(uic_mom, 2), 2, "X"),
+         stri_pad_right(str_left(uic_dad, 2), 2, "X"),
+         stri_pad_left(str_left(uic_order, 2), 2, "0"),
+         format(birthdate, "%m%d%Y")
+      ),
+   ) %>%
+   distinct(
+      data_main_id,
       ml_num,
       patient_code,
-      last,
-      first,
-      middle,
-      uic_mom,
-      uic_dad,
-      uic_order,
+      name,
+      uic,
       birthdate,
       sex,
       curr_brgy,
       curr_munc,
       philhealth_no,
-      confirmatory_code,
-   ) %>%
-   mutate_if(is.character, toupper) %>%
+      confirmatory_code
+   )
+
+pii %>%
+   write_clip()
+
+art$data$pii %>%
    mutate(
-      curr_reg  = "unknown",
-      curr_prov = "unknown",
+      name   = str_squish(str_c(sep = ", ", last, str_c(sep = " ", first, middle))),
+      .after = last
    ) %>%
-   left_join(
-      y  = addr,
-      by = join_by(
-         curr_reg == name_reg,
-         curr_prov == name_prov,
-         curr_munc == name_munc
-      )
-   ) %>%
-   distinct(
+   select(
+      data_main_id,
       ml_num,
+      patient_code,
+      name,
+      uic,
+      birthdate,
+      sex,
+      encoded_brgy,
+      encoded_munc,
+      philhealth_no,
+      confirmatory_code
+   ) %>%
+   View()
+
+
+pii <- art$data$pii %>%
+   filter(is.na(central_id)) %>%
+   distinct(
+      central_id,
+      ml_num,
+      data_main_id,
       patient_code,
       last,
       first,
       middle,
-      uic_mom,
-      uic_dad,
-      uic_order,
+      uic,
       birthdate,
       sex,
       corr_name_reg,
       corr_name_prov,
       corr_name_munc,
       philhealth_no,
-      confirmatory_code,
+      confirmatory_code
+   )
+pii %>%
+   write_sheet(
+      "1qyaXK3u0UTlSlbYjILHhfGGGilB1S8qFN2m1-eTpzzE",
+      "no_cid"
+   )
+
+new <- read_sheet("1qyaXK3u0UTlSlbYjILHhfGGGilB1S8qFN2m1-eTpzzE", "no_cid") %>%
+   mutate(
+      row_id = max(art$data$ids$row_id, na.rm = TRUE) + row_number()
+   )
+
+conn   <- connect("old-lw")
+schema <- Id(schema = 'ohasis_lake', table = 'qc_clients')
+new    <- dbReadTable(conn, schema) %>%
+   filter(!is.na(CENTRAL_ID)) %>%
+   distinct(
+      ML_NUM,
+      DATA_MAIN_ID,
+      PATIENT_CODE,
+      LAST,
+      FIRST,
+      MIDDLE,
+      UIC,
+      BIRTHDATE,
+      SEX,
+      CORR_NAME_REG,
+      CORR_NAME_PROV,
+      CORR_NAME_MUNC,
+      PHILHEALTH_NO,
+      CONFIRMATORY_CODE,
       .keep_all = TRUE
-   ) %>%
-   get_dupes(patient_code, ml_num)
+   )
+dbxUpsert(conn, Id(schema = 'ohasis_lake', table = 'qc_clients'), new, 'row_id')
+dbDisconnect(conn)
 
-
-ohasis$upsert(conn, "lake", "qc_clients", try, "row_id")
 conn <- connect("ohasis-lw")
 ohasis$upsert(
    conn,
@@ -1825,3 +2230,27 @@ dbDisconnect(conn)
 
 final_import %>%
    tab(medicine_summary)
+
+
+conn <- connect('mariadb-lw')
+data <- QB$new(conn)$
+   select(first,
+          middle,
+          last,
+          uic,
+          patient_code,
+          birthdate)$
+   selectRaw('coalesce(ids.central_id, px.patient_id) as central_id')$
+   from('ohasis_lake.patients as px')$
+   leftJoin('ohasis_lake.id_registry as ids', 'px.patient_id', '=', 'ids.patient_id')$
+   distinct()$
+   get()
+dbDisconnect(conn)
+
+
+data %>%
+   filter(uic %in% pii$uic) %>%
+   write_sheet(
+      "1qyaXK3u0UTlSlbYjILHhfGGGilB1S8qFN2m1-eTpzzE",
+      "cid_list"
+   )

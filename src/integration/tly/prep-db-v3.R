@@ -18,6 +18,7 @@ LyPrep <- R6Class(
          invisible(self)
       },
       downloadPrep      = function() {
+         google_account("eb@loveyourself.ph")
          local_drive_quiet()
          local_gs4_quiet()
 
@@ -47,6 +48,7 @@ LyPrep <- R6Class(
          invisible(self)
       },
       readPrep          = function() {
+         google_account("nhsss@doh.gov.ph")
          log_info("Reading files.")
          files       <- list.files(file.path(self$root, "prep"), full.names = TRUE)
          data        <- pblapply(files, self$readSheets)
@@ -317,14 +319,14 @@ LyPrep <- R6Class(
                   str_detect(key_population, "PEOPLE WHO INJECT DRUGS") ~ "1",
                   str_detect(key_population_other, "PWID") ~ "1",
                   str_detect(key_population_other, "PEOPLE WHO INJECT DRUG") ~ "1",
-                  str_detect(key_population, "PEOPLE WHO INJECT DRUGS") ~ "1",
+                  str_detect(key_population_other, "PEOPLE WHO INJECT DRUGS") ~ "1",
                   TRUE ~ "0"
                ),
                kp_msm                    = case_when(
                   str_detect(key_population, "MSM") ~ "1",
                   str_detect(key_population, "MEN HAVING SEX WITH MEN") ~ "1",
                   str_detect(key_population_other, "MSM") ~ "1",
-                  str_detect(key_population, "MEN HAVING SEX WITH MEN") ~ "1",
+                  str_detect(key_population_other, "MEN HAVING SEX WITH MEN") ~ "1",
                   TRUE ~ "0"
                ),
                kp_ofw                    = case_when(

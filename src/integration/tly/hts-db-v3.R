@@ -15,9 +15,9 @@ LyHts <- R6Class(
             month <- month(Sys.time())
          }
 
-         self$months <- toupper(month.name[month])
+         # self$months <- toupper(month.name[month])
          # self$months <- toupper(month.name[seq_len(month)])
-         # self$months <- toupper(month.name[4:month])
+         self$months <- toupper(month.name[11:month])
 
          invisible(self)
       },
