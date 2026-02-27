@@ -19,10 +19,10 @@ prepare_hts <- function(forms, harp, coverage) {
          hts_priority = case_when(
             confirm_result %in% c(1, 2, 3) ~ 1,
             hts_result != "(no data)" & src %in% c("hts2021", "a2017") ~ 2,
-            hts_result != "(no data)" & hts_modality == "fbt" ~ 3,
-            hts_result != "(no data)" & hts_modality == "cbs" ~ 4,
-            hts_result != "(no data)" & hts_modality == "fbs" ~ 5,
-            hts_result != "(no data)" & hts_modality == "st" ~ 6,
+            hts_result != "(no data)" & hts_modality == "FBT" ~ 3,
+            hts_result != "(no data)" & hts_modality == "CBS" ~ 4,
+            hts_result != "(no data)" & hts_modality == "FBS" ~ 5,
+            hts_result != "(no data)" & hts_modality == "ST" ~ 6,
             TRUE ~ 9999
          )
       ) %>%
@@ -239,7 +239,7 @@ generate_disagg <- function(data) {
             TRUE ~ 0
          ),
          unknown         = case_when(
-            transmit == "unknown" ~ 1,
+            transmit == "UNKNOWN" ~ 1,
             risks == "(no data)" ~ 1,
             TRUE ~ 0
          ),
@@ -261,7 +261,7 @@ generate_disagg <- function(data) {
          #    unknown == 1 ~ "(no data)",
          #    Sex == "F" ~ "Non-KP Female",
          #    Sex == "M" ~ "Non-KP Male",
-         #    TRUE ~ "Non-msm"
+         #    TRUE ~ "Non-MSM"
          # ),
 
          # Age Band

@@ -59,7 +59,7 @@ generate_disagg <- function(data, coverage) {
             TRUE ~ 0
          ),
          tgw             = if_else(
-            condition = sex == "male" & self_identity %in% c("FEMALE", "OTHERS"),
+            condition = Sex == "M" & self_identity %in% c("FEMALE", "OTHERS"),
             true      = 1,
             false     = 0,
             missing   = 0
@@ -67,14 +67,14 @@ generate_disagg <- function(data, coverage) {
          hetero          = case_when(
             Sex == "M" &
                !grepl("yes-", stri_c(hts_risk_sexwithm, prep_risk_sexwithm)) &
-               grepl("yes-", stri_c(hts_risk_sexwithm, prep_risk_sexwithm)) ~ 1,
+               grepl("yes-", stri_c(hts_risk_sexwithf, prep_risk_sexwithf)) ~ 1,
             Sex == "F" &
                grepl("yes-", stri_c(hts_risk_sexwithm, prep_risk_sexwithm)) &
-               !grepl("yes-", stri_c(hts_risk_sexwithm, prep_risk_sexwithm)) ~ 1,
+               !grepl("yes-", stri_c(hts_risk_sexwithf, prep_risk_sexwithf)) ~ 1,
             TRUE ~ 0
          ),
          pwid            = case_when(
-            str_detect(prep_risk_injectdrug, "yes") ~ 1,
+            str_detect(prep_risk_drug_inject, "yes") ~ 1,
             str_detect(hts_risk_injectdrug, "yes") ~ 1,
             kp_pwid == 1 ~ 1,
             TRUE ~ 0
@@ -86,12 +86,12 @@ generate_disagg <- function(data, coverage) {
             missing   = 0
          ),
          `KP Population` = case_when(
-            msm == 1 & tgw == 0 ~ "msm",
-            msm == 1 & tgw == 1 ~ "tgw",
-            pwid == 1 ~ "pwid",
+            msm == 1 & tgw == 0 ~ "MSM",
+            msm == 1 & tgw == 1 ~ "TGW",
+            pwid == 1 ~ "PWID",
             Sex == "F" ~ "(not included)",
             unknown == 1 ~ "(no data)",
-            TRUE ~ "Non-msm"
+            TRUE ~ "Non-MSM"
          ),
 
          # Age Band
