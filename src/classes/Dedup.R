@@ -168,12 +168,12 @@ Dedup <- R6Class(
                   .vars = vars(left_name, right_name),
                   ~na_if(str_squish(.), ",")
                ) %>%
-               select(
-                  -ends_with("given_name"),
-                  -ends_with("middle_name"),
-                  -ends_with("family_name"),
-                  -ends_with("suffix_name"),
-               ) %>%
+               # select(
+               #    -ends_with("given_name"),
+               #    -ends_with("middle_name"),
+               #    -ends_with("family_name"),
+               #    -ends_with("suffix_name"),
+               # ) %>%
                arrange(desc(posterior)) %>%
                # Additional sift through of matches
                mutate(
@@ -465,12 +465,12 @@ Dedup <- R6Class(
                .vars = vars(left_name, right_name),
                ~na_if(str_squish(.), ",")
             ) %>%
-            select(
-               -ends_with("given_name"),
-               -ends_with("middle_name"),
-               -ends_with("family_name"),
-               -ends_with("suffix_name"),
-            ) %>%
+            # select(
+            #    -ends_with("given_name"),
+            #    -ends_with("middle_name"),
+            #    -ends_with("family_name"),
+            #    -ends_with("suffix_name"),
+            # ) %>%
             arrange(desc(posterior)) %>%
             # Additional sift through of matches
             mutate(
@@ -640,12 +640,12 @@ Dedup <- R6Class(
          )
          linker$training$estimate_u_using_random_sampling(max_pairs = 1e6)
 
-         log_info("EM Algorithm = {green('First Name')}.")
-         linker$
-            training$
-            estimate_parameters_using_expectation_maximisation(sp$block_on(
-            "given_name_sieve"
-         ))
+         # log_info("EM Algorithm = {green('First Name')}.")
+         # linker$
+         #    training$
+         #    estimate_parameters_using_expectation_maximisation(sp$block_on(
+         #    "given_name_sieve"
+         # ))
 
          # log_info("EM Algorithm = {green('First Name (3)')}.")
          # linker$
@@ -654,12 +654,12 @@ Dedup <- R6Class(
          #    "given_name_3"
          # ))
 
-         log_info("EM Algorithm = {green('Last Name')}.")
-         linker$
-            training$
-            estimate_parameters_using_expectation_maximisation(sp$block_on(
-            "family_name_sieve"
-         ))
+         # log_info("EM Algorithm = {green('Last Name')}.")
+         # linker$
+         #    training$
+         #    estimate_parameters_using_expectation_maximisation(sp$block_on(
+         #    "family_name_sieve"
+         # ))
 
          # log_info("EM Algorithm = {green('First Name(3)+Last Name')}.")
          # linker$
@@ -1027,23 +1027,19 @@ Dedup <- R6Class(
          # genearte UIC w/o 1 parent, 2 combinations
          dedup_new_uic <- dedup_new %>%
             filter(!is.na(uic)) %>%
-            rename(
-               row_id = id_col
-            ) %>%
-            select(
-               row_id,
+            transmute(
+               row_id = .data[[id_col]],
                uic_mom,
                uic_dad
             ) %>%
             pivot_longer(
-               cols      = c(uic_mom, uic_dad),
-               names_to  = 'uic',
-               values_to = 'given_name_two'
+               cols           = c(uic_mom, uic_dad),
+               names_to       = 'uic',
+               values_to      = 'given_name_two',
+               values_drop_na = TRUE
             ) %>%
             arrange(row_id, given_name_two) %>%
-            group_by(row_id) %>%
-            mutate(uic = row_number()) %>%
-            ungroup() %>%
+            mutate(uic = row_number(), .by = row_id) %>%
             pivot_wider(
                id_cols      = row_id,
                names_from   = uic,
@@ -1066,34 +1062,24 @@ Dedup <- R6Class(
 
          log_info("Sorting Names.")
          dedup_new_names <- dedup_new %>%
-            rename(
-               row_id = id_col
+            transmute(
+               !!id_col := .data[[id_col]],
+               name_1   = given_name_sieve,
+               name_2   = middle_name_sieve,
+               name_3   = family_name_sieve
             ) %>%
-            select(
-               row_id,
-               name_1 = given_name_sieve,
-               name_2 = middle_name_sieve,
-               name_3 = family_name_sieve
-            ) %>%
-            filter(if_any(c(name_1, name_2, name_3), ~!is.na(.))) %>%
+            filter(!(is.na(name_1) & is.na(name_2) & is.na(name_3))) %>%
             pivot_longer(
-               cols      = c(name_1, name_2, name_3),
-               names_to  = "name",
-               values_to = "value",
+               cols           = c(name_1, name_2, name_3),
+               names_to       = "name",
+               values_to      = "value",
+               values_drop_na = TRUE
             ) %>%
-            mutate(
-               value = if_else(nchar(value) == 1, NA_character_, value, value)
-            ) %>%
-            filter(!is.na(value)) %>%
-            arrange(row_id, value) %>%
-            group_by(row_id) %>%
+            filter(nchar(value) > 1) %>%
+            arrange(.data[[id_col]], value) %>%
             summarise(
                namesort_given_name  = first(value),
-               namesort_family_name = last(value),
-            ) %>%
-            ungroup() %>%
-            rename(
-               !!id_col := row_id
+               namesort_family_name = last(value), .by = !!sym(id_col)
             )
 
          dedup_new %<>%
