@@ -1124,7 +1124,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
 
          # IVDU
          mot                   = case_when(
-            expose_drug_inject > 0 & str_left(perm_prov, 4) == "0722" ~ 5,
+            expose_drug_inject > 0 & str_left(perm_prov, 5) %in% c("07022", "07306", "07311", "07313") ~ 5,
             TRUE ~ mot
          ),
 
@@ -1205,7 +1205,7 @@ process_hts <- function(form_hts = data.frame(), form_a = data.frame(), form_cfb
 
          # IVDU hx
          mot                   = case_when(
-            injectdrug > 0 & str_left(perm_prov, 4) == "0722" ~ 51,
+            injectdrug > 0 & str_left(perm_prov, 5) %in% c("07022", "07306", "07311", "07313") ~ 51,
             TRUE ~ mot
          ),
 
@@ -2263,7 +2263,7 @@ convert_dx <- function(hts_data, yr, mo) {
 
          # IVDU
          mot        = case_when(
-            expose_drug_inject > 0 & str_left(perm_prov, 4) == "0722" ~ 5,
+            expose_drug_inject > 0 & str_left(perm_prov, 5) %in% c("07022", "07306", "07311", "07313") ~ 5,
             TRUE ~ mot
          ),
 
@@ -2344,7 +2344,7 @@ convert_dx <- function(hts_data, yr, mo) {
 
          # IVDU hx
          mot        = case_when(
-            injectdrug > 0 & str_left(perm_prov, 4) == "0722" ~ 51,
+            injectdrug > 0 & str_left(perm_prov, 5) %in% c("07022", "07306", "07311", "07313") ~ 51,
             TRUE ~ mot
          ),
 
