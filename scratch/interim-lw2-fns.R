@@ -1252,9 +1252,9 @@ deconstruct_prep <- function(forms) {
             TRUE ~ lab_test
          )
       ) %>%
-      distinct(rec_id, created_at, created_by, lab_test, piece, .keep_all = TRUE) %>%
+      distinct(created_by, created_at, updated_by, updated_at, lab_test, piece, .keep_all = TRUE) %>%
       pivot_wider(
-         id_cols      = c(rec_id, created_at, created_by, lab_test),
+         id_cols      = c(rec_id, created_by, created_at, updated_by, updated_at, lab_test),
          names_from   = piece,
          values_from  = lab_value,
          names_prefix = "lab_"
@@ -1504,7 +1504,11 @@ deconstruct_prep <- function(forms) {
          medicine_left,
          medicine_missed,
          disp_date,
-         next_date
+         next_date,
+         created_by,
+         created_at,
+         updated_by,
+         updated_at,
       )
 
    log_info("Finalizing upload schema.")

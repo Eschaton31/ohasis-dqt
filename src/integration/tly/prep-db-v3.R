@@ -617,7 +617,7 @@ LyPrep <- R6Class(
             # retain only not uploaded and those with changes
             filter(!is.na(patient_id)) %>%
             anti_join(
-               y  = self$data$existing %>% filter(created_by != '1300000048'),
+               y  = self$data$existing,
                by = join_by(rec_id, record_date, medicine_summary),
             ) %>%
             mutate(
