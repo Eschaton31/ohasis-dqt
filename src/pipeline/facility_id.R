@@ -75,7 +75,7 @@ dxlab_to_id <- function(data, facility_ids, dx_lab_cols = NULL, ref_faci = NULL)
    dx_munc <- dx_lab_cols[3]
    dx_lab  <- dx_lab_cols[4]
 
-   con        <- connect('old-lw')
+   con        <- connect('mariadb-lw')
    corr_dxlab <- QB$new(con)$from("harp_dx.corr_dxlab")$get()
    dbDisconnect(con)
 

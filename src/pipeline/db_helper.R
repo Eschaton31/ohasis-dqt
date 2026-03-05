@@ -1815,7 +1815,7 @@ update_idreg <- function(start = NULL) {
    }
    loc_snap <- str_left(loc_snap, 19)
 
-   log_info("Fetching Data")
+   log_info("Fetching IDs")
    conn_lw   <- connect('mariadb-lw')
    new_idreg <- QB$new(conn_lw)$
       from("ohasis_lake.id_registry")$
@@ -1903,7 +1903,7 @@ update_pii <- function(start = NULL) {
    }
    loc_snap <- str_left(loc_snap, 19)
 
-   log_info("Fetching Data")
+   log_info("Fetching Patients")
    conn_lw  <- connect('mariadb-lw')
    new_data <- QB$new(conn_lw)$
       from("ohasis_lake.patients")$
