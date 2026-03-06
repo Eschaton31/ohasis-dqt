@@ -54,7 +54,7 @@ TxCentral <- R6Class(
       getSheets        = function() {
          dir_all   <- as_id(drive_ls(as_id("18hh6GZzjnNBidMg9sxOworj2IhbwTUak"), pattern = substr(self$ym, 1, 4))$id)
          dir_month <- as_id(drive_ls(dir_all, pattern = self$ym)$id)
-         dir_tx    <- as_id(drive_ls(dir_month, pattern = "TREATMENT")$id)
+         dir_tx    <- as_id(drive_ls(dir_month, pattern = "Treatment")$id)
 
          self$sheets <- drive_ls(dir_tx, pattern = self$ym)
 
@@ -282,7 +282,7 @@ TxCentral <- R6Class(
                CURR_MUNC = toupper(CURR_MUNC)
             ) %>%
             left_join(
-               y  = addr %>%
+               y  = self$refs$addr %>%
                   select(
                      CURR_REG  = NAME_REG,
                      CURR_PROV = NAME_PROV,
@@ -299,7 +299,7 @@ TxCentral <- R6Class(
                CURR_MUNC = coalesce(CORR_MUNC, CURR_MUNC),
             ) %>%
             left_join(
-               y  = ref_addr %>%
+               y  = self$refs$ref_addr %>%
                   mutate_at(
                      .vars = vars(NAME_REG, NAME_PROV, NAME_MUNC),
                      ~str_squish(toupper(.))
@@ -318,14 +318,15 @@ TxCentral <- R6Class(
                CURR_PSGC = coalesce(CURR_PSGC_MUNC, CURR_PSGC_PROV, CURR_PSGC_REG),
             ) %>%
             left_join(
-               y  = ohasis$ref_addr %>%
+               y          = ohasis$ref_addr %>%
                   select(
                      CURR_PSGC = psgc_old,
                      curr_reg  = reg,
                      curr_prov = prov,
                      curr_munc = munc
                   ),
-               by = join_by(CURR_PSGC)
+               by         = join_by(CURR_PSGC),
+               na_matches = "never"
             )
 
          self$data$dispense <- self$raw$dispense %>%
@@ -441,7 +442,7 @@ TxCentral <- R6Class(
             select(
                ss,
                encoder,
-               sheet_row,
+               pid_sheetrow,
                PAGE_ID,
                REC_ID,
                PATIENT_ID,
@@ -556,7 +557,7 @@ TxCentral <- R6Class(
          email <- str_squish(substr(name, 9, stri_locate_first_fixed(name, ".com") + 4))
          log_info(green(email))
 
-         data <- read_from_gsheet(ss, sheet) %>%
+         data <- private$readGsheet(ss, sheet) %>%
             mutate(
                encoder = email,
                ss      = ss,
@@ -568,7 +569,7 @@ TxCentral <- R6Class(
    )
 )
 
-import <- TxCentral$new(2025, 5)
+import <- TxCentral$new(2025, 12)
 import$getRefs()
 import$getSheets()
 import$readSheets()
