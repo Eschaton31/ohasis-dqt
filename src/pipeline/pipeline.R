@@ -518,7 +518,7 @@ hs_download <- function(sys, type, yr, mo) {
    table_data    <- stri_c(sys, ".", type, "_", yr, mo)
 
 
-   con     <- connect('ohasis-lw')
+   con     <- connect('mariadb-lw')
    version <- QB$new(con)$
       from(table_version)$
       where("type", type)$
