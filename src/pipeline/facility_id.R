@@ -82,18 +82,23 @@ dxlab_to_id <- function(data, facility_ids, dx_lab_cols = NULL, ref_faci = NULL)
    data %<>%
       mutate_at(
          .vars = vars({{dx_reg}}, {{dx_prov}}, {{dx_munc}}, {{dx_lab}}),
-         ~str_squish(stri_replace_all_fixed(., "\n", ""))
+         ~str_replace_all(str_squish(stri_replace_all_fixed(., "\n", "")), "\\\\", "")
       ) %>%
       left_join(
          y  = corr_dxlab %>%
+            mutate_at(
+               .vars = vars({{dx_reg}}, {{dx_prov}}, {{dx_munc}}, {{dx_lab}}),
+               ~str_replace_all(str_squish(stri_replace_all_fixed(., "\n", "")), "\\\\", "")
+            ) %>%
             select(
                {{dx_reg}}     := dx_region,
                {{dx_prov}}    := dx_province,
                {{dx_munc}}    := dx_muncity,
                {{dx_lab}}     := dxlab_standard,
-               MATCH_FACI     = FACI_ID,
-               MATCH_SUB_FACI = SUB_FACI_ID
-            ),
+               MATCH_FACI     = faci_id,
+               MATCH_SUB_FACI = sub_faci_id
+            ) %>%
+            distinct(dx_region, dx_province, dx_muncity, dxlab_standard, .keep_all = TRUE),
          by = join_by({{dx_reg}}, {{dx_prov}}, {{dx_munc}}, {{dx_lab}})
       ) %>%
       mutate(
@@ -116,6 +121,10 @@ dxlab_to_id <- function(data, facility_ids, dx_lab_cols = NULL, ref_faci = NULL)
                   {{dx_munc}} := addr_nhsss_munc,
                   OH_FACI     = faci_id,
                   OH_SUB_FACI = sub_faci_id
+               ) %>%
+               mutate_at(
+                  .vars = vars({{dx_reg}}, {{dx_prov}}, {{dx_munc}}, {{dx_lab}}),
+                  ~str_replace_all(str_squish(stri_replace_all_fixed(., "\n", "")), "\\\\", "")
                ) %>%
                arrange(desc(OH_SUB_FACI), dx_region, dx_province, dx_muncity, dxlab_standard) %>%
                distinct(dx_region, dx_province, dx_muncity, dxlab_standard, .keep_all = TRUE),
