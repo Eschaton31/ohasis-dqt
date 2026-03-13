@@ -28,7 +28,7 @@ QB <- R6Class(
 
       select          = function(...) {
          columns      <- match.call(expand.dots = FALSE)$`...`
-         columns      <- as.character(columns)
+         columns      <- as.character(unlist(columns))
          self$columns <- lapply(columns, private$quoteIdentifier)
 
          invisible(self)
@@ -207,6 +207,14 @@ QB <- R6Class(
                mutate_if(
                   is.character,
                   ~na_if(gsub("\\\\0", "", .), "")
+               ) %>%
+               mutate_if(
+                  is.character,
+                  ~str_replace_all(., "\\\\'", "'")
+               ) %>%
+               mutate_if(
+                  is.character,
+                  ~str_replace_all(., "\\\\", "\\")
                ) %>%
                rename_all(
                   ~case_when(
