@@ -513,7 +513,7 @@ hs_download <- function(sys, type, yr, mo) {
    yr <- as.character(yr)
    mo <- stri_pad_left(mo, 2, "0")
 
-   table_version <- stri_c(sys, ".version")
+   table_version <- stri_c(ifelse(sys == 'harp_full', 'harp_tx', sys), ".version")
    table_period  <- stri_c(yr, ".", mo)
    table_data    <- stri_c(sys, ".", type, "_", yr, mo)
 
