@@ -51,7 +51,8 @@ get_new <- function(forms, old_reg) {
             "perm_prov",
             "perm_munc",
             "client_mobile",
-            "client_email"
+            "client_email",
+            "sex"
          )
       ) %>%
       mutate(
