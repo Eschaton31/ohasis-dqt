@@ -218,11 +218,7 @@ QB <- R6Class(
                ) %>%
                mutate_if(
                   is.character,
-                  ~gsub('Ã‘', 'Ñ', .)
-               ) %>%
-               mutate_if(
-                  is.character,
-                  ~stringi::stri_encode(., from="latin1", to="UTF-8")
+                  ~gsub('Ã‘', 'Ñ', .,)
                ) %>%
                rename_all(
                   ~case_when(
