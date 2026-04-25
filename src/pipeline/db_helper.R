@@ -139,6 +139,43 @@ apply_pii_to_patient <- function(rid, pid) {
    dbDisconnect(conn)
 }
 
+apply_patient_to_pii <- function(pid, rids) {
+   conn <- connect('ohasis-live')
+
+   patients  <- QB$new(conn)$from('ohasis.patients')$where('patient_id', pid)$get()
+   px_record <- QB$new(conn)$from('ohasis.px_record')$whereIn('rec_id', rids)$get()
+   px_pii    <- QB$new(conn)$from('ohasis.px_pii')$whereIn('rec_id', rids)$get()
+
+   new_pii <- px_record %>%
+      select(
+         rec_id,
+         patient_id,
+         faci_id,
+         sub_faci_id,
+         record_date,
+         patient_id,
+         created_by,
+         created_at,
+         updated_by,
+         updated_at,
+         deleted_by,
+         deleted_at,
+      ) %>%
+      left_join(patients %>% select(patient_id, any_of(names(patients))), join_by(patient_id)) %>%
+      select(-ends_with('.y')) %>%
+      rename_all(~str_replace(., '\\.x$', '')) %>%
+      mutate(
+         age        = calc_age(birthdate, record_date),
+         updated_by = '1300000001',
+         updated_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+      ) %>%
+      select(any_of(names(px_pii))) %>%
+      distinct(rec_id, .keep_all = TRUE)
+
+   dbxUpsert(conn, Id(schema = 'ohasis', table = 'px_pii'), new_pii, 'rec_id')
+   dbDisconnect(conn)
+}
+
 # update UPDATED_*
 update_credentials <- function(rec_ids) {
    db_conn <- ohasis$conn("db")
@@ -2037,4 +2074,34 @@ validate_death <- function(rec_ids) {
    dbDisconnect(con)
 
    update_credentials(rec_ids)
+}
+
+raw_lw_query <- function(query) {
+   conn <- connect('mariadb-lw')
+   data <- suppress_warnings(dbGetQuery(conn, query, format = 'TabSeparatedWithNamesAndTypes'), 'Unsupported') %>%
+      mutate_if(
+         ~("IDate" %in% class(.)),
+         ~as.Date(.)
+      ) %>%
+      mutate_if(
+         is.character,
+         ~na_if(gsub("\\\\0", "", .), "")
+      ) %>%
+      mutate_if(
+         is.character,
+         ~gsub("\\\\'", "'", .)
+      ) %>%
+      mutate_if(
+         is.character,
+         ~gsub("\\\\", "\\", .)
+      ) %>%
+      rename_all(
+         ~case_when(
+            str_detect(., "\\.") ~ str_extract(., ".+\\.(.+)", 1),
+            TRUE ~ .
+         )
+      )
+   dbDisconnect(conn)
+
+   return(data)
 }
