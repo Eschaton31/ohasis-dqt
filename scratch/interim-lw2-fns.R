@@ -445,7 +445,21 @@ deconstruct_art <- function(forms, dispense = NULL, discontinue = NULL) {
             delim = "+"
          ) %>%
          mutate(
-            medicine_summary = str_replace_all(medicine_summary, 'LPV/R', 'LPV/r')
+            medicine_summary = str_replace_all(medicine_summary, 'LPV/R', 'LPV/r'),
+            disp_total = case_when(
+               medicine_summary == 'INH-30' ~ '30',
+               medicine_summary == 'CPT-30' ~ '30',
+               medicine_summary == 'CPT-60' ~ '60',
+               medicine_summary == '3HP-36' ~ '36',
+               TRUE ~ disp_total
+            ),
+            medicine_summary = case_when(
+               medicine_summary == 'INH-30' ~ 'INH',
+               medicine_summary == 'CPT-30' ~ 'CPT',
+               medicine_summary == 'CPT-60' ~ 'CPT',
+               medicine_summary == '3HP-36' ~ '3HP',
+               TRUE ~ medicine_summary
+            ),
          ) %>%
          select(-matches('per_day')) %>%
          left_join(
@@ -481,6 +495,7 @@ deconstruct_art <- function(forms, dispense = NULL, discontinue = NULL) {
             disp_total,
             medicine_left,
             medicine_missed,
+            per_day,
             disp_date   = visit_date,
             next_date   = latest_next_date,
             created_at,

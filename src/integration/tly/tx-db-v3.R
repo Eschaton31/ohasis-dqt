@@ -49,7 +49,7 @@ LyArt <- R6Class(
          dir <- file.path(self$root, "arv")
          check_dir(dir)
 
-         ss     <- "1D7LlsPvPwjdhqbTWlPOZmTNtNX4bflZx_dYADyN5X9s"
+         ss     <- "1Nx8nvtH_TgrmAxFVX8TCVCXtNX0BGEJDn3gGNT1LUW8"
          sheets <- sheet_names(ss)
 
          for (branch in sheets) {
@@ -61,7 +61,7 @@ LyArt <- R6Class(
             }
          }
 
-         ss     <- "1DX8S-5ykevEhX5tgvfOetKBOpfFGd8YlAfTdjCxDmU0"
+         ss     <- "1AcDP1xgl4asJ3LrXW_H8JFUAtUSyf6TcAVpUHFExqI0"
          sheets <- sheet_names(ss)
 
          for (branch in sheets) {
@@ -184,14 +184,14 @@ LyArt <- R6Class(
                CURR_PSGC = coalesce(CURR_PSGC_MUNC, CURR_PSGC_PROV, CURR_PSGC_REG),
             ) %>%
             left_join(
-               y  = ohasis$ref_addr %>%
+               y          = ohasis$ref_addr %>%
                   select(
                      CURR_PSGC = psgc_old,
                      curr_reg  = reg,
                      curr_prov = prov,
                      curr_munc = munc
                   ),
-               by = join_by(CURR_PSGC),
+               by         = join_by(CURR_PSGC),
                na_matches = "never"
             )
 
@@ -200,7 +200,7 @@ LyArt <- R6Class(
       readArv           = function() {
          google_account("nhsss@doh.gov.ph")
          files       <- list.files(file.path(self$root, "arv"), full.names = TRUE)
-         data        <- pblapply(files, function (file) {
+         data        <- pblapply(files, function(file) {
             # log_info(file)
             return(read_ods(file, col_types = cols(.default = "c"), .name_repair = "unique_quiet"))
          })
@@ -263,7 +263,11 @@ LyArt <- R6Class(
          self$data$converted <- self$data$arv %>%
             mutate(
                # arv_regimen   = coalesce(arv_disp, arv_regimen, regimen),
-               final_arv     = str_squish(toupper(coalesce(arv_regimen, regimen))),
+               arv_regimen   = toupper(arv_regimen),
+               arv_regimen   = na_if(arv_regimen, "NO ARV ON FILE"),
+               regimen       = toupper(regimen),
+               arv_disp      = toupper(arv_disp),
+               final_arv     = str_squish(toupper(coalesce(arv_regimen, arv_disp, regimen))),
                final_arv     = case_when(
                   final_arv == 'TENOFOVIR+EMTRICITABINE+EFAVIRENZ' ~ 'TDF+FTC+EFV',
                   final_arv == 'LAMIVUDINE 300MG / TENOFOVIR DISOPROXIL FUMARATE 300MG + LOPINAVIR 200MG + RITONAVIR 50MG (3TC/TDF + LPV/R) (LAMI/TENO + LOPI/RITO)' ~ 'TDF/3TC+LPV/R',
@@ -276,20 +280,46 @@ LyArt <- R6Class(
                   final_arv == 'LAMIVUDINE 300MG +LOPINAVIR /RITONAVIR(RITOCOM) 200MG/50MG+DOLUTEGRAVIR 50MG' ~ '3TC+LPV/R+DTG',
                   final_arv == 'DOLUTEGRAVIR 50MG / LAMIVUDINE 300MG / TENOFOVIR DISOPROXIL FUMARATE 300MG (DTG/3TC/TDF) (TLD' ~ 'TDF/3TC/DTG',
                   final_arv == 'EFAVIRENZ 600MG + LAMIVUDINE 300MG + TENOFOVIR DISOPROXIL FUMARATE 300MG (EFV/3TC/TDF) (LTE)' ~ 'TDF/3TC/EFV',
-                  final_arv == 'DOLUTEGRAVIR 50 MG+EMTRICITABINE 200MG+ TENOFOVIR ALAFENAMIDE 25 MG' ~ 'TDF+FTC+DTG',
+                  final_arv == 'DOLUTEGRAVIR 50 MG+EMTRICITABINE 200MG+ TENOFOVIR ALAFENAMIDE 25 MG' ~ 'DTG/FTC/TAF',
                   final_arv == 'ABACAVIR-LAMIVUDINE-NEVIRAPINE' ~ 'ABC+3TC+NVP',
                   final_arv == 'ARV UNKNOWN' ~ '',
                   final_arv == 'LAMIVUDINE 150MG / ZIDOVUDINE 300MG + EFAVIRENZ 600MG (3TC/AZT + EFV) (LAMI/ZIDO + EFV)' ~ 'AZT/3TC+EFV',
                   final_arv == 'LAMIVUDINE 300MG +LOPINAVIR/RITONAVIR(RITOCOM)+DOLUTEGRAVIR' ~ '3TC+LPV/R+DTG',
                   final_arv == 'LOPINAVIR+RITONAVIR(LPV/R)' ~ 'LPV/R',
-                  final_arv == 'DOLUTEGRAVIR 50MG / EMTRICITABINE 200MG / TENOFOVIR ALAFENAMIDE 25MG (PEP)' ~ 'TAF/FTC+DTG',
+                  final_arv == 'DOLUTEGRAVIR 50MG / EMTRICITABINE 200MG / TENOFOVIR ALAFENAMIDE 25MG (PEP)' ~ 'DTG/FTC/TAF',
                   final_arv == 'DOLUTEGRAVIR 50MG / LAMIVUDINE 300MG / TENOFOVIR DISOPROXIL FUMARATE 300MG + DOLUTEGRAVIR 50MG - (DTG/3TC/TDF + DTG)' ~ 'TDF/3TC/DTG+DTG',
                   final_arv == 'ABACAVIR 300MG / LAMIVUDINE 150MG / DOLUTEGRAVIR 50MG' ~ 'ABC+3TC+DTG',
                   final_arv == 'LAMIVUDINE 150MG/ZIDOVUDINE 300MG/ DOLUTEGRAVIR 50MG' ~ 'AZT/3TC+DTG',
                   final_arv == '3TC/AZT + DTG' ~ 'AZT/3TC+DTG',
                   final_arv == 'LAMIVUDINE 300MG / TENOFOVIR DISOPROXIL FUMARATE 300MG + RILPIVIRINE 25MG (3TC/TDF + RPV)' ~ 'TDF/3TC+RIL',
-                  final_arv == 'DOLUTEGRAVIR 50MG + EMTRICITABINE 200MG + TENOFOVIR ALAFENAMIDE 25MG (DTG+FTC+TAF)' ~ 'TDF+FTC+TAF',
-                  final_arv == 'LAMIVUDINE 150MG + LOPINAVIR 200MG/RITONAVIR 50MG + DOLUTEGRAVIR 50MG' ~ '3TC+LPV/r+DTG',
+                  final_arv == 'DOLUTEGRAVIR 50MG + EMTRICITABINE 200MG + TENOFOVIR ALAFENAMIDE 25MG (DTG+FTC+TAF)' ~ 'DTG/FTC/TAF',
+                  final_arv == 'LAMIVUDINE 150MG + LOPINAVIR 200MG/RITONAVIR 50MG + DOLUTEGRAVIR 50MG' ~ '3TC+LPV/R+DTG',
+                  final_arv == 'LAMIVUDINE + DOLUTEGRAVIR' ~ '3TC+DTG',
+                  final_arv == 'DTG 50MG / 3TC 300MG / TDF 300MG (TLD) (1 BOTTLE)' ~ 'TDF/3TC/DTG',
+                  final_arv == 'DTG , PEN-G' ~ 'DTG+PEN-G',
+                  final_arv == 'EMTRI + DTG' ~ 'FTC/TAF',
+                  final_arv == 'TLD' ~ 'TDF/3TC/DTG',
+                  final_arv == 'SOLO DOLU ONLY' ~ 'DTG',
+                  final_arv == 'LAMIZIDO / ALUVIA' ~ 'AZT/3TC+LPV/R',
+                  final_arv == 'PREP + DTG' ~ 'TDF/FTC+DTG',
+                  final_arv == 'TLD , COTRI-30 ,3HP-36' ~ 'TDF/3TC/DTG+CPT-30+3HP-36',
+                  final_arv == 'TLD / COTRI -60PCS' ~ 'TDF/3TC/DTG+CPT-60',
+                  final_arv == 'TLD , ISO-90' ~ 'TDF/3TC/DTG+INH-90',
+                  final_arv == 'LAMI/ZIDO + LPV/R' ~ 'AZT/3TC+LPV/R',
+                  final_arv == 'AZT/ DTG' ~ 'AZT+DTG',
+                  final_arv == 'ABC+3TC+DOLUTEGRAVIR' ~ 'ABC/DTG/3TC',
+                  final_arv == 'TLD/IPT#30/CPT#30' ~ 'TDF/3TC/DTG+INH-30+CPT-30',
+                  final_arv == 'TLD/IPT#30' ~ 'TDF/3TC/DTG+INH-30',
+                  final_arv == 'IPT GIVEN 30 TABS, CPT GIVEN 30 TABS' ~ 'INH-30+CPT-30',
+                  final_arv == 'TLD/IPT' ~ 'TDF/3TC/DTG+INH-30',
+                  final_arv == 'TLD/IPT30/CPT30' ~ 'TDF/3TC/DTG+INH-30+CPT-30',
+                  final_arv == 'TLD/IPT30//CPT30' ~ 'TDF/3TC/DTG+INH-30+CPT-30',
+                  final_arv == 'LAMIVUDINE60/ABACAVIR60/DOLUTEGRAVIR30' ~ 'ABC/DTG/3TC',
+                  final_arv == 'TLD/IPT30' ~ 'TDF/3TC/DTG+INH-30',
+                  final_arv == 'DTG 50MG / 3TC 300MG / TDF 300MG (TLD) (1 BOTTLE)' ~ 'TDF/3TC/DTG',
+                  final_arv == 'COTRINIDAZOLE / ISONIAZID' ~ 'CPT-30+INH-30',
+                  final_arv == 'ISONIAZID / COTRINIDAZOLE' ~ 'CPT-30+INH-30',
+                  final_arv == 'ISONIAZID' ~ 'INH-30',
                   TRUE ~ final_arv
                ),
 
@@ -311,6 +341,7 @@ LyArt <- R6Class(
                tx_status     = case_when(
                   str_detect(tx_status, "CONTINUING") ~ "2",
                   str_detect(tx_status, "ENROLLING") ~ "1",
+                  str_detect(tx_status, "FOLLOW-UP") ~ "1",
                   TRUE ~ tx_status
                ),
                tb_status     = if_else(!is.na(tb_ipt_status), "0", NA_character_),
@@ -428,6 +459,7 @@ LyArt <- R6Class(
             `tx-more6mos`    = self$data$converted %>% filter(parse_number(disp_total) > 180),
             `tx-no_cid`      = self$data$converted %>%
                filter(is.na(central_id)) %>%
+               filter(if_any(c(patient_code, confirmatory_code, last, first, middle, suffix, uic, birthdate, philhealth_no, sex, client_mobile, client_email), ~!is.na(.))) %>%
                distinct(
                   central_id,
                   confirmatory_code,
@@ -455,6 +487,7 @@ LyArt <- R6Class(
          max_id <- max(self$data$ids$row_id)
          new    <- self$data$converted %>%
             filter(is.na(central_id)) %>%
+            filter(if_any(c(patient_code, confirmatory_code, last, first, middle, suffix, uic, birthdate, philhealth_no, sex, client_mobile, client_email), ~!is.na(.))) %>%
             # select(
             #    -curr_reg,
             #    -curr_prov,
@@ -525,7 +558,7 @@ LyArt <- R6Class(
          self$data$idreg <- update_idreg()
 
          lw_conn            <- connect('mariadb-lw')
-         ids <- (ohasis$ref_faci %>% filter(str_detect(faci_code, 'TLY')))$faci_id
+         ids                <- (ohasis$ref_faci %>% filter(str_detect(faci_code, 'TLY')))$faci_id
          self$data$existing <- QB$new(lw_conn)$
             from('ohasis_warehouse.form_art_bc as art')$
             select("art.rec_id", "art.record_date as visit_date", "art.medicine_summary", "art.created_by", "art.created_at", "art.patient_id")$
