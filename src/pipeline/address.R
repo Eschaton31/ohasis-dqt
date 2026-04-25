@@ -295,6 +295,7 @@ harp_addr_to_id <- function(data, ref_addr, harp_addr, aem_sub_ntl = FALSE, add_
          ),
 
          {{col_reg}}   := case_when(
+            {{col_munc}} == "COTABATO" ~ "ARMM",
             {{col_prov}} == "NEGROS OCCIDENTAL" ~ "NIR",
             {{col_prov}} == "NEGROS ORIENTAL" ~ "NIR",
             {{col_prov}} == "SIQUIJOR" ~ "NIR",
@@ -309,6 +310,9 @@ harp_addr_to_id <- function(data, ref_addr, harp_addr, aem_sub_ntl = FALSE, add_
             TRUE ~ {{col_reg}}
          ),
          {{col_prov}}  := case_when(
+            {{col_munc}} == "COTABATO" ~ "MAGUINDANAO",
+            {{col_prov}} == 'GUIGUINTOI' ~ 'BULACAN',
+            str_detect({{col_prov}}, "^MAGUINDANAO") ~ 'MAGUINDANAO',
             {{col_prov}} == "METRO MANILA" ~ "NCR",
             {{col_prov}} == "COMPOSTELA VALLEY" ~ "DAVAO DE ORO",
             {{col_prov}} == "MT. PROVINCE" ~ "MOUNTAIN PROVINCE",
@@ -320,6 +324,7 @@ harp_addr_to_id <- function(data, ref_addr, harp_addr, aem_sub_ntl = FALSE, add_
          ),
          {{col_munc}}  := str_replace_all({{col_munc}}, "\\bGEN\\.\\b", "GENERAL"),
          {{col_munc}}  := case_when(
+            {{col_munc}} == "GUIGUINTOI" ~ "GUIGUINTO",
             {{col_munc}} == "LAPU LAPU" ~ "LAPU-LAPU",
             {{col_munc}} == "CEBU CITY" ~ "CEBU",
             {{col_munc}} == "QUEZON CITY" ~ "QUEZON",
@@ -371,6 +376,20 @@ harp_addr_to_id <- function(data, ref_addr, harp_addr, aem_sub_ntl = FALSE, add_
             #       prov
             #    }
             # ) %>%
+            mutate(
+               keep       = case_when(
+                  nhsss_prov == 'MAGUINDANAO DEL SUR' & nhsss_munc == 'UNKNOWN' ~ 0,
+                  psgc == '1380600000' ~ 1,
+                  prov == '1380600000' & munc != '1380600000' ~ 0,
+                  name_brgy != 'Unknown' ~ 0,
+                  TRUE ~ 1
+               ),
+               nhsss_prov = case_when(
+                  str_detect(nhsss_prov, '^MAGUINDANAO') ~ 'MAGUINDANAO',
+                  TRUE ~ nhsss_prov
+               ),
+            ) %>%
+            filter(keep == 1) %>%
             distinct(nhsss_reg, nhsss_prov, nhsss_munc, .keep_all = TRUE) %>%
             select(
                reg,
@@ -400,6 +419,139 @@ harp_addr_to_id <- function(data, ref_addr, harp_addr, aem_sub_ntl = FALSE, add_
             ~if_else(. != "", str_c("PH", .), ., .)
          )
    }
+
+   return(data)
+}
+
+corr_addr_name <- function() {
+   conn     <- connect('old-lw')
+   old_addr <- QB$new(conn)$
+      select('psgc_reg as reg', 'psgc_prov as prov', 'psgc_munc as munc', 'name_reg as old_reg', 'name_prov as old_prov', 'name_munc as old_munc')$
+      from('ohasis_lake.ref_addr')$
+      get() %>%
+      mutate_all(~na_if(., '')) %>%
+      mutate(
+         psgc_old = coalesce(munc, prov, reg)
+      ) %>%
+      select(-reg, -prov, -munc) %>%
+      left_join(
+         y          = ohasis$ref_addr %>%
+            select(psgc_old, new_reg = name_reg, new_prov = name_prov, new_munc = name_munc),
+         by         = join_by(psgc_old),
+         na_matches = 'never'
+      )
+   dbDisconnect(conn)
+
+   corr_addr <- range_speedread("1Qw0K6XRQg8aPeRDWdsZjxD11DJ1nJHYJKXF7YFG3Y1M") %>%
+      left_join(
+         y  = ohasis$ref_addr %>%
+            select(
+               corr_psgc = psgc,
+               corr_brgy = brgy,
+               corr_munc = munc,
+               corr_prov = prov,
+               corr_reg  = reg,
+            ),
+         by = join_by(corr_psgc)
+      )
+   return(
+      list(
+         old  = old_addr,
+         corr = corr_addr
+      )
+   )
+}
+
+name_addr_to_id <- function(data, ref_addr, old_addr, corr_addr, harp_addr) {
+   local_gs4_quiet()
+
+   psgc_reg  <- names(harp_addr)[1]
+   psgc_prov <- names(harp_addr)[2]
+   psgc_munc <- names(harp_addr)[3]
+   psgc_brgy <- names(harp_addr)[4]
+
+   col_reg  <- as.name(harp_addr[[1]])
+   col_prov <- as.name(harp_addr[[2]])
+   col_munc <- as.name(harp_addr[[3]])
+   col_brgy <- as.name(harp_addr[[4]])
+
+   data %<>%
+      left_join(
+         y          = old_addr %>%
+            select(
+               {{col_reg}}  := old_reg,
+               {{col_prov}} := old_prov,
+               {{col_munc}} := old_munc,
+               new_reg,
+               new_prov,
+               new_munc
+            ),
+         by         = join_by({{col_reg}}, {{col_prov}}, {{col_munc}}),
+         na_matches = 'never'
+      ) %>%
+      mutate(
+         {{col_reg}}  := coalesce(new_reg, {{col_reg}}),
+         {{col_prov}} := coalesce(new_prov, {{col_prov}}),
+         {{col_munc}} := coalesce(new_munc, {{col_munc}}),
+      ) %>%
+      select(-new_reg, -new_prov, -new_munc) %>%
+      mutate(
+         {{col_brgy}} := case_when(
+            !({{col_brgy}} %in% unique(ref_addr$name_brgy)) ~ 'Unknown',
+            TRUE ~ {{col_brgy}}
+         ),
+         {{col_munc}} := case_when(
+            TRUE ~ str_replace_all({{col_munc}}, " (Capital)", "")
+         ),
+      ) %>%
+      left_join(
+         y  = ref_addr %>%
+            distinct(name_reg, name_prov, name_munc, name_brgy, .keep_all = TRUE) %>%
+            select(
+               reg,
+               prov,
+               munc,
+               brgy,
+               {{col_reg}}  := name_reg,
+               {{col_prov}} := name_prov,
+               {{col_munc}} := name_munc,
+               {{col_brgy}} := name_brgy,
+            ),
+         by = join_by({{col_reg}}, {{col_prov}}, {{col_munc}}, {{col_brgy}})
+      )
+
+   data %<>%
+      left_join(
+         y  = corr_addr %>%
+            select(
+               corr_reg,
+               corr_prov,
+               corr_munc,
+               corr_brgy,
+               {{col_reg}}  := reg,
+               {{col_prov}} := prov,
+               {{col_munc}} := munc,
+               {{col_brgy}} := brgy,
+            ),
+         by = join_by({{col_reg}}, {{col_prov}}, {{col_munc}}, {{col_brgy}})
+      ) %>%
+      mutate(
+         reg  = coalesce(reg, corr_reg),
+         prov = coalesce(prov, corr_prov),
+         munc = coalesce(munc, corr_munc),
+         brgy = coalesce(brgy, corr_brgy),
+      ) %>%
+      select(-corr_reg, -corr_prov, -corr_munc, -corr_brgy) %>%
+      relocate(reg, prov, munc, brgy, .after = {{col_brgy}}) %>%
+      rename_all(
+         ~case_when(
+            . == "reg" ~ psgc_reg,
+            . == "prov" ~ psgc_prov,
+            . == "munc" ~ psgc_munc,
+            . == "brgy" ~ psgc_brgy,
+            TRUE ~ .
+         )
+      )
 
    return(data)
 }
