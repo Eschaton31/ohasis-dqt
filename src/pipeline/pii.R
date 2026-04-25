@@ -43,7 +43,7 @@ remove_pii <- function(data) {
 clean_pii <- function(pii_col) {
    clean <- str_squish(stri_trans_toupper(pii_col))
    clean <- case_when(
-      str_detect(clean, "^[^[:alnum:]]$") ~ NA_character_,
+      str_detect(clean, "^[^[:alnum:]]+$") ~ NA_character_,
       str_detect(clean, "^AWAITING") ~ NA_character_,
       str_detect(clean, "^PENDING") ~ NA_character_,
       str_detect(clean, "^NOT\\b") ~ NA_character_,
