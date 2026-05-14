@@ -126,6 +126,7 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
       conn  <- connect("local-sqlite")
       idreg <- QB$new(conn)$from('id_registry')$whereIn('central_id', missing$central_id, 'or')$whereIn('patient_id', missing$central_id, 'or')$get()
       pids  <- unique(c(idreg$patient_id, missing$patient_id, missing$central_id))
+      pids  <- pids[!is.na(pids)]
 
       pii <- QB$new(conn)$from('patients')$whereIn('patient_id', pids)$get() %>%
          get_cid(idreg, patient_id) %>%
