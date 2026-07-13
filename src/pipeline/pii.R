@@ -49,12 +49,14 @@ clean_pii <- function(pii_col) {
       str_detect(clean, "^NOT\\b") ~ NA_character_,
       str_detect(clean, "^NO\\b") ~ NA_character_,
       !str_detect(clean, "[^-]") ~ NA_character_,
+      str_detect(clean, "CANNOT") & str_detect(clean, "PROVIDE") ~ NA_character_,
       clean == "" ~ NA_character_,
       clean == "NONE" ~ NA_character_,
       clean == "N/A" ~ NA_character_,
       clean == "NA" ~ NA_character_,
       clean == "XXX" ~ NA_character_,
       clean == "XX" ~ NA_character_,
+      clean == "#NAME?" ~ NA_character_,
       TRUE ~ clean
    )
 
