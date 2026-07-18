@@ -177,8 +177,8 @@ apply_patient_to_pii <- function(pid, rids) {
 }
 
 # update UPDATED_*
-update_credentials <- function(rec_ids) {
-   db_conn <- ohasis$conn("db")
+update_credentials <- function(rec_ids, other_px_tables = NULL) {
+   db_conn <- connect('ohasis-live')
 
    upd_by <- Sys.getenv("OH_USER_ID")
    upd_at <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
@@ -187,6 +187,16 @@ update_credentials <- function(rec_ids) {
       glue(r"(update ohasis.px_record set updated_by = '{upd_by}', updated_at = '{upd_at}' where rec_id in (?);)"),
       params = list(rec_ids)
    )
+
+   if (!is.null(other_px_tables)) {
+      for (table in other_px_tables) {
+         dbExecute(
+            db_conn,
+            glue(r"(update ohasis.{table} set updated_by = '{upd_by}', updated_at = '{upd_at}' where rec_id in (?);)"),
+            params = list(rec_ids)
+         )
+      }
+   }
    dbDisconnect(db_conn)
 }
 
@@ -1985,6 +1995,134 @@ update_pii <- function(start = NULL) {
    log_info("Updated IDs = {red(formatC(as.integer(updated_rows), big.mark = ','))} rows")
 
    dbxUpsert(conn, 'patients', new_data, 'patient_id', batch_size = 10000)
+   log_success("Done!")
+
+   dbDisconnect(conn)
+}
+
+update_pii_profile <- function(start = NULL) {
+   conn <- connect('local-sqlite')
+
+   if (!dbExistsTable(conn, "pii_profile")) {
+      dbExecute(conn, "CREATE TABLE pii_profile (
+    central_id        TEXT PRIMARY KEY,
+    confirmatory_code TEXT,
+    patient_code      TEXT,
+    uic               TEXT,
+    philhealth_no     TEXT,
+    philsys_id        TEXT,
+    first             TEXT,
+    middle            TEXT,
+    last              TEXT,
+    suffix            TEXT,
+    birthdate         TEXT,
+    sex               TEXT,
+    self_ident        TEXT,
+    self_ident_other  TEXT,
+    client_email      TEXT,
+    client_mobile     TEXT,
+    nationality       TEXT,
+    civil_status      TEXT,
+    educ_level        TEXT,
+    curr_reg          TEXT,
+    curr_prov         TEXT,
+    curr_munc         TEXT,
+    curr_brgy         TEXT,
+    curr_addr         TEXT,
+    perm_reg          TEXT,
+    perm_prov         TEXT,
+    perm_munc         TEXT,
+    perm_brgy         TEXT,
+    perm_addr         TEXT,
+    birth_reg         TEXT,
+    birth_prov        TEXT,
+    birth_munc        TEXT,
+    birth_brgy        TEXT,
+    birth_addr        TEXT,
+    _version          INTEGER
+)")
+   }
+
+   loc_snap <- dbGetQuery(conn, "SELECT MAX(COALESCE(_version, 0)) as max_version FROM pii_profile")
+   loc_snap <- as.character(max(loc_snap$max_version, 0, na.rm = TRUE))
+   if (!is.null(start)) {
+      loc_snap <- start
+   }
+   loc_snap <- as.character(loc_snap)
+
+   log_info("Fetching Patients")
+   conn_lw  <- connect('mariadb-lw')
+   new_data <- QB$new(conn_lw)$
+      from("dashboard.ohasis_pii_profile")$
+      where("_version", ">=", loc_snap)$
+      get()
+   dbDisconnect(conn_lw)
+
+   new_data %<>%
+      mutate_at(
+         .vars = vars(
+            first,
+            middle,
+            last,
+            suffix,
+            confirmatory_code,
+            patient_code,
+            uic,
+            philhealth_no,
+            philsys_id,
+            client_mobile,
+            client_email
+         ),
+         ~clean_pii(.)
+      ) %>%
+      mutate(
+         client_mobile = str_replace_all(client_mobile, "[^[:digit:]]", ""),
+         client_mobile = case_when(
+            str_left(client_mobile, 1) == "9" ~ stri_c("0", client_mobile),
+            str_left(client_mobile, 2) == "63" ~ str_replace(client_mobile, "^63", "0"),
+            TRUE ~ client_mobile
+         ),
+         birthdate     = as.character(birthdate),
+
+         sex           = case_when(
+            sex == 1 ~ 'Male',
+            sex == 2 ~ 'Female',
+            TRUE ~ NA_character_
+         ),
+         self_ident    = case_when(
+            self_ident == 1 ~ 'Man',
+            self_ident == 2 ~ 'Woman',
+            self_ident == 2 ~ 'Other',
+            TRUE ~ NA_character_
+         ),
+         educ_level    = case_when(
+            educ_level == 1 ~ 'None',
+            educ_level == 2 ~ 'Elementary',
+            educ_level == 3 ~ 'High School',
+            educ_level == 4 ~ 'College',
+            educ_level == 5 ~ 'Vocational',
+            educ_level == 6 ~ 'Post-Graduate',
+            educ_level == 7 ~ 'Pre-school',
+            TRUE ~ NA_character_
+         ),
+         civil_status  = case_when(
+            civil_status == 1 ~ 'Single',
+            civil_status == 2 ~ 'Married',
+            civil_status == 3 ~ 'Separated',
+            civil_status == 4 ~ 'Widowed',
+            civil_status == 5 ~ 'Divorced',
+            TRUE ~ NA_character_
+         )
+      )
+
+   updated_rows <- QB$new(conn)$from("pii_profile")$whereIn("central_id", new_data$central_id)$count()
+   new_rows     <- nrow(new_data) - updated_rows
+
+   log_info("New IDs = {red(formatC(as.integer(new_rows), big.mark = ','))} rows")
+   log_info("Updated IDs = {red(formatC(as.integer(updated_rows), big.mark = ','))} rows")
+
+   dbxUpsert(conn, 'pii_profile', new_data, 'central_id', batch_size = 10000)
+   dbExecute(conn, "delete from pii_profile where central_id not in (select central_id from id_registry)")
    log_success("Done!")
 
    dbDisconnect(conn)
