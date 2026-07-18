@@ -220,6 +220,10 @@ QB <- R6Class(
                   is.character,
                   ~gsub('Ã‘', 'Ñ', .,)
                ) %>%
+               mutate_if(
+                  is.character,
+                  ~gsub('Ã±', 'Ñ', .,)
+               ) %>%
                rename_all(
                   ~case_when(
                      str_detect(., "\\.") ~ str_extract(., ".+\\.(.+)", 1),
