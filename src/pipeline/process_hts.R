@@ -148,11 +148,11 @@ get_hts <- function(min, max, faci_ids = NULL) {
    }
 
 
-   starts <- seq(as.Date(min), as.Date(max), by = "1 month")
-   ends   <- sapply(starts, function(date) date %m+% months(1) %m-% days(1), simplify = FALSE)
+   starts <- seq(as.Date(min), as.Date(max), by = "1 quarter")
+   ends   <- sapply(starts, function(date) date %m+% months(3) %m-% days(1), simplify = FALSE)
 
    periods                       <- purrr::map2(lapply(starts, as.character), lapply(ends, as.character), list)
-   periods[[length(periods)]][2] <- max
+   periods[[length(periods)]][2] <- as.character(max)
 
    hts <- lapply(periods, function(period) {
       log_info(r"({green(period[[1]])} to {green(period[[2]])})")
@@ -1597,9 +1597,10 @@ deconstruct_hts <- function(hts) {
       ) %>%
       rename(
          location_reg  = hiv_service_reg,
-         location_reg  = hiv_service_reg,
          location_prov = hiv_service_prov,
          location_munc = hiv_service_munc,
+         # location_brgy = hiv_service_brgy,
+         location_addr = hiv_service_addr,
       ) %>%
       mutate(
          client_mobile = str_replace_all(client_mobile, "[^[:digit:]]", ""),
