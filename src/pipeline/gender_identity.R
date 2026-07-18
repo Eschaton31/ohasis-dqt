@@ -27,7 +27,7 @@ generate_gender_identity <- function(linelist, sex, self_identity, self_identity
       ) %>%
       # gender identity
       left_join(
-         y  = ref_gi %>%
+         y          = ref_gi %>%
             mutate(
                SEX        = toupper(remove_code(SEX)),
                SELF_IDENT = toupper(remove_code(SELF_IDENT)),
@@ -40,7 +40,8 @@ generate_gender_identity <- function(linelist, sex, self_identity, self_identity
                SI_SIEVE,
                {{gender_identity}} := correct_gi
             ),
-         by = c(col_sex, col_si, "SI_SIEVE")
+         by         = c(col_sex, col_si, "SI_SIEVE"),
+         na_matches = "never"
       ) %>%
       relocate({{gender_identity}}, .before = {{self_identity}}) %>%
       select(-SI_SIEVE)
