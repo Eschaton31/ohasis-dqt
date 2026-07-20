@@ -46,6 +46,7 @@ clean_pii <- function(pii_col) {
       str_detect(clean, "^[^[:alnum:]]+$") ~ NA_character_,
       str_detect(clean, "^AWAITING") ~ NA_character_,
       str_detect(clean, "^PENDING") ~ NA_character_,
+      str_detect(clean, "^TO FOLLOW") ~ NA_character_,
       str_detect(clean, "^NOT\\b") ~ NA_character_,
       str_detect(clean, "^NO\\b") ~ NA_character_,
       !str_detect(clean, "[^-]") ~ NA_character_,
