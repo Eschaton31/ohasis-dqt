@@ -46,13 +46,20 @@ process_vl <- function(data, result_old, result_new) {
             str_replace_all("10 TO THE 5TH", "EO5") %>%
             str_replace_all("X 10\\^([0-9]+)", "E\\1") %>%
             str_replace_all("X E05", "E05") %>%
+            str_replace_all("4O", "40") %>%
             # lab jargon
             str_replace_all("^HIV 1 M/N *. ", "") %>%
             # hiv-1
             str_replace_all("\\bHIV 1\\b", "HIV-1") %>%
             str_replace_all("HIV-!", "HIV-1") %>%
             str_replace_all("HIV-1-", "HIV-1 ") %>%
+            str_replace_all("HIV 1 ", "HIV-1 ") %>%
+            str_replace_all("HIV 1 ", "HIV-1 ") %>%
+            str_replace_all("HIV -1 ", "HIV-1 ") %>%
+            str_replace_all("HIV- 1 ", "HIV-1 ") %>%
             str_replace_all("HIV I ", "HIV-1 ") %>%
+            str_replace_all("HIV-I ", "HIV-1 ") %>%
+            str_replace_all("HIV - I ", "HIV-1 ") %>%
             # dates
             str_replace_all("[0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9]", "") %>%
             str_replace_all("[0-9][0-9]/[0-9][0-9]/[0-9][0-9][0-9][0-9]", "") %>%
@@ -62,6 +69,31 @@ process_vl <- function(data, result_old, result_new) {
             str_replace_all("[0-9]/[0-9][0-9]/[0-9][0-9]", "") %>%
             # undetectable
             str_replace_all("UNDECTED", "UNDETECTABLE") %>%
+            str_replace_all("UNDECTECTABLE", "UNDETECTABLE") %>%
+            str_replace_all("UNDECTEBALE", "UNDETECTABLE") %>%
+            str_replace_all("UNCETECTED", "UNDETECTABLE") %>%
+            str_replace_all("UNDEETECTED", "UNDETECTABLE") %>%
+            str_replace_all("UNDETCETD", "UNDETECTABLE") %>%
+            str_replace_all("UNDETEATABLE", "UNDETECTABLE") %>%
+            str_replace_all("UNDETECGTED", "UNDETECTABLE") %>%
+            str_replace_all("UNDETECRED", "UNDETECTABLE") %>%
+            str_replace_all("UNDETEDTED", "UNDETECTABLE") %>%
+            str_replace_all("UNDETETCTABLE", "UNDETECTABLE") %>%
+            str_replace_all("UNDETETED", "UNDETECTABLE") %>%
+            str_replace_all("UNDTECTABLE", "UNDETECTABLE") %>%
+            str_replace_all("UNDTETCTABLE", "UNDETECTABLE") %>%
+            str_replace_all("UNTECTED", "UNDETECTABLE") %>%
+            str_replace_all("\\bUYD\\b", "UNDETECTABLE") %>%
+            str_replace_all("VL SUPPRESSED", "UNDETECTABLE") %>%
+            str_replace_all("VL SUPRESSED", "UNDETECTABLE") %>%
+            str_replace_all("INDETECTED", "UNDETECTABLE") %>%
+            str_replace_all("NO DETECTABLE LEVELS OF HIV-RNA", "UNDETECTABLE") %>%
+            str_replace_all("NO DETECTABLE LEVELS OF HIV RNA", "UNDETECTABLE") %>%
+            str_replace_all("NO HCV RNA DETECTED", "UNDETECTABLE") %>%
+            str_replace_all("NO HIVE DETECTED", "UNDETECTABLE") %>%
+            str_replace_all("UBDETECTABLE", "UNDETECTABLE") %>%
+            str_replace_all("UBDETECTED", "UNDETECTABLE") %>%
+            str_replace_all("UBNDETECTED", "UNDETECTABLE") %>%
             str_replace_all("JNDETECTABLE", "UNDETECTABLE") %>%
             str_replace_all("UDETECTABLE", "UNDETECTABLE") %>%
             str_replace_all("\\bNO HIV\\b", "UNDETECTABLE") %>%
@@ -94,9 +126,46 @@ process_vl <- function(data, result_old, result_new) {
             str_replace_all("DETECTED\\+", "DETECTED") %>%
             str_replace_all("DFETECTED", "DETECTED") %>%
             str_replace_all("DETECTEDN", "DETECTED") %>%
+            str_replace_all("DECTECTED", "DETECTED") %>%
+            str_replace_all("DETECTEDD", "DETECTED") %>%
+            str_replace_all("CETECTED", "DETECTED") %>%
+            str_replace_all("DECTED", "DETECTED") %>%
+            str_replace_all("DECTETED", "DETECTED") %>%
+            str_replace_all("DEETECTED", "DETECTED") %>%
+            str_replace_all("DDETECTED", "DETECTED") %>%
+            str_replace_all("DETCETED", "DETECTED") %>%
+            str_replace_all("DEETCTED", "DETECTED") %>%
+            str_replace_all("DEFECTED", "DETECTED") %>%
+            str_replace_all("TEDECTED", "DETECTED") %>%
+            str_replace_all("DETETCETD", "DETECTED") %>%
+            str_replace_all("DETCETD", "DETECTED") %>%
+            str_replace_all("GETECTED", "DETECTED") %>%
+            str_replace_all("DETECTE\\b", "DETECTED") %>%
+            str_replace_all("DETECTEDQ\\b", "DETECTED") %>%
+            str_replace_all("DEECTED\\b", "DETECTED") %>%
+            str_replace_all("DOTECTED\\b", "DETECTED") %>%
+            str_replace_all("DRTECTED\\b", "DETECTED") %>%
+            str_replace_all("DTECTD\\b", "DETECTED") %>%
+            str_replace_all("DTEECTED\\b", "DETECTED") %>%
+            str_replace_all("DTETECTED\\b", "DETECTED") %>%
+            str_replace_all("DTEVTED\\b", "DETECTED") %>%
+            str_replace_all("\\bTECTED\\b", "DETECTED") %>%
+            str_replace_all("\\bTETECTED\\b", "DETECTED") %>%
             # not
             str_replace_all("N OT", "NOT") %>%
             str_replace_all("N0T", "NOT") %>%
+            str_replace_all("NOPT", "NOT") %>%
+            str_replace_all("NOIT", "NOT") %>%
+            str_replace_all("NOTH", "NOT") %>%
+            str_replace_all("\\bNOR\\b", "NOT") %>%
+            str_replace_all("\\bNPT\\b", "NOT") %>%
+            str_replace_all("\\bBOT\\b", "NOT") %>%
+            str_replace_all("\\bNOTT\\b", "NOT") %>%
+            str_replace_all("\\bNTO\\b", "NOT") %>%
+            str_replace_all("\\bNT\\b", "NOT") %>%
+            str_replace_all("\\bOT\\b", "NOT") %>%
+            str_replace_all("\\bNIT\\b", "NOT") %>%
+            str_replace_all("\\bNOTB\\b", "NOT") %>%
             # copies
             str_replace_all("COPES", "COPIES") %>%
             str_replace_all("COPIEE", "COPIES") %>%
@@ -143,9 +212,9 @@ process_vl <- function(data, result_old, result_new) {
             str_replace_all("HIV 1- DETECTED ", "") %>%
             str_replace_all("HI-1 DETECTED", "") %>%
             str_replace_all("HIV- DETECTED ", "") %>%
-            str_replace_all("HIV-1 NO DETECTED", "") %>%
-            str_replace_all("HIV1-NOT DETECTED ", "") %>%
             str_replace_all("HIV-1DETECTED ", "") %>%
+            str_replace_all("^HIV-1 NOT DETECTED ", "") %>%
+            str_replace_all("^HIV-1 DETECTED  ", "") %>%
             str_replace_all("HIV 1 ", "") %>%
             str_replace_all("HIV-1 ", "") %>%
             str_replace_all(" *CELLS/UL", "") %>%
@@ -208,15 +277,17 @@ process_vl <- function(data, result_old, result_new) {
 
          VL_RES_2    = case_when(
             str_detect(VL_RES, glue("\\bND\\b")) ~ 0,
-            VL_RES %in% c("HND", "ND", "N/D", "UD", "TND", "UNDE", "UN", "N.D", "NP", "UNDECTABLE", "UNDECTED", "UNDET", "UNDETEC") ~ 0,
+            VL_RES %in% c("HND", "ND", "N/D", "UD", "TND", "UNDE", "UN", "N.D", "NP", "UNDECTABLE", "UNDECTED", "UNDET", "UNDETEC", "HIV UD", "UND", "U.D", "U=U", "UU") ~ 0,
             VL_RES %in% c("TARGET NOT DETECTED", "TARGET NOT DEFECTED", "TNDD", "TNDS", "U", "UNDETACTABLE", "UNDETE", "UNTEDECTABLE", "UNDETECTABLE", "UP") ~ 0,
             VL_RES %in% c("N", "NO DETECTED", "NO\\", "NONE DETECTED", "NOT", "NOT CONNECTED", "NOT DETECED", "NOT DTECTED", "HIV 1 NOT DTECTED") ~ 0,
             VL_RES %in% c("BN", "BD", "JUD", "NTD", "TLD", "TN D") ~ 0,
+            str_detect(VL_RES, "NO DETECTED") ~ 0,
+            str_detect(VL_RES, "NOT DETECTED ") ~ 0,
             scical == "x10" ~ scical_x10,
             scical == "eo" ~ scical_eo,
-            less_than == 1 &
-               stri_detect_fixed(VL_RES, "40") &
-               stri_detect_fixed(VL_RES, "1.6") ~ 39,
+            # less_than == 1 &
+            #    stri_detect_fixed(VL_RES, "40") &
+            #    stri_detect_fixed(VL_RES, "1.6") ~ 39,
             less_than == 1 & has_alpha == 0 ~ pure_number - 1,
             check.numeric(VL_RES) ~ pure_number,
             !is.na(mega_number) ~ mega_number * 1000000,
@@ -340,9 +411,10 @@ process_vl <- function(data, result_old, result_new) {
          log_multiplier = parse_number(log_multiplier),
          log_raw        = if_else(
             condition = stri_detect_fixed(log_raw, "E"),
-            true      = substr(log_raw, 1, stri_locate_first_fixed(log_raw, "E") - 1) %>% stri_replace_all_regex("[^[:digit:]]", ""),
+            true      = substr(log_raw, 1, stri_locate_first_fixed(log_raw, "E") - 1),
             false     = log_raw
          ),
+         log_raw        = parse_number(log_raw),
 
          log_increase   = if_else(
             condition = stri_detect_fixed(VL_RES, "LOG"),
@@ -352,32 +424,54 @@ process_vl <- function(data, result_old, result_new) {
          log_increase   = stri_replace_all_fixed(log_increase, ")", ""),
          log_increase   = str_replace_all(log_increase, "[:alpha:]", ""),
          log_increase   = str_replace_all(log_increase, " ", ""),
-         log_increase   = parse_number(log_increase) * 10,
+         log_increase   = parse_number(log_increase),
 
          # apply calculations
+         # VL_RES_2       = case_when(
+         #    VL_RES_2 == 99999 ~ 0,
+         #    !is.na(log_increase) &
+         #       is.na(log_multiplier) &
+         #       !stri_detect_fixed(VL_RES, "X") &
+         #       !stri_detect_fixed(VL_RES, "E") &
+         #       !stri_detect_fixed(VL_RES, "^") ~ log_raw * log_increase,
+         #    !is.na(log_increase) &
+         #       !is.na(log_multiplier) &
+         #       stri_detect_fixed(VL_RES, "E") &
+         #       !stri_detect_fixed(VL_RES, "X") &
+         #       !stri_detect_fixed(VL_RES, "^") ~ log_raw *
+         #       log_increase *
+         #       log_multiplier,
+         #    is.na(VL_RES_2) &
+         #       stri_count_fixed(VL_RES, ".") > 1 &
+         #       check.numeric(str_replace_all(VL_RES, ".", "")) ~ parse_number(stri_replace_all_regex(VL_RES, ".", "")),
+         #    TRUE ~ VL_RES_2
+         # ),
          VL_RES_2       = case_when(
             VL_RES_2 == 99999 ~ 0,
-            !is.na(log_increase) &
-               is.na(log_multiplier) &
-               !stri_detect_fixed(VL_RES, "X") &
-               !stri_detect_fixed(VL_RES, "E") &
-               !stri_detect_fixed(VL_RES, "^") ~ parse_number(stri_replace_all_regex(log_raw, "[^[:digit:]]", "")) * log_increase,
-            !is.na(log_increase) &
+            !is.na(log_increase) & !is.na(log_raw) ~ 10^log_increase,
+            !is.na(log_raw) &
                !is.na(log_multiplier) &
+               is.na(log_increase) &
                stri_detect_fixed(VL_RES, "E") &
                !stri_detect_fixed(VL_RES, "X") &
-               !stri_detect_fixed(VL_RES, "^") ~ parse_number(stri_replace_all_regex(log_raw, "[^[:digit:]]", "")) *
-               log_increase *
+               !stri_detect_fixed(VL_RES, "^") ~ log_raw *
                log_multiplier,
+            !is.na(log_raw) &
+               is.na(log_multiplier) &
+               is.na(log_increase) &
+               less_than == 1 &
+               !stri_detect_fixed(VL_RES, "E") &
+               !stri_detect_fixed(VL_RES, "X") &
+               !stri_detect_fixed(VL_RES, "^") ~ log_raw - 1,
             is.na(VL_RES_2) &
                stri_count_fixed(VL_RES, ".") > 1 &
                check.numeric(str_replace_all(VL_RES, ".", "")) ~ parse_number(stri_replace_all_regex(VL_RES, ".", "")),
-            TRUE ~ VL_RES_2
+            TRUE ~ coalesce(log_raw, VL_RES_2)
          )
       ) %>%
       left_join(vl_corr, join_by(VL_RES)) %>%
       mutate(
-         VL_RES_2 = coalesce(VL_CORRECT, VL_RES_2)
+         VL_RES_2 = coalesce(VL_CORRECT, VL_RES_2),
       ) %>%
       select(
          -any_of(c(
@@ -398,7 +492,7 @@ process_vl <- function(data, result_old, result_new) {
       ) %>%
       relocate(VL_RES_2, .after = !!vl_column_old) %>%
       rename(
-         !!vl_column_new := VL_RES_2
+         !!vl_column_new := VL_RES_2,
       )
 
    return(data)
