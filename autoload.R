@@ -30,3 +30,4 @@ flow_register()
 
 # report classes
 source("src/classes/FacilityConverter.R")
+source("src/classes/HarpVl.R")
