@@ -232,6 +232,8 @@ QB <- R6Class(
                )
          }
 
+         results <- results %>% mutate(across(where(is.character), ~stri_encode(., from = "UTF-8", to = "UTF-8")))
+
          return(results)
       },
 
