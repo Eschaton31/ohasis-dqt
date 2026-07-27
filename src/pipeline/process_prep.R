@@ -23,7 +23,7 @@ process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_
       # risk information
       mutate_at(
          .vars = vars(starts_with("risk_", ignore.case = FALSE) & !contains("date")),
-         ~as.integer(keep_code(.))
+         ~as.integer(parse_number(keep_code(.)))
       ) %>%
       mutate(
          # sex with female
@@ -334,7 +334,7 @@ process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_
          ),
          prep_weight = case_when(
             pre_init_weight == 1 ~ 1,
-            floor(as.numeric(weight)) >= 35 ~ 1,
+            floor(parse_number(weight)) >= 35 ~ 1,
             TRUE ~ 0
          ),
          prep_behave = case_when(
