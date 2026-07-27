@@ -128,9 +128,42 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
       pids  <- unique(c(idreg$patient_id, missing$patient_id, missing$central_id))
       pids  <- pids[!is.na(pids)]
 
-      pii <- QB$new(conn)$from('patients')$whereIn('patient_id', pids)$get() %>%
+      pii <- QB$new(conn)$
+         select(patient_id,
+                first,
+                middle,
+                last,
+                suffix,
+                uic,
+                confirmatory_code,
+                patient_code,
+                birthdate,
+                philsys_id,
+                philhealth_no,
+                client_email,
+                client_mobile,
+                sex,
+                self_ident,
+                self_ident_other,
+                civil_status,
+                nationality,
+                educ_level,
+                curr_munc,
+                curr_prov,
+                curr_reg,
+                perm_munc,
+                perm_prov,
+                perm_reg,
+                birth_munc,
+                birth_prov,
+                birth_reg,
+                created_at,
+                updated_at)$
+         from('patients')$
+         whereIn('patient_id', pids)$
+         whereNull('deleted_at')$
+         get() %>%
          get_cid(idreg, patient_id) %>%
-         filter(is.na(deleted_at)) %>%
          mutate(
             snapshot = max(created_at, updated_at, na.rm = TRUE)
          ) %>%
