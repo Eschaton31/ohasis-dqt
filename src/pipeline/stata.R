@@ -2,7 +2,8 @@
 format_stata <- function(data) {
    data %<>%
       mutate_if(is.character, ~str_replace_all(., "\\\\", "\\")) %>%
-      mutate_if(bit64::is.integer64, ~suppress_warnings(as.integer(.), 'as.integer.integer64'))
+      mutate_if(bit64::is.integer64, ~as.integer(.)) %>%
+      suppress_warnings('as.integer.integer64')
 
    # convert to integers
    vars <- colnames(select_if(data, .predicate = is.numeric))
