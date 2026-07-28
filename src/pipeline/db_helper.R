@@ -37,21 +37,27 @@ tracked_select <- function(conn, query, name, params = NULL) {
       dbClearResult(rs)
    } else {
       data <- suppress_warnings(dbGetQuery(conn, query, params = params, format = 'TabSeparatedWithNamesAndTypes'), 'Unsupported') %>%
-         mutate_if(
-            ~("IDate" %in% class(.)),
-            ~as.Date(.)
-         ) %>%
-         mutate_if(
-            is.character,
-            ~na_if(str_replace_all(., "\\\\0", ""), "")
-         ) %>%
-         rename_all(
-            ~case_when(
-               str_detect(., "\\.") ~ str_extract(., ".+\\.(.+)", 1),
-               TRUE ~ .
-            )
+         mutate(
+            across(where(~inherits(., "IDate")), as.Date)
          )
    }
+
+   data <- data %>%
+      mutate(
+         across(where(is.character), ~stri_encode(., from = "UTF-8", to = "UTF-8")),
+         across(where(is.character), ~na_if(gsub("\\\\0", "", .), "")),
+         across(where(is.character), ~gsub("\\\\'", "'", .)),
+         across(where(is.character), ~gsub("\\\\", "\\", .)),
+         across(where(is.character), ~gsub('Ã‘', 'Ñ', .,)),
+         across(where(is.character), ~gsub('Ã±', 'Ñ', .,)),
+      ) %>%
+      rename_with(
+         ~case_when(
+            str_detect(., "\\.") ~ str_extract(., ".+\\.(.+)", 1),
+            TRUE ~ .
+         )
+      )
+
    return(data)
 }
 

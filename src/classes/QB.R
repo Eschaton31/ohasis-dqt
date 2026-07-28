@@ -200,39 +200,26 @@ QB <- R6Class(
             dbClearResult(rs)
          } else {
             results <- suppress_warnings(dbGetQuery(conn, self$query$results, format = 'TabSeparatedWithNamesAndTypes'), 'Unsupported') %>%
-               mutate_if(
-                  ~("IDate" %in% class(.)),
-                  ~as.Date(.)
-               ) %>%
-               mutate_if(
-                  is.character,
-                  ~na_if(gsub("\\\\0", "", .), "")
-               ) %>%
-               mutate_if(
-                  is.character,
-                  ~gsub("\\\\'", "'", .)
-               ) %>%
-               mutate_if(
-                  is.character,
-                  ~gsub("\\\\", "\\", .)
-               ) %>%
-               mutate_if(
-                  is.character,
-                  ~gsub('Ã‘', 'Ñ', .,)
-               ) %>%
-               mutate_if(
-                  is.character,
-                  ~gsub('Ã±', 'Ñ', .,)
-               ) %>%
-               rename_all(
-                  ~case_when(
-                     str_detect(., "\\.") ~ str_extract(., ".+\\.(.+)", 1),
-                     TRUE ~ .
-                  )
+               mutate(
+                  across(where(~inherits(., "IDate")), as.Date)
                )
          }
 
-         results <- results %>% mutate(across(where(is.character), ~stri_encode(., from = "UTF-8", to = "UTF-8")))
+         results <- results %>%
+            mutate(
+               across(where(is.character), ~stri_encode(., from = "UTF-8", to = "UTF-8")),
+               across(where(is.character), ~na_if(gsub("\\\\0", "", .), "")),
+               across(where(is.character), ~gsub("\\\\'", "'", .)),
+               across(where(is.character), ~gsub("\\\\", "\\", .)),
+               across(where(is.character), ~gsub('Ã‘', 'Ñ', .,)),
+               across(where(is.character), ~gsub('Ã±', 'Ñ', .,)),
+            ) %>%
+            rename_with(
+               ~case_when(
+                  str_detect(., "\\.") ~ str_extract(., ".+\\.(.+)", 1),
+                  TRUE ~ .
+               )
+            )
 
          return(results)
       },
