@@ -28,33 +28,117 @@ get_new <- function(forms, old_reg) {
       mutate_if(
          .predicate = is.Date,
          ~if_else(. <= -25567, NA_Date_, ., .)
+      )
+
+   pii <- data %>%
+      select(
+         rec_id,
+         central_id,
+         first,
+         middle,
+         last,
+         suffix,
+         birthdate,
+         uic,
+         philhealth_no,
+         self_ident,
+         self_ident_other,
+         philsys_id,
+         civil_status,
+         nationality,
+         curr_reg,
+         curr_prov,
+         curr_munc,
+         perm_reg,
+         perm_prov,
+         perm_munc,
+         client_mobile,
+         client_email,
+         sex
+      )
+
+   pii <- chunk_df(pii, 50000)
+   pii <- lapply(
+      pii,
+      get_latest_pii,
+      pid_col  = 'central_id',
+      pii_cols = c(
+         "first",
+         "middle",
+         "last",
+         "suffix",
+         "birthdate",
+         "uic",
+         "philhealth_no",
+         "self_ident",
+         "self_ident_other",
+         "philsys_id",
+         "civil_status",
+         "nationality",
+         "curr_reg",
+         "curr_prov",
+         "curr_munc",
+         "perm_reg",
+         "perm_prov",
+         "perm_munc",
+         "client_mobile",
+         "client_email",
+         "sex"
+      )
+   )
+   pii <- bind_rows(pii) %>% distinct(rec_id, .keep_all = TRUE) %>% select(-central_id)
+
+   data %<>%
+      # get_latest_pii(
+      #    "central_id",
+      #    c(
+      #       "first",
+      #       "middle",
+      #       "last",
+      #       "suffix",
+      #       "birthdate",
+      #       "uic",
+      #       "philhealth_no",
+      #       "self_ident",
+      #       "self_ident_other",
+      #       "philsys_id",
+      #       "civil_status",
+      #       "nationality",
+      #       "curr_reg",
+      #       "curr_prov",
+      #       "curr_munc",
+      #       "perm_reg",
+      #       "perm_prov",
+      #       "perm_munc",
+      #       "client_mobile",
+      #       "client_email",
+      #       "sex"
+      #    )
+      # ) %>%
+      select(
+         -first,
+         -middle,
+         -last,
+         -suffix,
+         -birthdate,
+         -uic,
+         -philhealth_no,
+         -self_ident,
+         -self_ident_other,
+         -philsys_id,
+         -civil_status,
+         -nationality,
+         -curr_reg,
+         -curr_prov,
+         -curr_munc,
+         -perm_reg,
+         -perm_prov,
+         -perm_munc,
+         -client_mobile,
+         -client_email,
+         -sex
       ) %>%
-      get_latest_pii(
-         "central_id",
-         c(
-            "first",
-            "middle",
-            "last",
-            "suffix",
-            "birthdate",
-            "uic",
-            "philhealth_no",
-            "self_ident",
-            "self_ident_other",
-            "philsys_id",
-            "civil_status",
-            "nationality",
-            "curr_reg",
-            "curr_prov",
-            "curr_munc",
-            "perm_reg",
-            "perm_prov",
-            "perm_munc",
-            "client_mobile",
-            "client_email",
-            "sex"
-         )
-      ) %>%
+      left_join(pii, join_by(rec_id)) %>%
       mutate(
          # name
          standard_first  = stri_trans_general(first, "latin-ascii"),
