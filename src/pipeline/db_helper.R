@@ -186,23 +186,19 @@ apply_patient_to_pii <- function(pid, rids) {
 update_credentials <- function(rec_ids, other_px_tables = NULL) {
    db_conn <- connect('ohasis-live')
 
+   dbExecute(db_conn, 'CREATE TEMPORARY TABLE IF NOT EXISTS ohasis.temp_recs (rec_id CHAR(25) PRIMARY KEY);')
+   dbxInsert(db_conn, Id(schema = 'ohasis', table = 'temp_recs'), tibble(rec_id = rec_ids), batch_size = 10000)
+
    upd_by <- Sys.getenv("OH_USER_ID")
    upd_at <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-   dbExecute(
-      db_conn,
-      glue(r"(update ohasis.px_record set updated_by = '{upd_by}', updated_at = '{upd_at}' where rec_id in (?);)"),
-      params = list(rec_ids)
-   )
-
    if (!is.null(other_px_tables)) {
       for (table in other_px_tables) {
-         dbExecute(
-            db_conn,
-            glue(r"(update ohasis.{table} set updated_by = '{upd_by}', updated_at = '{upd_at}' where rec_id in (?);)"),
-            params = list(rec_ids)
-         )
+         dbExecute(db_conn, glue(r"(update ohasis.{table} join ohasis.temp_recs using (rec_id) set updated_by = '{upd_by}', updated_at = '{upd_at}';)"))
       }
    }
+   dbExecute(db_conn, glue(r"(update ohasis.px_record join ohasis.temp_recs using (rec_id) set updated_by = '{upd_by}', updated_at = '{upd_at}';)"))
+
+   dbExecute(db_conn, 'DROP TEMPORARY TABLE IF EXISTS ohasis.temp_recs;')
    dbDisconnect(db_conn)
 }
 
