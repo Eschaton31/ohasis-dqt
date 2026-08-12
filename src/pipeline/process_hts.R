@@ -1538,8 +1538,6 @@ convert_hts <- function(hts_data, convert_type = c("nhsss", "name", "code")) {
 
 deconstruct_hts <- function(hts) {
    tables <- c(
-      "patients",
-      "px_record",
       "px_pii",
       "px_profile",
       "px_service",
@@ -1558,7 +1556,9 @@ deconstruct_hts <- function(hts) {
       "px_other_service",
       "px_test_refuse",
       "px_linkage",
-      "px_remarks"
+      "px_remarks",
+      "patients",
+      "px_record"
    )
 
    hts %<>%
@@ -1895,9 +1895,20 @@ deconstruct_hts <- function(hts) {
       schema[[table]] <- list(
          name = table,
          pk   = pks[[table]],
-         data = data[[table]]
+         data = data[[table]] %>%
+            filter(if_all(pks[[table]], ~!is.na(.)))
       )
    }
+
+   conn     <- connect('ohasis-live')
+   existing <- QB$new(conn)$select('patient_id')$from('ohasis.patients')$whereIn('patient_id', schema$patients$data$patient_id)$get()
+   dbDisconnect(conn)
+
+   schema$patients$data %<>%
+      anti_join(existing, join_by(patient_id))
+
+   schema$patients$data %<>%
+      anti_join(existing, join_by(patient_id))
 
    log_success("Done!")
    return(schema)
