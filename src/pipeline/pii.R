@@ -322,3 +322,51 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
 
    return(data)
 }
+
+format_mobile <- function(mobile) {
+   formatted <- str_replace_all(mobile, "[^[:digit:]]", "")
+   formatted <- case_when(
+      str_left(formatted, 1) == "9" ~ stri_c("0", formatted),
+      str_left(formatted, 2) == "63" ~ str_replace(formatted, "^63", "0"),
+      TRUE ~ formatted
+   )
+   formatted <- if_else(
+      str_length(formatted) == 11,
+      paste(str_left(formatted, 4), str_mid(formatted, 5, 3), str_right(formatted, 4)),
+      mobile,
+      mobile
+   )
+
+   return(formatted)
+}
+
+format_philhealth <- function(philhealth) {
+   formatted <- str_replace_all(philhealth, "[^[:digit:]]", "")
+   formatted <- stri_pad_left(formatted, 12, "0")
+   formatted <- if_else(
+      str_length(formatted) == 11,
+      stri_pad_left(formatted, 12, "0"),
+      formatted,
+      formatted
+   )
+   formatted <- if_else(
+      str_length(formatted) == 12,
+      paste(sep = '-', str_left(formatted, 2), str_mid(formatted, 3, 9), str_right(formatted, 1)),
+      philhealth,
+      philhealth
+   )
+
+   return(formatted)
+}
+
+format_philsys <- function(philsys) {
+   formatted <- str_replace_all(philsys, "[^[:digit:]]", "")
+   formatted <- if_else(
+      str_length(formatted) == 16,
+      paste(sep = '-', str_left(formatted, 4), str_mid(formatted, 5, 4), str_mid(formatted, 9, 4), str_right(formatted, 4)),
+      philsys,
+      philsys
+   )
+
+   return(formatted)
+}
