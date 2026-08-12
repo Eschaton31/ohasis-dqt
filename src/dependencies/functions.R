@@ -380,6 +380,7 @@ add_missing_columns <- function(data, ref) {
 connect <- function(group) {
    if (group == "live" |
       group == 'ohasis-live' |
+      group == 'ohasis-old' |
       group == 'old-lw' |
       group == 'local') {
       return(DBI::dbConnect(RMariaDB::MariaDB(), group = group, default.file = "my.cnf"))
