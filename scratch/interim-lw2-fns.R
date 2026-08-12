@@ -382,8 +382,6 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
 
 deconstruct_art <- function(forms, dispense = NULL, discontinue = NULL) {
    tables <- c(
-      "patients",
-      "px_record",
       "px_pii",
       "px_profile",
       "px_service",
@@ -401,7 +399,9 @@ deconstruct_art <- function(forms, dispense = NULL, discontinue = NULL) {
       "px_other_service",
       "px_remarks",
       "px_medicine",
-      "px_medicine_disc"
+      "px_medicine_disc",
+      "patients",
+      "px_record"
    )
 
    forms %<>%
@@ -540,109 +540,115 @@ deconstruct_art <- function(forms, dispense = NULL, discontinue = NULL) {
          ) %>%
          select(any_of(cols$px_medicine))
 
-      data$px_labs <- forms %>%
-         select(
-            rec_id,
-            created_at,
-            created_by,
-            updated_at,
-            updated_by,
-            starts_with("lab"),
-         ) %>%
-         pivot_longer(
-            cols      = starts_with("lab"),
-            names_to  = "lab_data",
-            values_to = "lab_value"
-         ) %>%
-         mutate(
-            lab_test = substr(lab_data, 5, stri_locate_last_fixed(lab_data, "_") - 1),
-            piece    = substr(lab_data, stri_locate_last_fixed(lab_data, "_") + 1, 1000),
-         ) %>%
-         mutate(
-            lab_test = case_when(
-               lab_test == "hbsag" ~ "1",
-               lab_test == "crea" ~ "2",
-               lab_test == "syph" ~ "3",
-               lab_test == "vl" ~ "4",
-               lab_test == "viral" ~ "4",
-               lab_test == "cd4" ~ "5",
-               lab_test == "xray" ~ "6",
-               lab_test == "xpert" ~ "7",
-               lab_test == "dssm" ~ "8",
-               lab_test == "hivdr" ~ "9",
-               lab_test == "hemo" ~ "10",
-               lab_test == "hemog" ~ "10",
-               TRUE ~ lab_test
+      if (length(get_names(forms, 'lab_')) > 0) {
+
+         data$px_labs <- forms %>%
+            select(
+               rec_id,
+               created_at,
+               created_by,
+               updated_at,
+               updated_by,
+               starts_with("lab"),
+            ) %>%
+            pivot_longer(
+               cols      = starts_with("lab"),
+               names_to  = "lab_data",
+               values_to = "lab_value"
+            ) %>%
+            mutate(
+               lab_test = substr(lab_data, 5, stri_locate_last_fixed(lab_data, "_") - 1),
+               piece    = substr(lab_data, stri_locate_last_fixed(lab_data, "_") + 1, 1000),
+            ) %>%
+            mutate(
+               lab_test = case_when(
+                  lab_test == "hbsag" ~ "1",
+                  lab_test == "crea" ~ "2",
+                  lab_test == "syph" ~ "3",
+                  lab_test == "vl" ~ "4",
+                  lab_test == "viral" ~ "4",
+                  lab_test == "cd4" ~ "5",
+                  lab_test == "xray" ~ "6",
+                  lab_test == "xpert" ~ "7",
+                  lab_test == "dssm" ~ "8",
+                  lab_test == "hivdr" ~ "9",
+                  lab_test == "hemo" ~ "10",
+                  lab_test == "hemog" ~ "10",
+                  TRUE ~ lab_test
+               )
+            ) %>%
+            distinct(rec_id, created_at, created_by, lab_test, piece, .keep_all = TRUE) %>%
+            pivot_wider(
+               id_cols      = c(rec_id, created_at, created_by, lab_test),
+               names_from   = piece,
+               values_from  = lab_value,
+               names_prefix = "lab_"
+            ) %>%
+            filter(!is.na(lab_date) | !is.na(lab_result)) %>%
+            arrange(rec_id, lab_test) %>%
+            mutate(
+               lab_date = as.Date(parse_date_time(lab_date, c("Ymd", "mdY"))),
             )
-         ) %>%
-         distinct(rec_id, created_at, created_by, lab_test, piece, .keep_all = TRUE) %>%
-         pivot_wider(
-            id_cols      = c(rec_id, created_at, created_by, lab_test),
-            names_from   = piece,
-            values_from  = lab_value,
-            names_prefix = "lab_"
-         ) %>%
-         filter(!is.na(lab_date) | !is.na(lab_result)) %>%
-         arrange(rec_id, lab_test) %>%
-         mutate(
-            lab_date = as.Date(parse_date_time(lab_date, c("Ymd", "mdY"))),
-         )
-      data$px_oi   <- forms %>%
-         select(
-            rec_id,
-            created_at,
-            created_by,
-            updated_at,
-            updated_by,
-            contains("oi"),
-         ) %>%
-         rename_all(
-            ~case_when(
-               stri_replace_first_fixed(., "oi_", "") == "hiv" ~ "oi_101000",
-               stri_replace_first_fixed(., "oi_", "") == "hepb" ~ "oi_102000",
-               stri_replace_first_fixed(., "oi_", "") == "hepc" ~ "oi_103000",
-               stri_replace_first_fixed(., "oi_", "") == "syph" ~ "oi_104000",
-               stri_replace_first_fixed(., "oi_", "") == "pcp" ~ "oi_111000",
-               stri_replace_first_fixed(., "oi_", "") == "cmv" ~ "oi_112000",
-               stri_replace_first_fixed(., "oi_", "") == "orocand" ~ "oi_113000",
-               stri_replace_first_fixed(., "oi_", "") == "herpes" ~ "oi_117000",
-               stri_replace_first_fixed(., "oi_", "") == "tb" ~ "oi_202000",
-               stri_replace_first_fixed(., "oi_", "") == "pcp" ~ "oi_111000",
-               stri_replace_first_fixed(., "oi_", "") == "meningitis" ~ "oi_115000",
-               stri_replace_first_fixed(., "oi_", "") == "oropharyngeal" ~ "oi_113000",
-               stri_replace_first_fixed(., "oi_", "") == "toxoplasmosis" ~ "oi_116000",
-               stri_replace_first_fixed(., "oi_", "") == "covid19" ~ "oi_201000",
-               # stri_replace_first_fixed(., "oi_", "") == "other" ~ "oi_8888",
-               stri_replace_first_fixed(., "oi_", "") == "other_text" ~ "oi_8888",
-               TRUE ~ .
-            )
-         ) %>%
-         # select(
-         #    -oi_med_cotri,
-         #    -oi_med_azithro,
-         #    -oi_med_fluca,
-         # ) %>%
-         pivot_longer(
-            cols      = contains("oi"),
-            names_to  = "oi",
-            values_to = "is_oi"
-         ) %>%
-         mutate(
-            oi       = stri_replace_all_fixed(oi, "oi_", ""),
-            oi_other = if_else(
-               condition = oi == "8888" & !is.na(is_oi),
-               true      = is_oi,
-               false     = NA_character_,
-               missing   = NA_character_
-            ),
-            is_oi    = if_else(
-               condition = oi == "8888" & !is.na(oi_other),
-               true      = 1,
-               false     = 0,
-               missing   = 0
-            ),
-         ) %>%
-         filter(is_oi == 1)
+      }
+
+      if (length(get_names(forms, 'oi_')) > 0) {
+         data$px_oi <- forms %>%
+            select(
+               rec_id,
+               created_at,
+               created_by,
+               updated_at,
+               updated_by,
+               contains("oi"),
+            ) %>%
+            rename_all(
+               ~case_when(
+                  stri_replace_first_fixed(., "oi_", "") == "hiv" ~ "oi_101000",
+                  stri_replace_first_fixed(., "oi_", "") == "hepb" ~ "oi_102000",
+                  stri_replace_first_fixed(., "oi_", "") == "hepc" ~ "oi_103000",
+                  stri_replace_first_fixed(., "oi_", "") == "syph" ~ "oi_104000",
+                  stri_replace_first_fixed(., "oi_", "") == "pcp" ~ "oi_111000",
+                  stri_replace_first_fixed(., "oi_", "") == "cmv" ~ "oi_112000",
+                  stri_replace_first_fixed(., "oi_", "") == "orocand" ~ "oi_113000",
+                  stri_replace_first_fixed(., "oi_", "") == "herpes" ~ "oi_117000",
+                  stri_replace_first_fixed(., "oi_", "") == "tb" ~ "oi_202000",
+                  stri_replace_first_fixed(., "oi_", "") == "pcp" ~ "oi_111000",
+                  stri_replace_first_fixed(., "oi_", "") == "meningitis" ~ "oi_115000",
+                  stri_replace_first_fixed(., "oi_", "") == "oropharyngeal" ~ "oi_113000",
+                  stri_replace_first_fixed(., "oi_", "") == "toxoplasmosis" ~ "oi_116000",
+                  stri_replace_first_fixed(., "oi_", "") == "covid19" ~ "oi_201000",
+                  # stri_replace_first_fixed(., "oi_", "") == "other" ~ "oi_8888",
+                  stri_replace_first_fixed(., "oi_", "") == "other_text" ~ "oi_8888",
+                  TRUE ~ .
+               )
+            ) %>%
+            # select(
+            #    -oi_med_cotri,
+            #    -oi_med_azithro,
+            #    -oi_med_fluca,
+            # ) %>%
+            pivot_longer(
+               cols      = contains("oi"),
+               names_to  = "oi",
+               values_to = "is_oi"
+            ) %>%
+            mutate(
+               oi       = stri_replace_all_fixed(oi, "oi_", ""),
+               oi_other = if_else(
+                  condition = oi == "8888" & !is.na(is_oi),
+                  true      = is_oi,
+                  false     = NA_character_,
+                  missing   = NA_character_
+               ),
+               is_oi    = if_else(
+                  condition = oi == "8888" & !is.na(oi_other),
+                  true      = 1,
+                  false     = 0,
+                  missing   = 0
+               ),
+            ) %>%
+            filter(is_oi == 1)
+      }
    } else {
       # labs
       data$px_labs <- forms %>%
@@ -1114,17 +1120,16 @@ deconstruct_art <- function(forms, dispense = NULL, discontinue = NULL) {
    schema$patients$data %<>%
       anti_join(existing, join_by(patient_id))
 
-
    log_success("Done!")
    return(schema)
 }
 
 deconstruct_vl <- function(forms, dispense = NULL, discontinue = NULL) {
    tables <- c(
-      "px_record",
       "px_pii",
       "px_service",
-      "px_labs"
+      "px_labs",
+      "px_record"
    )
 
    forms %<>%
@@ -1258,8 +1263,6 @@ deconstruct_vl <- function(forms, dispense = NULL, discontinue = NULL) {
 
 deconstruct_prep <- function(forms) {
    tables <- c(
-      "patients",
-      "px_record",
       "px_pii",
       "px_profile",
       "px_service",
@@ -1277,7 +1280,9 @@ deconstruct_prep <- function(forms) {
       "px_prep_checklist",
       "px_prep_finance",
       "px_prep_refuse",
-      "px_medicine"
+      "px_medicine",
+      "patients",
+      "px_record"
    )
 
    forms %<>%
