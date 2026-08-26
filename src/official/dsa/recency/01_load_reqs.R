@@ -135,8 +135,9 @@ rencecy_records <- function(faci_id, activation_date) {
       get()
    dbDisconnect(lw_conn)
 
-   lw_conn   <- connect('ohasis-lw')
-   ohasis$upsert(lw_conn, db_name, tbl_name, ref, "rec_id")
+   lw_conn   <- connect('mariadb-lw')
+   # ohasis$upsert(lw_conn, db_name, tbl_name, ref, "rec_id")
+   dbxInsert(lw_conn, Id(schema = 'ohasis_warehouse', table = 'hiv_recency'), ref)
 
    # dbExecute(lw_conn, glue(r"(INSERT INTO {db_name}.{tbl_name} {faci_sql})"), params = list(faci_id, activation_date))
    dbDisconnect(lw_conn)
