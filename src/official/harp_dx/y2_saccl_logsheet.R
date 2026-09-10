@@ -204,7 +204,7 @@ get_pdf_data <- function(file = NULL, format = "old") {
          filter(SOURCE != "JAY DUMMY LAB") %>%
          left_join(corr_data$SOURCE %>% distinct(SOURCE, SOURCE_FACI, SOURCE_SUB_FACI))
    } else {
-      confirm_df <- read_excel(file, 1, col_types = "text", .name_repair = "unique_quiet") %>%
+      confirm_df <- openxlsx2::read_xlsx(file, convert = FALSE, check_names = TRUE, apply_numfmts = FALSE) %>%
          slice(-1) %>%
          rename(
             date_collect      = 1,
@@ -232,7 +232,7 @@ get_pdf_data <- function(file = NULL, format = "old") {
          ) %>%
          mutate_at(
             .vars = vars(contains("date")),
-            ~excel_numeric_to_date(as.numeric(.))
+            ~na_if(as.Date(parse_date_time(., c('Ymd', 'mdY'))), as.Date("1970-01-01"))
          ) %>%
          mutate(
             t0_date   = case_when(
@@ -307,37 +307,72 @@ get_pdf_data <- function(file = NULL, format = "old") {
 
 match_ohasis <- function(pdf_data) {
    log_info("Downloading data already in OHASIS.")
-   db_conn <- ohasis$conn("db")
+   db_conn <- connect('mariadb-lw')
+
+   labcodes <- pdf_data %>%
+      filter(!is.na(confirmatory_code)) %>%
+      distinct(confirmatory_code) %>%
+      pull()
+
+   data <- QB$new(db_conn)$
+      from('ohasis_lake.px_demographics')$
+      leftJoin('ohasis_lake.px_hiv_confirmatory', 'px_demographics.rec_id', '=', 'px_hiv_confirmatory.rec_id')$
+      where('px_demographics.module', '2_Testing')$
+      whereNull('px_demographics.deleted_at')
+
+   data$where(function(query = QB$new(db_conn)) {
+      query$whereIn('px_hiv_confirmatory.confirm_code', labcodes, "or")
+      query$whereIn('px_demographics.confirmatory_code', labcodes, "or")
+      query$whereNested
+   })
+
+   data$select(px_demographics.rec_id,
+               px_demographics.patient_id,
+               px_demographics.uic,
+               px_demographics.philhealth_no,
+               px_demographics.sex,
+               px_demographics.birthdate,
+               px_demographics.patient_code,
+               px_demographics.philsys_id,
+               px_demographics.created_by,
+               px_demographics.created_at,
+               px_demographics.updated_by,
+               px_demographics.updated_at,
+               px_demographics.deleted_by)$
+      selectRaw('coalesce(px_hiv_confirmatory.confirm_code, px_demographics.confirmatory_code) as confirmatory_code')$
+      selectRaw('1 as exist_info')$
+      selectRaw("if(px_hiv_confirmatory.confirm_code is not null and coalesce(px_hiv_confirmatory.confirm_result, '') <> '', 1, 0) as exist_confirm")$
+      selectRaw("if(px_hiv_confirmatory.date_collect is not null, 1, 0) as exist_test")
 
    # get list of labcodes
-   labcodes <- unique(pdf_data$confirmatory_code)
-   query    <- r"(
-select px_pii.rec_id,
-       px_record.patient_id,
-       coalesce(px_confirm.confirm_code, px_pii.confirmatory_code)                                  as confirmatory_code,
-       px_pii.uic,
-       px_pii.philhealth_no,
-       px_pii.sex,
-       px_pii.birthdate,
-       px_pii.patient_code,
-       px_pii.philsys_id,
-       px_pii.created_by,
-       px_pii.created_at,
-       px_pii.updated_by,
-       px_pii.updated_at,
-       px_pii.deleted_by,
-       1                                                                                             as exist_info,
-       if(px_confirm.confirm_code is not null and coalesce(px_confirm.final_result, '') <> '', 1, 0) as exist_confirm,
-       if(px_test.date_collect is not null, 1, 0)                                                as exist_test
-from ohasis.px_pii
-         join ohasis.px_record on px_pii.rec_id = px_record.rec_id
-         left join ohasis.px_confirm on px_pii.rec_id = px_confirm.rec_id
-         left join ohasis.px_test on px_pii.rec_id = px_test.rec_id and px_test.test_type = 31
-where px_record.module = 2
-  and px_record.deleted_at is null
-  and coalesce(px_confirm.confirm_code, px_pii.confirmatory_code) in (?)
-      )"
-   oh_data  <- dbxSelect(db_conn, query, params = list(labcodes))
+   #    query    <- r"(
+   # select px_pii.rec_id,
+   #        px_record.patient_id,
+   #        coalesce(px_confirm.confirm_code, px_pii.confirmatory_code)                                  as confirmatory_code,
+   #        px_pii.uic,
+   #        px_pii.philhealth_no,
+   #        px_pii.sex,
+   #        px_pii.birthdate,
+   #        px_pii.patient_code,
+   #        px_pii.philsys_id,
+   #        px_pii.created_by,
+   #        px_pii.created_at,
+   #        px_pii.updated_by,
+   #        px_pii.updated_at,
+   #        px_pii.deleted_by,
+   #        1                                                                                             as exist_info,
+   #        if(px_confirm.confirm_code is not null and coalesce(px_confirm.final_result, '') <> '', 1, 0) as exist_confirm,
+   #        if(px_test.date_collect is not null, 1, 0)                                                as exist_test
+   # from ohasis.px_pii
+   #          join ohasis.px_record on px_pii.rec_id = px_record.rec_id
+   #          left join ohasis.px_confirm on px_pii.rec_id = px_confirm.rec_id
+   #          left join ohasis.px_test on px_pii.rec_id = px_test.rec_id and px_test.test_type = 31
+   # where px_record.module = 2
+   #   and px_record.deleted_at is null
+   #   and coalesce(px_confirm.confirm_code, px_pii.confirmatory_code) in (?)
+   #       )"
+   #    oh_data  <- dbxSelect(db_conn, query, params = list(labcodes))
+   oh_data <- data$get()
    dbDisconnect(db_conn)
 
    log_info("Matchinng against PDF data.")
@@ -354,7 +389,7 @@ where px_record.module = 2
             TRUE ~ 2
          ),
 
-         sex          = coalesce(sex.y, sex.x),
+         sex          = coalesce(parse_number(keep_code(sex.y)), sex.x),
          birthdate    = coalesce(birthdate.y, birthdate.x),
          patient_code = coalesce(patient_code.y, patient_code.x),
       ) %>%
@@ -467,6 +502,10 @@ prepare_import <- function(data) {
 }
 
 generate_tables <- function(import) {
+   import           <- import %>%
+      mutate(
+         across(starts_with('exist_'), ~coalesce(., 0))
+      )
    tables           <- list()
    tables$px_record <- list(
       name = "px_record",
@@ -474,7 +513,7 @@ generate_tables <- function(import) {
       data = import %>%
          filter(exist_info == 0 |
                    exist_confirm == 0 |
-                   coalesce(exist_test, 0) == 0) %>%
+                   exist_test == 0) %>%
          mutate(
             faci_id     = "130000",
             sub_faci_id = NA_character_,
@@ -542,7 +581,7 @@ generate_tables <- function(import) {
       name = "px_confirm",
       pk   = "rec_id",
       data = import %>%
-         filter(exist_confirm == 0) %>%
+         # filter(exist_confirm == 0) %>%
          select(
             rec_id,
             faci_id,
@@ -556,8 +595,10 @@ generate_tables <- function(import) {
             remarks,
             date_confirm,
             date_release,
+            created_by,
             created_at,
-            created_by
+            updated_by,
+            updated_at,
          )
    )
 
@@ -565,7 +606,7 @@ generate_tables <- function(import) {
       name = "px_test",
       pk   = c("rec_id", "test_type", "test_num"),
       data = import %>%
-         filter(coalesce(exist_test, 0) == 0) %>%
+         # filter(coalesce(exist_test, 0) == 0) %>%
          select(-ends_with("_1"), ends_with("_2")) %>%
          select(
             rec_id,
@@ -576,6 +617,8 @@ generate_tables <- function(import) {
             date_collect,
             created_by,
             created_at,
+            updated_by,
+            updated_at,
             ends_with("kit"),
             ends_with("result"),
          ) %>%
@@ -586,15 +629,15 @@ generate_tables <- function(import) {
          filter(test_type != "final") %>%
          mutate(
             test_type = case_when(
-               test_type == "t0" ~ "10",
-               test_type == "t1" ~ "31",
-               test_type == "t2" ~ "32",
-               test_type == "t3" ~ "33",
+               test_type == "t0" ~ 10,
+               test_type == "t1" ~ 31,
+               test_type == "t2" ~ 32,
+               test_type == "t3" ~ 33,
             ),
             value     = case_when(
-               value == "REACTIVE" ~ "10",
-               value == "NONREACTIVE" ~ "20",
-               TRUE ~ value
+               value == "REACTIVE" ~ 10,
+               value == "NONREACTIVE" ~ 20,
+               TRUE ~ NA_integer_
             ),
             test_num  = 1
          ) %>%
@@ -604,6 +647,8 @@ generate_tables <- function(import) {
             sub_faci_id,
             created_by,
             created_at,
+            updated_by,
+            updated_at,
             date_receive,
             date_collect,
             test_type,
@@ -617,6 +662,8 @@ generate_tables <- function(import) {
                sub_faci_id,
                created_by,
                created_at,
+               updated_by,
+               updated_at,
                test_type,
                test_num,
                date_perform,
@@ -636,8 +683,10 @@ generate_tables <- function(import) {
             date_collect,
             date_perform,
             result,
+            created_by,
             created_at,
-            created_by
+            updated_by,
+            updated_at,
          )
    )
 
@@ -645,14 +694,16 @@ generate_tables <- function(import) {
       name = "px_test_hiv",
       pk   = c("rec_id", "test_type", "test_num"),
       data = import %>%
-         filter(coalesce(exist_test, 0) == 0) %>%
+         # filter(coalesce(exist_test, 0) == 0) %>%
          select(-ends_with("_1"), ends_with("_2")) %>%
          select(
             rec_id,
-            faci_id,
-            sub_faci_id,
+            # faci_id,
+            # sub_faci_id,
             created_by,
             created_at,
+            updated_by,
+            updated_at,
             ends_with("result"),
          ) %>%
          pivot_longer(
@@ -662,24 +713,26 @@ generate_tables <- function(import) {
          filter(test_type != "final") %>%
          mutate(
             test_type = case_when(
-               test_type == "t0" ~ "10",
-               test_type == "t1" ~ "31",
-               test_type == "t2" ~ "32",
-               test_type == "t3" ~ "33",
+               test_type == "t0" ~ 10,
+               test_type == "t1" ~ 31,
+               test_type == "t2" ~ 32,
+               test_type == "t3" ~ 33,
             ),
             value     = case_when(
-               value == "REACTIVE" ~ "10",
-               value == "NONREACTIVE" ~ "20",
-               TRUE ~ value
+               value == "REACTIVE" ~ 10,
+               value == "NONREACTIVE" ~ 20,
+               TRUE ~ NA_integer_
             ),
             test_num  = 1
          ) %>%
          distinct(
             rec_id,
-            faci_id,
-            sub_faci_id,
+            # faci_id,
+            # sub_faci_id,
             created_by,
             created_at,
+            updated_by,
+            updated_at,
             test_type,
             test_num,
             .keep_all = TRUE
@@ -687,10 +740,12 @@ generate_tables <- function(import) {
          pivot_wider(
             id_cols     = c(
                rec_id,
-               faci_id,
-               sub_faci_id,
+               # faci_id,
+               # sub_faci_id,
                created_by,
                created_at,
+               updated_by,
+               updated_at,
                test_type,
                test_num,
             ),
@@ -699,15 +754,55 @@ generate_tables <- function(import) {
          ) %>%
          select(
             rec_id,
-            faci_id,
-            sub_faci_id,
+            # faci_id,
+            # sub_faci_id,
             test_type,
             test_num,
             final_result = result,
+            created_by,
             created_at,
-            created_by
+            updated_by,
+            updated_at,
          )
    )
+
+   conn <- connect('ohasis-live')
+   for (tbl in c('px_confirm', 'px_test', 'px_test_hiv')) {
+      ids  <- tables[[tbl]]$data %>%
+         select(rec_id) %>%
+         distinct() %>%
+         pull()
+      vars <- names(tables[[tbl]]$data)
+      vars <- vars[vars != 'created_by']
+      vars <- vars[vars != 'updated_by']
+      vars <- vars[vars != 'updated_at']
+      ref  <- QB$new(conn)$from(paste0('ohasis.', tbl))$
+         whereIn('rec_id', ids)$
+         get()
+
+
+      if (tbl == 'px_confirm') {
+         .GlobalEnv$try$before <- tables[[tbl]]$data %>% filter(rec_id == '202607081130O00200019S903')
+         .GlobalEnv$try$after  <- ref %>% filter(rec_id == '202607081130O00200019S903')
+      }
+
+      tables[[tbl]]$data %<>%
+         anti_join(ref %>% mutate(across(contains('date_'), ~format(., '%Y-%m-%d')), created_at = as.character(created_at)), vars)
+   }
+
+   if (nrow(tables$px_record$data) > 0) {
+      ids <- tables$px_record$data %>%
+         select(rec_id) %>%
+         distinct() %>%
+         pull()
+      ref <- QB$new(conn)$from('ohasis.px_record')$
+         select(rec_id, form_id)$
+         whereIn('rec_id', ids)$
+         get()
+      tables$px_record$data %<>% left_join(ref, join_by(rec_id))
+   }
+
+   tables$px_test_hiv$data %<>% filter(test_type %in% c(31, 32, 33))
 
    return(tables)
 }
@@ -730,6 +825,6 @@ import_data <- function(tables) {
    p$import  <- prepare_import(p$results)
    p$tables  <- generate_tables(p$import)
 
-   local(envir = .GlobalEnv, flow_validation(nhsss$harp_dx, "import_saccl_logsheet", ohasis$ym))
+   # local(envir = .GlobalEnv, flow_validation(nhsss$harp_dx, "import_saccl_logsheet", ohasis$ym))
 }
 
