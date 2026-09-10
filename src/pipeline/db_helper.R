@@ -183,6 +183,25 @@ apply_patient_to_pii <- function(pid, rids) {
 }
 
 # update UPDATED_*
+delete_credentials <- function(rec_ids, other_px_tables = NULL) {
+   db_conn <- connect('ohasis-live')
+
+   dbExecute(db_conn, 'CREATE TEMPORARY TABLE IF NOT EXISTS ohasis.temp_recs (rec_id CHAR(25) PRIMARY KEY);')
+   dbxInsert(db_conn, Id(schema = 'ohasis', table = 'temp_recs'), tibble(rec_id = rec_ids), batch_size = 10000)
+
+   upd_by <- Sys.getenv("OH_USER_ID")
+   upd_at <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+   if (!is.null(other_px_tables)) {
+      for (table in other_px_tables) {
+         dbExecute(db_conn, glue(r"(update ohasis.{table} join ohasis.temp_recs using (rec_id) set deleted_by = '{upd_by}', deleted_at = '{upd_at}';)"))
+      }
+   }
+   dbExecute(db_conn, glue(r"(update ohasis.px_record join ohasis.temp_recs using (rec_id) set deleted_by = '{upd_by}', deleted_at = '{upd_at}';)"))
+
+   dbExecute(db_conn, 'DROP TEMPORARY TABLE IF EXISTS ohasis.temp_recs;')
+   dbDisconnect(db_conn)
+}
+
 update_credentials <- function(rec_ids, other_px_tables = NULL) {
    db_conn <- connect('ohasis-live')
 
@@ -199,6 +218,21 @@ update_credentials <- function(rec_ids, other_px_tables = NULL) {
    dbExecute(db_conn, glue(r"(update ohasis.px_record join ohasis.temp_recs using (rec_id) set updated_by = '{upd_by}', updated_at = '{upd_at}';)"))
 
    dbExecute(db_conn, 'DROP TEMPORARY TABLE IF EXISTS ohasis.temp_recs;')
+   dbDisconnect(db_conn)
+}
+
+update_patients <- function(patient_ids) {
+   db_conn <- connect('ohasis-live')
+
+   dbExecute(db_conn, 'CREATE TEMPORARY TABLE IF NOT EXISTS ohasis.temp_recs (patient_id CHAR(18) PRIMARY KEY);')
+   dbxInsert(db_conn, Id(schema = 'ohasis', table = 'temp_recs'), tibble(patient_id = patient_ids), batch_size = 10000)
+
+   upd_by <- Sys.getenv("OH_USER_ID")
+   upd_at <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+   dbExecute(db_conn, glue(r"(update ohasis.patients join ohasis.temp_recs using (patient_id) set updated_by = '{upd_by}', updated_at = '{upd_at}';)"))
+   dbExecute(db_conn, glue(r"(update ohasis.registry join ohasis.temp_recs using (patient_id) set updated_by = '{upd_by}', updated_at = '{upd_at}';)"))
+   dbExecute(db_conn, 'DROP TEMPORARY TABLE IF EXISTS ohasis.temp_recs;')
+
    dbDisconnect(db_conn)
 }
 
@@ -2244,4 +2278,28 @@ raw_lw_query <- function(query) {
    dbDisconnect(conn)
 
    return(data)
+}
+
+random_dates <- function(n, start_year = 1970) {
+   # Generate components randomly
+   years   <- sample(start_year:year(Sys.Date()), n, replace = TRUE)
+   months <- sample(1:12, n, replace = TRUE)
+   days <- sample(1:30, n, replace = TRUE)
+
+   # Format into HH:MM:SS padding with leading zeros
+   random_dates <- sprintf("%04d-%02d-%02d", years, months, days)
+
+   return(random_dates)
+}
+
+random_times <- function(n) {
+   # Generate components randomly
+   hours   <- sample(0:23, n, replace = TRUE)
+   minutes <- sample(0:59, n, replace = TRUE)
+   seconds <- sample(0:59, n, replace = TRUE)
+
+   # Format into HH:MM:SS padding with leading zeros
+   random_times <- sprintf("%02d:%02d:%02d", hours, minutes, seconds)
+
+   return(random_times)
 }
