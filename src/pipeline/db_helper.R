@@ -1935,7 +1935,7 @@ update_idreg <- function(start = NULL) {
       where("updated_at", ">=", loc_snap, 'or')$
       where("deleted_at", ">=", loc_snap, 'or')$
       get() %>%
-      select(-matches('_version'))
+      select(-any_of(c('_version', 'is_deleted')))
    dbDisconnect(conn_lw)
 
    updated_rows <- QB$new(conn)$from("id_registry")$whereIn("patient_id", new_idreg$patient_id)$count()
@@ -2024,7 +2024,7 @@ update_pii <- function(start = NULL) {
       where("updated_at", ">=", loc_snap, 'or')$
       where("deleted_at", ">=", loc_snap, 'or')$
       get() %>%
-      select(-matches('_version'))
+      select(-any_of(c('_version', 'is_deleted')))
    dbDisconnect(conn_lw)
 
    new_data %<>%
