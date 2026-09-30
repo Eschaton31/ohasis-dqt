@@ -229,9 +229,38 @@ update_patients <- function(patient_ids) {
 
    upd_by <- Sys.getenv("OH_USER_ID")
    upd_at <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+   dbExecute(db_conn, glue(r"(
+insert into registry (patient_id, central_id, created_by, created_at)
+select patient_id,
+       patient_id as central_id,
+       '1300000048',
+       now()      as created_at
+from temp_recs
+where not exists (select patient_id from registry where registry.patient_id = temp_recs.patient_id);
+   )"))
    dbExecute(db_conn, glue(r"(update ohasis.patients join ohasis.temp_recs using (patient_id) set updated_by = '{upd_by}', updated_at = '{upd_at}';)"))
    dbExecute(db_conn, glue(r"(update ohasis.registry join ohasis.temp_recs using (patient_id) set updated_by = '{upd_by}', updated_at = '{upd_at}';)"))
    dbExecute(db_conn, 'DROP TEMPORARY TABLE IF EXISTS ohasis.temp_recs;')
+
+   dbDisconnect(db_conn)
+}
+
+update_qc_records <- function(tbl, data) {
+   db_conn <- connect('ohasis-live')
+
+   dbExecute(db_conn, 'CREATE TEMPORARY TABLE IF NOT EXISTS ohasis.temp_recs (row_id char(36) PRIMARY KEY, rec_id CHAR(25), patient_id CHAR(18), synced_at DATETIME);')
+   dbxInsert(db_conn, Id(schema = 'ohasis', table = 'temp_recs'), data %>% select(row_id, rec_id, patient_id, synced_at = updated_at), batch_size = 10000)
+
+   dbExecute(db_conn, glue(r"(update ohasis.{tbl} as data join ohasis.temp_recs as corr using (row_id) set data.rec_id = corr.rec_id, data.patient_id = corr.patient_id, data.synced_at = corr.synced_at;)"))
+   dbExecute(db_conn, 'DROP TEMPORARY TABLE IF EXISTS ohasis.temp_recs;')
+
+   dbxUpdate(
+      db_conn,
+      Id(schema = "ohasis", table = "qc_counters"),
+      tibble(table_name = tbl, last_synced = format(max(data$updated_at), "%Y-%m-%d %H:%M:%S")),
+      'table_name',
+      batch_size = 1000
+   )
 
    dbDisconnect(db_conn)
 }
@@ -1905,7 +1934,8 @@ update_idreg <- function(start = NULL) {
       where("created_at", ">=", loc_snap, 'or')$
       where("updated_at", ">=", loc_snap, 'or')$
       where("deleted_at", ">=", loc_snap, 'or')$
-      get()
+      get() %>%
+      select(-matches('_version'))
    dbDisconnect(conn_lw)
 
    updated_rows <- QB$new(conn)$from("id_registry")$whereIn("patient_id", new_idreg$patient_id)$count()
@@ -1993,7 +2023,8 @@ update_pii <- function(start = NULL) {
       where("created_at", ">=", loc_snap, 'or')$
       where("updated_at", ">=", loc_snap, 'or')$
       where("deleted_at", ">=", loc_snap, 'or')$
-      get()
+      get() %>%
+      select(-matches('_version'))
    dbDisconnect(conn_lw)
 
    new_data %<>%
@@ -2282,9 +2313,9 @@ raw_lw_query <- function(query) {
 
 random_dates <- function(n, start_year = 1970) {
    # Generate components randomly
-   years   <- sample(start_year:year(Sys.Date()), n, replace = TRUE)
+   years  <- sample(start_year:year(Sys.Date()), n, replace = TRUE)
    months <- sample(1:12, n, replace = TRUE)
-   days <- sample(1:30, n, replace = TRUE)
+   days   <- sample(1:30, n, replace = TRUE)
 
    # Format into HH:MM:SS padding with leading zeros
    random_dates <- sprintf("%04d-%02d-%02d", years, months, days)
@@ -2302,4 +2333,23 @@ random_times <- function(n) {
    random_times <- sprintf("%02d:%02d:%02d", hours, minutes, seconds)
 
    return(random_times)
+}
+
+int_to_xl_col <- function(n) {
+  col <- ""
+  while (n > 0) {
+    n <- n - 1
+    col <- paste0(intToUtf8((n %% 26) + 65), col)
+    n <- n %/% 26
+  }
+
+   return(col)
+}
+
+merge_cids <- function (cid1, cid2) {
+   data <- tibble(
+      cid = cid1,
+      pid = cid2
+   )
+   upload_dupes(data)
 }
