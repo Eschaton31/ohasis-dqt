@@ -86,7 +86,9 @@ export_excel <- function(data, file) {
             "female",
             "self_ident_other_sieve",
             "vl_error",
-            "vl_drop"
+            "vl_drop",
+            "_version",
+            "is_deleted"
          ))
       )
    data %>% write_sheet("1RN3JFNgWkyDf27qb3pfl_R-R_v-_lOPe8ZU_ZgS3Wtc", "PostProcessed")
