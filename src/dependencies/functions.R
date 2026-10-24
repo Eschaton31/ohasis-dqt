@@ -386,7 +386,16 @@ connect <- function(group) {
       return(DBI::dbConnect(RMariaDB::MariaDB(), group = group, default.file = "my.cnf"))
    }
    if (group == 'mariadb-lw') {
-      return(DBI::dbConnect(ClickHouseHTTP::ClickHouseHTTP(), host = Sys.getenv('LW_HOST'), port = 8123, password = Sys.getenv('LW_PASS'), encoding = 'UTF-8'))
+      return(DBI::dbConnect(
+         ClickHouseHTTP::ClickHouseHTTP(),
+         host     = Sys.getenv('LW_HOST'),
+         port     = 8123,
+         password = Sys.getenv('LW_PASS'),
+         settings = list(
+            enable_http_compression                = 1,
+            output_format_arrow_compression_method = "none"
+         )
+      ))
    }
    if (group == 'local-sqlite') {
       return(DBI::dbConnect(RSQLite::SQLite(), Sys.getenv('SQLITE_DB')))

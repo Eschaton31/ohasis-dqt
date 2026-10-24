@@ -60,6 +60,204 @@ tracked_select <- function(conn, query, name, params = NULL) {
 
    return(data)
 }
+# progress   : show a progress bar (non-HTTP connections only)
+# chunk_size : rows per fetch (non-HTTP connections only); 1000 as before
+# format     : ClickHouseHTTP only. "TabSeparatedWithNamesAndTypes" (default,
+#              same as before) or "Arrow".
+# harmonize  : Arrow only. Cast each column to the class TSV would have given,
+#              so results stay consistent with before.
+# Always returns a tibble.
+tracked_select <- function(conn, query, name, params = NULL,
+                           progress = TRUE, chunk_size = 1000,
+                           format = c("TabSeparatedWithNamesAndTypes", "Arrow"),
+                           harmonize = TRUE) {
+   format  <- match.arg(format)
+   is_http <- inherits(conn, "ClickHouseHTTPConnection")
+
+   # ---- helpers ----------------------------------------------------------------
+
+   get_tsv <- function(sql) {
+      suppress_warnings(dbGetQuery(conn, sql, params = params, format = 'TabSeparatedWithNamesAndTypes'), 'Unsupported') %>%
+         as_tibble() %>%
+         mutate(
+            across(where(~inherits(., "IDate")), as.Date)
+         )
+   }
+
+   # Same cleanup as before, in one pass per column. The regex replacements only
+   # run on the few strings that contain "\" or "Ã".
+   clean_chr <- function(x) {
+      x <- stri_encode(x, from = "UTF-8", to = "UTF-8")
+      x[which(x == "")] <- NA_character_
+
+      hit <- which(stri_detect_regex(x, "[\\\\Ã]"))
+      if (length(hit) > 0) {
+         y <- x[hit]
+         y <- gsub("\\\\0", "", y)
+         y[which(y == "")] <- NA_character_
+         y <- gsub("\\\\'", "'", y)
+         y <- gsub("\\\\", "\\", y)
+         y <- gsub('Ã‘', 'Ñ', y)
+         y <- gsub('Ã±', 'Ñ', y)
+         x[hit] <- y
+      }
+
+      x
+   }
+
+   # Cast one Arrow column to the class of the matching TSV column.
+   cast_like <- function(x, like, col) {
+      is_time <- function(v) inherits(v, c("Date", "POSIXct"))
+
+      # same class: only the time zone can still differ
+      if (identical(class(x), class(like))) {
+         if (inherits(like, "POSIXct")) attr(x, "tzone") <- attr(like, "tzone")
+         return(x)
+      }
+
+      # An empty TSV template can report an all-NA logical for some types.
+      # Casting real data to logical would destroy it, so leave it alone.
+      if (is.logical(like) && !is.logical(x)) {
+         warning("Column '", col, "': TSV class is logical, Arrow class is ",
+                 class(x)[1], "; left as is.")
+         return(x)
+      }
+
+      # String columns that Arrow delivered as binary (list of raw vectors)
+      if (is.character(like) && is.list(x)) {
+         is_raw <- vapply(x, function(v) is.null(v) || is.raw(v), logical(1))
+         if (all(is_raw)) {
+            return(vapply(x, function(v) if (is.null(v)) NA_character_ else rawToChar(v), character(1)))
+         }
+         warning("Column '", col, "': Arrow returned a list column, TSV returned character; left as is.")
+         return(x)
+      }
+
+      if (is.factor(x)) x <- as.character(x)
+
+      # Real UInt16/UInt32 columns: with convert_uint = TRUE, Arrow turns them
+      # into Date/POSIXct. Take back the underlying number.
+      if (is_time(x) && !is_time(like) && !is.character(like)) {
+         x <- as.numeric(unclass(x))
+      }
+
+      if (inherits(like, "integer64")) return(bit64::as.integer64(x))
+      if (inherits(x, "integer64"))    x <- as.numeric(x)
+
+      if (inherits(like, "Date")) {
+         if (inherits(x, "POSIXct")) {
+            tz <- attr(x, "tzone")
+            return(as.Date(x, tz = if (is.null(tz) || tz == "") "UTC" else tz))
+         }
+         return(as.Date(x))
+      }
+      if (inherits(like, "POSIXct")) {
+         x <- as.POSIXct(x)
+         attr(x, "tzone") <- attr(like, "tzone")
+         return(x)
+      }
+
+      if (is.integer(like))   return(as.integer(x))
+      if (is.double(like))    return(as.double(x))
+      if (is.character(like)) return(as.character(x))
+
+      warning("Column '", col, "': no cast from ", class(x)[1], " to ", class(like)[1], "; left as is.")
+      x
+   }
+
+   # Cast Arrow columns to the classes TSV gives for the same query. The TSV
+   # classes come from a LIMIT 0 run, which ClickHouse answers without reading
+   # data. Columns are matched by position.
+   harmonize_arrow <- function(data) {
+      template_sql <- glue(r"(SELECT * FROM ({gsub(';', '', query)}) AS tbl LIMIT 0)")
+      template     <- tryCatch(
+         get_tsv(template_sql),
+         error = function(e) {
+            warning("Arrow harmonization skipped: TSV template query failed: ", conditionMessage(e))
+            NULL
+         }
+      )
+      if (is.null(template)) {
+         return(data)
+      }
+      if (ncol(template) != ncol(data)) {
+         warning("Arrow harmonization skipped: TSV template has ", ncol(template),
+                 " columns, Arrow result has ", ncol(data), ".")
+         return(data)
+      }
+
+      for (i in seq_along(data)) {
+         data[[i]] <- cast_like(data[[i]], template[[i]], names(data)[i])
+      }
+      data
+   }
+
+   # ---- fetch ------------------------------------------------------------------
+
+   .log_info("Reading {green(name)}.")
+
+   if (is_http && format == "Arrow") {
+      # one request, no COUNT(*) round trip
+      data <- suppress_warnings(dbGetQuery(conn, query, params = params, format = "Arrow"), 'Unsupported') %>%
+         as_tibble()
+      if (harmonize) {
+         data <- harmonize_arrow(data)
+      }
+   } else if (is_http) {
+      # one request, no COUNT(*) round trip
+      data <- get_tsv(query)
+   } else {
+      # Same driver calls as the original code (COUNT, dbSendQuery, fixed-size
+      # dbFetch chunks, dbClearResult): a single large fetch can crash some
+      # native drivers. Only the binding has changed.
+      n_rows <- dbGetQuery(conn, glue(r"(SELECT COUNT(*) FROM ({gsub(';', '', query)}) AS tbl)"), params = params)
+      n_rows <- as.numeric(n_rows[1, ])
+      rs     <- dbSendQuery(conn, query, params = params)
+
+      if (n_rows >= chunk_size) {
+         n_chunks <- ceiling(n_rows / chunk_size)
+
+         if (progress) {
+            if (!is.null(name))
+               pb_name <- paste0(name, ": :current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed")
+            else
+               pb_name <- ":current of :total chunks [:bar] (:percent) | ETA: :eta | Elapsed: :elapsed"
+
+            pb <- progress_bar$new(format = pb_name, total = n_chunks, width = 100, clear = FALSE)
+            pb$tick(0)
+         }
+
+         # collect chunks in a list and bind once at the end; binding inside
+         # the loop re-copies the growing data on every chunk
+         chunks <- vector("list", n_chunks)
+         for (i in seq_len(n_chunks)) {
+            chunks[[i]] <- dbFetch(rs, chunk_size)
+            if (progress) pb$tick(1)
+         }
+         data <- bind_rows(chunks)
+      } else {
+         data <- dbFetch(rs)
+      }
+
+      dbClearResult(rs)
+   }
+
+   # ---- clean up -----------------------------------------------------------------
+
+   data <- data %>%
+      as_tibble() %>%
+      mutate(
+         across(where(is.character), clean_chr)
+      ) %>%
+      rename_with(
+         ~case_when(
+            str_detect(., "\\.") ~ str_extract(., ".+\\.(.+)", 1),
+            TRUE ~ .
+         )
+      )
+
+   return(data)
+}
 
 # update db duplicate rec_ids
 change_rec_id <- function(pid, old_recid, new_recid) {
@@ -1930,11 +2128,11 @@ update_idreg <- function(start = NULL) {
    log_info("Fetching IDs")
    conn_lw   <- connect('mariadb-lw')
    new_idreg <- QB$new(conn_lw)$
-      from("ohasis_lake.id_registry")$
+      from("ohasis_lake.id_registry", TRUE)$
       where("created_at", ">=", loc_snap, 'or')$
       where("updated_at", ">=", loc_snap, 'or')$
       where("deleted_at", ">=", loc_snap, 'or')$
-      get() %>%
+      get(format = 'Arrow') %>%
       select(-any_of(c('_version', 'is_deleted')))
    dbDisconnect(conn_lw)
 
@@ -2019,11 +2217,11 @@ update_pii <- function(start = NULL) {
    log_info("Fetching Patients")
    conn_lw  <- connect('mariadb-lw')
    new_data <- QB$new(conn_lw)$
-      from("ohasis_lake.patients")$
+      from("ohasis_lake.patients", TRUE)$
       where("created_at", ">=", loc_snap, 'or')$
       where("updated_at", ">=", loc_snap, 'or')$
       where("deleted_at", ">=", loc_snap, 'or')$
-      get() %>%
+      get(format = 'Arrow') %>%
       select(-any_of(c('_version', 'is_deleted')))
    dbDisconnect(conn_lw)
 

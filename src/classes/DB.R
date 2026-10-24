@@ -201,6 +201,127 @@ DB <- R6Class(
          #    dbAppendTable(db_conn, table_sql, df)
          # }
 
+         # clickhouse: dbx issues one DELETE mutation per batch + string-built INSERTs (slow)
+         # stage ids in a temp table, delete in a single mutation, then use native bulk insert
+         if (inherits(db_conn, c("ClickhouseConnection", "ClickhouseHTTPConnection"))) {
+            stage_name <- stri_c("_upsert_", table_name, "_", stri_rand_strings(1, 8))
+            stage_sql  <- DBI::SQL(paste0('`', db_name, '`.`', stage_name, '`'))
+            id_sql     <- paste0('`', id_col, '`', collapse = ', ')
+
+            # RClickhouse's bundled client only writes (U)Int, Float, String, UUID, Date, DateTime, Enum, Nullable, Array;
+            # anything else (FixedString, LowCardinality, Bool, Date32, DateTime64, Decimal, ...) errors out (shown as Void).
+            # stage those as a writable type and let clickhouse cast server-side on INSERT ... SELECT.
+            # Date32 / DateTime64 go as text (formatted in R) so the full range / sub-second precision survives
+            stage_type <- function(type) {
+               wrap <- stri_match_first_regex(type, "^(Nullable|LowCardinality|Array)\\((.*)\\)$")
+               if (!is.na(wrap[1])) {
+                  inner <- stage_type(wrap[3])
+                  return(if (wrap[2] == "LowCardinality") inner else stri_c(wrap[2], "(", inner, ")"))
+               }
+               if (stri_detect_regex(type, "^(U?Int(8|16|32|64)|Float(32|64)|String|UUID|Date|DateTime(\\(.*\\))?|Enum(8|16)\\(.*\\))$")) return(type)
+               if (type == "Bool") return("UInt8")
+               if (stri_detect_regex(type, "^Decimal")) return("Float64")
+               "String"
+            }
+            server_tz <- dbGetQuery(db_conn, "SELECT timezone() AS tz")$tz
+            col_types <- dbGetQuery(db_conn, stri_c("SELECT name, type FROM system.columns WHERE database = '", db_name, "' AND table = '", table_name, "'"))
+            is_text   <- function(type) stri_detect_regex(type, "^(Nullable\\()?String\\)?$")
+            col_types <- col_types %>%
+               filter(name %in% names(data)) %>%
+               mutate(
+                  stage_type = vapply(type, stage_type, character(1), USE.NAMES = FALSE),
+                  # RClickhouse checks the R type against the column type, so character data headed for a
+                  # non-text column (e.g. dates kept as text) is sent as String and parsed by clickhouse instead
+                  r_chr      = vapply(name, function(col) is.character(data[[col]]), logical(1), USE.NAMES = FALSE),
+                  stage_type = if_else(r_chr & !is_text(stage_type), "String", stage_type),
+                  tz         = coalesce(stri_match_first_regex(type, "DateTime64\\(\\d+,\\s*'([^']+)'\\)")[, 2], server_tz)
+               )
+
+            # columns staged as text but held as non-character in R are formatted here, in a form clickhouse parses back
+            text_cols <- col_types %>% filter(is_text(stage_type))
+            to_stage  <- function(df) {
+               for (col in intersect(text_cols$name, names(df))) {
+                  x <- df[[col]]
+                  if (is.character(x)) {
+                     # '' cannot be cast to a non-text type; send it as NULL so the target's DEFAULT applies
+                     if (!stri_detect_regex(text_cols$type[text_cols$name == col], "String")) df[[col]] <- na_if(x, "")
+                     next
+                  }
+                  df[[col]] <- if (inherits(x, "POSIXct")) {
+                     # %OS truncates (.123 -> .122999); nudge by half a microsecond so it rounds instead
+                     format(x + 5e-7, "%Y-%m-%d %H:%M:%OS6", tz = text_cols$tz[text_cols$name == col])
+                  } else if (inherits(x, "Date")) {
+                     format(x, "%Y-%m-%d")
+                  } else if (is.logical(x)) {
+                     as.character(as.integer(x))
+                  } else {
+                     as.character(x)
+                  }
+               }
+               df
+            }
+            # RClickhouse maps data frame columns to table columns by position, so keep the data's column order
+            # nullable = TRUE lets NA reach the server, where INSERT ... SELECT applies the target's DEFAULT (insert_null_as_default)
+            stage_ddl <- function(cols, nullable = FALSE) {
+               cols  <- col_types[match(cols, col_types$name), ]
+               types <- cols$stage_type
+               if (nullable) {
+                  wrap        <- !stri_detect_regex(types, "^(Nullable|Array)\\(")
+                  types[wrap] <- stri_c("Nullable(", types[wrap], ")")
+               }
+               stri_c("(", paste0('`', cols$name, '` ', types, collapse = ', '), ") ENGINE = Memory")
+            }
+            id_cast <- col_types %>%
+               filter(name %in% id_col) %>%
+               mutate(expr = stri_c("CAST(`", name, "`, '", gsub("'", "\\\\'", type), "') AS `", name, "`"))
+            id_cast <- id_cast$expr[match(id_col, id_cast$name)]
+
+            dbExecute(db_conn, stri_c("CREATE TABLE ", stage_sql, " ", stage_ddl(id_col)))
+            on.exit(dbExecute(db_conn, stri_c("DROP TABLE IF EXISTS ", stage_sql)), add = TRUE)
+
+            dbAppendTable(db_conn, stage_name, data %>% select(all_of(id_col)) %>% distinct() %>% to_stage(), row.names = NA)
+            dbExecute(db_conn, stri_c("DELETE FROM ", table_sql, " WHERE (", id_sql, ") IN (SELECT ", paste(id_cast, collapse = ", "), " FROM ", stage_sql, ")"))
+
+            # route through a stage table only when the target has types RClickhouse cannot write
+            insert_chunk <- function(chunk) {
+               suppress_warnings(dbAppendTable(db_conn, table_name, chunk, row.names = NA), 'column')
+            }
+            if (any(col_types$stage_type != col_types$type)) {
+               data_name <- stri_c(stage_name, "_data")
+               data_sql  <- DBI::SQL(paste0('`', db_name, '`.`', data_name, '`'))
+               cols_sql  <- paste0('`', names(data), '`', collapse = ', ')
+
+               dbExecute(db_conn, stri_c("CREATE TABLE ", data_sql, " ", stage_ddl(names(data), nullable = TRUE)))
+               on.exit(dbExecute(db_conn, stri_c("DROP TABLE IF EXISTS ", data_sql)), add = TRUE)
+
+               insert_chunk <- function(chunk) {
+                  suppress_warnings(dbAppendTable(db_conn, data_name, to_stage(chunk), row.names = NA), 'column')
+                  dbExecute(db_conn, stri_c("INSERT INTO ", table_sql, " (", cols_sql, ") SELECT ", cols_sql, " FROM ", data_sql))
+                  dbExecute(db_conn, stri_c("TRUNCATE TABLE ", data_sql))
+               }
+            }
+
+            # insert in chunks to cap memory / request size
+            chunk_size <- 100000
+            n_rows     <- nrow(data)
+            if (n_rows > chunk_size) {
+               chunks     <- split(data, ceiling(seq_len(n_rows) / chunk_size))
+               chunk_bytes <- vapply(chunks, function(x) as.numeric(object.size(x)), numeric(1))
+
+               pb <- progress_bar$new(format = ":bytes uploaded | :rate [:bar] (:percent) | eta: :eta | Elapsed: :elapsed", total = sum(chunk_bytes), width = 100, clear = FALSE)
+               pb$tick(0)
+               for (i in seq_along(chunks)) {
+                  insert_chunk(chunks[[i]])
+                  pb$tick(chunk_bytes[[i]])
+               }
+               cat("\n")
+            } else {
+               insert_chunk(data)
+            }
+
+            return(invisible(n_rows))
+         }
+
          data %<>%
             mutate_if(is.Date, ~format(., '%Y-%m-%d')) %>%
             mutate_if(is.POSIXct, ~format(., '%Y-%m-%d %H:%M:%S'))
