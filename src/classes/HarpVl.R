@@ -40,7 +40,7 @@ HarpVl <- R6Class(
             whereNotNull("form.lab_viral_result")$
             whereNull("pii.deleted_at")$
             where('form.lab_viral_date', '<=', self$params$end)$
-            get()
+            get(format = 'Arrow')
          dbDisconnect(lw_conn)
 
          invisible(self)

@@ -81,7 +81,7 @@ download_tables <- function(params) {
    forms$id_registry <- update_idreg() %>% select(central_id, patient_id)
 
    log_info("Downloading {green('ART Visits w/in the scope')}.")
-   forms$form_d <- QB$new(lw_conn)$from("ohasis_warehouse.form_d")$get() %>% remove_table_alias()
+   forms$form_d <- QB$new(lw_conn)$from("ohasis_warehouse.form_d")$get(format = 'Arrow') %>% remove_table_alias()
 
    log_success("Done.")
    dbDisconnect(lw_conn)
@@ -106,7 +106,7 @@ update_dataset <- function(params, corr, forms, reprocess) {
    # )
 
    conn         <- connect('mariadb-lw')
-   official$old <- QB$new(conn)$from('ohasis_warehouse.harp_dead_old')$get()
+   official$old <- QB$new(conn)$from('ohasis_warehouse.harp_dead_old')$get(format = 'Arrow')
    dbDisconnect(conn)
 
    official$dupes <- official$old %>% get_dupes(central_id)

@@ -118,13 +118,13 @@ download_tables <- function(path_to_sql) {
 
    # read data
    data              <- list()
-   data$form_a       <- tracked_select(lw_conn, sql$form_a, "New Form A") %>% remove_table_alias()
-   data$form_hts     <- tracked_select(lw_conn, sql$form_hts, "New HTS Form") %>% remove_table_alias()
-   data$form_cfbs    <- tracked_select(lw_conn, sql$form_cfbs, "New CFBS Form") %>% remove_table_alias()
-   data$px_confirmed <- tracked_select(lw_conn, sql$px_confirmed, "New Confirmed w/ no Form") %>% remove_table_alias()
+   data$form_a       <- tracked_select(lw_conn, sql$form_a, "New Form A", format = "Arrow") %>% remove_table_alias()
+   data$form_hts     <- tracked_select(lw_conn, sql$form_hts, "New HTS Form", format = "Arrow") %>% remove_table_alias()
+   data$form_cfbs    <- tracked_select(lw_conn, sql$form_cfbs, "New CFBS Form",  format = "Arrow") %>% remove_table_alias()
+   data$px_confirmed <- tracked_select(lw_conn, sql$px_confirmed, "New Confirmed w/ no Form", format = "Arrow") %>% remove_table_alias()
    # data$cd4          <- tracked_select(lw_conn, sql$cd4, "Baseline CD4", list(as.character(params$max)))
-   data$cd4          <- tracked_select(lw_conn, sql$cd4, "Baseline CD4", list(as.character(params$max))) %>% remove_table_alias()
-   data$non_dupes    <- tracked_select(lw_conn, "SELECT patient_id, non_pair_id FROM ohasis_warehouse.non_dupes", "Non-dupes") %>% remove_table_alias()
+   data$cd4          <- tracked_select(lw_conn, sql$cd4, "Baseline CD4", list(as.character(params$max)), format = "Arrow") %>% remove_table_alias()
+   data$non_dupes    <- tracked_select(lw_conn, "SELECT patient_id, non_pair_id FROM ohasis_warehouse.non_dupes", "Non-dupes", format = "Arrow") %>% remove_table_alias()
 
    dbDisconnect(lw_conn)
 
@@ -164,7 +164,7 @@ update_dataset <- function(params, corr, reprocess) {
    # )
 
    conn         <- connect('mariadb-lw')
-   official$old <- QB$new(conn)$from('ohasis_warehouse.harp_dx_old')$get()
+   official$old <- QB$new(conn)$from('ohasis_warehouse.harp_dx_old')$get(format = 'Arrow')
    dbDisconnect(conn)
 
    official$dupes <- official$old %>% get_dupes(central_id)

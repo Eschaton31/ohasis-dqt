@@ -130,7 +130,6 @@ download_tables <- function(params) {
       query$whereRaw(glue("date(created_at) between '{min}' and '{max}'"), "or")
       query$whereRaw(glue("date(updated_at) between '{min}' and '{max}'"), "or")
       query$whereRaw("rec_id in (select rec_id from ohasis_warehouse.art_first)", "or")
-      query$whereRaw("rec_id in (select rec_id from ohasis_warehouse.art_first)", "or")
       query$whereRaw("rec_id in (select rec_id from ohasis_warehouse.art_lastdisp)", "or")
       query$whereRaw("rec_id in (select rec_id from ohasis_warehouse.art_last)", "or")
       query$whereNested
@@ -195,18 +194,18 @@ download_tables <- function(params) {
       "clinic_notes",
       "counsel_notes"
    )
-   forms$form_art_bc <- recs$get()
+   forms$form_art_bc <- recs$get(format = 'Arrow')
 
    log_info("Downloading {green('Earliest ART Visits')}.")
-   forms$art_first <- QB$new(lw_conn)$from("ohasis_warehouse.art_first")$select("central_id", "rec_id", "visit_date")$get() %>%
+   forms$art_first <- QB$new(lw_conn)$from("ohasis_warehouse.art_first")$select("central_id", "rec_id", "visit_date")$get(format = 'Arrow') %>%
       left_join(forms$form_art_bc, join_by(rec_id, visit_date))
 
    log_info("Downloading {green('Latest ART Visits')}.")
-   forms$art_last <- QB$new(lw_conn)$from("ohasis_warehouse.art_last")$select("central_id", "rec_id", "visit_date")$get() %>%
+   forms$art_last <- QB$new(lw_conn)$from("ohasis_warehouse.art_last")$select("central_id", "rec_id", "visit_date")$get(format = 'Arrow') %>%
       left_join(forms$form_art_bc, join_by(rec_id, visit_date))
 
    log_info("Downloading {green('Latest ART Dispensing')}.")
-   forms$art_lastdisp <- QB$new(lw_conn)$from("ohasis_warehouse.art_lastdisp")$select("central_id", "rec_id", "visit_date")$get() %>%
+   forms$art_lastdisp <- QB$new(lw_conn)$from("ohasis_warehouse.art_lastdisp")$select("central_id", "rec_id", "visit_date")$get(format = 'Arrow') %>%
       left_join(forms$form_art_bc, join_by(rec_id, visit_date))
 
    log_info("Downloading {green('Latest VL Data')}.")
@@ -235,7 +234,7 @@ download_tables <- function(params) {
       distinct(central_id, .keep_all = TRUE)
 
    log_info("Downloading {green('Latest Confirmatory Data')}.")
-   forms$confirm_last <- QB$new(lw_conn)$from("ohasis_warehouse.confirm_last")$select("central_id", "date_confirm", "confirm_code", "confirm_result", "confirm_remarks")$get()
+   forms$confirm_last <- QB$new(lw_conn)$from("ohasis_warehouse.confirm_last")$select("central_id", "date_confirm", "confirm_code", "confirm_result", "confirm_remarks")$get(format = 'Arrow')
 
    log_info("Downloading {green('CD4 Data')}.")
    forms$lab_cd4 <- QB$new(lw_conn)$
@@ -243,7 +242,7 @@ download_tables <- function(params) {
       leftJoin('ohasis_lake.px_demographics as pii', 'lab.rec_id', '=', 'pii.rec_id')$
       select("labs.lab_cd4_date as cd4_date", "labs.lab_cd4_result as cd4_result", "pii.patient_id")$
       whereRaw(glue("DATE(cd4_date) <= '{max}' and deleted_at is null"))$
-      get() %>%
+      get(format = 'Arrow') %>%
       get_cid(forms$id_registry, patient_id)
 
    log_success("Done.")
@@ -269,7 +268,7 @@ update_dataset <- function(params, corr, forms, reprocess) {
    # )
 
    conn         <- connect('mariadb-lw')
-   official$old_reg <- QB$new(conn)$from('ohasis_warehouse.harp_tx_old')$get()
+   official$old_reg <- QB$new(conn)$from('ohasis_warehouse.harp_tx_old')$get(format = 'Arrow')
    dbDisconnect(conn)
 
    official$old_outcome <- hs_data("harp_tx", "outcome", params$prev_yr, params$prev_mo) %>%
