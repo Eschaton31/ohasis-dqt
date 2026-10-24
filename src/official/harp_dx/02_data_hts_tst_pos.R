@@ -1728,7 +1728,7 @@ output_dta <- function(official, params, save = "2") {
    step$check <- get_checks(data, p$pdf_rhivda, p$corr, run_checks = vars$run_checks, exclude_drops = vars$exclude_drops)
    step$data  <- data
 
-   p$official$new <- new_reg
+   p$official$new <- new_reg %>% distinct(idnum, .keep_all = TRUE)
    append(p$official, drops)
    output_dta(p$official, p$params, vars$save)
 
