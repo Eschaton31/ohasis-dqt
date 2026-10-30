@@ -15,6 +15,13 @@ local({
    # p_load installs missing packages into the first library path (R_LIBS), then loads
    packages <- trimws(readLines("requirements.txt", warn = FALSE))
    packages <- packages[packages != "" & !startsWith(packages, "#")]
+
+   # install everything missing before loading anything: on Windows, a package
+   # whose DLL is already loaded (e.g. rlang via dplyr) can't be updated in-session
+   missing <- setdiff(packages, rownames(installed.packages()))
+   if (length(missing) > 0)
+      install.packages(missing, lib = lib)
+
    loaded   <- p_load(char = packages)
    if (!all(loaded))
       stop("Failed to install/load: ", paste(names(loaded)[!loaded], collapse = ", "))
