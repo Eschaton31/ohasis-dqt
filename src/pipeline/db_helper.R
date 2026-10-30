@@ -259,6 +259,182 @@ tracked_select <- function(conn, query, name, params = NULL,
    return(data)
 }
 
+# Whole-table download that reuses a copy in the local SQLite database
+# (SQLITE_DB) while the table is unchanged on the server. The signature comes
+# from the table's active parts, so any insert, mutation or merge forces a
+# fresh download.
+# table   : "database.table" on a ClickHouseHTTP connection
+# refresh : TRUE to ignore the local copy
+cached_table <- function(conn, table, refresh = FALSE) {
+   db_table <- stri_split_fixed(table, ".", n = 2)[[1]]
+   sig      <- table_sig(conn, table)
+
+   # no parts: not a MergeTree table (or empty), so nothing to key the cache on
+   if (is.null(sig)) {
+      return(QB$new(conn)$from(table)$get(format = "Arrow"))
+   }
+
+   cache_name <- stri_c("cache__", db_table[1], "__", db_table[2])
+   local      <- connect("local-sqlite")
+   on.exit(dbDisconnect(local), add = TRUE)
+
+   init_cache_meta(local)
+   meta <- dbGetQuery(local, "SELECT sig, template FROM _cache_meta WHERE table_name = ?", params = list(table))
+
+   if (!refresh && nrow(meta) == 1 && identical(meta$sig, sig) && dbExistsTable(local, cache_name)) {
+      .log_info("Reading {green(table)} from local cache.")
+      return(restore_cached(dbReadTable(local, cache_name), unserialize(meta$template[[1]])))
+   }
+
+   data <- QB$new(conn)$from(table)$get(format = "Arrow")
+
+   # one transaction, so a failed write never leaves stale data marked as current
+   tryCatch({
+      dbWithTransaction(local, {
+         dbWriteTable(local, cache_name, as.data.frame(data), overwrite = TRUE)
+         dbExecute(
+            local,
+            "INSERT OR REPLACE INTO _cache_meta (table_name, sig, template, cached_at) VALUES (?, ?, ?, ?)",
+            params = list(
+               table,
+               sig,
+               # data[0, ] alone drops the integer storage of Dates, so keep typeof too
+               blob::as_blob(list(serialize(list(cols = data[0, ], types = vapply(data, typeof, character(1))), NULL))),
+               format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+            )
+         )
+      })
+   }, error = function(e) {
+      warning("Could not cache ", table, ": ", conditionMessage(e))
+   })
+
+   return(data)
+}
+
+# Google Sheet download that reuses a copy in the local SQLite database
+# (SQLITE_DB) while the spreadsheet is unchanged. The signature is the file's
+# Drive modifiedTime, so an edit to any tab forces a fresh download.
+# All columns are read as character, so no type restore is needed.
+# ss      : spreadsheet id
+# sheet   : tab name
+# refresh : TRUE to ignore the local copy
+cached_sheet <- function(ss, sheet, refresh = FALSE) {
+   key        <- stri_c("gsheet:", ss, ":", sheet)
+   cache_name <- stri_c("cache__gsheet__", ss, "__", stri_replace_all_regex(sheet, "[^A-Za-z0-9]", "_"))
+   sig        <- drive_get(as_id(ss))$drive_resource[[1]]$modifiedTime
+
+   local <- connect("local-sqlite")
+   on.exit(dbDisconnect(local), add = TRUE)
+
+   init_cache_meta(local)
+   meta <- dbGetQuery(local, "SELECT sig FROM _cache_meta WHERE table_name = ?", params = list(key))
+
+   if (!refresh && nrow(meta) == 1 && identical(meta$sig, sig) && dbExistsTable(local, cache_name)) {
+      .log_info("Reading sheet {green(sheet)} from local cache.")
+      return(as_tibble(dbReadTable(local, cache_name)))
+   }
+
+   local_gs4_quiet()
+   data <- read_sheet(ss, sheet, col_types = "c", .name_repair = "unique_quiet")
+
+   # one transaction, so a failed write never leaves stale data marked as current
+   tryCatch({
+      dbWithTransaction(local, {
+         dbWriteTable(local, cache_name, as.data.frame(data), overwrite = TRUE)
+         dbExecute(
+            local,
+            "INSERT OR REPLACE INTO _cache_meta (table_name, sig, cached_at) VALUES (?, ?, ?)",
+            params = list(key, sig, format(Sys.time(), "%Y-%m-%d %H:%M:%S"))
+         )
+      })
+   }, error = function(e) {
+      warning("Could not cache sheet ", sheet, ": ", conditionMessage(e))
+   })
+
+   return(data)
+}
+
+# Signature of a ClickHouse table's active parts; any insert, mutation or merge
+# changes it. NULL when the table has no parts (not MergeTree, or empty).
+table_sig <- function(conn, table) {
+   db_table <- stri_split_fixed(table, ".", n = 2)[[1]]
+   sig      <- dbGetQuery(
+      conn,
+      glue(r"(
+         SELECT count() AS n_parts,
+                concat(toString(count()), '_', toString(sum(rows)), '_', toString(max(modification_time))) AS sig
+         FROM system.parts
+         WHERE database = '{db_table[1]}' AND table = '{db_table[2]}' AND active
+      )"),
+      format = "TabSeparatedWithNamesAndTypes"
+   )
+
+   if (as.numeric(sig$n_parts) == 0) {
+      return(NULL)
+   }
+
+   return(sig$sig)
+}
+
+init_cache_meta <- function(local) {
+   dbExecute(local, "CREATE TABLE IF NOT EXISTS _cache_meta (table_name TEXT PRIMARY KEY, sig TEXT, template BLOB, cached_at TEXT)")
+}
+
+# For incremental syncs into SQLite: TRUE when the lake table still has the
+# signature recorded by mark_synced() under `key`.
+lake_unchanged <- function(local, key, sig) {
+   if (is.null(sig)) {
+      return(FALSE)
+   }
+
+   init_cache_meta(local)
+   last <- dbGetQuery(local, "SELECT sig FROM _cache_meta WHERE table_name = ?", params = list(key))
+
+   return(nrow(last) == 1 && identical(last$sig, sig))
+}
+
+mark_synced <- function(local, key, sig) {
+   if (is.null(sig)) {
+      return(invisible(NULL))
+   }
+
+   init_cache_meta(local)
+   dbExecute(
+      local,
+      "INSERT OR REPLACE INTO _cache_meta (table_name, sig, cached_at) VALUES (?, ?, ?)",
+      params = list(key, sig, format(Sys.time(), "%Y-%m-%d %H:%M:%S"))
+   )
+}
+
+# SQLite only keeps text and numbers, so rebuild each column's storage type and
+# attributes (Date, POSIXct + tz, factor, labels) from a 0-row template.
+restore_cached <- function(data, template) {
+   cols <- lapply(setNames(names(template$cols), names(template$cols)), function(col) {
+      x    <- data[[col]]
+      like <- template$cols[[col]]
+
+      if (is.factor(like)) {
+         x <- factor(x, levels = levels(like))
+      } else if (inherits(like, "integer64")) {
+         x <- bit64::as.integer64(x)
+      } else {
+         x <- switch(
+            template$types[[col]],
+            integer   = as.integer(x),
+            double    = as.double(x),
+            logical   = as.logical(x),
+            character = as.character(x),
+            x
+         )
+      }
+
+      attributes(x) <- attributes(like)
+      x
+   })
+
+   as_tibble(cols)
+}
+
 # update db duplicate rec_ids
 change_rec_id <- function(pid, old_recid, new_recid) {
    db_conn <- ohasis$conn("db")
@@ -2112,10 +2288,21 @@ trial_to_live <- function(form, faci_id, min, max) {
 }
 
 update_idreg <- function(start = NULL) {
-   conn <- connect('local-sqlite')
+   conn    <- connect('local-sqlite')
+   conn_lw <- connect('mariadb-lw')
+   lw_sig  <- table_sig(conn_lw, "ohasis_lake.id_registry")
 
    if (!dbExistsTable(conn, "id_registry")) {
       dbExecute(conn, "CREATE TABLE id_registry (patient_id TEXT PRIMARY KEY, central_id TEXT, created_by TEXT, created_at DATETIME, updated_by TEXT, updated_at DATETIME, deleted_by TEXT, deleted_at DATETIME)")
+      mark_synced(conn, "sync__id_registry", "")
+   }
+
+   if (is.null(start) && lake_unchanged(conn, "sync__id_registry", lw_sig)) {
+      log_info("IDs unchanged since last sync.")
+      dbDisconnect(conn_lw)
+      id_reg <- dbReadTable(conn, "id_registry")
+      dbDisconnect(conn)
+      return(id_reg)
    }
 
    loc_snap <- dbGetQuery(conn, "SELECT MAX(COALESCE(created_at, '1970-01-01')) as max_create, MAX(COALESCE(updated_at, '1970-01-01')) as max_update, MAX(COALESCE(deleted_at, '1970-01-01')) as max_delete FROM id_registry")
@@ -2126,7 +2313,6 @@ update_idreg <- function(start = NULL) {
    loc_snap <- str_left(loc_snap, 19)
 
    log_info("Fetching IDs")
-   conn_lw   <- connect('mariadb-lw')
    new_idreg <- QB$new(conn_lw)$
       from("ohasis_lake.id_registry", TRUE)$
       where("created_at", ">=", loc_snap, 'or')$
@@ -2143,6 +2329,7 @@ update_idreg <- function(start = NULL) {
    log_info("Updated IDs = {red(formatC(as.integer(updated_rows), big.mark = ','))} rows")
 
    dbxUpsert(conn, 'id_registry', new_idreg, 'patient_id', batch_size = 10000)
+   mark_synced(conn, "sync__id_registry", lw_sig)
    log_success("Done!")
 
    id_reg <- dbReadTable(conn, "id_registry")
@@ -2153,7 +2340,9 @@ update_idreg <- function(start = NULL) {
 }
 
 update_pii <- function(start = NULL) {
-   conn <- connect('local-sqlite')
+   conn    <- connect('local-sqlite')
+   conn_lw <- connect('mariadb-lw')
+   lw_sig  <- table_sig(conn_lw, "ohasis_lake.patients")
 
    if (!dbExistsTable(conn, "patients")) {
       dbExecute(conn, "CREATE TABLE patients (
@@ -2205,6 +2394,14 @@ update_pii <- function(start = NULL) {
   deleted_by        TEXT,
   deleted_at        DATETIME
 )")
+      mark_synced(conn, "sync__patients", "")
+   }
+
+   if (is.null(start) && lake_unchanged(conn, "sync__patients", lw_sig)) {
+      log_info("Patients unchanged since last sync.")
+      dbDisconnect(conn_lw)
+      dbDisconnect(conn)
+      return(invisible(NULL))
    }
 
    loc_snap <- dbGetQuery(conn, "SELECT MAX(COALESCE(created_at, '1970-01-01')) as max_create, MAX(COALESCE(updated_at, '1970-01-01')) as max_update, MAX(COALESCE(deleted_at, '1970-01-01')) as max_delete FROM patients")
@@ -2215,7 +2412,6 @@ update_pii <- function(start = NULL) {
    loc_snap <- str_left(loc_snap, 19)
 
    log_info("Fetching Patients")
-   conn_lw  <- connect('mariadb-lw')
    new_data <- QB$new(conn_lw)$
       from("ohasis_lake.patients", TRUE)$
       where("created_at", ">=", loc_snap, 'or')$
@@ -2260,6 +2456,7 @@ update_pii <- function(start = NULL) {
    log_info("Updated IDs = {red(formatC(as.integer(updated_rows), big.mark = ','))} rows")
 
    dbxUpsert(conn, 'patients', new_data, 'patient_id', batch_size = 10000)
+   mark_synced(conn, "sync__patients", lw_sig)
    log_success("Done!")
 
    dbDisconnect(conn)

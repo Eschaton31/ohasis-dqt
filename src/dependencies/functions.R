@@ -295,6 +295,10 @@ pdf_section <- function(data, x_seq, y_seq) {
    return(df)
 }
 
+# objects clear_env() never removes
+.protected <- trimws(readLines("protected.txt", warn = FALSE))
+.protected <- unique(.protected[.protected != ""])
+
 # clear environment function
 clear_env <- function(...) {
    env <- ls(envir = .GlobalEnv)

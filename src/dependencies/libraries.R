@@ -1,42 +1,39 @@
 ##  Required Libraries ---------------------------------------------------------
 
-# easy loader for libraries
-if (!require(pacman))
-   install.packages("pacman", lib = Sys.getenv("R_LIBS"))
+# local() keeps helper variables out of the global environment
+local({
+   # R_LIBS may list several paths; installs go to the first one
+   lib <- strsplit(Sys.getenv("R_LIBS"), .Platform$path.sep)[[1]][1]
+   if (is.na(lib) || !dir.exists(lib))
+      stop("R_LIBS is not set or does not exist ('", Sys.getenv("R_LIBS"), "'). Set it in .Renviron (see .Renviron.example).")
 
-# load libraries
-library(pacman, lib.loc =  Sys.getenv("R_LIBS"))
+   # easy loader for libraries
+   if (!requireNamespace("pacman", quietly = TRUE))
+      install.packages("pacman", lib = lib)
+   library(pacman)
 
-load_packages <- function(path_to_file) {
+   # p_load installs missing packages into the first library path (R_LIBS), then loads
+   packages <- trimws(readLines("requirements.txt", warn = FALSE))
+   packages <- packages[packages != "" & !startsWith(packages, "#")]
+   loaded   <- p_load(char = packages)
+   if (!all(loaded))
+      stop("Failed to install/load: ", paste(names(loaded)[!loaded], collapse = ", "))
 
-   # convert arguments to vector
-   packages <- readLines(path_to_file)
+   p_load_gh("lmullen/genderdata")
 
-   # start loop to determine if each package is installed
-   for (package in packages) {
-
-      # if package is installed locally, load
-      if (package %in% rownames(installed.packages()))
-         do.call('p_load', list(package))
-
-         # if package is not installed locally, download, then load
-      else {
-         install.packages(package, lib = Sys.getenv("R_LIBS"))
-         do.call("p_load", list(package))
+   # nhsss unique functions; always updated, but fall back to the installed copy
+   # if GitHub is unreachable (offline / rate-limited) so startup doesn't break
+   p_unload("nhsss")
+   tryCatch(
+      remotes::install_github("Eschaton31/nhsss", upgrade = "never", quiet = TRUE),
+      error = function(e) {
+         if (!requireNamespace("nhsss", quietly = TRUE))
+            stop("nhsss is not installed and could not be fetched from GitHub: ", conditionMessage(e))
+         warning("Could not update nhsss, using installed version: ", conditionMessage(e))
       }
-   }
-}
-
-load_packages("requirements.txt")
-p_load_gh(
-   "lmullen/genderdata",
-   "schardtbc/DBIExt"
-)
-
-# nhsss unique functions
-p_unload("nhsss")
-remotes::install_github("Eschaton31/nhsss", upgrade = "never", quiet = TRUE)
-require(nhsss)
+   )
+   library(nhsss)
+})
 
 duckplyr::methods_overwrite()
 options(duckdb.materialize_message = FALSE)

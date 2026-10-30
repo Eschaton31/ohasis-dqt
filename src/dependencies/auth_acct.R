@@ -7,20 +7,11 @@ options(
 )
 
 google_account <- function(email) {
-   options(browser = Sys.getenv("BROWSER"))
+   # use the user's browser for auth, then restore the IDE browser set in options.R
+   old <- options(browser = Sys.getenv("BROWSER"))
+   on.exit(options(old))
    drive_auth(email = email, cache = ".secrets")
    gs4_auth(email = email, token = drive_token())
-   options(
-      browser = function(url) {
-         if (grepl('^https?:', url)) {
-            if (!.Call('.jetbrains_processBrowseURL', url)) {
-               browseURL(url, .jetbrains$ther_old_browser)
-            }
-         } else {
-            .Call('.jetbrains_showFile', url, url)
-         }
-      }
-   )
 }
 
 google_account("nhsss@doh.gov.ph")

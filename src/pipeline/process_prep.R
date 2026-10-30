@@ -42,7 +42,7 @@ process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_
             risk_condomless_anal == 2 ~ "yes-beyond_p12m",
             TRUE ~ "(no data)"
          ),
-         risk_sexwithm_nocdm    = risk_sexwithf,
+         risk_sexwithm_nocdm    = risk_sexwithm,
 
          # shared injects / injecting drugs
          risk_injectdrug        = case_when(
@@ -84,16 +84,8 @@ process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_
             TRUE ~ "(no data)"
          ),
 
-         # sex w/ someone who has HIV
-         risk_sexunknownhiv     = case_when(
-            risk_hiv_unknown == 4 ~ "yes-p01m",
-            risk_hiv_unknown == 3 ~ "yes-p06m",
-            risk_hiv_unknown == 2 ~ "yes-beyond_p12m",
-            TRUE ~ "(no data)"
-         ),
-
          # has sti
-         risk_sexunknownhiv     = case_when(
+         risk_hadsti            = case_when(
             risk_sti == 4 ~ "yes-p01m",
             risk_sti == 3 ~ "yes-p06m",
             risk_sti == 2 ~ "yes-beyond_p12m",
@@ -101,7 +93,7 @@ process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_
          ),
 
          # used pep
-         risk_sexunknownhiv     = case_when(
+         risk_usedpep           = case_when(
             risk_pep == 4 ~ "yes-p01m",
             risk_pep == 3 ~ "yes-p06m",
             risk_pep == 2 ~ "yes-beyond_p12m",
@@ -276,7 +268,7 @@ process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_
             TRUE ~ "(no data)"
          ),
          lab_syph    = case_when(
-            toupper(lab_syph_titer) %in% c("nonreactive", "non reactive") ~ "nonreactive",
+            tolower(lab_syph_titer) %in% c("nonreactive", "non reactive") ~ "nonreactive",
             str_left(lab_syph_result, 1) == "2" ~ "nonreactive",
             str_left(lab_syph_result, 1) != "2" ~ "syph",
             !is.na(lab_syph_titer) ~ "syph",
@@ -287,7 +279,8 @@ process_prep <- function(form_prep = data.frame(), hts_data = data.frame(), rec_
          # sti screening
          sti_screen  = case_when(
             sti_sx > 0 ~ 1,
-            !(tolower(sti_diagnosis) %in% c("wala", "negative", "no sign and symptoms of sti", "no sign and symptoms of sti and ars", "uti")) ~ 1,
+            !is.na(sti_diagnosis) &
+               !(tolower(sti_diagnosis) %in% c("wala", "negative", "no sign and symptoms of sti", "no sign and symptoms of sti and ars", "uti")) ~ 1,
             (tolower(sti_diagnosis) %in% c("wala", "negative", "no sign and symptoms of sti", "no sign and symptoms of sti and ars", "uti")) ~ 0,
             sti_sx_none == 1 ~ 0,
             TRUE ~ 9999

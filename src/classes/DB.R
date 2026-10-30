@@ -81,7 +81,9 @@ DB <- R6Class(
             ) %>%
             relocate(faci_code, sub_faci_code, .before = 1)
 
-         self$slack_id <- (slackr_users() %>% filter(name == Sys.getenv("SLACK_PERSONAL")))$id
+         # self$slack_id <- slackr_users() %>%
+         #    filter(name == Sys.getenv("SLACK_PERSONAL")) %>%
+         #    pull(id)
 
          log_success("ohasis initialized!")
       },
@@ -91,7 +93,14 @@ DB <- R6Class(
          lw_conn          <- connect("mariadb-lw")
          self$ref_country <- QB$new(lw_conn)$from("ohasis_lake.ref_country")$get()
          self$ref_addr    <- QB$new(lw_conn)$from("ohasis_lake.ref_addr")$get()
-         self$ref_faci    <- QB$new(lw_conn)$from("ohasis_lake.ref_faci")$whereNull("deleted_at")$get()
+         # ref_faci's sort key includes faci_name & addr_psgc_reg, so a renamed / moved facility keeps its old
+         # row; keep only the latest version per facility before dropping deleted ones
+         self$ref_faci    <- QB$new(lw_conn)$from("ohasis_lake.ref_faci")$get() %>%
+            mutate(sub_faci_key = coalesce(sub_faci_id, "")) %>%
+            arrange(desc(`_version`)) %>%
+            distinct(faci_id, sub_faci_key, .keep_all = TRUE) %>%
+            select(-sub_faci_key) %>%
+            filter(is.na(deleted_at))
          self$ref_staff   <- QB$new(lw_conn)$from("ohasis_lake.ref_staff")$get()
          dbDisconnect(lw_conn)
       },

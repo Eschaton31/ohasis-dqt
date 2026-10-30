@@ -121,261 +121,133 @@ get_latest_pii <- function(data, pid_col, pii_cols) {
    missing <- data %>%
       filter(if_any(any_of(pii_cols), ~is.na(.)))
 
-   if (nrow(missing) > 0) {
-      update_pii()
-      conn  <- connect("local-sqlite")
-      idreg <- QB$new(conn)$from('id_registry')$whereIn('central_id', missing$central_id, 'or')$whereIn('patient_id', missing$central_id, 'or')$get()
-      pids  <- unique(c(idreg$patient_id, missing$patient_id, missing$central_id))
-      pids  <- pids[!is.na(pids)]
+   if (nrow(missing) == 0) {
+      return(data)
+   }
 
-      pii <- QB$new(conn)$
-         select(patient_id,
-                first,
-                middle,
-                last,
-                suffix,
-                uic,
-                confirmatory_code,
-                patient_code,
-                birthdate,
-                philsys_id,
-                philhealth_no,
-                client_email,
-                client_mobile,
-                sex,
-                self_ident,
-                self_ident_other,
-                civil_status,
-                nationality,
-                educ_level,
-                curr_munc,
-                curr_prov,
-                curr_reg,
-                perm_munc,
-                perm_prov,
-                perm_reg,
-                birth_munc,
-                birth_prov,
-                birth_reg,
-                created_at,
-                updated_at)$
-         from('patients')$
-         whereIn('patient_id', pids)$
-         whereNull('deleted_at')$
-         get() %>%
-         get_cid(idreg, patient_id) %>%
-         mutate(
-            snapshot = max(created_at, updated_at, na.rm = TRUE)
-         ) %>%
-         select(
-            central_id,
-            first,
-            middle,
-            last,
-            suffix,
-            uic,
-            confirmatory_code,
-            patient_code,
-            birthdate,
-            philsys_id,
-            philhealth_no,
-            client_email,
-            client_mobile,
-            sex,
-            self_ident,
-            self_ident_other,
-            civil_status,
-            nationality,
-            educ_level,
-            curr_munc,
-            curr_prov,
-            curr_reg,
-            perm_munc,
-            perm_prov,
-            perm_reg,
-            birth_munc,
-            birth_prov,
-            birth_reg,
-            snapshot
-         ) %>%
-         pivot_longer(
-            cols = c(
-               first,
-               middle,
-               last,
-               suffix,
-               uic,
-               confirmatory_code,
-               patient_code,
-               birthdate,
-               philsys_id,
-               philhealth_no,
-               client_email,
-               client_mobile,
-               sex,
-               self_ident,
-               self_ident_other,
-               civil_status,
-               nationality,
-               educ_level,
-               curr_munc,
-               curr_prov,
-               curr_reg,
-               perm_munc,
-               perm_prov,
-               perm_reg,
-               birth_munc,
-               birth_prov,
-               birth_reg,
-            )
-         ) %>%
-         mutate(
-            sort = if_else(!is.na(value), 1, 9999, 9999)
-         ) %>%
-         arrange(sort, desc(snapshot)) %>%
-         distinct(central_id, name, .keep_all = TRUE) %>%
-         pivot_wider(
-            id_cols     = central_id,
-            names_from  = name,
-            values_from = value
-         )
+   pii_fields <- c(
+      "first",
+      "middle",
+      "last",
+      "suffix",
+      "uic",
+      "confirmatory_code",
+      "patient_code",
+      "birthdate",
+      "philsys_id",
+      "philhealth_no",
+      "client_email",
+      "client_mobile",
+      "sex",
+      "self_ident",
+      "self_ident_other",
+      "civil_status",
+      "nationality",
+      "educ_level",
+      "curr_munc",
+      "curr_prov",
+      "curr_reg",
+      "perm_munc",
+      "perm_prov",
+      "perm_reg",
+      "birth_munc",
+      "birth_prov",
+      "birth_reg"
+   )
 
+   # address blocks are patched as a unit (reg + prov + munc from one record)
+   addr_types <- c("perm", "curr", "birth")
+   addr_types <- addr_types[stri_c(addr_types, "_munc") %in% pii_cols]
+   addr_parts <- function(type) stri_c(type, c("_reg", "_prov", "_munc"))
+   addr_cols  <- unlist(lapply(addr_types, addr_parts))
+   cell_cols  <- setdiff(pii_cols, c(addr_cols, stri_c(addr_types, "_brgy")))
+
+   update_pii()
+   conn <- connect("local-sqlite")
+   on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+   cids  <- unique(missing$central_id)
+   idreg <- QB$new(conn)$from('id_registry')$whereIn('central_id', cids, 'or')$whereIn('patient_id', cids, 'or')$get()
+   pids  <- unique(c(idreg$patient_id, missing$patient_id, missing$central_id))
+   pids  <- pids[!is.na(pids)]
+
+   qb <- QB$new(conn)
+   do.call(qb$select, as.list(c("patient_id", pii_fields, "created_at", "updated_at")))
+   pii <- qb$
+      from('patients')$
+      whereIn('patient_id', pids)$
+      whereNull('deleted_at')$
+      get() %>%
+      get_cid(idreg, patient_id) %>%
+      mutate(
+         snapshot = pmax(created_at, updated_at, na.rm = TRUE),
+         across(all_of(pii_fields), ~as.character(.))
+      ) %>%
+      select(central_id, snapshot, all_of(pii_fields))
+
+   # collapse each address block so the latest non-empty block is taken whole
+   for (type in addr_types) {
+      psgc <- stri_c(type, "_psgc")
       pii %<>%
-         mutate_all(~as.character(.))
+         mutate(blank_addr = if_all(all_of(addr_parts(type)), is.na)) %>%
+         unite(col = !!psgc, all_of(addr_parts(type)), sep = "|", na.rm = FALSE) %>%
+         mutate(!!psgc := if_else(blank_addr, NA_character_, .data[[psgc]])) %>%
+         select(-blank_addr)
+   }
 
-      if ("perm_munc" %in% pii_cols) {
-         pii_cols <- pii_cols[!(pii_cols %in% c("perm_reg", "perm_prov", "perm_munc", "perm_brgy"))]
-         pii_cols <- append(pii_cols, "perm_psgc")
-         data %<>%
-            unite(
-               col    = "perm_psgc",
-               sep    = "|",
-               perm_reg,
-               perm_prov,
-               perm_munc,
-               na.rm  = TRUE,
-               remove = TRUE
-            ) %>%
-            mutate(perm_psgc = na_if(perm_psgc, ""))
-         pii %<>%
-            unite(
-               col    = "perm_psgc",
-               sep    = "|",
-               perm_reg,
-               perm_prov,
-               perm_munc,
-               na.rm  = TRUE,
-               remove = TRUE
-            ) %>%
-            mutate(perm_psgc = na_if(perm_psgc, ""))
-      }
+   # latest non-missing value per column per central_id
+   pii    %<>% arrange(desc(snapshot))
+   pii_ids <- unique(pii$central_id)
+   pii     <- pii %>%
+      select(-central_id, -snapshot) %>%
+      purrr::map(function(x) {
+         has_value <- !is.na(x)
+         x[has_value][match(pii_ids, pii$central_id[has_value])]
+      }) %>%
+      as_tibble() %>%
+      mutate(central_id = pii_ids, .before = 1)
 
-      if ("curr_munc" %in% pii_cols) {
-         pii_cols <- pii_cols[!(pii_cols %in% c("curr_reg", "curr_prov", "curr_munc", "curr_brgy"))]
-         pii_cols <- append(pii_cols, "curr_psgc")
-         data %<>%
-            unite(
-               col    = "curr_psgc",
-               sep    = "|",
-               curr_reg,
-               curr_prov,
-               curr_munc,
-               na.rm  = TRUE,
-               remove = TRUE
-            ) %>%
-            mutate(curr_psgc = na_if(curr_psgc, ""))
-         pii %<>%
-            unite(
-               col    = "curr_psgc",
-               sep    = "|",
-               curr_reg,
-               curr_prov,
-               curr_munc,
-               na.rm  = TRUE,
-               remove = TRUE
-            ) %>%
-            mutate(curr_psgc = na_if(curr_psgc, ""))
-      }
+   for (type in addr_types) {
+      pii %<>%
+         separate_wider_delim(
+            all_of(stri_c(type, "_psgc")),
+            "|",
+            names = addr_parts(type)
+         ) %>%
+         mutate(across(all_of(addr_parts(type)), ~na_if(., "NA")))
+   }
 
-      if ("birth_munc" %in% pii_cols) {
-         pii_cols <- pii_cols[!(pii_cols %in% c("birth_reg", "birth_prov", "birth_munc", "birth_brgy"))]
-         pii_cols <- append(pii_cols, "birth_psgc")
-         data %<>%
-            unite(
-               col    = "birth_psgc",
-               sep    = "|",
-               birth_reg,
-               birth_prov,
-               birth_munc,
-               na.rm  = TRUE,
-               remove = TRUE
-            ) %>%
-            mutate(birth_psgc = na_if(birth_psgc, ""))
-         pii %<>%
-            unite(
-               col    = "birth_psgc",
-               sep    = "|",
-               birth_reg,
-               birth_prov,
-               birth_munc,
-               na.rm  = TRUE,
-               remove = TRUE
-            ) %>%
-            mutate(birth_psgc = na_if(birth_psgc, ""))
-      }
+   if ("birthdate" %in% pii_cols) {
+      pii %<>%
+         mutate(
+            birthdate = as.Date(birthdate)
+         )
+   }
 
-      if ("birthdate" %in% pii_cols) {
-         pii %<>%
-            mutate(
-               birthdate = as.Date(birthdate)
-            )
-      }
+   patch_cols <- c(cell_cols, addr_cols)
+   patch      <- pii %>%
+      select(central_id, all_of(patch_cols)) %>%
+      rename_with(~stri_c(., ".pii"), -central_id)
 
-      for (col in pii_cols) {
-         col_name <- as.name(col)
-         data %<>%
-            left_join(
-               y  = pii %>%
-                  select(central_id, correct_pii = {{col_name}}),
-               by = join_by(central_id)
-            ) %>%
-            mutate(
-               {{col_name}} := coalesce({{col_name}}, correct_pii)
-            ) %>%
-            select(-correct_pii)
-      }
+   data %<>%
+      left_join(patch, by = join_by(central_id))
 
+   for (col in cell_cols) {
+      data[[col]] <- coalesce(data[[col]], data[[stri_c(col, ".pii")]])
+   }
 
-      if ("perm_psgc" %in% pii_cols) {
-         data %<>%
-            separate_wider_delim(
-               perm_psgc,
-               "|",
-               names   = c("perm_reg", "perm_prov", "perm_munc"),
-               too_few = "align_start"
-            )
-      }
-
-      if ("curr_psgc" %in% pii_cols) {
-         data %<>%
-            separate_wider_delim(
-               curr_psgc,
-               "|",
-               names   = c("curr_reg", "curr_prov", "curr_munc"),
-               too_few = "align_start"
-            )
-      }
-
-      if ("birth_psgc" %in% pii_cols) {
-         data %<>%
-            separate_wider_delim(
-               birth_psgc,
-               "|",
-               names   = c("birth_reg", "birth_prov", "birth_munc"),
-               too_few = "align_start"
-            )
+   for (type in addr_types) {
+      blank_addr <- data %>%
+         select(all_of(addr_parts(type))) %>%
+         is.na() %>%
+         apply(1, all)
+      for (col in addr_parts(type)) {
+         data[[col]] <- if_else(blank_addr, data[[stri_c(col, ".pii")]], data[[col]])
       }
    }
+
+   data %<>%
+      select(-all_of(stri_c(patch_cols, ".pii")))
 
    return(data)
 }
@@ -1349,6 +1221,11 @@ deconstruct_prep <- function(forms) {
          starts_with("lab"),
       ) %>%
       mutate_all(as.character) %>%
+      rename_with(~case_when(
+         . == 'lab_crea_clearance' ~ 'lab_crea_resultother',
+         . == 'lab_syph_titer' ~ 'lab_syph_resultother',
+         TRUE ~ .
+      )) %>%
       pivot_longer(
          cols      = starts_with("lab"),
          names_to  = "lab_data",

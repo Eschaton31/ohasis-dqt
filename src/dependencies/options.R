@@ -1,27 +1,32 @@
-Sys.setlocale(category = "LC_ALL", locale = "en_US.UTF-8")
-Sys.setlocale(category = "LC_CTYPE", locale = "en_US.UTF-8")
+# ensure UTF-8 on any OS; already the default for R >= 4.2 on Windows. if this warns about code page 1252,
+# enable "Beta: Use Unicode UTF-8 for worldwide language support" in Windows' system locale settings
+if (!l10n_info()[["UTF-8"]]) {
+   Sys.setlocale(category = "LC_ALL", locale = "en_US.UTF-8")
+   Sys.setlocale(category = "LC_CTYPE", locale = "en_US.UTF-8")
+}
 options(
-   # browser = Sys.getenv("BROWSER"),
-   browser             = function(url) {
-      if (grepl("^https?:", url)) {
-         if (!.Call(".jetbrains_processBrowseURL", url)) {
-            browseURL(url, .jetbrains$ther_old_browser)
-         }
-      } else {
-         .Call(".jetbrains_showFile", url, url)
-      }
-   },
    help_type           = "html",
-   RStata.StataPath    = Sys.getenv("STATA_PATH"),
-   RStata.StataVersion = as.integer(Sys.getenv("STATA_VER")),
+   # needed by rJava (tabulizer); must be set before rJava loads
    java.parameters     = "-Xmx4g",
    scipen              = 999,
-   timeout             = 9999999,
+   timeout             = 3600,
    repos               = c(
       ropensci = "https://ropensci.r-universe.dev",
-      kwbr     = "https://kwb-r.r-universe.dev",
       CRAN     = "https://cloud.r-project.org"
    )
 )
-# rmarkdown::find_pandoc(dir = Sys.getenv("PANDOC"))
-.protected <- readLines("protected.txt")
+
+# show urls/help in the JetBrains IDE; only available inside its R console
+if (exists(".jetbrains")) {
+   options(
+      browser = function(url) {
+         if (grepl("^https?:", url)) {
+            if (!.Call(".jetbrains_processBrowseURL", url)) {
+               browseURL(url, .jetbrains$ther_old_browser)
+            }
+         } else {
+            .Call(".jetbrains_showFile", url, url)
+         }
+      }
+   )
+}

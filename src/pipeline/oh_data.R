@@ -68,9 +68,11 @@ get_cid <- function(linelist, cid_list, pid_col) {
    join_col <- deparse(substitute(pid_col))
    # finalize a central_id columns
    linelist %<>%
+      # duckplyr::as_duckdb_tibble(prudence = "lavish") %>%
       select(-matches("central_id", ignore.case = FALSE)) %>%
       left_join(
          y  = cid_list %>%
+            # duckplyr::as_duckdb_tibble(prudence = "lavish") %>%
             select(
                central_id,
                {{pid_col}} := patient_id
