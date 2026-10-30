@@ -58,8 +58,8 @@ clean_data <- function(forms, old_reg) {
          fms            = NULL,
 
          # Permanent
-         perm_prov      = if_else(str_left(perm_reg, 2) == "99", "999900000", perm_prov, perm_prov),
-         perm_munc      = if_else(str_left(perm_reg, 2) == "99", "999999000", perm_munc, perm_munc),
+         perm_prov      = if_else(str_left(perm_reg, 2) == "99", "9999900000", perm_prov, perm_prov),
+         perm_munc      = if_else(str_left(perm_reg, 2) == "99", "9999999000", perm_munc, perm_munc),
          use_curr       = if_else(
             condition = !is.na(curr_munc) & (is.na(perm_munc) | str_left(perm_munc, 2) == "99"),
             true      = 1,
