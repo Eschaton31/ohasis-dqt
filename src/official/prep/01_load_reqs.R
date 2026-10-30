@@ -1,17 +1,7 @@
 ##  Set coverage ---------------------------------------------------------------
 
 set_coverage <- function(max = end_friday(Sys.time())) {
-   params   <- list()
-   max_date <- as.Date(max)
-
-   params$yr  <- year(max_date)
-   params$mo  <- month(max_date)
-   params$ym  <- str_c(sep = ".", params$yr, stri_pad_left(params$mo, 2, "0"))
-   params$min <- max_date %m-% days(30) %>% as.character()
-   params$max <- max
-
-   params$prev_mo <- month(max_date %m-% months(1))
-   params$prev_yr <- year(max_date %m-% months(1))
+   params <- coverage_params(max)
 
    return(params)
 }
@@ -20,15 +10,7 @@ set_coverage <- function(max = end_friday(Sys.time())) {
 
 # run through all tables
 update_warehouse <- function(update) {
-   update <- ifelse(
-      !is.null(update) && update %in% c("1", "2"),
-      update,
-      input(
-         prompt  = glue("Update {green('data/forms')} to be used for consolidation?"),
-         options = c("1" = "yes", "2" = "no"),
-         default = "2"
-      )
-   )
+   update <- ask_input(update, glue("Update {green('data/forms')} to be used for consolidation?"))
    if (update == "1") {
       log_info("Updating data lake and data warehouse.")
       tables           <- list()
@@ -81,7 +63,8 @@ update_first_last_prep <- function(update, params, path_to_sql) {
    )
    # if Yes, re-process
    if (update == "1") {
-      lw_conn <- connect('ohasis-lw')
+      lw_conn <- connect('mariadb-lw')
+      on.exit(dbDisconnect(lw_conn), add = TRUE)
       db_name <- "ohasis_warehouse"
 
       # download the data
@@ -109,22 +92,13 @@ update_first_last_prep <- function(update, params, path_to_sql) {
          )
       }
       log_success("Done!")
-      dbDisconnect(lw_conn)
    }
 }
 
 ##  Update Record Links --------------------------------------------------------
 
 update_prep_rec_link <- function(update, path_to_sql) {
-   update <- ifelse(
-      !is.null(update) && update %in% c("1", "2"),
-      update,
-      input(
-         prompt  = "Do you want to update {green('rec_link')}?",
-         options = c("1" = "Yes", "2" = "No"),
-         default = "1"
-      )
-   )
+   update <- ask_input(update, glue("Do you want to update {green('rec_link')}?"), default = "1")
    if (update == "1") {
       db_conn    <- ohasis$conn("db")
       delete_sql <- r"(
@@ -139,7 +113,8 @@ update_prep_rec_link <- function(update, path_to_sql) {
       # future processing
       # ohasis$data_factory("warehouse", "rec_link", "refresh", TRUE)
 
-      lw_conn     <- connect('mariadb-lw')
+      lw_conn <- connect('mariadb-lw')
+      on.exit(dbDisconnect(lw_conn), add = TRUE)
       nolink_hts  <- QB$new(lw_conn)$
          from('ohasis_lake.px_demographics as pii')$
          leftJoin('ohasis_lake.px_hiv_testing as test', 'pii.rec_id', '=', 'test.rec_id')$
@@ -149,14 +124,13 @@ update_prep_rec_link <- function(update, path_to_sql) {
          whereRaw("left(coalesce(nullif(nullif(conf.confirm_result, '4_Pending'), '5_Duplicate'), test.t3_result, test.t2_result, test.t1_result, test.t0_result, ''), 1) <> '1'")$
          whereNull("pii.deleted_at")$
          whereIn('pii.form_id', c('hts2021', 'a2017', 'cfbs2020'))$
-         get()
+         get(format = "Arrow")
       nolink_prep <- QB$new(lw_conn)$
          from('ohasis_warehouse.form_prep')$
          select(rec_id, patient_id, record_date, form_id)$
          whereRaw("rec_id not in (select destination_rec from ohasis_lake.rec_link)")$
          whereNull("deleted_at")$
-         get()
-      dbDisconnect(lw_conn)
+         get(format = "Arrow")
 
       idreg <- update_idreg()
 
@@ -219,27 +193,19 @@ update_prep_rec_link <- function(update, path_to_sql) {
 ##  Update initiation dates ----------------------------------------------------
 
 update_initiation <- function(update, params, path_to_sql) {
-   update <- ifelse(
-      !is.null(update) && update %in% c("1", "2"),
-      update,
-      input(
-         prompt  = "Do you want to update {green('prep_init_p12m')}?",
-         options = c("1" = "Yes", "2" = "No"),
-         default = "1"
-      )
-   )
+   update <- ask_input(update, glue("Do you want to update {green('prep_init_p12m')}?"), default = "1")
    if (update == "1") {
       # coverage of checking for prep reinitiation date is past 12months
       log_info("Getting PrEP records for the past year.")
-      lw_conn <- ohasis$conn("lw")
+      lw_conn <- connect('mariadb-lw')
+      on.exit(dbDisconnect(lw_conn), add = TRUE)
       # define params
-      min     <- as.Date(params$max) %m+% days(1) %m-% months(13) %>% as.character()
-      max     <- params$max
+      min <- as.Date(params$max) %m+% days(1) %m-% months(13) %>% as.character()
+      max <- params$max
 
       # read and run query
       sql  <- read_file(file.path(path_to_sql, "prep_init.sql"))
       data <- dbGetQuery(lw_conn, sql, params = list(min, max))
-      dbDisconnect(lw_conn)
 
       log_info("Getting time diff between visits.")
       disp_p12m <- data %>%
@@ -276,13 +242,11 @@ update_initiation <- function(update, params, path_to_sql) {
          )
 
       # create table
-      lw_conn     <- ohasis$conn("lw")
       table_space <- Id(schema = "ohasis_warehouse", table = "prep_init_p12m")
       if (dbExistsTable(lw_conn, table_space))
          dbRemoveTable(lw_conn, table_space, batch_size = 1000)
 
       ohasis$upsert(lw_conn, "warehouse", "prep_init_p12m", df_latest_start, "CENTRAL_ID")
-      dbDisconnect(lw_conn)
    }
 }
 
@@ -290,7 +254,8 @@ update_initiation <- function(update, params, path_to_sql) {
 
 download_tables <- function(params) {
    lw_conn <- connect('mariadb-lw')
-   forms   <- list()
+   on.exit(dbDisconnect(lw_conn), add = TRUE)
+   forms <- list()
 
    min       <- params$min
    max       <- params$max
@@ -308,19 +273,19 @@ download_tables <- function(params) {
    forms$form_a <- QB$new(lw_conn)$
       from('ohasis_warehouse.form_a as pii')$
       whereRaw(hts_where)$
-      get()
+      get(format = "Arrow")
 
    log_info("Downloading {green('HTS Form')}.")
    forms$form_hts <- QB$new(lw_conn)$
       from('ohasis_warehouse.form_hts as pii')$
       whereRaw(hts_where)$
-      get()
+      get(format = "Arrow")
 
    log_info("Downloading {green('CFBS Form')}.")
    forms$form_cfbs <- QB$new(lw_conn)$
       from('ohasis_warehouse.form_cfbs as pii')$
       whereRaw(hts_where)$
-      get()
+      get(format = "Arrow")
 
    log_info("Downloading {green('Testing')}.")
    forms$testing <- QB$new(lw_conn)$
@@ -389,13 +354,13 @@ download_tables <- function(params) {
              'pii.deleted_by',
              'pii.deleted_at')$
       whereRaw(hts_where)$
-      get()
+      get(format = "Arrow")
 
    log_info("Processing {green('HTS Data')}.")
    forms$hts_data <- process_hts(forms$form_hts, forms$form_a, forms$form_cfbs, forms$testing)
 
    log_info("Downloading {green('Record Links')}.")
-   forms$rec_link <- QB$new(lw_conn)$from('ohasis_lake.rec_link')$get()
+   forms$rec_link <- QB$new(lw_conn)$from('ohasis_lake.rec_link')$get(format = "Arrow")
 
    log_info("Downloading {green('PrEP Visits w/in the scope')}.")
    recs <- QB$new(lw_conn)$from("ohasis_warehouse.form_prep")
@@ -409,11 +374,11 @@ download_tables <- function(params) {
    })
    recs$whereNull('deleted_at')
 
-   forms$form_prep <- recs$get()
+   forms$form_prep <- recs$get(format = "Arrow")
 
    log_info("Downloading {green('PrEP First Offer')}.")
-   forms$prep_offer <- QB$new(lw_conn)$from("ohasis_warehouse.prep_offer")$select(central_id, rec_id, visit_date)$get() %>%
-      left_join(forms$hts_data, join_by(rec_id))
+   forms$prep_offer <- QB$new(lw_conn)$from("ohasis_warehouse.prep_offer")$select("central_id", "rec_id", "visit_date")$get(format = "Arrow") %>%
+      left_join(forms$hts_data %>% select(-any_of("central_id")), join_by(rec_id))
 
 
    log_info("Appending offer to prep.")
@@ -425,47 +390,43 @@ download_tables <- function(params) {
             select(any_of(offer_cols)) %>%
             mutate(hts_src = 1)
       ) %>%
-      process_prep(forms$hts_data, forms$rec_link)
+      process_prep(forms$hts_data, forms$rec_link) %>%
+      get_cid(forms$id_registry, patient_id)
 
+   # visit tables carry the central_id of the lake's id_registry; re-key them to
+   # the same id_registry used for the registry so joins downstream line up
+   get_visits <- function(table) {
+      QB$new(lw_conn)$from(stri_c("ohasis_warehouse.", table))$select("central_id", "rec_id", "visit_date")$get(format = "Arrow") %>%
+         rename(visit_cid = central_id) %>%
+         left_join(forms$form_prep, join_by(rec_id, visit_date)) %>%
+         mutate(central_id = coalesce(central_id, visit_cid)) %>%
+         select(-visit_cid)
+   }
 
    log_info("Downloading {green('PrEP Earliest Screenings')}.")
-   forms$prep_first <- QB$new(lw_conn)$from("ohasis_warehouse.prep_first")$select(central_id, rec_id, visit_date)$get() %>%
-      left_join(forms$form_prep, join_by(rec_id, visit_date))
+   forms$prep_first <- get_visits("prep_first")
 
    log_info("Downloading {green('PrEP Enrollment')}.")
-   forms$prepdisp_first <- QB$new(lw_conn)$from("ohasis_warehouse.prepdisp_first")$select(central_id, rec_id, visit_date)$get() %>%
-      left_join(forms$form_prep, join_by(rec_id, visit_date))
+   forms$prepdisp_first <- get_visits("prepdisp_first")
 
    log_info("Downloading {green('Latest PrEP Visits')}.")
-   forms$prep_last <- QB$new(lw_conn)$from("ohasis_warehouse.prep_last")$select(central_id, rec_id, visit_date)$get() %>%
-      left_join(forms$form_prep, join_by(rec_id, visit_date))
+   forms$prep_last <- get_visits("prep_last")
 
    log_info("Downloading {green('Latest PrEP Dispensing')}.")
-   forms$prepdisp_last <- QB$new(lw_conn)$from("ohasis_warehouse.prepdisp_last")$select(central_id, rec_id, visit_date)$get() %>%
-      left_join(forms$form_prep, join_by(rec_id, visit_date))
-
-   # log_info("Downloading {green('Latest PrEP Initiation')}.")
-   # forms$prep_init_p12m <- lw_conn %>%
-   #    dbTable(
-   #       db_name,
-   #       "prep_init_p12m",
-   #       cols = c("CENTRAL_ID", "REC_ID", "INITIATION_DATE")
-   #    )
+   forms$prepdisp_last <- get_visits("prepdisp_last")
 
    log_info("Downloading {green('Latest PrEP Discontinuation')}.")
-   forms$prepdisc_last <- QB$new(lw_conn)$from("ohasis_warehouse.prepdisc_last")$select(central_id, rec_id, visit_date)$get() %>%
-      left_join(forms$form_prep, join_by(rec_id, visit_date))
+   forms$prepdisc_last <- get_visits("prepdisc_last")
 
-   dbDisconnect(lw_conn)
    log_success("Done.")
    return(forms)
 }
 
 ##  Get the previous report's PrEP Registry ------------------------------------
 
-update_dataset <- function(params, corr, forms, reprocess) {
+update_dataset <- function(params, corr) {
    log_info("Getting previous datasets.")
-   official         <- list()
+   official <- list()
    # official$old_reg <- ohasis$load_old_dta(
    #    path            = hs_data("prep", "reg", params$prev_yr, params$prev_mo),
    #    corr            = corr$corr_reg,
@@ -478,30 +439,14 @@ update_dataset <- function(params, corr, forms, reprocess) {
    #    reload          = reprocess
    # )
 
-   conn         <- connect('mariadb-lw')
-   official$old_reg <- QB$new(conn)$from('ohasis_warehouse.prep_old')$get()
-   dbDisconnect(conn)
+   conn <- connect('mariadb-lw')
+   on.exit(dbDisconnect(conn), add = TRUE)
 
-   official$old_outcome <- hs_data("prep", "outcome", params$prev_yr, params$prev_mo, "dta") %>%
-      read_dta() %>%
-      rename_all(tolower) %>%
-      # convert Stata string missing data to NAs
-      mutate_if(
-         .predicate = is.character,
-         ~if_else(. == '', NA_character_, .)
-      )
+   # corr_reg & corr_drop are already applied to prep_old in the warehouse
+   official$old_reg <- cached_table(conn, 'ohasis_warehouse.prep_old')
+   official$dupes   <- get_reg_dupes(official$old_reg)
 
-   # clean if any for cleaning found
-   if (nrow(corr$corr_outcome) > 0) {
-      log_info("Performing cleaning on the outcome dataset.")
-      official$old_outcome <- apply_corrections(official$old_outcome, corr$corr_outcome %>%
-         rename_all(tolower) %>%
-         mutate(variable = tolower(variable)), 'prep_id')
-      # .cleaning_list(official$old_outcome, corr$corr_outcome %>% rename_all(tolower), "ART_ID", "integer")
-   }
-   official$dupes <- official$old_reg %>% get_dupes(central_id)
-   if (nrow(official$dupes) > 0)
-      log_warn("Duplicate {green('Central IDs')} found.")
+   official$old_outcome <- load_old_outcome("prep", "prep_id", params, corr)
 
    return(official)
 }
@@ -510,52 +455,23 @@ update_dataset <- function(params, corr, forms, reprocess) {
    p    <- envir
    vars <- as.list(list(...))
 
-   # handle logic here
-   # update_warehouse(vars$update_lw)
    p$params <- set_coverage(vars$end_date)
+   # update_warehouse(vars$update_lw)
    update_first_last_prep(vars$update_visits, p$params, p$wd)
    update_initiation(vars$update_init, p$params, p$wd)
    update_prep_rec_link(vars$update_link, p$wd)
 
    # ! corrections
-   dl <- ifelse(
-      !is.null(vars$dl_corr) && vars$dl_corr %in% c("1", "2"),
-      vars$dl_corr,
-      input(
-         prompt  = glue("GET: {green('corrections')}?"),
-         options = c("1" = "yes", "2" = "no"),
-         default = "2"
-      )
-   )
-   if (dl == "1") {
-      p$corr <- flow_corr(params$ym, "prep")
-      # p$corr <- gdrive_correct3(params$ym, "prep")
-   }
+   if (ask_input(vars$dl_corr, glue("GET: {green('corrections')}?")) == "1")
+      p$corr <- flow_corr(p$params$ym, "prep")
+
    # ! forms
-   dl <- ifelse(
-      !is.null(vars$dl_forms) && vars$dl_forms %in% c("1", "2"),
-      vars$dl_forms,
-      input(
-         prompt  = "GET: {green('forms')}?",
-         options = c("1" = "Yes", "2" = "No"),
-         default = "1"
-      )
-   )
-   if (dl == "1")
+   if (ask_input(vars$dl_forms, glue("GET: {green('forms')}?"), default = "1") == "1")
       p$forms <- download_tables(p$params)
 
    # ! old dataset
-   update <- ifelse(
-      !is.null(vars$update_harp) && vars$update_harp %in% c("1", "2"),
-      vars$update_harp,
-      input(
-         prompt  = "Reload previous dataset?",
-         options = c("1" = "yes", "2" = "no"),
-         default = "2"
-      )
-   )
-   if (update == "1")
-      p$official <- update_dataset(p$params, p$corr, p$forms, vars$harp_reprocess)
+   if (ask_input(vars$update_harp, "Reload previous dataset?") == "1")
+      p$official <- update_dataset(p$params, p$corr)
 
    p$params$latest_prep_id <- max(as.integer(p$official$old_reg$prep_id), na.rm = TRUE)
 }

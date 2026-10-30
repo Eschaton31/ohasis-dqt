@@ -1,18 +1,7 @@
 ##  Set coverage ---------------------------------------------------------------
 
 set_coverage <- function(max = end_friday(Sys.time())) {
-   params   <- list()
-   max_date <- as.Date(max)
-
-   params$yr   <- year(max_date)
-   params$mo   <- month(max_date)
-   params$ym   <- str_c(sep = ".", params$yr, stri_pad_left(params$mo, 2, "0"))
-   params$p10y <- params$yr - 10
-   params$min  <- max_date %m-% days(30) %>% as.character()
-   params$max  <- max
-
-   params$prev_mo <- month(max_date %m-% months(1))
-   params$prev_yr <- year(max_date %m-% months(1))
+   params <- coverage_params(max)
 
    return(params)
 }
@@ -21,15 +10,7 @@ set_coverage <- function(max = end_friday(Sys.time())) {
 
 # run through all tables
 update_warehouse <- function(update) {
-   update <- ifelse(
-      !is.null(update) && update %in% c("1", "2"),
-      update,
-      input(
-         prompt  = glue("Update {green('data/forms')} to be used for consolidation?"),
-         options = c("1" = "yes", "2" = "no"),
-         default = "2"
-      )
-   )
+   update <- ask_input(update, glue("Update {green('data/forms')} to be used for consolidation?"))
    if (update == "1") {
       log_info("Updating data lake and data warehouse.")
       tables           <- list()
@@ -74,25 +55,50 @@ update_dead_new <- function(path_to_sql) {
 ##  Download records -----------------------------------------------------------
 
 download_tables <- function(params) {
-   lw_conn <- connect("mariadb-lw")
-   forms   <- list()
+   lw_conn <- connect('mariadb-lw')
+   on.exit(dbDisconnect(lw_conn), add = TRUE)
+   forms <- list()
 
    log_info("Downloading {green('Central IDs')}.")
    forms$id_registry <- update_idreg() %>% select(central_id, patient_id)
 
-   log_info("Downloading {green('ART Visits w/in the scope')}.")
-   forms$form_d <- QB$new(lw_conn)$from("ohasis_warehouse.form_d")$get(format = 'Arrow') %>% remove_table_alias()
+   log_info("Downloading {green('Form D')}.")
+   forms$form_d <- QB$new(lw_conn)$from("ohasis_warehouse.form_d")$whereNull('deleted_at')$get(format = 'Arrow') %>% remove_table_alias()
+
+   # read once; used by data_mortality and dedup_dx
+   dx_cols      <- c(
+      "rec_id",
+      "labcode",
+      "labcode2",
+      "idnum",
+      "uic",
+      "firstname",
+      "middle",
+      "last",
+      "name_suffix",
+      "name",
+      "bdate",
+      "sex",
+      "pxcode",
+      "philhealth",
+      "region",
+      "province",
+      "muncity"
+   )
+   forms$dx_reg <- lw_registry("harp_dx", dx_cols, params, forms$id_registry, keep_pid = TRUE) %>%
+      mutate(
+         labcode2 = coalesce(labcode2, labcode)
+      )
 
    log_success("Done.")
-   dbDisconnect(lw_conn)
    return(forms)
 }
 
 ##  Get the previous report's harp Registry ------------------------------------
 
-update_dataset <- function(params, corr, forms, reprocess) {
+update_dataset <- function(params, corr) {
    log_info("Getting previous datasets.")
-   official       <- list()
+   official <- list()
    # official$old   <- ohasis$load_old_dta(
    #    path            = hs_data("harp_dead", "reg", params$prev_yr, params$prev_mo),
    #    corr            = corr$corr_reg,
@@ -105,71 +111,35 @@ update_dataset <- function(params, corr, forms, reprocess) {
    #    reload          = reprocess
    # )
 
-   conn         <- connect('mariadb-lw')
-   official$old <- QB$new(conn)$from('ohasis_warehouse.harp_dead_old')$get(format = 'Arrow')
-   dbDisconnect(conn)
+   conn <- connect('mariadb-lw')
+   on.exit(dbDisconnect(conn), add = TRUE)
 
-   official$dupes <- official$old %>% get_dupes(central_id)
-   if (nrow(official$dupes) > 0)
-      log_warn("Duplicate {green('Central IDs')} found.")
+   # corr_reg & corr_drop are already applied to harp_dead_old in the warehouse
+   official$old_reg <- cached_table(conn, 'ohasis_warehouse.harp_dead_old')
+   official$dupes   <- get_reg_dupes(official$old_reg)
 
    return(official)
-}
-
-define_params <- function() {
-   local(envir = nhsss$harp_dead, {
-      params                <- list()
-      params$latest_mort_id <- max(as.integer(official$old$mort_id), na.rm = TRUE)
-   })
 }
 
 .init <- function(envir = parent.env(environment()), ...) {
    p    <- envir
    vars <- as.list(list(...))
 
-   update_warehouse(vars$update_lw)
    p$params <- set_coverage(vars$end_date)
+   update_warehouse(vars$update_lw)
+   # update_dead_new(p$wd)
 
    # ! corrections
-   dl <- ifelse(
-      !is.null(vars$dl_corr) && vars$dl_corr %in% c("1", "2"),
-      vars$dl_corr,
-      input(
-         prompt  = glue("get: {green('corrections')}?"),
-         options = c("1" = "yes", "2" = "no"),
-         default = "2"
-      )
-   )
-   if (dl == "1") {
+   if (ask_input(vars$dl_corr, glue("GET: {green('corrections')}?")) == "1")
       p$corr <- flow_corr(p$params$ym, "harp_dead")
-      # p$corr <- gdrive_correct3(p$params$ym, "harp_dead")
-   }
-   dl <- ifelse(
-      !is.null(vars$dl_forms) && vars$dl_forms %in% c("1", "2"),
-      vars$dl_forms,
-      input(
-         prompt  = "get: {green('forms')}?",
-         options = c("1" = "Yes", "2" = "No"),
-         default = "1"
-      )
-   )
 
-   # update_dead_new(p$wd)
-   if (dl == "1")
+   # ! forms
+   if (ask_input(vars$dl_forms, glue("GET: {green('forms')}?"), default = "1") == "1")
       p$forms <- download_tables(p$params)
 
    # ! old dataset
-   update <- ifelse(
-      !is.null(vars$update_harp) && vars$update_harp %in% c("1", "2"),
-      vars$update_harp,
-      input(
-         prompt  = "Reload previous dataset?",
-         options = c("1" = "yes", "2" = "no"),
-         default = "2"
-      )
-   )
-   if (update == "1")
-      p$official <- update_dataset(p$params, p$corr, p$forms, vars$harp_reprocess)
+   if (ask_input(vars$update_harp, "Reload previous dataset?") == "1")
+      p$official <- update_dataset(p$params, p$corr)
 
-   p$params$latest_mort_id <- max(as.integer(p$official$old$mort_id), na.rm = TRUE)
+   p$params$latest_mort_id <- max(as.integer(p$official$old_reg$mort_id), na.rm = TRUE)
 }

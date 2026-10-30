@@ -11,3 +11,6 @@ flow(
    file.path(getwd(), "src", "official", "harp_tx"),
    .GlobalEnv
 )
+
+# helpers used by several steps; step environments inherit from harp_tx
+local(envir = harp_tx, source(file.path(wd, "_shared.R"), local = TRUE))

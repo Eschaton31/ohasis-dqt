@@ -12,3 +12,6 @@ flow(
    file.path(getwd(), "src", "official", "prep"),
    .GlobalEnv
 )
+
+# helpers used by several steps; step environments inherit from prep
+local(envir = prep, source(file.path(wd, "_shared.R"), local = TRUE))

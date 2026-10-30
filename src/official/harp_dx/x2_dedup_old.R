@@ -367,7 +367,7 @@ dedup_group_ids <- function(data, params, non_dupes) {
    p    <- envir
    vars <- as.list(list(...))
 
-   full <- p$official$new %>%
+   full <- p$official$new_reg %>%
       mutate(
          data_filter = if_else(year == p$params$yr & month == p$params$mo, "new", "old", "old")
       ) %>%

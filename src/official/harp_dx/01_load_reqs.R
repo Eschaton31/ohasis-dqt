@@ -1,18 +1,8 @@
 ##  Set coverage ---------------------------------------------------------------
 
 set_coverage <- function(max = end_friday(Sys.time())) {
-   params   <- list()
-   max_date <- as.Date(max)
-
-   params$yr   <- year(max_date)
-   params$mo   <- month(max_date)
-   params$ym   <- str_c(sep = ".", params$yr, stri_pad_left(params$mo, 2, "0"))
+   params      <- coverage_params(max)
    params$p10y <- params$yr - 10
-   params$min  <- max_date %m-% days(30) %>% as.character()
-   params$max  <- max
-
-   params$prev_mo <- month(max_date %m-% months(1))
-   params$prev_yr <- year(max_date %m-% months(1))
 
    return(params)
 }
@@ -21,15 +11,7 @@ set_coverage <- function(max = end_friday(Sys.time())) {
 
 # run through all tables
 update_warehouse <- function(update) {
-   update <- ifelse(
-      !is.null(update) && update %in% c("1", "2"),
-      update,
-      input(
-         prompt  = glue("Update {green('data/forms')} to be used for consolidation?"),
-         options = c("1" = "yes", "2" = "no"),
-         default = "2"
-      )
-   )
+   update <- ask_input(update, glue("Update {green('data/forms')} to be used for consolidation?"))
    if (update == "1") {
       log_info("Updating data lake and data warehouse.")
       tables           <- list()
@@ -104,8 +86,9 @@ update_dx_new <- function(update, params, path_to_sql) {
 
 ##  Filter Initial Data & Remove Already Reported ------------------------------
 
-download_tables <- function(path_to_sql) {
-   lw_conn <- connect("mariadb-lw")
+download_tables <- function(path_to_sql, params) {
+   lw_conn <- connect('mariadb-lw')
+   on.exit(dbDisconnect(lw_conn), add = TRUE)
 
    # read queries
    sql              <- list()
@@ -113,22 +96,20 @@ download_tables <- function(path_to_sql) {
    sql$form_hts     <- read_file(file.path(path_to_sql, "form_hts.sql"))
    sql$form_cfbs    <- read_file(file.path(path_to_sql, "form_cfbs.sql"))
    sql$px_confirmed <- read_file(file.path(path_to_sql, "px_confirmed.sql"))
-   sql$cd4          <- read_file(file.path(path_to_sql, "lab_cd4.sql"))
+   sql$cd4          <- glue(read_file(file.path(path_to_sql, "lab_cd4.sql")), max_date = as.character(params$max))
 
 
    # read data
-   data              <- list()
-   data$form_a       <- tracked_select(lw_conn, sql$form_a, "New Form A", format = "Arrow") %>% remove_table_alias()
-   data$form_hts     <- tracked_select(lw_conn, sql$form_hts, "New HTS Form", format = "Arrow") %>% remove_table_alias()
-   data$form_cfbs    <- tracked_select(lw_conn, sql$form_cfbs, "New CFBS Form",  format = "Arrow") %>% remove_table_alias()
-   data$px_confirmed <- tracked_select(lw_conn, sql$px_confirmed, "New Confirmed w/ no Form", format = "Arrow") %>% remove_table_alias()
-   # data$cd4          <- tracked_select(lw_conn, sql$cd4, "Baseline CD4", list(as.character(params$max)))
-   data$cd4          <- tracked_select(lw_conn, sql$cd4, "Baseline CD4", list(as.character(params$max)), format = "Arrow") %>% remove_table_alias()
-   data$non_dupes    <- tracked_select(lw_conn, "SELECT patient_id, non_pair_id FROM ohasis_warehouse.non_dupes", "Non-dupes", format = "Arrow") %>% remove_table_alias()
+   forms              <- list()
+   forms$form_a       <- tracked_select(lw_conn, sql$form_a, "New Form A", format = "Arrow") %>% remove_table_alias()
+   forms$form_hts     <- tracked_select(lw_conn, sql$form_hts, "New HTS Form", format = "Arrow") %>% remove_table_alias()
+   forms$form_cfbs    <- tracked_select(lw_conn, sql$form_cfbs, "New CFBS Form", format = "Arrow") %>% remove_table_alias()
+   forms$px_confirmed <- tracked_select(lw_conn, sql$px_confirmed, "New Confirmed w/ no Form", format = "Arrow") %>% remove_table_alias()
+   forms$cd4          <- tracked_select(lw_conn, sql$cd4, "Baseline CD4", format = "Arrow") %>% remove_table_alias()
+   forms$non_dupes    <- tracked_select(lw_conn, "SELECT patient_id, non_pair_id FROM ohasis_warehouse.non_dupes", "Non-dupes", format = "Arrow") %>% remove_table_alias()
 
-   dbDisconnect(lw_conn)
-
-   return(data)
+   log_success("Done.")
+   return(forms)
 }
 
 ##  get pdf results ------------------------------------------------------------
@@ -149,7 +130,7 @@ get_rhivda_pdf <- function(params) {
 
 ##  Get the previous report's HARP Registry ------------------------------------
 
-update_dataset <- function(params, corr, reprocess) {
+update_dataset <- function(params, corr) {
    log_info("Getting previous datasets.")
    official <- list()
    # official$old   <- ohasis$load_old_dta(
@@ -163,13 +144,11 @@ update_dataset <- function(params, corr, reprocess) {
    #    reload          = reprocess
    # )
 
-   conn         <- connect('mariadb-lw')
-   official$old <- QB$new(conn)$from('ohasis_warehouse.harp_dx_old')$get(format = 'Arrow')
-   dbDisconnect(conn)
-
-   official$dupes <- official$old %>% get_dupes(central_id)
-   if (nrow(official$dupes) > 0)
-      log_warn("Duplicate {green('Central IDs')} found.")
+   conn <- connect('mariadb-lw')
+   on.exit(dbDisconnect(conn), add = TRUE)
+   # corr_reg & corr_drop are already applied to harp_dx_old in the warehouse
+   official$old_reg <- cached_table(conn, 'ohasis_warehouse.harp_dx_old')
+   official$dupes   <- get_reg_dupes(official$old_reg)
 
    return(official)
 }
@@ -178,51 +157,23 @@ update_dataset <- function(params, corr, reprocess) {
    p    <- envir
    vars <- as.list(list(...))
 
-   # update_warehouse(vars$update_lw)
    p$params <- set_coverage(vars$end_date)
+   # update_warehouse(vars$update_lw)
+   # update_dx_new(vars$update_visits, p$params, p$wd)
 
    # ! corrections
-   dl <- ifelse(
-      !is.null(vars$dl_corr) && vars$dl_corr %in% c("1", "2"),
-      vars$dl_corr,
-      input(
-         prompt  = glue("GET: {green('corrections')}?"),
-         options = c("1" = "yes", "2" = "no"),
-         default = "2"
-      )
-   )
-   if (dl == "1") {
+   if (ask_input(vars$dl_corr, glue("GET: {green('corrections')}?")) == "1")
       p$corr <- flow_corr(p$params$ym, "harp_dx")
-      # p$corr <- gdrive_correct3(p$params$ym, "harp_dx")
-   }
+
+   # ! forms
+   if (ask_input(vars$dl_forms, glue("GET: {green('forms')}?"), default = "1") == "1")
+      p$forms <- download_tables(p$wd, p$params)
 
    # ! old dataset
-   update <- ifelse(
-      !is.null(vars$update_harp) && vars$update_harp %in% c("1", "2"),
-      vars$update_harp,
-      input(
-         prompt  = "Reload previous dataset?",
-         options = c("1" = "yes", "2" = "no"),
-         default = "2"
-      )
-   )
-   if (update == "1")
-      p$official <- update_dataset(p$params, p$corr, vars$harp_reprocess)
+   if (ask_input(vars$update_harp, "Reload previous dataset?") == "1")
+      p$official <- update_dataset(p$params, p$corr)
 
-   p$params$latest_idnum <- max(as.integer(p$official$old$idnum), na.rm = TRUE)
-
-   # update_dx_new(vars$update_visits, p$params, p$wd)
-   dl <- ifelse(
-      !is.null(vars$dl_forms) && vars$dl_forms %in% c("1", "2"),
-      vars$dl_forms,
-      input(
-         prompt  = "GET: {green('forms')}?",
-         options = c("1" = "Yes", "2" = "No"),
-         default = "1"
-      )
-   )
-   if (dl == "1")
-      p$forms <- download_tables(p$wd)
+   p$params$latest_idnum <- max(as.integer(p$official$old_reg$idnum), na.rm = TRUE)
 
    # p$pdf_rhivda$data <- get_rhivda_pdf(p$params)
 }

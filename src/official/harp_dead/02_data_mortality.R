@@ -15,14 +15,8 @@ clean_data <- function(forms, old_reg) {
          .vars = vars(first, middle, last, suffix, confirmatory_code, patient_code, uic, philhealth_no, philsys_id, client_mobile, client_email),
          ~clean_pii(.)
       ) %>%
-      mutate_if(
-         .predicate = is.POSIXct,
-         ~as.Date(.)
-      ) %>%
-      mutate_if(
-         .predicate = is.Date,
-         ~if_else(. <= -25567, NA_Date_, ., .)
-      ) %>%
+      # timestamps carry no tzone, so as.Date() would convert in UTC and shift early-morning entries a day back
+      clean_dates() %>%
       get_latest_pii(
          "central_id",
          c(
@@ -54,7 +48,14 @@ clean_data <- function(forms, old_reg) {
 
          # name
          standard_first = stri_trans_general(first, "latin-ascii"),
-         fullname       = str_squish(stri_c(last, ", ", first, " ", middle, " ", suffix)),
+         # stri_c() returns NA if any piece is NA, so drop missing parts first
+         fms            = str_squish(stri_c(coalesce(first, ""), coalesce(middle, ""), coalesce(suffix, ""), sep = " ")),
+         fullname       = case_when(
+            !is.na(last) & fms != "" ~ stri_c(last, ", ", fms),
+            !is.na(last) ~ last,
+            fms != "" ~ fms
+         ),
+         fms            = NULL,
 
          # Permanent
          perm_prov      = if_else(str_left(perm_reg, 2) == "99", "999900000", perm_prov, perm_prov),
@@ -125,8 +126,10 @@ standardize_data <- function(initial, params) {
    log_info("Converting to final harp variables.")
    data <- initial %>%
       mutate(
-         # generate idnum
-         mort_id       = params$latest_mort_id + row_number(),
+         # generate idnum; only validated reports enter the registry, so only they consume an id
+         is_validated  = coalesce(eb_validated == "1_Yes", FALSE),
+         mort_id       = if_else(is_validated, params$latest_mort_id + cumsum(is_validated), NA_integer_),
+         is_validated  = NULL,
 
          # report date
          year          = params$yr,
@@ -150,7 +153,7 @@ standardize_data <- function(initial, params) {
          ),
 
          # demographics
-         pxcode        = str_squish(stri_c(str_left(first, 1), str_left(middle, 1), str_left(last, 1))),
+         pxcode        = na_if(str_squish(stri_c(coalesce(str_left(first, 1), ""), coalesce(str_left(middle, 1), ""), coalesce(str_left(last, 1), ""))), ""),
 
          sex           = remove_code(stri_trans_toupper(sex)),
          civil_status  = remove_code(stri_trans_toupper(civil_status)),
@@ -337,8 +340,7 @@ append_data <- function(old, new) {
       bind_rows(old %>% select(-matches("report_date"))) %>%
       arrange(mort_id) %>%
       mutate(
-         drop_notyet     = 0,
-         drop_duplicates = 0,
+         corr_defer = 0,
       ) %>%
       relocate(idnum, .after = mort_id)
 
@@ -347,44 +349,21 @@ append_data <- function(old, new) {
 
 ##  Merge w/ Dx Registry -------------------------------------------------------
 
+# "unknown" is stored in both cases in the old registry
+is_known_addr <- function(x) {
+   return(!is.na(x) & stri_trans_tolower(x) != "unknown")
+}
+
 merge_dx <- function(data, forms, params) {
-   dx <- hs_data("harp_dx", "reg", params$yr, params$mo) %>%
-      read_dta(
-         col_select = c(
-            rec_id,
-            patient_id,
-            labcode,
-            labcode2,
-            idnum,
-            uic,
-            firstname,
-            middle,
-            last,
-            name_suffix,
-            name,
-            bdate,
-            sex,
-            pxcode,
-            philhealth,
-            region,
-            province,
-            muncity
-         )
-      ) %>%
-      # convert Stata string missing data to NAs
-      mutate_if(
-         .predicate = is.character,
-         ~if_else(. == '', NA_character_, .)
-      ) %>%
-      get_cid(forms$id_registry, patient_id) %>%
-      mutate(
-         labcode2 = coalesce(labcode2, labcode)
-      )
+   dx <- forms$dx_reg
 
    data %<>%
       select(-starts_with("labcode2"), -starts_with("dxreg")) %>%
       left_join(
+         # one dx record per client so duplicates in the dx registry don't multiply mortality rows
          y  = dx %>%
+            arrange(idnum) %>%
+            distinct(central_id, .keep_all = TRUE) %>%
             select(
                central_id,
                dxreg_saccl_lab_code = labcode2,
@@ -421,108 +400,38 @@ merge_dx <- function(data, forms, params) {
          saccl_lab_code = coalesce(dxreg_saccl_lab_code, saccl_lab_code)
       )
 
+   # address source, by priority: dx registry > reported > mortality facility (old records) > reporting facility
    data %<>%
       mutate_at(
          .vars = vars(ends_with("muncity"), ends_with("province"), ends_with("region")),
          ~coalesce(., "unknown")
       ) %>%
       mutate(
-         final_region   = if_else(
-            condition = dxreg_muncity == "unknown" & (muncity != "unknown" & !is.na(muncity)),
-            true      = region,
-            false     = dxreg_region,
-            missing   = "unknown"
+         addr_src       = case_when(
+            is_known_addr(dxreg_muncity) ~ "dx",
+            is_known_addr(muncity) ~ "reported",
+            is_known_addr(mort_muncity) ~ "mort",
+            TRUE ~ "facility"
          ),
-         final_province = if_else(
-            condition = dxreg_muncity == "unknown" & (muncity != "unknown" & !is.na(muncity)),
-            true      = province,
-            false     = dxreg_province,
-            missing   = "unknown"
+         final_region   = case_when(
+            addr_src == "dx" ~ dxreg_region,
+            addr_src == "reported" ~ region,
+            addr_src == "mort" ~ mort_region,
+            TRUE ~ facility_region
          ),
-         final_muncity  = if_else(
-            condition = dxreg_muncity == "unknown" & (muncity != "unknown" & !is.na(muncity)),
-            true      = muncity,
-            false     = dxreg_muncity,
-            missing   = "unknown"
+         final_province = case_when(
+            addr_src == "dx" ~ dxreg_province,
+            addr_src == "reported" ~ province,
+            addr_src == "mort" ~ mort_province,
+            TRUE ~ facility_province
          ),
-         final_region   = if_else(
-            condition = final_muncity == "unknown" | is.na(final_muncity),
-            true      = mort_region,
-            false     = final_region,
-            missing   = final_region
+         final_muncity  = case_when(
+            addr_src == "dx" ~ dxreg_muncity,
+            addr_src == "reported" ~ muncity,
+            addr_src == "mort" ~ mort_muncity,
+            TRUE ~ facility_muncity
          ),
-         final_province = if_else(
-            condition = final_muncity == "unknown" | is.na(final_muncity),
-            true      = mort_province,
-            false     = final_province,
-            missing   = final_province
-         ),
-         final_muncity  = if_else(
-            condition = final_muncity == "unknown" | is.na(final_muncity),
-            true      = mort_muncity,
-            false     = final_muncity,
-            missing   = final_muncity
-         ),
-         final_region   = coalesce(final_region, region, dxreg_region),
-         final_province = coalesce(final_province, province, dxreg_province),
-         final_muncity  = coalesce(final_muncity, muncity, dxreg_muncity),
-      ) %>%
-      # additional process to ensure final_region
-      mutate(
-         final_region   = if_else(
-            condition = final_muncity == "unknown" & mort_muncity != "unknown",
-            true      = mort_region,
-            false     = final_region,
-            missing   = final_region
-         ),
-         final_province = if_else(
-            condition = final_muncity == "unknown" & mort_muncity != "unknown",
-            true      = mort_province,
-            false     = final_province,
-            missing   = final_province
-         ),
-         final_muncity  = if_else(
-            condition = final_muncity == "unknown" & mort_muncity != "unknown",
-            true      = mort_muncity,
-            false     = final_muncity,
-            missing   = final_muncity
-         ),
-         final_region   = if_else(
-            condition = is.na(final_muncity) & mort_muncity != "unknown",
-            true      = mort_region,
-            false     = final_region,
-            missing   = final_region
-         ),
-         final_province = if_else(
-            condition = is.na(final_muncity) & mort_muncity != "unknown",
-            true      = mort_province,
-            false     = final_province,
-            missing   = final_province
-         ),
-         final_muncity  = if_else(
-            condition = is.na(final_muncity) & mort_muncity != "unknown",
-            true      = mort_muncity,
-            false     = final_muncity,
-            missing   = final_muncity
-         ),
-         final_region   = if_else(
-            condition = final_muncity == "unknown" & muncity != "unknown",
-            true      = region,
-            false     = final_region,
-            missing   = final_region
-         ),
-         final_province = if_else(
-            condition = final_muncity == "unknown" & muncity != "unknown",
-            true      = province,
-            false     = final_province,
-            missing   = final_province
-         ),
-         final_muncity  = if_else(
-            condition = final_muncity == "unknown" & muncity != "unknown",
-            true      = muncity,
-            false     = final_muncity,
-            missing   = final_muncity
-         ),
+         addr_src       = NULL
       )
 
    # remove dx registry variables
@@ -533,6 +442,7 @@ merge_dx <- function(data, forms, params) {
       ) %>%
       left_join(
          y          = dx %>%
+            distinct(idnum, .keep_all = TRUE) %>%
             select(idnum, labcode2) %>%
             mutate(
                labcode2 = case_when(
@@ -555,50 +465,13 @@ merge_dx <- function(data, forms, params) {
    return(data)
 }
 
-
-##  Tag data to be reported later on and duplicates for dropping ---------------
-
-tag_fordrop <- function(data, corr) {
-   log_info("Tagging reports for dropping.")
-   for (drop_var in c("drop_notyet", "drop_duplicates"))
-      if (drop_var %in% names(corr))
-         data %<>%
-            left_join(
-               y  = corr[[drop_var]] %>%
-                  distinct(rec_id) %>%
-                  mutate(drop_this = 1),
-               by = join_by(rec_id)
-            ) %>%
-            mutate_at(
-               .vars = vars(matches(drop_var)),
-               ~coalesce(drop_this, .)
-            ) %>%
-            select(-drop_this)
-
-   return(data)
-}
-
-##  Subsets for documentation --------------------------------------------------
-
-subset_drops <- function(data) {
-   log_info("Archive those for dropping.")
-   drops <- list(
-      dropped_notyet     = data %>% filter(drop_notyet == 1),
-      dropped_duplicates = data %>% filter(drop_duplicates == 1)
-   )
-
-   return(drops)
-}
-
 ##  Drop using taggings --------------------------------------------------------
 
 remove_drops <- function(data, params) {
+   log_info("Dropping reports w/ issue from final registry.")
    data %<>%
-      mutate(
-         drop = drop_duplicates + drop_notyet,
-      ) %>%
-      filter(drop == 0) %>%
-      select(-drop, -drop_duplicates, -drop_notyet) %>%
+      filter(corr_defer == 0) %>%
+      select(-corr_defer) %>%
       select(
          -any_of(
             c(
@@ -622,83 +495,20 @@ remove_drops <- function(data, params) {
 
 output_dta <- function(official, params, save = "2") {
    if (save == "1") {
-      log_info("Checking output directory.")
-      version <- format(Sys.time(), "%Y%m%d")
-      dir     <- Sys.getenv("harp_dead")
-      check_dir(dir)
-
-      log_info("Saving in Stata data format.")
-      period_ext <- str_c(params$yr, "-", stri_pad_left(params$mo, 2, "0"), ".dta")
-      files      <- list(
-         new                = file.path(dir, str_c(version, "_mort_", period_ext)),
-         dropped_notyet     = file.path(dir, str_c(version, "_dropped_notyet_", period_ext)),
-         dropped_duplicates = file.path(dir, str_c(version, "_dropped_duplicates_", period_ext))
-      )
-      for (output in intersect(names(files), names(official))) {
-         if (nrow(official[[output]]) > 0) {
-            official[[output]] %>%
-               format_stata() %>%
-               write_dta(files[[output]])
-
-            # compress_stata(files[[output]])
-         }
-      }
-
-      flow_dta(official$new, "harp_dead", "reg", params$yr, params$mo)
+      save_dta(official, params, "harp_dead", c(new_reg = "mort", dropped_notyet = "dropped_notyet"))
+      flow_dta(official$new_reg, "harp_dead", "reg", params$yr, params$mo)
    }
 }
 
 ##  Flag data for validation ---------------------------------------------------
 
 get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NULL) {
-   check         <- list()
-   run_checks    <- ifelse(
-      !is.null(run_checks),
-      run_checks,
-      input(
-         prompt  = "Run `tx_new` validations?",
-         options = c("1" = "yes", "2" = "no"),
-         default = "1"
-      )
-   )
-   exclude_drops <- switch(
-      run_checks,
-      `1`     = ifelse(!is.null(exclude_drops), exclude_drops, input(
-         prompt  = "Exclude clients initially tagged for dropping from validations?",
-         options = c("1" = "yes", "2" = "no"),
-         default = "1"
-      )),
-      default = "2"
-   )
+   check   <- list()
+   answers <- ask_checks("mortality", run_checks, exclude_drops)
 
-   if (run_checks == "1") {
+   if (answers$run == "1") {
       data %<>%
-         mutate(
-            reg_order = facility_region,
-            reg_order = case_when(
-               reg_order == "1" ~ 1,
-               reg_order == "2" ~ 2,
-               reg_order == "car" ~ 3,
-               reg_order == "3" ~ 4,
-               reg_order == "ncr" ~ 5,
-               reg_order == "4a" ~ 6,
-               reg_order == "4b" ~ 7,
-               reg_order == "5" ~ 8,
-               reg_order == "6" ~ 9,
-               reg_order == "7" ~ 10,
-               reg_order == "8" ~ 11,
-               reg_order == "9" ~ 12,
-               reg_order == "10" ~ 13,
-               reg_order == "11" ~ 14,
-               reg_order == "12" ~ 15,
-               reg_order == "caraga" ~ 16,
-               reg_order == "armm" ~ 17,
-               reg_order == "barmm" ~ 17,
-               TRUE ~ 9999
-            ),
-         ) %>%
-         arrange(reg_order, facility, mort_id) %>%
-         select(-reg_order)
+         arrange(region_order(facility_region), facility, mort_id)
 
       view_vars <- c(
          "rec_id",
@@ -775,32 +585,7 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
          )
 
       all_issues <- combine_validations(data, check, "rec_id") %>%
-         mutate(
-            reg_order = facility_region,
-            reg_order = case_when(
-               reg_order == "1" ~ 1,
-               reg_order == "2" ~ 2,
-               reg_order == "car" ~ 3,
-               reg_order == "3" ~ 4,
-               reg_order == "ncr" ~ 5,
-               reg_order == "4a" ~ 6,
-               reg_order == "4b" ~ 7,
-               reg_order == "5" ~ 8,
-               reg_order == "6" ~ 9,
-               reg_order == "7" ~ 10,
-               reg_order == "8" ~ 11,
-               reg_order == "9" ~ 12,
-               reg_order == "10" ~ 13,
-               reg_order == "11" ~ 14,
-               reg_order == "12" ~ 15,
-               reg_order == "caraga" ~ 16,
-               reg_order == "armm" ~ 17,
-               reg_order == "barmm" ~ 17,
-               TRUE ~ 9999
-            ),
-         ) %>%
-         arrange(reg_order, facility, rec_id) %>%
-         select(-reg_order)
+         arrange(region_order(facility_region), facility, rec_id)
 
       check <- list(all_issues = all_issues)
 
@@ -812,6 +597,10 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
          "age"
       )
       check   <- check_tabstat(data, check, tabstat)
+
+      # Remove already tagged data from validation
+      if (answers$exclude == "1")
+         check <- exclude_deferred(check, corr)
    }
 
    return(check)
@@ -824,23 +613,24 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
    p    <- envir
    vars <- as.list(list(...))
 
-   data <- clean_data(p$forms, p$official$old)
+   data <- clean_data(p$forms, p$official$old_reg)
    data <- prioritize_reports(data)
    data <- standardize_data(data, p$params)
    data <- convert_faci_addr(data)
    data <- final_conversion(data)
 
-   new_reg <- append_data(p$official$old, data) %>%
+   new_reg    <- append_data(p$official$old_reg, data) %>%
       merge_dx(p$forms, p$params)
-   new_reg <- tag_fordrop(new_reg, p$corr)
-   drops   <- subset_drops(new_reg)
-   new_reg <- remove_drops(new_reg, p$params)
+   new_reg    <- tag_fordrop(new_reg, p$corr)
+   drops      <- subset_drops(new_reg)
+   new_reg    <- remove_drops(new_reg, p$params)
+   step$dupes <- get_reg_dupes(new_reg)
 
-   step$check <- get_checks(data, p$pdf_rhivda, p$corr, run_checks = vars$run_checks, exclude_drops = vars$exclude_drops)
+   step$check <- get_checks(data, p$params, p$corr, run_checks = vars$run_checks, exclude_drops = vars$exclude_drops)
    step$data  <- data
 
-   p$official$new <- new_reg
-   append(p$official, drops)
+   p$official$new_reg       <- new_reg
+   p$official[names(drops)] <- drops
    output_dta(p$official, p$params, vars$save)
 
    flow_validation(p, "mortality", p$params$ym, upload = vars$upload)

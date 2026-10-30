@@ -1,11 +1,40 @@
 ##  Filter Initial Data & Remove Already Reported ------------------------------
 
-get_new <- function(forms, old_reg) {
+clean_data <- function(forms, old_reg) {
    log_info("Processing new clients.")
+   pii_cols <- c(
+      "first",
+      "middle",
+      "last",
+      "suffix",
+      "birthdate",
+      "uic",
+      "philhealth_no",
+      "self_ident",
+      "self_ident_other",
+      "philsys_id",
+      "civil_status",
+      "nationality",
+      "curr_reg",
+      "curr_prov",
+      "curr_munc",
+      "perm_reg",
+      "perm_prov",
+      "perm_munc",
+      "client_mobile",
+      "client_email",
+      "sex"
+   )
+
+   # offer-only clients w/o prep visits, excluding those already reported
    prep_offer <- forms$form_prep %>%
-      get_cid(forms$id_registry, patient_id) %>%
       anti_join(
          y  = forms$prep_first %>%
+            select(central_id),
+         by = join_by(central_id)
+      ) %>%
+      anti_join(
+         y  = old_reg %>%
             select(central_id),
          by = join_by(central_id)
       )
@@ -21,123 +50,17 @@ get_new <- function(forms, old_reg) {
          .vars = vars(first, middle, last, suffix, patient_code, uic, philhealth_no, philsys_id, client_mobile, client_email),
          ~clean_pii(.)
       ) %>%
-      mutate_if(
-         .predicate = is.POSIXct,
-         ~as.Date(.)
-      ) %>%
-      mutate_if(
-         .predicate = is.Date,
-         ~if_else(. <= -25567, NA_Date_, ., .)
-      )
+      clean_dates()
 
+   # one pass: get_latest_pii syncs the local pii cache on every call
    pii <- data %>%
-      select(
-         rec_id,
-         central_id,
-         first,
-         middle,
-         last,
-         suffix,
-         birthdate,
-         uic,
-         philhealth_no,
-         self_ident,
-         self_ident_other,
-         philsys_id,
-         civil_status,
-         nationality,
-         curr_reg,
-         curr_prov,
-         curr_munc,
-         perm_reg,
-         perm_prov,
-         perm_munc,
-         client_mobile,
-         client_email,
-         sex
-      )
-
-   pii <- chunk_df(pii, 50000)
-   pii <- lapply(
-      pii,
-      get_latest_pii,
-      pid_col  = 'central_id',
-      pii_cols = c(
-         "first",
-         "middle",
-         "last",
-         "suffix",
-         "birthdate",
-         "uic",
-         "philhealth_no",
-         "self_ident",
-         "self_ident_other",
-         "philsys_id",
-         "civil_status",
-         "nationality",
-         "curr_reg",
-         "curr_prov",
-         "curr_munc",
-         "perm_reg",
-         "perm_prov",
-         "perm_munc",
-         "client_mobile",
-         "client_email",
-         "sex"
-      )
-   )
-   pii <- bind_rows(pii) %>% distinct(rec_id, .keep_all = TRUE) %>% select(-central_id)
+      select(rec_id, central_id, patient_id, all_of(pii_cols)) %>%
+      get_latest_pii('central_id', pii_cols) %>%
+      distinct(rec_id, .keep_all = TRUE) %>%
+      select(-central_id, -patient_id)
 
    data %<>%
-      # get_latest_pii(
-      #    "central_id",
-      #    c(
-      #       "first",
-      #       "middle",
-      #       "last",
-      #       "suffix",
-      #       "birthdate",
-      #       "uic",
-      #       "philhealth_no",
-      #       "self_ident",
-      #       "self_ident_other",
-      #       "philsys_id",
-      #       "civil_status",
-      #       "nationality",
-      #       "curr_reg",
-      #       "curr_prov",
-      #       "curr_munc",
-      #       "perm_reg",
-      #       "perm_prov",
-      #       "perm_munc",
-      #       "client_mobile",
-      #       "client_email",
-      #       "sex"
-      #    )
-      # ) %>%
-      select(
-         -first,
-         -middle,
-         -last,
-         -suffix,
-         -birthdate,
-         -uic,
-         -philhealth_no,
-         -self_ident,
-         -self_ident_other,
-         -philsys_id,
-         -civil_status,
-         -nationality,
-         -curr_reg,
-         -curr_prov,
-         -curr_munc,
-         -perm_reg,
-         -perm_prov,
-         -perm_munc,
-         -client_mobile,
-         -client_email,
-         -sex
-      ) %>%
+      select(-all_of(pii_cols)) %>%
       left_join(pii, join_by(rec_id)) %>%
       mutate(
          # name
@@ -158,88 +81,9 @@ get_new <- function(forms, old_reg) {
 
 ##  Sort by earliest visit of client for the report ----------------------------
 
-get_first_visit <- function(data) {
+prioritize_reports <- function(data) {
    log_info("Using first visited facility.")
-   data %<>%
-      arrange(visit_date, desc(latest_next_date), central_id) %>%
-      distinct(central_id, .keep_all = TRUE) %>%
-      rename(
-         prep_faci     = service_faci,
-         prep_sub_faci = service_sub_faci,
-      )
-
-   return(data)
-}
-
-##  Facilities & Address -------------------------------------------------------
-
-convert_faci_addr <- function(data) {
-   log_info("Converting address & facility data.")
-   # record faci
-   data %<>%
-      # prep faci
-      ohasis$get_faci(
-         list(prep_faci_code = c("prep_faci", "prep_sub_faci")),
-         "code",
-         c("real_reg", "real_prov", "real_munc")
-      ) %>%
-      mutate(
-         prep_branch = prep_faci_code,
-      ) %>%
-      mutate(
-         across(
-            names(select(., ends_with("_branch", ignore.case = FALSE))),
-            ~if_else(nchar(.) > 3, ., NA_character_)
-         )
-      ) %>%
-      mutate(
-         across(
-            names(select(., ends_with("_branch", ignore.case = FALSE))),
-            ~if_else(nchar(.) > 3, ., NA_character_)
-         )
-      )
-
-   data %<>%
-      mutate_at(
-         .vars = vars(ends_with("_faci_code", ignore.case = FALSE)),
-         ~case_when(
-            str_detect(., "^TLY") ~ "TLY",
-            str_detect(., "^SHIP") ~ "SHP",
-            str_detect(., "^HASH") ~ "HASH",
-            str_detect(., "^SAIL") ~ "SAIL",
-            TRUE ~ .
-         )
-      ) %>%
-      mutate(
-         across(
-            names(select(., ends_with("_branch", ignore.case = FALSE))),
-            ~case_when(
-               pull(data, str_replace(cur_column(), "_branch", "_faci_code")) == "TLY" & is.na(.) ~ "TLY-ANGLO",
-               pull(data, str_replace(cur_column(), "_branch", "_faci_code")) == "SHP" & is.na(.) ~ "SHIP-MAKATI",
-               pull(data, str_replace(cur_column(), "_branch", "_faci_code")) == "HASH" & is.na(.) ~ "HASH-QC",
-               TRUE ~ .
-            )
-         )
-      ) %>%
-      arrange(prep_faci_code, visit_date, latest_next_date) %>%
-      get_addr(
-         c(
-            perm_reg  = "perm_reg",
-            perm_prov = "perm_prov",
-            perm_munc = "perm_munc"
-         ),
-         "nhsss"
-      ) %>%
-      get_addr(
-         c(
-            curr_reg  = "curr_reg",
-            curr_prov = "curr_prov",
-            curr_munc = "curr_munc"
-         ),
-         "nhsss"
-      )
-
-   return(data)
+   return(pick_visit(data))
 }
 
 ##  Generate subset variables --------------------------------------------------
@@ -249,37 +93,13 @@ standardize_data <- function(initial, params) {
    data <- initial %>%
       mutate(
          # generate idnum
-         prep_id                   = params$latest_prep_id + row_number(),
+         prep_id = params$latest_prep_id + row_number(),
 
          # report date
-         year                      = params$yr,
-         month                     = params$mo,
-
-         # demographics
-         initials                  = str_squish(stri_c(str_left(first, 1), str_left(middle, 1), str_left(last, 1))),
-         sex                       = remove_code(stri_trans_toupper(sex)),
-         self_identity             = remove_code(stri_trans_toupper(self_ident)),
-         self_identity_other       = toupper(self_ident_other),
-         self_identity             = remove_code(stri_trans_toupper(self_ident)),
-         self_identity             = case_when(
-            self_identity == "OTHER" ~ "OTHERS",
-            self_identity == "MAN" ~ "MALE",
-            self_identity == "WOMAN" ~ "FEMALE",
-            self_identity == "MALE" ~ "MALE",
-            self_identity == "FEMALE" ~ "FEMALE",
-            TRUE ~ self_identity
-         ),
-         self_identity_other       = stri_trans_toupper(self_ident_other),
-         self_identity_other_sieve = str_replace_all(self_identity_other, "[^[:alnum:]]", ""),
-
-         first_time                = as.integer(keep_code(first_time)),
-         first_time                = case_when(
-            first_time == 1 ~ first_time,
-            first_time == 0 ~ NA_integer_,
-            TRUE ~ NA_integer_
-         )
+         year    = params$yr,
+         month   = params$mo,
       ) %>%
-      generate_gender_identity(sex, self_ident, self_ident_other, gender_identity)
+      tag_demographics()
 
    return(data)
 }
@@ -357,7 +177,7 @@ final_conversion <- function(data) {
 
 ##  Append w/ old ART Registry -------------------------------------------------
 
-append_new <- function(old, new) {
+append_data <- function(old, new) {
    log_info("Appending new to final registry.")
    data <- new %>%
       mutate(
@@ -366,50 +186,11 @@ append_new <- function(old, new) {
       bind_rows(old) %>%
       arrange(prep_id) %>%
       mutate(
-         corr_defer      = 0,
-         drop_duplicates = 0,
-         drop_notprep    = 0,
+         corr_defer = 0,
       ) %>%
       zap_labels()
 
    return(data)
-}
-
-##  Tag data to be reported later on and duplicates for dropping ---------------
-
-tag_fordrop <- function(data, corr) {
-   log_info("Tagging enrollees for dropping.")
-   for (drop_var in c("corr_defer", "drop_notprep"))
-      if (drop_var %in% names(corr)) {
-         if (nrow(corr[[drop_var]]) > 0) {
-            data %<>%
-               left_join(
-                  y  = corr[[drop_var]] %>%
-                     distinct(rec_id) %>%
-                     mutate(drop_this = 1),
-                  by = join_by(rec_id)
-               ) %>%
-               mutate_at(
-                  .vars = vars(matches(drop_var)),
-                  ~coalesce(drop_this, .)
-               ) %>%
-               select(-drop_this)
-         }
-      }
-
-   return(data)
-}
-
-##  Subsets for documentation --------------------------------------------------
-
-subset_drops <- function(data) {
-   log_info("Archive those for dropping.")
-   drops <- list(
-      dropped_notyet  = data %>% filter(corr_defer == 1),
-      dropped_notprep = data %>% filter(drop_notprep == 1)
-   )
-
-   return(drops)
 }
 
 ##  Drop using taggings --------------------------------------------------------
@@ -417,11 +198,8 @@ subset_drops <- function(data) {
 remove_drops <- function(data) {
    log_info("Dropping clients w/ issue from final registry.")
    data %<>%
-      mutate(
-         drop = drop_duplicates + corr_defer + drop_notprep,
-      ) %>%
-      filter(drop == 0) %>%
-      select(-drop, -drop_duplicates, -corr_defer, -drop_notprep) %>%
+      filter(corr_defer == 0) %>%
+      select(-corr_defer) %>%
       mutate(
          # finalize age data
          age_dta = calc_age(birthdate, prep_first_screen),
@@ -434,17 +212,16 @@ remove_drops <- function(data) {
 
 ##  Merge w/ Dx Registry -------------------------------------------------------
 
+# lookups are de-duplicated by central_id, so registry rows are never dropped here
 merge_dx <- function(data, forms, params) {
-   dx <- hs_data("harp_dx", "reg", params$yr, params$mo) %>%
-      read_dta(col_select = c(patient_id, idnum)) %>%
-      get_cid(forms$id_registry, patient_id) %>%
-      select(-patient_id)
+   dx <- lw_registry("harp_dx", "idnum", params, forms$id_registry) %>%
+      arrange(idnum) %>%
+      distinct(central_id, .keep_all = TRUE)
 
    # get idnum
    data %<>%
       select(-any_of("idnum")) %>%
       left_join(dx, join_by(central_id)) %>%
-      distinct(central_id, .keep_all = TRUE) %>%
       relocate(idnum, .after = prep_id)
 
    return(data)
@@ -453,16 +230,14 @@ merge_dx <- function(data, forms, params) {
 ##  Merge w/ Tx Registry -------------------------------------------------------
 
 merge_tx <- function(data, forms, params) {
-   tx <- hs_data("harp_tx", "reg", params$yr, params$mo) %>%
-      read_dta(col_select = c(patient_id, art_id)) %>%
-      get_cid(forms$id_registry, patient_id) %>%
-      select(-patient_id)
+   tx <- lw_registry("harp_tx", "art_id", params, forms$id_registry) %>%
+      arrange(art_id) %>%
+      distinct(central_id, .keep_all = TRUE)
 
-   # get idnum
+   # get art_id
    data %<>%
       select(-any_of("art_id")) %>%
       left_join(tx, join_by(central_id)) %>%
-      distinct(central_id, .keep_all = TRUE) %>%
       relocate(art_id, .after = idnum)
 
    return(data)
@@ -471,18 +246,7 @@ merge_tx <- function(data, forms, params) {
 ##  Merge w/ Death Registry ----------------------------------------------------
 
 merge_dead <- function(data, forms, params) {
-   dead <- hs_data("harp_dead", "reg", params$yr, params$mo) %>%
-      read_dta(
-         col_select = c(
-            patient_id,
-            mort_id,
-            year,
-            month,
-            date_of_death
-         )
-      ) %>%
-      get_cid(forms$id_registry, patient_id) %>%
-      select(-patient_id) %>%
+   dead <- lw_registry("harp_dead", c("mort_id", "year", "month", "date_of_death"), params, forms$id_registry) %>%
       mutate(
          proxy_death_date = as.Date(ceiling_date(as.Date(str_c(sep = '-', year, month, '01')), unit = 'month')) - 1,
          ref_death_date   = if_else(
@@ -493,15 +257,15 @@ merge_dead <- function(data, forms, params) {
       ) %>%
       select(-proxy_death_date, -year, -month, -date_of_death)
 
-   # get idnum
+   # get mort_id
    data %<>%
       select(-any_of(c("mort_id", "ref_death_date"))) %>%
       left_join(
          y  = dead %>%
+            arrange(mort_id) %>%
             distinct(central_id, .keep_all = TRUE),
          by = join_by(central_id)
       ) %>%
-      distinct(central_id, .keep_all = TRUE) %>%
       relocate(mort_id, .after = art_id)
 
    return(data)
@@ -510,54 +274,12 @@ merge_dead <- function(data, forms, params) {
 ##  Flag data for validation ---------------------------------------------------
 
 get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NULL) {
-   check         <- list()
-   run_checks    <- ifelse(
-      !is.null(run_checks),
-      run_checks,
-      input(
-         prompt  = "Run `tx_new` validations?",
-         options = c("1" = "yes", "2" = "no"),
-         default = "1"
-      )
-   )
-   exclude_drops <- switch(
-      run_checks,
-      `1`     = ifelse(!is.null(exclude_drops), exclude_drops, input(
-         prompt  = "Exclude clients initially tagged for dropping from validations?",
-         options = c("1" = "yes", "2" = "no"),
-         default = "1"
-      )),
-      default = "2"
-   )
+   check   <- list()
+   answers <- ask_checks("prep_offer", run_checks, exclude_drops)
 
-   if (run_checks == "1") {
+   if (answers$run == "1") {
       data %<>%
-         mutate(
-            reg_order = prep_first_reg,
-            reg_order = case_when(
-               reg_order == "1" ~ 1,
-               reg_order == "2" ~ 2,
-               reg_order == "car" ~ 3,
-               reg_order == "3" ~ 4,
-               reg_order == "NCR" ~ 5,
-               reg_order == "4a" ~ 6,
-               reg_order == "4b" ~ 7,
-               reg_order == "5" ~ 8,
-               reg_order == "6" ~ 9,
-               reg_order == "7" ~ 10,
-               reg_order == "8" ~ 11,
-               reg_order == "9" ~ 12,
-               reg_order == "10" ~ 13,
-               reg_order == "11" ~ 14,
-               reg_order == "12" ~ 15,
-               reg_order == "caraga" ~ 16,
-               reg_order == "armm" ~ 17,
-               reg_order == "barmm" ~ 17,
-               TRUE ~ 9999
-            ),
-         ) %>%
-         arrange(reg_order, prep_first_faci, prep_id) %>%
-         select(-reg_order)
+         arrange(region_order(prep_first_reg), prep_first_faci, prep_id)
 
       view_vars <- c(
          "rec_id",
@@ -687,32 +409,7 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
             prep_first_arv,
          )
       all_issues            <- combine_validations(data, check, "rec_id") %>%
-         mutate(
-            reg_order = prep_first_reg,
-            reg_order = case_when(
-               reg_order == "1" ~ 1,
-               reg_order == "2" ~ 2,
-               reg_order == "car" ~ 3,
-               reg_order == "3" ~ 4,
-               reg_order == "NCR" ~ 5,
-               reg_order == "4a" ~ 6,
-               reg_order == "4b" ~ 7,
-               reg_order == "5" ~ 8,
-               reg_order == "6" ~ 9,
-               reg_order == "7" ~ 10,
-               reg_order == "8" ~ 11,
-               reg_order == "9" ~ 12,
-               reg_order == "10" ~ 13,
-               reg_order == "11" ~ 14,
-               reg_order == "12" ~ 15,
-               reg_order == "caraga" ~ 16,
-               reg_order == "armm" ~ 17,
-               reg_order == "barmm" ~ 17,
-               TRUE ~ 9999
-            ),
-         ) %>%
-         arrange(reg_order, prep_first_faci, rec_id) %>%
-         select(-reg_order)
+         arrange(region_order(prep_first_reg), prep_first_faci, rec_id)
 
       check <- list(all_issues = all_issues)
 
@@ -725,19 +422,8 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
       check   <- check_tabstat(data, check, tabstat)
 
       # Remove already tagged data from validation
-      if (exclude_drops == "1") {
-         for (drop in c("drop_notprep", "corr_defer")) {
-            if (drop %in% names(corr))
-               for (check_var in names(check)) {
-                  if (check_var != "tabstat")
-                     check[[check_var]] %<>%
-                        anti_join(
-                           y  = corr[[drop]],
-                           by = "rec_id"
-                        )
-               }
-         }
-      }
+      if (answers$exclude == "1")
+         check <- exclude_deferred(check, corr)
    }
 
    return(check)
@@ -750,27 +436,28 @@ get_checks <- function(data, params, corr, run_checks = NULL, exclude_drops = NU
    p    <- envir
    vars <- as.list(list(...))
 
-   data <- get_new(p$forms, p$official$old_reg)
-   data <- get_first_visit(data)
-   data <- convert_faci_addr(data)
+   data <- clean_data(p$forms, p$official$old_reg)
+   data <- prioritize_reports(data)
+   data <- convert_faci_addr(data, c("real_reg", "real_prov", "real_munc"))
    data <- standardize_data(data, p$params)
    data <- final_conversion(data)
 
    new_reg <- p$official$old_reg %>%
-      append_new(data) %>%
+      append_data(data) %>%
       merge_dx(p$forms, p$params) %>%
       merge_tx(p$forms, p$params) %>%
       merge_dead(p$forms, p$params)
 
-   new_reg <- tag_fordrop(new_reg, p$corr)
-   drops   <- subset_drops(new_reg)
-   new_reg <- remove_drops(new_reg)
+   new_reg    <- tag_fordrop(new_reg, p$corr)
+   drops      <- subset_drops(new_reg)
+   new_reg    <- remove_drops(new_reg)
+   step$dupes <- get_reg_dupes(new_reg)
 
    step$check <- get_checks(data, p$params, p$corr, run_checks = vars$run_checks, exclude_drops = vars$exclude_drops)
    step$data  <- data
 
-   p$official$new_reg <- new_reg %>% arrange(prep_id)
-   append(p$official, drops)
+   p$official$new_reg       <- new_reg %>% arrange(prep_id)
+   p$official[names(drops)] <- drops
 
    flow_validation(p, "prep_offer", p$params$ym, upload = vars$upload)
    log_success("Done.")

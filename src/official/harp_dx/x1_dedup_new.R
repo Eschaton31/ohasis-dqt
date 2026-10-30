@@ -74,7 +74,7 @@ dedup_group_ids <- function(data) {
    p    <- envir
    vars <- as.list(list(...))
 
-   data <- p$official$new %>%
+   data <- p$official$new_reg %>%
       filter(year == p$params$yr, month == p$params$mo) %>%
       select(
          CENTRAL_ID,

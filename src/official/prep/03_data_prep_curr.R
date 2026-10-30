@@ -1,7 +1,10 @@
 ##  Append to the previous art registry ----------------------------------------
 
-get_records <- function(form_data, new_reg) {
-   log_info("Processing latest visit.")
+# `visit_sets`: named list of visit data; `latest` names the sets where the
+# latest visit is kept (the rest keep the earliest). Visits are reduced to one
+# per client before the join, and facilities are converted in one pass.
+get_records <- function(visit_sets, new_reg, latest) {
+   log_info("Processing visits.")
    remove_cols <- names(new_reg)
    remove_cols <- remove_cols[remove_cols != 'central_id']
    remove_cols <- remove_cols[remove_cols != 'rec_id']
@@ -15,7 +18,7 @@ get_records <- function(form_data, new_reg) {
    remove_cols <- remove_cols[remove_cols != 'dispensed']
    remove_cols <- remove_cols[remove_cols != 'age']
 
-   data <- new_reg %>%
+   base <- new_reg %>%
       rename(
          firstscreen_date = prep_first_screen,
          firstscreen_rec  = rec_id,
@@ -38,143 +41,33 @@ get_records <- function(form_data, new_reg) {
                "age"
             )
          ),
-      ) %>%
-      left_join(
-         y  = form_data %>%
-            select(-any_of(remove_cols)),
-         by = join_by(central_id)
-      ) %>%
-      mutate_if(
-         .predicate = is.POSIXct,
-         ~as.Date(.)
-      ) %>%
-      mutate_if(
-         .predicate = is.Date,
-         ~if_else(. <= -25567, NA_Date_, ., .)
-      ) %>%
-      # get_latest_pii(
-      #    "central_id",
-      #    c(
-      #       "self_ident",
-      #       "self_ident_other",
-      #       "curr_reg",
-      #       "curr_prov",
-      #       "curr_munc",
-      #       "perm_reg",
-      #       "perm_prov",
-      #       "perm_munc"
-      #    )
-      # ) %>%
-      mutate(
-         # Age
-         age             = coalesce(age, age_mo / 12),
-         age_dta         = calc_age(birthdate, visit_date),
-
-         # tag those without prep_faci
-         use_record_faci = if_else(is.na(service_faci), 1, 0, 0),
-         service_faci    = if_else(use_record_faci == 1, faci_id, service_faci),
       )
 
-   return(data)
-}
+   data <- lapply(names(visit_sets), function(set) {
+      visits <- visit_sets[[set]] %>%
+         select(-any_of(remove_cols)) %>%
+         clean_dates() %>%
+         mutate(
+            age             = coalesce(age, age_mo / 12),
 
-##  Sort by earliest/latest visit of client for the report ----------------------------
+            # tag those without prep_faci
+            use_record_faci = if_else(is.na(service_faci), 1, 0, 0),
+            service_faci    = if_else(use_record_faci == 1, faci_id, service_faci),
+         ) %>%
+         pick_visit(latest = set %in% latest)
 
-get_final_visit <- function(data) {
-   log_info("Using last visited facility.")
-   data %<>%
-      arrange(desc(visit_date), desc(latest_next_date), central_id) %>%
-      distinct(central_id, .keep_all = TRUE) %>%
-      rename(
-         prep_faci     = service_faci,
-         prep_sub_faci = service_sub_faci,
-      )
-
-   return(data)
-}
-
-get_first_visit <- function(data) {
-   log_info("Using first visited facility.")
-   data %<>%
-      arrange(visit_date, desc(latest_next_date), central_id) %>%
-      distinct(central_id, .keep_all = TRUE) %>%
-      rename(
-         prep_faci     = service_faci,
-         prep_sub_faci = service_sub_faci,
-      )
-
-   return(data)
-}
-
-##  Facilities -----------------------------------------------------------------
-
-convert_faci_addr <- function(data) {
-   log_info("Converting address & facility data.")
-   # record faci
-   data %<>%
-      # prep faci
-      ohasis$get_faci(
-         list(prep_faci_code = c("prep_faci", "prep_sub_faci")),
-         "code",
-         c("prep_reg", "prep_prov", "prep_munc")
-      ) %>%
-      mutate(
-         prep_branch = prep_faci_code,
-      ) %>%
-      mutate(
-         across(
-            names(select(., ends_with("_branch", ignore.case = FALSE))),
-            ~if_else(nchar(.) > 3, ., NA_character_)
+      base %>%
+         left_join(visits, join_by(central_id)) %>%
+         mutate(
+            visit_set = set,
+            age_dta   = calc_age(birthdate, visit_date),
          )
-      ) %>%
-      mutate(
-         across(
-            names(select(., ends_with("_branch", ignore.case = FALSE))),
-            ~if_else(nchar(.) > 3, ., NA_character_)
-         )
-      ) %>%
-      get_addr(
-         c(
-            perm_reg  = "perm_reg",
-            perm_prov = "perm_prov",
-            perm_munc = "perm_munc"
-         ),
-         "nhsss"
-      ) %>%
-      get_addr(
-         c(
-            curr_reg  = "curr_reg",
-            curr_prov = "curr_prov",
-            curr_munc = "curr_munc"
-         ),
-         "nhsss"
-      )
+   }) %>%
+      bind_rows() %>%
+      convert_faci_addr()
 
-   data %<>%
-      mutate_at(
-         .vars = vars(ends_with("_faci_code", ignore.case = FALSE)),
-         ~case_when(
-            str_detect(., "^TLY") ~ "TLY",
-            str_detect(., "^SHIP") ~ "SHP",
-            str_detect(., "^HASH") ~ "HASH",
-            str_detect(., "^SAIL") ~ "SAIL",
-            TRUE ~ .
-         )
-      ) %>%
-      mutate(
-         across(
-            names(select(., ends_with("_branch", ignore.case = FALSE))),
-            ~case_when(
-               pull(data, str_replace(cur_column(), "_branch", "_faci_code")) == "TLY" & is.na(.) ~ "TLY-ANGLO",
-               pull(data, str_replace(cur_column(), "_branch", "_faci_code")) == "SHP" & is.na(.) ~ "SHIP-MAKATI",
-               pull(data, str_replace(cur_column(), "_branch", "_faci_code")) == "HASH" & is.na(.) ~ "HASH-QC",
-               TRUE ~ .
-            )
-         )
-      ) %>%
-      arrange(prep_faci_code, visit_date, latest_next_date)
-
-   return(data)
+   data <- split(select(data, -visit_set), data$visit_set)
+   return(data[names(visit_sets)])
 }
 
 ##  Generate subset variables --------------------------------------------------
@@ -200,48 +93,10 @@ tag_curr_data <- function(data, prev_outcome, prep_first, prepdisp_first, prep_l
             ),
          by = join_by(prep_id)
       ) %>%
-      # left_join(
-      #    y  = prep_reinit %>%
-      #       select(
-      #          central_id,
-      #          initiation_date
-      #       ),
-      #    by = join_by(central_id)
-      # ) %>%
-      # prepare screening taggings
       mutate(
-         # reinitiation
-         # prep_reinit_date          = if_else(
-         #    condition = initiation_date > prepstart_date,
-         #    true      = initiation_date,
-         #    false     = NA_Date_
-         # ),
-         prep_reinit_date          = NA_Date_,
-
-         # demographics
-         initials                  = str_squish(stri_c(str_left(first, 1), str_left(middle, 1), str_left(last, 1))),
-         sex                       = remove_code(stri_trans_toupper(sex)),
-         self_identity             = remove_code(stri_trans_toupper(self_ident)),
-         self_identity_other       = toupper(self_ident_other),
-         self_identity             = remove_code(stri_trans_toupper(self_ident)),
-         self_identity             = case_when(
-            self_identity == "OTHER" ~ "OTHERS",
-            self_identity == "MAN" ~ "MALE",
-            self_identity == "WOMAN" ~ "FEMALE",
-            self_identity == "MALE" ~ "MALE",
-            self_identity == "FEMALE" ~ "FEMALE",
-            TRUE ~ self_identity
-         ),
-         self_identity_other       = stri_trans_toupper(self_ident_other),
-         self_identity_other_sieve = str_replace_all(self_identity_other, "[^[:alnum:]]", ""),
-
-         first_time                = as.integer(keep_code(first_time)),
-         first_time                = case_when(
-            first_time == 1 ~ first_time,
-            first_time == 0 ~ NA_integer_,
-            TRUE ~ NA_integer_
-         )
+         prep_reinit_date = NA_Date_,
       ) %>%
+      tag_demographics() %>%
       # get ohasis latest dispense
       left_join(
          y  = prep_last %>%
@@ -250,7 +105,6 @@ tag_curr_data <- function(data, prev_outcome, prep_first, prepdisp_first, prep_l
                lastdisp_rec    = rec_id,
                lastdisp_hub    = prep_faci_code,
                lastdisp_branch = prep_branch,
-               lastdisp_rec    = rec_id,
                lastdisp_visit  = visit_date,
             ) %>%
             distinct(central_id, .keep_all = TRUE),
@@ -264,28 +118,10 @@ tag_curr_data <- function(data, prev_outcome, prep_first, prepdisp_first, prep_l
                lastdisc_rec    = rec_id,
                lastdisc_hub    = prep_faci_code,
                lastdisc_branch = prep_branch,
-               lastdisc_rec    = rec_id,
                lastdisc_visit  = visit_date,
             ) %>%
             distinct(central_id, .keep_all = TRUE),
          by = "central_id"
-      ) %>%
-      mutate(
-         # status as of current report
-         prep_status = case_when(
-            # !is.na(mort_id) ~ "dead",
-            prep_status == 0 ~ "refused",
-            prep_continued == 0 ~ "discontinued",
-            lastdisc_visit > visit_date ~ "discontinued",
-            latest_next_date >= -25567 & latest_next_date < params$min ~ "ltfu",
-            prepstart_date == visit_date & is.na(medicine_summary) ~ "for initiation",
-            !is.na(prepstart_date) & is.na(medicine_summary) ~ "no dispense",
-            prepstart_date == visit_date ~ "enrollment",
-            !is.na(prep_reinit_date) & visit_date == prep_reinit_date ~ "reinitiation",
-            latest_next_date >= params$min ~ "on prep",
-            prep_on == "not screened" ~ "insufficient screening",
-            is.na(prepstart_date) & eligible == 0 ~ "ineligible",
-         )
       ) %>%
       # get ohasis earliest visits
       left_join(
@@ -305,14 +141,36 @@ tag_curr_data <- function(data, prev_outcome, prep_first, prepdisp_first, prep_l
                central_id,
                earliest_rec  = rec_id,
                earliest_date = visit_date,
-            ),
+            ) %>%
+            arrange(earliest_date) %>%
+            distinct(central_id, .keep_all = TRUE),
          by = join_by(central_id)
+      ) %>%
+      # new enrollees have no previous outcome, so take their start from ohasis
+      # before the status is tagged
+      mutate(
+         prepstart_rec  = if ("prepstart_rec" %in% names(.)) coalesce(prepstart_rec, earliestdisp_rec) else earliestdisp_rec,
+         prepstart_date = coalesce(prepstart_date, earliestdisp_date),
+      ) %>%
+      mutate(
+         # status as of current report
+         prep_status = case_when(
+            # !is.na(mort_id) ~ "dead",
+            prep_status == 0 ~ "refused",
+            prep_continued == 0 ~ "discontinued",
+            lastdisc_visit > visit_date ~ "discontinued",
+            latest_next_date >= -25567 & latest_next_date < params$min ~ "ltfu",
+            prepstart_date == visit_date & is.na(medicine_summary) ~ "for initiation",
+            !is.na(prepstart_date) & is.na(medicine_summary) ~ "no dispense",
+            prepstart_date == visit_date ~ "enrollment",
+            !is.na(prep_reinit_date) & visit_date == prep_reinit_date ~ "reinitiation",
+            latest_next_date >= params$min ~ "on prep",
+            prep_on == "not screened" ~ "insufficient screening",
+            is.na(prepstart_date) & eligible == 0 ~ "ineligible",
+         )
       ) %>%
       mutate(
          use_db         = 1,
-
-         prepstart_rec  = if ("prepstart_rec" %in% names(.)) coalesce(prepstart_rec, earliestdisp_rec) else earliestdisp_date,
-         prepstart_date = coalesce(prepstart_date, earliestdisp_date),
 
          # current age for class
          curr_age       = calc_age(birthdate, visit_date),
@@ -353,7 +211,6 @@ tag_curr_data <- function(data, prev_outcome, prep_first, prepdisp_first, prep_l
             TRUE ~ '5_(no data)'
          ),
       ) %>%
-      generate_gender_identity(sex, self_ident, self_ident_other, gender_identity) %>%
       rename_at(
          .vars = vars(
             prep_plan,
@@ -388,7 +245,6 @@ tag_curr_data <- function(data, prev_outcome, prep_first, prepdisp_first, prep_l
          initials,
          philsys_id,
          philhealth_no,
-         initials,
          self_identity,
          self_identity_other,
          gender_identity,
@@ -445,7 +301,6 @@ tag_curr_data <- function(data, prev_outcome, prep_first, prepdisp_first, prep_l
          lastdisc_faci       = lastdisc_hub,
          lastdisc_branch     = lastdisc_branch,
          lastdisc_ffup       = lastdisc_visit,
-         lastdisc_rec        = lastdisc_rec,
          prep_reg,
          prep_prov,
          prep_munc,
@@ -462,32 +317,7 @@ tag_curr_data <- function(data, prev_outcome, prep_first, prepdisp_first, prep_l
 tag_first_data <- function(data) {
    log_info("Converting to final harp variables.")
    data %<>%
-      # prepare screening taggings
-      mutate(
-         # demographics
-         initials                  = str_squish(stri_c(str_left(first, 1), str_left(middle, 1), str_left(last, 1))),
-         sex                       = remove_code(stri_trans_toupper(sex)),
-         self_identity             = remove_code(stri_trans_toupper(self_ident)),
-         self_identity_other       = toupper(self_ident_other),
-         self_identity             = remove_code(stri_trans_toupper(self_ident)),
-         self_identity             = case_when(
-            self_identity == "OTHER" ~ "OTHERS",
-            self_identity == "MAN" ~ "MALE",
-            self_identity == "WOMAN" ~ "FEMALE",
-            self_identity == "MALE" ~ "MALE",
-            self_identity == "FEMALE" ~ "FEMALE",
-            TRUE ~ self_identity
-         ),
-         self_identity_other       = stri_trans_toupper(self_ident_other),
-         self_identity_other_sieve = str_replace_all(self_identity_other, "[^[:alnum:]]", ""),
-
-         first_time                = as.integer(keep_code(first_time)),
-         first_time                = case_when(
-            first_time == 1 ~ first_time,
-            first_time == 0 ~ NA_integer_,
-            TRUE ~ NA_integer_
-         )
-      ) %>%
+      tag_demographics() %>%
       mutate(
          use_db         = 1,
 
@@ -497,7 +327,6 @@ tag_first_data <- function(data) {
          # current age for class
          prepstart_age  = calc_age(birthdate, visit_date),
       ) %>%
-      generate_gender_identity(sex, self_ident, self_ident_other, gender_identity) %>%
       rename_at(
          .vars = vars(
             prep_plan,
@@ -531,7 +360,6 @@ tag_first_data <- function(data) {
          initials,
          philsys_id,
          philhealth_no,
-         initials,
          self_identity,
          self_identity_other,
          gender_identity,
@@ -689,44 +517,11 @@ finalize_faci <- function(data) {
 
 get_checks <- function(data, run_checks = NULL) {
    check      <- list()
-   run_checks <- ifelse(
-      !is.null(run_checks),
-      run_checks,
-      input(
-         prompt  = "Run `tx_curr` validations?",
-         options = c("1" = "yes", "2" = "no"),
-         default = "1"
-      )
-   )
+   run_checks <- ask_input(run_checks, "Run `prep_curr` validations?", default = "1")
 
    if (run_checks == "1") {
       data %<>%
-         mutate(
-            reg_order = prep_reg,
-            reg_order = case_when(
-               reg_order == "1" ~ 1,
-               reg_order == "2" ~ 2,
-               reg_order == "car" ~ 3,
-               reg_order == "3" ~ 4,
-               reg_order == "NCR" ~ 5,
-               reg_order == "4a" ~ 6,
-               reg_order == "4b" ~ 7,
-               reg_order == "5" ~ 8,
-               reg_order == "6" ~ 9,
-               reg_order == "7" ~ 10,
-               reg_order == "8" ~ 11,
-               reg_order == "9" ~ 12,
-               reg_order == "10" ~ 13,
-               reg_order == "11" ~ 14,
-               reg_order == "12" ~ 15,
-               reg_order == "caraga" ~ 16,
-               reg_order == "armm" ~ 17,
-               reg_order == "barmm" ~ 17,
-               TRUE ~ 9999
-            ),
-         ) %>%
-         arrange(reg_order, curr_faci, curr_branch, prep_id) %>%
-         select(-reg_order)
+         arrange(region_order(prep_reg), curr_faci, curr_branch, prep_id)
 
       view_vars <- c(
          "rec_id",
@@ -960,32 +755,7 @@ get_checks <- function(data, run_checks = NULL) {
          )
 
       all_issues <- combine_validations(data, check, "prep_id") %>%
-         mutate(
-            reg_order = prep_reg,
-            reg_order = case_when(
-               reg_order == "1" ~ 1,
-               reg_order == "2" ~ 2,
-               reg_order == "car" ~ 3,
-               reg_order == "3" ~ 4,
-               reg_order == "NCR" ~ 5,
-               reg_order == "4a" ~ 6,
-               reg_order == "4b" ~ 7,
-               reg_order == "5" ~ 8,
-               reg_order == "6" ~ 9,
-               reg_order == "7" ~ 10,
-               reg_order == "8" ~ 11,
-               reg_order == "9" ~ 12,
-               reg_order == "10" ~ 13,
-               reg_order == "11" ~ 14,
-               reg_order == "12" ~ 15,
-               reg_order == "caraga" ~ 16,
-               reg_order == "armm" ~ 17,
-               reg_order == "barmm" ~ 17,
-               TRUE ~ 9999
-            ),
-         ) %>%
-         arrange(reg_order, curr_faci, curr_branch, prep_id) %>%
-         select(-reg_order)
+         arrange(region_order(prep_reg), curr_faci, curr_branch, prep_id)
 
       check <- list(all_issues = all_issues)
 
@@ -1005,33 +775,7 @@ get_checks <- function(data, run_checks = NULL) {
 
 output_dta <- function(official, params, save = "2") {
    if (save == "1") {
-      log_info("Checking output directory.")
-      version <- format(Sys.time(), "%Y%m%d")
-      dir     <- Sys.getenv("prep")
-      check_dir(dir)
-
-      log_info("Saving in Stata data format.")
-      period_ext <- str_c(params$yr, "-", stri_pad_left(params$mo, 2, "0"), ".dta")
-      files      <- list(
-         new_reg            = file.path(dir, str_c(version, "_reg-prep_", period_ext)),
-         new_outcome        = file.path(dir, str_c(version, "_onprep_", period_ext)),
-         prepstart          = file.path(dir, str_c(version, "_prepstart_", period_ext)),
-         dropped_notyet     = file.path(dir, str_c(version, "_dropped_notyet_", period_ext)),
-         dropped_duplicates = file.path(dir, str_c(version, "_dropped_duplicates_", period_ext))
-      )
-      for (output in intersect(names(files), names(official))) {
-         if (nrow(official[[output]]) > 0) {
-            official[[output]] %>%
-               format_stata() %>%
-               select(
-                  -contains("."),
-               ) %>%
-               write_dta(files[[output]])
-
-            # compress_stata(files[[output]])
-         }
-      }
-
+      save_dta(official, params, "prep", c(new_reg = "reg-prep", new_outcome = "onprep", prepstart = "prepstart", dropped_notyet = "dropped_notyet"))
       flow_dta(official$new_reg, "prep", "reg", params$yr, params$mo)
       flow_dta(official$new_outcome %>% select(-contains(".")), "prep", "outcome", params$yr, params$mo)
    }
@@ -1044,29 +788,22 @@ output_dta <- function(official, params, save = "2") {
    p    <- envir
    vars <- as.list(list(...))
 
-   first_disp <- get_records(p$forms$prepdisp_first, p$official$new_reg)
-   first_disp <- get_final_visit(first_disp)
-   first_disp <- convert_faci_addr(first_disp)
+   visits <- get_records(
+      list(
+         first_disp = p$forms$prepdisp_first,
+         last_disp  = p$forms$prepdisp_last,
+         last_disc  = p$forms$prepdisc_last,
+         last_visit = p$forms$prep_last %>%
+            bind_rows(
+               p$forms$form_prep %>%
+                  anti_join(select(p$forms$prep_last, central_id), join_by(central_id))
+            )
+      ),
+      p$official$new_reg,
+      latest = c("last_disp", "last_disc", "last_visit")
+   )
 
-   last_disp <- get_records(p$forms$prepdisp_last, p$official$new_reg)
-   last_disp <- get_final_visit(last_disp)
-   last_disp <- convert_faci_addr(last_disp)
-
-   last_disc <- get_records(p$forms$prepdisc_last, p$official$new_reg)
-   last_disc <- get_final_visit(last_disc)
-   last_disc <- convert_faci_addr(last_disc)
-
-   last_visit <- p$forms$prep_last %>%
-      bind_rows(
-         p$forms$form_prep %>%
-            get_cid(p$forms$id_registry, patient_id) %>%
-            anti_join(select(p$forms$prep_last, central_id), join_by(central_id))
-      )
-   last_visit <- get_records(last_visit, p$official$new_reg)
-   last_visit <- get_final_visit(last_visit)
-   last_visit <- convert_faci_addr(last_visit)
-
-   data <- tag_curr_data(last_visit, p$official$old_outcome, p$forms$prep_first, p$forms$prepdisp_first, last_disp, last_disc, p$forms$prep_init_p12m, p$params)
+   data <- tag_curr_data(visits$last_visit, p$official$old_outcome, p$forms$prep_first, p$forms$prepdisp_first, visits$last_disp, visits$last_disc, p$forms$prep_init_p12m, p$params)
 
    new_outcome <- finalize_outcomes(data, p$params)
    new_outcome <- finalize_faci(new_outcome)
@@ -1075,7 +812,7 @@ output_dta <- function(official, params, save = "2") {
    step$data  <- data
 
    p$official$new_outcome <- new_outcome %>% arrange(prep_id)
-   p$official$prepstart   <- tag_first_data(first_disp) %>% arrange(prep_id)
+   p$official$prepstart   <- tag_first_data(visits$first_disp) %>% arrange(prep_id)
    output_dta(p$official, p$params, vars$save)
 
    flow_validation(p, "prep_curr", p$params$ym, upload = vars$upload)

@@ -1,6 +1,6 @@
 ##  Append to the previous art registry ----------------------------------------
 
-get_latest_record <- function(form_data, new_reg, params) {
+get_records <- function(form_data, new_reg, params) {
    log_info("Processing latest visit.")
    remove_cols <- names(new_reg)
    remove_cols <- remove_cols[remove_cols != 'central_id']
@@ -22,154 +22,8 @@ get_latest_record <- function(form_data, new_reg, params) {
             distinct(central_id, .keep_all = TRUE),
          by = join_by(central_id)
       ) %>%
-      mutate_if(
-         .predicate = is.POSIXct,
-         ~as.Date(.)
-      ) %>%
-      mutate_if(
-         .predicate = is.Date,
-         ~if_else(. <= -25567, NA_Date_, ., .)
-      ) %>%
-      mutate(
-         # Age
-         age                = coalesce(age, age_mo / 12),
-         age_dta            = calc_age(birthdate, visit_date),
-
-         # tag those without art_faci
-         use_record_faci    = if_else(is.na(service_faci), 1, 0, 0),
-         service_faci       = if_else(use_record_faci == 1, faci_id, service_faci),
-
-         # convert to harp facility
-         actual_faci        = service_faci,
-         actual_sub_faci    = service_sub_faci,
-
-         # tag special clinics
-         special_clinic     = case_when(
-            service_faci %in% params$clinics$TLY ~ "TLY",
-            service_faci %in% params$clinics$SAIL ~ "SAIL",
-            TRUE ~ NA_character_
-         ),
-         service_faci       = case_when(
-            special_clinic == "TLY" ~ "130001",
-            special_clinic == "SAIL" ~ "130025",
-            TRUE ~ service_faci
-         ),
-
-         # satellite
-         satellite_faci     = if_else(
-            condition = str_left(client_type, 1) == "5",
-            true      = faci_disp,
-            false     = NA_character_
-         ),
-         satellite_sub_faci = if_else(
-            condition = str_left(client_type, 1) == "5",
-            true      = sub_faci_disp,
-            false     = NA_character_
-         ),
-
-         # transient
-         transient_faci     = if_else(
-            condition = str_left(client_type, 1) == "6",
-            true      = faci_disp,
-            false     = NA_character_
-         ),
-         transient_sub_faci = if_else(
-            condition = str_left(client_type, 1) == "6",
-            true      = sub_faci_disp,
-            false     = NA_character_
-         ),
-      )
-
-   return(data)
-}
-
-##  Sort by earliest visit of client for the report ----------------------------
-
-get_final_visit <- function(data) {
-   log_info("Using last visited facility.")
-   data %<>%
-      arrange(desc(visit_date), desc(latest_next_date), central_id) %>%
-      distinct(central_id, .keep_all = TRUE) %>%
-      rename(
-         art_faci     = service_faci,
-         art_sub_faci = service_sub_faci,
-      )
-
-   return(data)
-}
-
-##  Facilities -----------------------------------------------------------------
-
-convert_faci_addr <- function(data) {
-   # record faci
-   data %<>%
-      ohasis$get_faci(
-         list(faci_code = c("faci_id", "sub_faci_id")),
-         "code"
-      ) %>%
-      # art faci
-      ohasis$get_faci(
-         list(art_faci_code = c("art_faci", "art_sub_faci")),
-         "code",
-         c("tx_reg", "tx_prov", "tx_munc")
-      ) %>%
-      # epic / gf faci
-      ohasis$get_faci(
-         list(actual_faci_code = c("actual_faci", "actual_sub_faci")),
-         "code",
-         c("real_reg", "real_prov", "real_munc")
-      ) %>%
-      # satellite
-      ohasis$get_faci(
-         list(satellite_faci_code = c("satellite_faci", "satellite_sub_faci")),
-         "code"
-      ) %>%
-      # satellite
-      ohasis$get_faci(
-         list(transient_faci_code = c("transient_faci", "transient_sub_faci")),
-         "code"
-      ) %>%
-      mutate(
-         art_branch    = art_faci_code,
-         actual_branch = actual_faci_code,
-      ) %>%
-      mutate(
-         across(
-            names(select(., ends_with("_branch", ignore.case = FALSE))),
-            ~if_else(nchar(.) > 3, ., NA_character_)
-         )
-      )
-
-   data %<>%
-      mutate_at(
-         .vars = vars(ends_with("_faci_code", ignore.case = FALSE)),
-         ~case_when(
-            str_detect(., "^TLY") ~ "TLY",
-            str_detect(., "^SHIP") ~ "SHP",
-            str_detect(., "^SAIL") ~ "SAIL",
-            TRUE ~ .
-         )
-      ) %>%
-      mutate(
-         across(
-            names(select(., ends_with("_branch", ignore.case = FALSE))),
-            ~case_when(
-               pull(data, str_replace(cur_column(), "_branch", "_faci_code")) == "TLY" & is.na(.) ~ "TLY-ANGLO",
-               pull(data, str_replace(cur_column(), "_branch", "_faci_code")) == "SHP" & is.na(.) ~ "SHIP-MAKATI",
-               TRUE ~ .
-            )
-         )
-      ) %>%
-      mutate(
-         art_branch = case_when(
-            special_clinic == "SAIL" ~ actual_branch,
-            special_clinic == "TLY" & is.na(actual_branch) ~ "TLY-ANGLO",
-            special_clinic == "TLY" & actual_branch == "TLY" ~ "TLY-ANGLO",
-            special_clinic == "TLY" & actual_branch != "TLY" ~ actual_branch,
-            TRUE ~ art_branch
-         ),
-      ) %>%
-      arrange(art_faci_code, visit_date, latest_next_date)
+      clean_dates() %>%
+      tag_visit_faci(params)
 
    return(data)
 }
@@ -243,14 +97,7 @@ tag_curr_data <- function(data, prev_outcome, art_first, last_disp, last_vl, par
             distinct(art_id, .keep_all = TRUE),
          by = join_by(art_id)
       ) %>%
-      mutate_if(
-         .predicate = is.POSIXct,
-         ~as.Date(.)
-      ) %>%
-      mutate_if(
-         .predicate = is.Date,
-         ~if_else(. <= -25567, NA_Date_, ., .)
-      ) %>%
+      clean_dates() %>%
       mutate(
          # clinical pic
          who_staging      = as.integer(keep_code(who_class)),
@@ -389,6 +236,8 @@ final_conversion <- function(data) {
          dtg1
       ) %>%
       mutate(
+         # unite() gives "" when there's no regimen
+         art_reg1  = na_if(art_reg1, ""),
          curr_line = case_when(
             art_reg1 == "tdf 3tc efv" ~ 1,
             art_reg1 == "tdf 3tc nvp" ~ 1,
@@ -507,11 +356,11 @@ finalize_outcomes <- function(data, params) {
    data %<>%
       arrange(art_id) %>%
       mutate(
+         # record where the outcome data came from
          rec_id = case_when(
             use_db == 1 ~ rec_id,
             use_db == 2 ~ lastdisp_rec,
-            use_db == 0 ~ rec_id,
-            TRUE ~ prev_rec
+            use_db == 0 ~ coalesce(prev_rec, rec_id)
          )
       ) %>%
       mutate(
@@ -559,16 +408,6 @@ finalize_outcomes <- function(data, params) {
          ),
          curr_class   = coalesce(curr_class, prev_class),
       ) %>%
-      # final outcome
-      mutate(
-         outcome = hiv_tx_outcome(curr_outcome, latest_nextpickup, params$max, 30),
-         onart   = if_else(
-            condition = outcome == "alive on arv",
-            true      = 1,
-            false     = 0,
-            missing   = 0
-         ),
-      ) %>%
       # vl data
       rename(
          vl_date   = curr_vl_date,
@@ -610,6 +449,20 @@ finalize_outcomes <- function(data, params) {
       )
 
    return(data)
+}
+
+# final outcome, after the next pick-up date has been adjusted
+tag_outcome <- function(data, params) {
+   data %>%
+      mutate(
+         outcome = hiv_tx_outcome(curr_outcome, latest_nextpickup, params$max, 30),
+         onart   = if_else(
+            condition = outcome == "alive on arv",
+            true      = 1,
+            false     = 0,
+            missing   = 0
+         ),
+      )
 }
 
 finalize_faci <- function(data) {
@@ -760,10 +613,16 @@ reg_disagg <- function(data, regimen_col, reg_disagg_col, reg_line_col) {
    reg_disagg_col <- as.name(reg_disagg_col)
    reg_line_col   <- as.name(reg_line_col)
 
-   data %<>%
+   # "+" delimits unique medicine combos, so each combo is disaggregated on its own
+   combos <- data %>%
+      transmute(
+         .row             = row_number(),
+         !!reg_disagg_col := toupper(str_squish(!!regimen_col))
+      ) %>%
+      separate_longer_delim(!!reg_disagg_col, delim = "+") %>%
       mutate(
          # reg disagg
-         !!reg_disagg_col := toupper(str_squish(!!regimen_col)),
+         !!reg_disagg_col := str_trim(!!reg_disagg_col),
          r_abc            = if_else(
             stri_detect_fixed(!!reg_disagg_col, "ABC") &
                !stri_detect_fixed(!!reg_disagg_col, "ABCSYR"),
@@ -849,13 +708,21 @@ reg_disagg <- function(data, regimen_col, reg_disagg_col, reg_line_col) {
          r_ral            = if_else(stri_detect_fixed(!!reg_disagg_col, "RAL"), "RAL", NA_character_),
          r_ftc            = if_else(stri_detect_fixed(!!reg_disagg_col, "FTC"), "FTC", NA_character_),
          r_idv            = if_else(stri_detect_fixed(!!reg_disagg_col, "IDV"), "IDV", NA_character_)
-      ) %>%
-      unite(
-         col   = concat_col,
-         sep   = '+',
-         na.rm = T,
-         starts_with("r_", ignore.case = FALSE)
-      ) %>%
+      )
+
+   # re-join the combos per row, in the order of the r_ columns above
+   r_cols <- names(select(combos, starts_with("r_", ignore.case = FALSE)))
+   combos %<>%
+      select(.row, all_of(r_cols)) %>%
+      pivot_longer(all_of(r_cols), names_to = "r_col", values_to = "combo", values_drop_na = TRUE) %>%
+      distinct() %>%
+      group_by(.row) %>%
+      summarise(disagg = stri_c(combo[order(match(r_col, r_cols))], collapse = "+")) %>%
+      ungroup()
+
+   # by position, as joins here don't keep row order
+   data[[concat_col]] <- combos$disagg[match(seq_len(nrow(data)), combos$.row)]
+   data %<>%
       mutate(
          # reg disagg
          !!reg_line_col := case_when(
@@ -932,8 +799,11 @@ get_reg_disagg <- function(data, col) {
          dtg1
       ) %>%
       mutate(
+         # unite() gives "" when there's no regimen
+         art_reg = na_if(art_reg, ""),
+
          # old line
-         line = case_when(
+         line    = case_when(
             art_reg == "tdf 3tc efv" ~ 1,
             art_reg == "tdf 3tc nvp" ~ 1,
             art_reg == "azt 3tc efv" ~ 1,
@@ -957,7 +827,7 @@ get_reg_disagg <- function(data, col) {
          ),
 
          # new line
-         line = case_when(
+         line    = case_when(
             art_reg == "azt 3tc nvp" ~ 1,
             art_reg == "azt 3tc efv" ~ 1,
             art_reg == "tdf 3tc efv" ~ 1,
@@ -1103,44 +973,11 @@ get_form_data <- function(data, forms) {
 
 get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NULL) {
    check      <- list()
-   run_checks <- ifelse(
-      !is.null(run_checks),
-      run_checks,
-      input(
-         prompt  = "Run `tx_curr` validations?",
-         options = c("1" = "yes", "2" = "no"),
-         default = "1"
-      )
-   )
+   run_checks <- ask_input(run_checks, "Run `tx_curr` validations?", default = "1")
 
    if (run_checks == "1") {
       step_data %<>%
-         mutate(
-            reg_order = real_reg,
-            reg_order = case_when(
-               reg_order == "1" ~ 1,
-               reg_order == "2" ~ 2,
-               reg_order == "car" ~ 3,
-               reg_order == "3" ~ 4,
-               reg_order == "NCR" ~ 5,
-               reg_order == "4a" ~ 6,
-               reg_order == "4b" ~ 7,
-               reg_order == "5" ~ 8,
-               reg_order == "6" ~ 9,
-               reg_order == "7" ~ 10,
-               reg_order == "8" ~ 11,
-               reg_order == "9" ~ 12,
-               reg_order == "10" ~ 13,
-               reg_order == "11" ~ 14,
-               reg_order == "12" ~ 15,
-               reg_order == "caraga" ~ 16,
-               reg_order == "armm" ~ 17,
-               reg_order == "barmm" ~ 17,
-               TRUE ~ 9999
-            ),
-         ) %>%
-         arrange(reg_order, curr_realhub, curr_realhub_branch, art_id) %>%
-         select(-reg_order)
+         arrange(region_order(real_reg), curr_realhub, curr_realhub_branch, art_id)
 
       view_vars <- c(
          "rec_id",
@@ -1368,32 +1205,7 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
          )
 
       pre_issues <- combine_validations(step_data, check, "art_id") %>%
-         mutate(
-            reg_order = real_reg,
-            reg_order = case_when(
-               reg_order == "1" ~ 1,
-               reg_order == "2" ~ 2,
-               reg_order == "car" ~ 3,
-               reg_order == "3" ~ 4,
-               reg_order == "NCR" ~ 5,
-               reg_order == "4a" ~ 6,
-               reg_order == "4b" ~ 7,
-               reg_order == "5" ~ 8,
-               reg_order == "6" ~ 9,
-               reg_order == "7" ~ 10,
-               reg_order == "8" ~ 11,
-               reg_order == "9" ~ 12,
-               reg_order == "10" ~ 13,
-               reg_order == "11" ~ 14,
-               reg_order == "12" ~ 15,
-               reg_order == "caraga" ~ 16,
-               reg_order == "armm" ~ 17,
-               reg_order == "barmm" ~ 17,
-               TRUE ~ 9999
-            ),
-         ) %>%
-         arrange(reg_order, curr_realhub, curr_realhub_branch, art_id) %>%
-         select(-reg_order)
+         arrange(region_order(real_reg), curr_realhub, curr_realhub_branch, art_id)
 
       check <- list()
       data  <- new_outcome %>%
@@ -1430,32 +1242,7 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
             birthdate
          ) %>%
          relocate(real_reg, realhub, realhub_branch, .after = art_id) %>%
-         mutate(
-            reg_order = real_reg,
-            reg_order = case_when(
-               reg_order == "1" ~ 1,
-               reg_order == "2" ~ 2,
-               reg_order == "car" ~ 3,
-               reg_order == "3" ~ 4,
-               reg_order == "NCR" ~ 5,
-               reg_order == "4a" ~ 6,
-               reg_order == "4b" ~ 7,
-               reg_order == "5" ~ 8,
-               reg_order == "6" ~ 9,
-               reg_order == "7" ~ 10,
-               reg_order == "8" ~ 11,
-               reg_order == "9" ~ 12,
-               reg_order == "10" ~ 13,
-               reg_order == "11" ~ 14,
-               reg_order == "12" ~ 15,
-               reg_order == "caraga" ~ 16,
-               reg_order == "armm" ~ 17,
-               reg_order == "barmm" ~ 17,
-               TRUE ~ 9999
-            ),
-         ) %>%
-         arrange(reg_order, realhub) %>%
-         select(-reg_order)
+         arrange(region_order(real_reg), realhub)
 
       # special checks
       log_info("Checking for shift out of TLD.")
@@ -1492,32 +1279,7 @@ get_checks <- function(step_data, new_outcome, new_reg, params, run_checks = NUL
          )
 
       post_issues <- combine_validations(data, check, "art_id") %>%
-         mutate(
-            reg_order = real_reg,
-            reg_order = case_when(
-               reg_order == "1" ~ 1,
-               reg_order == "2" ~ 2,
-               reg_order == "car" ~ 3,
-               reg_order == "3" ~ 4,
-               reg_order == "NCR" ~ 5,
-               reg_order == "4a" ~ 6,
-               reg_order == "4b" ~ 7,
-               reg_order == "5" ~ 8,
-               reg_order == "6" ~ 9,
-               reg_order == "7" ~ 10,
-               reg_order == "8" ~ 11,
-               reg_order == "9" ~ 12,
-               reg_order == "10" ~ 13,
-               reg_order == "11" ~ 14,
-               reg_order == "12" ~ 15,
-               reg_order == "caraga" ~ 16,
-               reg_order == "armm" ~ 17,
-               reg_order == "barmm" ~ 17,
-               TRUE ~ 9999
-            ),
-         ) %>%
-         arrange(reg_order, realhub, realhub_branch, art_id) %>%
-         select(-reg_order)
+         arrange(region_order(real_reg), realhub, realhub_branch, art_id)
 
       check <- list(`pre-process` = pre_issues, `post-issues` = post_issues)
 
@@ -1570,29 +1332,7 @@ label_stata <- function(data, stata_labels) {
 
 output_dta <- function(official, params, save = "2") {
    if (save == "1") {
-      log_info("Checking output directory.")
-      version <- format(Sys.time(), "%Y%m%d")
-      dir     <- Sys.getenv("harp_tx")
-      check_dir(dir)
-
-      log_info("Saving in Stata data format.")
-      period_ext <- str_c(params$yr, "-", stri_pad_left(params$mo, 2, "0"), ".dta")
-      files      <- list(
-         new_reg            = file.path(dir, str_c(version, "_reg-art_", period_ext)),
-         new_outcome        = file.path(dir, str_c(version, "_onart-vl_", period_ext)),
-         dropped_notyet     = file.path(dir, str_c(version, "_dropped_notyet_", period_ext)),
-         dropped_duplicates = file.path(dir, str_c(version, "_dropped_duplicates_", period_ext))
-      )
-      for (output in intersect(names(files), names(official))) {
-         if (nrow(official[[output]]) > 0) {
-            official[[output]] %>%
-               format_stata() %>%
-               write_dta(files[[output]])
-
-            # compress_stata(files[[output]])
-         }
-      }
-
+      save_dta(official, params, "harp_tx", c(new_reg = "reg-art", new_outcome = "onart-vl", dropped_notyet = "dropped_notyet"))
       flow_dta(official$new_reg, "harp_tx", "reg", params$yr, params$mo)
       flow_dta(official$new_outcome, "harp_tx", "outcome", params$yr, params$mo)
    }
@@ -1605,13 +1345,14 @@ output_dta <- function(official, params, save = "2") {
    p    <- envir
    vars <- as.list(list(...))
 
-   last_visit <- get_latest_record(p$forms$art_last, p$official$new_reg, p$params)
-   last_visit <- get_final_visit(last_visit)
-   last_visit <- convert_faci_addr(last_visit)
+   log_info("Using last visited facility.")
+   last_visit <- get_records(p$forms$art_last, p$official$new_reg, p$params)
+   last_visit <- pick_visit(last_visit, latest = TRUE)
+   last_visit <- convert_faci(last_visit)
 
-   last_disp <- get_latest_record(p$forms$art_lastdisp, p$official$new_reg, p$params)
-   last_disp <- get_final_visit(last_disp)
-   last_disp <- convert_faci_addr(last_disp)
+   last_disp <- get_records(p$forms$art_lastdisp, p$official$new_reg, p$params)
+   last_disp <- pick_visit(last_disp, latest = TRUE)
+   last_disp <- convert_faci(last_disp)
 
    data <- tag_curr_data(last_visit, p$official$old_outcome, p$forms$art_first, last_disp, p$forms$vl_last, p$params)
    data <- final_conversion(data)
@@ -1626,7 +1367,6 @@ output_dta <- function(official, params, save = "2") {
       ) %>%
       left_join(
          y  = p$forms$form_art_bc %>%
-            get_cid(p$forms$id_registry, patient_id) %>%
             select(
                central_id,
                visit_date,
@@ -1651,10 +1391,12 @@ output_dta <- function(official, params, save = "2") {
       left_join(adjust_reg, join_by(central_id)) %>%
       mutate(
          latest_regimen    = coalesce(regimen_grp, latest_regimen),
-         latest_nextpickup = coalesce(pickup_grp, latest_nextpickup),
+         # grouped visits may only extend the next pick-up, never shorten it
+         latest_nextpickup = pmax(pickup_grp, latest_nextpickup, na.rm = TRUE),
       ) %>%
       select(-regimen_grp, -pickup_grp)
 
+   new_outcome <- tag_outcome(new_outcome, p$params)
    new_outcome <- finalize_faci(new_outcome)
    new_outcome <- new_outcome %>%
       get_reg_order("latest_regimen") %>%

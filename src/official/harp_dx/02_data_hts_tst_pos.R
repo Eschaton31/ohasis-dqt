@@ -3,7 +3,7 @@
 clean_data <- function(forms) {
    log_info("Processing new positives.")
    hts          <- process_hts(forms$form_hts, forms$form_a, forms$form_cfbs, forms$px_confirmed)
-   confirm_cols <- names(forms$px_confirm)
+   confirm_cols <- names(forms$px_confirmed)
    confirm_cols <- confirm_cols[!(confirm_cols %in% c("rec_id", "central_id"))]
 
    same           <- forms$px_confirmed %>%
@@ -34,7 +34,7 @@ clean_data <- function(forms) {
       # Allow only forms w/in 6-12months
       filter(floor(abs(interval(record_date, hts_visit) / months(1))) < 12)
 
-   after_confirm  <- forms$px_confirmed %>%
+   after_confirm <- forms$px_confirmed %>%
       anti_join(same, join_by(rec_id)) %>%
       anti_join(before_confirm, join_by(rec_id)) %>%
       left_join(
@@ -64,14 +64,7 @@ clean_data <- function(forms) {
          .vars = vars(first, middle, last, suffix, patient_code, uic, philhealth_no, philsys_id, client_mobile, client_email),
          ~clean_pii(.)
       ) %>%
-      mutate_if(
-         .predicate = is.POSIXct,
-         ~as.Date(.)
-      ) %>%
-      mutate_if(
-         .predicate = is.Date,
-         ~if_else(. <= -25567, NA_Date_, ., .)
-      ) %>%
+      clean_dates() %>%
       get_latest_pii(
          "central_id",
          c(
@@ -219,9 +212,19 @@ get_cd4 <- function(data, lab_cd4) {
 
          # make values absolute to take date nearest to confirmatory
          cd4_confirm  = abs(cd4_confirm),
+
+         # tie-break for results equally near the confirmatory date: plain
+         # numbers first, then text with a count (e.g. "233(manual)"), then the
+         # rest (e.g. "WAITING", dates typed into the result field)
+         cd4_rank     = case_when(
+            str_detect(cd4_result, "^\\s*[0-9]+(\\.[0-9]+)?\\s*$") ~ 1,
+            str_detect(cd4_result, "[0-9]") & !str_detect(cd4_result, "[0-9]+[/-][0-9]+[/-][0-9]+") ~ 2,
+            TRUE ~ 3
+         ),
       ) %>%
-      arrange(rec_id, cd4_confirm) %>%
+      arrange(rec_id, cd4_confirm, cd4_rank, cd4_result) %>%
       distinct(rec_id, .keep_all = TRUE) %>%
+      select(-cd4_rank) %>%
       arrange(desc(confirm_type), confirm_code)
 
    return(data)
@@ -1199,10 +1202,7 @@ append_data <- function(old, new) {
       ) %>%
       arrange(idnum) %>%
       mutate(
-         corr_defer = 0,
-         corr_drop  = 0,
-      ) %>%
-      mutate(
+         corr_defer       = 0,
          nodata_hiv_stage = if_else(
             is.na(ahd) &
                is.na(baseline_cd4) &
@@ -1219,43 +1219,6 @@ append_data <- function(old, new) {
    return(data)
 }
 
-##  Tag data to be reported later on and duplicates for dropping ---------------
-
-tag_fordrop <- function(data, corr) {
-   log_info("Tagging enrollees for dropping.")
-   for (drop_var in c("corr_defer"))
-      if (drop_var %in% names(corr)) {
-         if (nrow(corr[[drop_var]]) > 0) {
-            data %<>%
-               left_join(
-                  y  = corr[[drop_var]] %>%
-                     distinct(rec_id) %>%
-                     mutate(drop_this = 1),
-                  by = join_by(rec_id)
-               ) %>%
-               mutate_at(
-                  .vars = vars(matches(drop_var)),
-                  ~coalesce(drop_this, .)
-               ) %>%
-               select(-drop_this)
-         }
-      }
-
-   return(data)
-}
-
-##  Subsets for documentation --------------------------------------------------
-
-subset_drops <- function(data) {
-   log_info("Archive those for dropping.")
-   drops <- list(
-      dropped_notyet     = data %>% filter(corr_defer == 1),
-      dropped_duplicates = data %>% filter(corr_drop == 1)
-   )
-
-   return(drops)
-}
-
 ##  Drop using taggings --------------------------------------------------------
 
 remove_drops <- function(data, params) {
@@ -1268,7 +1231,6 @@ remove_drops <- function(data, params) {
             false     = labcode2,
             missing   = labcode2
          ),
-         drop        = corr_drop + corr_defer,
          who_staging = as.integer(who_staging),
          transmit    = if_else(
             year == params$yr &
@@ -1279,10 +1241,8 @@ remove_drops <- function(data, params) {
             transmit
          )
       ) %>%
-      filter(drop == 0) %>%
+      filter(corr_defer == 0) %>%
       select(
-         -drop,
-         -corr_drop,
          -corr_defer,
          -mot,
          -form_faci,
@@ -1331,54 +1291,12 @@ remove_drops <- function(data, params) {
 ##  Flag data for validation ---------------------------------------------------
 
 get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops = NULL) {
-   check         <- list()
-   run_checks    <- ifelse(
-      !is.null(run_checks),
-      run_checks,
-      input(
-         prompt  = "Run `hts_tst_pos` validations?",
-         options = c("1" = "yes", "2" = "no"),
-         default = "1"
-      )
-   )
-   exclude_drops <- switch(
-      run_checks,
-      `1`     = ifelse(!is.null(exclude_drops), exclude_drops, input(
-         prompt  = "Exclude clients initially tagged for dropping from validations?",
-         options = c("1" = "yes", "2" = "no"),
-         default = "1"
-      )),
-      default = "2"
-   )
+   check   <- list()
+   answers <- ask_checks("hts_tst_pos", run_checks, exclude_drops)
 
-   if (run_checks == "1") {
+   if (answers$run == "1") {
       data %<>%
-         mutate(
-            reg_order = confirm_region,
-            reg_order = case_when(
-               reg_order == "1" ~ 1,
-               reg_order == "2" ~ 2,
-               reg_order == "CAR" ~ 3,
-               reg_order == "3" ~ 4,
-               reg_order == "NCR" ~ 5,
-               reg_order == "4A" ~ 6,
-               reg_order == "4B" ~ 7,
-               reg_order == "5" ~ 8,
-               reg_order == "6" ~ 9,
-               reg_order == "7" ~ 10,
-               reg_order == "8" ~ 11,
-               reg_order == "9" ~ 12,
-               reg_order == "10" ~ 13,
-               reg_order == "11" ~ 14,
-               reg_order == "12" ~ 15,
-               reg_order == "CARAGA" ~ 16,
-               reg_order == "ARMM" ~ 17,
-               reg_order == "BARMM" ~ 17,
-               TRUE ~ 9999
-            ),
-         ) %>%
-         arrange(reg_order, confirmlab, labcode) %>%
-         select(-reg_order)
+         arrange(region_order(confirm_region), confirmlab, labcode)
 
       view_vars <- c(
          "rec_id",
@@ -1579,32 +1497,7 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
          )
 
       all_issues <- combine_validations(data, check, "rec_id") %>%
-         mutate(
-            reg_order = confirm_region,
-            reg_order = case_when(
-               reg_order == "1" ~ 1,
-               reg_order == "2" ~ 2,
-               reg_order == "car" ~ 3,
-               reg_order == "3" ~ 4,
-               reg_order == "ncr" ~ 5,
-               reg_order == "4a" ~ 6,
-               reg_order == "4b" ~ 7,
-               reg_order == "5" ~ 8,
-               reg_order == "6" ~ 9,
-               reg_order == "7" ~ 10,
-               reg_order == "8" ~ 11,
-               reg_order == "9" ~ 12,
-               reg_order == "10" ~ 13,
-               reg_order == "11" ~ 14,
-               reg_order == "12" ~ 15,
-               reg_order == "caraga" ~ 16,
-               reg_order == "armm" ~ 17,
-               reg_order == "barmm" ~ 17,
-               TRUE ~ 9999
-            ),
-         ) %>%
-         arrange(reg_order, confirmlab, labcode) %>%
-         select(-reg_order)
+         arrange(region_order(confirm_region), confirmlab, labcode)
 
       check <- list(all_issues = all_issues)
 
@@ -1630,19 +1523,8 @@ get_checks <- function(data, pdf_rhivda, corr, run_checks = NULL, exclude_drops 
       check   <- check_tabstat(data, check, tabstat)
 
       # Remove already tagged data from validation
-      if (exclude_drops == "1") {
-         for (drop in c("drop_notart", "corr_defer")) {
-            if (drop %in% names(corr))
-               for (check_var in names(check)) {
-                  if (check_var != "tabstat")
-                     check[[check_var]] %<>%
-                        anti_join(
-                           y  = corr[[drop]],
-                           by = "rec_id"
-                        )
-               }
-         }
-      }
+      if (answers$exclude == "1")
+         check <- exclude_deferred(check, corr)
    }
 
    return(check)
@@ -1676,29 +1558,8 @@ label_stata <- function(newdx, label_values, label_variables) {
 
 output_dta <- function(official, params, save = "2") {
    if (save == "1") {
-      log_info("Checking output directory.")
-      version <- format(Sys.time(), "%Y%m%d")
-      dir     <- Sys.getenv("harp_dx")
-      check_dir(dir)
-
-      log_info("Saving in Stata data format.")
-      period_ext <- stri_c(params$yr, "-", stri_pad_left(params$mo, 2, "0"), ".dta")
-      files      <- list(
-         new                = file.path(dir, stri_c(version, "_reg_", period_ext)),
-         dropped_notyet     = file.path(dir, stri_c(version, "_dropped_notyet_", period_ext)),
-         dropped_duplicates = file.path(dir, stri_c(version, "_dropped_duplicates_", period_ext))
-      )
-      for (output in intersect(names(files), names(official))) {
-         if (nrow(official[[output]]) > 0) {
-            official[[output]] %>%
-               format_stata() %>%
-               write_dta(files[[output]])
-
-            # compress_stata(files[[output]])
-         }
-      }
-
-      flow_dta(official$new, "harp_dx", "reg", params$yr, params$mo)
+      save_dta(official, params, "harp_dx", c(new_reg = "reg", dropped_notyet = "dropped_notyet"))
+      flow_dta(official$new_reg, "harp_dx", "reg", params$yr, params$mo)
    }
 }
 
@@ -1719,17 +1580,18 @@ output_dta <- function(official, params, save = "2") {
    data <- final_conversion(data)
    data <- label_stata(data, p$corr$label_values, p$corr$label_variables)
 
-   new_reg <- append_data(p$official$old, data)
-   new_reg <- tag_fordrop(new_reg, p$corr)
-   drops   <- subset_drops(new_reg)
-   new_reg <- remove_drops(new_reg, p$params)
+   new_reg    <- append_data(p$official$old_reg, data)
+   new_reg    <- tag_fordrop(new_reg, p$corr)
+   drops      <- subset_drops(new_reg)
+   new_reg    <- remove_drops(new_reg, p$params)
    # new_reg <- label_stata(new_reg, p$corr$label_values, p$corr$label_variables)
+   step$dupes <- get_reg_dupes(new_reg)
 
    step$check <- get_checks(data, p$pdf_rhivda, p$corr, run_checks = vars$run_checks, exclude_drops = vars$exclude_drops)
    step$data  <- data
 
-   p$official$new <- new_reg %>% distinct(idnum, .keep_all = TRUE)
-   append(p$official, drops)
+   p$official$new_reg       <- new_reg %>% distinct(idnum, .keep_all = TRUE)
+   p$official[names(drops)] <- drops
    output_dta(p$official, p$params, vars$save)
 
    flow_validation(p, "hts_tst_pos", p$params$ym, upload = vars$upload)

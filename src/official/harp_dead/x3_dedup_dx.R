@@ -259,33 +259,9 @@ prep_merge <- function(dead, dx) {
    p    <- envir
    vars <- as.list(list(...))
 
-   dx <- hs_data("harp_dx", "reg", p$params$yr, p$params$mo) %>%
-      read_dta(
-         col_select = c(
-            PATIENT_ID,
-            labcode,
-            labcode2,
-            idnum,
-            uic,
-            firstname,
-            middle,
-            last,
-            name_suffix,
-            bdate,
-            sex,
-            pxcode,
-            philhealth,
-            confirm_date
-         )
-      ) %>%
-      # convert Stata string missing data to NAs
-      mutate_if(
-         .predicate = is.character,
-         ~if_else(. == '', NA_character_, .)
-      ) %>%
-      get_cid(p$forms$id_registry, PATIENT_ID)
+   dx <- p$forms$dx_reg
 
-   dead <- p$official$new
+   dead <- p$official$new_reg
 
    reclink <- prep_data(dead, dx)
    check   <- dedup_dx(reclink)
