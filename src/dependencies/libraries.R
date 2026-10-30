@@ -16,11 +16,25 @@ local({
    packages <- trimws(readLines("requirements.txt", warn = FALSE))
    packages <- packages[packages != "" & !startsWith(packages, "#")]
 
-   # install everything missing before loading anything: on Windows, a package
-   # whose DLL is already loaded (e.g. rlang via dplyr) can't be updated in-session
-   missing <- setdiff(packages, rownames(installed.packages()))
-   if (length(missing) > 0)
-      install.packages(missing, lib = lib)
+   # install missing / too-old packages before loading anything: on Windows, a package
+   # whose DLL is already loaded (e.g. rlang via dplyr) can't be updated in-session.
+   # install.packages() never upgrades installed deps, so check version requirements
+   # ourselves (reads DESCRIPTION metadata only, loads nothing)
+   ip      <- installed.packages()
+   ip      <- ip[!duplicated(ip[, "Package"]), , drop = FALSE] # first in .libPaths() wins
+   deps    <- tools::package_dependencies(intersect(packages, rownames(ip)), db = ip, recursive = TRUE)
+   needed  <- unique(c(packages, unlist(deps)))
+   missing <- setdiff(needed, rownames(ip))
+   check   <- intersect(needed, rownames(ip))
+   reqs    <- unlist(strsplit(ip[check, c("Depends", "Imports", "LinkingTo")], ","))
+   reqs    <- regmatches(reqs, regexec("^\\s*([[:alnum:].]+)\\s*\\(\\s*>=\\s*([^) ]+)\\s*\\)", reqs))
+   reqs    <- do.call(rbind, Filter(length, reqs))
+   outdated <- if (!is.null(reqs)) {
+      reqs <- reqs[reqs[, 2] %in% rownames(ip), , drop = FALSE]
+      unique(reqs[package_version(ip[reqs[, 2], "Version"]) < package_version(reqs[, 3]), 2])
+   }
+   if (length(c(missing, outdated)) > 0)
+      install.packages(c(missing, outdated), lib = lib)
 
    loaded   <- p_load(char = packages)
    if (!all(loaded))
