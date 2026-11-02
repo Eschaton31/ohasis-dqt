@@ -291,12 +291,14 @@ DB <- R6Class(
             dbExecute(db_conn, stri_c("CREATE TABLE ", stage_sql, " ", stage_ddl(id_col)))
             on.exit(dbExecute(db_conn, stri_c("DROP TABLE IF EXISTS ", stage_sql)), add = TRUE)
 
-            dbAppendTable(db_conn, stage_name, data %>% select(all_of(id_col)) %>% distinct() %>% to_stage(), row.names = NA)
+            # row.names = FALSE: with NA, RClickhouse adds a `row_names` column whenever the data has
+            # non-automatic row names, so the insert has one more column than the table
+            dbAppendTable(db_conn, stage_name, data %>% select(all_of(id_col)) %>% distinct() %>% to_stage(), row.names = FALSE)
             dbExecute(db_conn, stri_c("DELETE FROM ", table_sql, " WHERE (", id_sql, ") IN (SELECT ", paste(id_cast, collapse = ", "), " FROM ", stage_sql, ")"))
 
             # route through a stage table only when the target has types RClickhouse cannot write
             insert_chunk <- function(chunk) {
-               suppress_warnings(dbAppendTable(db_conn, table_name, chunk, row.names = NA), 'column')
+               suppress_warnings(dbAppendTable(db_conn, table_name, chunk, row.names = FALSE), 'column')
             }
             if (any(col_types$stage_type != col_types$type)) {
                data_name <- stri_c(stage_name, "_data")
@@ -307,7 +309,7 @@ DB <- R6Class(
                on.exit(dbExecute(db_conn, stri_c("DROP TABLE IF EXISTS ", data_sql)), add = TRUE)
 
                insert_chunk <- function(chunk) {
-                  suppress_warnings(dbAppendTable(db_conn, data_name, to_stage(chunk), row.names = NA), 'column')
+                  suppress_warnings(dbAppendTable(db_conn, data_name, to_stage(chunk), row.names = FALSE), 'column')
                   dbExecute(db_conn, stri_c("INSERT INTO ", table_sql, " (", cols_sql, ") SELECT ", cols_sql, " FROM ", data_sql))
                   dbExecute(db_conn, stri_c("TRUNCATE TABLE ", data_sql))
                }
