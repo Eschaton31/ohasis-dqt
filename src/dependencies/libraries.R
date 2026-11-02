@@ -56,5 +56,8 @@ local({
    library(nhsss)
 })
 
+# %||% is only in base R from 4.4.0; keep older installs working
+if (!exists("%||%", envir = baseenv())) `%||%` <- function(x, y) if (is.null(x)) y else x
+
 duckplyr::methods_overwrite()
 options(duckdb.materialize_message = FALSE)
