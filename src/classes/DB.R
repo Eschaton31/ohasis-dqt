@@ -638,7 +638,7 @@ DB <- R6Class(
                )
 
                # log if successful
-               dbAppendTable(lw_conn, DBI::SQL(paste0('`', db_name, '`.`logs`')), df)
+               dbAppendTable(lw_conn, DBI::SQL(paste0('`', db_name, '`.`logs`')), df, row.names = FALSE)
                log_success("Upload complete.")
             } else {
                log_info("No new/updated data found.")
