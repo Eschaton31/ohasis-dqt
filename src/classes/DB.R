@@ -186,6 +186,9 @@ DB <- R6Class(
             db_type
          )
 
+         # grouped data makes select() keep the group columns, so the id stage gets extra columns
+         data <- dplyr::ungroup(data)
+
          table_space <- Id(schema = db_name, table = table_name)
          table_sql   <- DBI::SQL(paste0('`', db_name, '`.`', table_name, '`'))
 
